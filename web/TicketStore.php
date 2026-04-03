@@ -39,20 +39,40 @@ class TicketStore
 
     public function saveCategoryMatrix(array $matrix): void
     {
-        $statement = $this->pdo->prepare(
-            'INSERT INTO ict_user_category_settings (user_email, category, is_enabled)
-             VALUES (:user_email, :category, :is_enabled)
-             ON CONFLICT(user_email, category) DO UPDATE SET is_enabled = excluded.is_enabled'
+        $insertStatement = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ict_user_category_settings (user_email, category, is_enabled)
+             VALUES (:user_email, :category, :is_enabled)'
+        );
+        $updateStatement = $this->pdo->prepare(
+            'UPDATE ict_user_category_settings
+             SET is_enabled = :is_enabled
+             WHERE user_email = :user_email
+               AND category = :category'
         );
 
-        foreach ($this->ictUsers as $ictUser) {
-            foreach ($this->categories as $category) {
-                $statement->execute([
-                    ':user_email' => $ictUser,
-                    ':category' => $category,
-                    ':is_enabled' => !empty($matrix[$ictUser][$category]) ? 1 : 0,
-                ]);
+        $this->pdo->beginTransaction();
+
+        try {
+            foreach ($this->ictUsers as $ictUser) {
+                foreach ($this->categories as $category) {
+                    $parameters = [
+                        ':user_email' => $ictUser,
+                        ':category' => $category,
+                        ':is_enabled' => !empty($matrix[$ictUser][$category]) ? 1 : 0,
+                    ];
+
+                    $insertStatement->execute($parameters);
+                    $updateStatement->execute($parameters);
+                }
             }
+
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
         }
     }
 
@@ -378,9 +398,8 @@ class TicketStore
         }
 
         $statement = $this->pdo->prepare(
-            'INSERT INTO ict_user_category_settings (user_email, category, is_enabled)
-             VALUES (:user_email, :category, 1)
-             ON CONFLICT(user_email, category) DO NOTHING'
+            'INSERT OR IGNORE INTO ict_user_category_settings (user_email, category, is_enabled)
+             VALUES (:user_email, :category, 1)'
         );
 
         foreach ($this->ictUsers as $ictUser) {

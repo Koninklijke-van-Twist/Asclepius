@@ -1,6 +1,33 @@
 <?php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
+ini_set('session.use_cookies', '1');
+ini_set('session.use_only_cookies', '1');
+ini_set('session.use_trans_sid', '0');
+
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'logincheck.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'TicketStore.php';
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start([
+        'cookie_httponly' => true,
+        'cookie_samesite' => 'Lax',
+    ]);
+}
+
+if (session_status() === PHP_SESSION_ACTIVE && session_id() !== '') {
+    $sessionCookieName = session_name();
+    if (!isset($_COOKIE[$sessionCookieName])) {
+        setcookie($sessionCookieName, session_id(), [
+            'expires' => 0,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        $_COOKIE[$sessionCookieName] = session_id();
+    }
+}
 
 if (!function_exists('array_any')) {
     function array_any(array $array, callable $callback): bool
@@ -15,15 +42,11 @@ if (!function_exists('array_any')) {
     }
 }
 
-require_once __DIR__ . '/auth.php';
-require_once __DIR__ . '/logincheck.php';
-require_once __DIR__ . '/TicketStore.php';
-
 /**
  * Constants
  */
-const DATABASE_FILE = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR .'asclepius.sqlite';
-const UPLOAD_DIRECTORY = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR .'ticket_uploads';
+const DATABASE_FILE = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'asclepius.sqlite';
+const UPLOAD_DIRECTORY = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'ticket_uploads';
 const MAX_ATTACHMENT_BYTES = 20971520;
 const TICKET_CATEGORIES = [
     'hardware bestellen',
@@ -89,6 +112,14 @@ try {
 } catch (Throwable $exception) {
     $storeError = $exception->getMessage();
 }
+
+$storageDiagnostics = [
+    'database_path' => DATABASE_FILE,
+    'database_exists' => is_file(DATABASE_FILE),
+    'database_writable' => is_file(DATABASE_FILE) ? is_writable(DATABASE_FILE) : is_writable(dirname(DATABASE_FILE)),
+    'database_directory' => dirname(DATABASE_FILE),
+    'database_directory_writable' => is_dir(dirname(DATABASE_FILE)) && is_writable(dirname(DATABASE_FILE)),
+];
 
 if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -548,10 +579,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectToPage($returnPage, $baseQuery);
     }
 
-    $action = trim((string) ($_POST['action'] ?? ''));
+    $formAction = trim((string) ($_POST['form_action'] ?? ($_POST['action'] ?? '')));
 
     try {
-        if ($action === 'create_ticket') {
+        if ($formAction === 'create_ticket') {
             $title = trim((string) ($_POST['title'] ?? ''));
             $category = trim((string) ($_POST['category'] ?? ''));
             $description = trim((string) ($_POST['description'] ?? ''));
@@ -590,7 +621,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirectToPage($returnPage, array_merge($baseQuery, ['open' => $ticketId]));
         }
 
-        if ($action === 'reply_ticket') {
+        if ($formAction === 'reply_ticket') {
             $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
             $ticket = $store->getTicket($ticketId, $canManageTickets, $userEmail);
             if ($ticket === null) {
@@ -686,18 +717,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirectToPage($returnPage, array_merge($baseQuery, ['open' => $ticketId]));
         }
 
-        if ($action === 'save_settings') {
+        if ($formAction === 'save_settings') {
             if (!$canManageTickets) {
                 throw new RuntimeException('Alleen admins kunnen instellingen aanpassen.');
             }
 
-            $postedSettings = $_POST['settings'] ?? [];
-            $matrix = [];
+            $postedSettings = is_array($_POST['settings'] ?? null) ? $_POST['settings'] : [];
+            $postedEnabledPairs = array_filter((array) ($_POST['settings_enabled'] ?? []), static fn($value): bool => is_string($value) && $value !== '');
+            $enabledLookup = [];
 
+            foreach ($postedEnabledPairs as $postedPair) {
+                $decodedPair = base64_decode((string) $postedPair, true);
+                if ($decodedPair === false) {
+                    continue;
+                }
+
+                $parts = explode('|', $decodedPair, 2);
+                if (count($parts) !== 2) {
+                    continue;
+                }
+
+                [$postedUserEmail, $postedCategory] = $parts;
+                $enabledLookup[strtolower(trim($postedUserEmail))][trim($postedCategory)] = true;
+            }
+
+            $matrix = [];
             foreach ($ictUsers as $ictUser) {
                 $ictUser = strtolower($ictUser);
                 foreach (TICKET_CATEGORIES as $category) {
-                    $matrix[$ictUser][$category] = !empty($postedSettings[$ictUser][$category]);
+                    $matrix[$ictUser][$category] = !empty($postedSettings[$ictUser][$category]) || !empty($enabledLookup[$ictUser][$category]);
                 }
             }
 
@@ -708,8 +756,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         throw new RuntimeException('Onbekende actie ontvangen.');
     } catch (Throwable $exception) {
+        if ($formAction === 'save_settings') {
+            error_log('[Asclepius save_settings] ' . $exception->getMessage() . ' | db=' . DATABASE_FILE . ' | dir_writable=' . (is_writable(dirname(DATABASE_FILE)) ? '1' : '0') . ' | file_writable=' . ((is_file(DATABASE_FILE) && is_writable(DATABASE_FILE)) ? '1' : '0'));
+        }
+
         pushFlash('error', $exception->getMessage());
-        redirectToPage($returnPage, array_merge($baseQuery, $action === 'reply_ticket' ? ['open' => max(1, (int) ($_POST['ticket_id'] ?? 0))] : []));
+        redirectToPage($returnPage, array_merge($baseQuery, $formAction === 'reply_ticket' ? ['open' => max(1, (int) ($_POST['ticket_id'] ?? 0))] : []));
     }
 }
 
@@ -721,6 +773,7 @@ $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
 ?>
 <!DOCTYPE html>
 <html lang="nl">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1199,6 +1252,7 @@ $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
         }
 
         @media (min-width: 760px) {
+
             .form-grid.two-columns,
             .admin-grid,
             .meta-grid {
@@ -1213,320 +1267,362 @@ $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
         }
     </style>
 </head>
+
 <body>
-<div class="page">
-    <header class="hero">
-        <div class="brand">
-            <img class="brand-logo" src="kvtlogo.png" alt="KVT logo">
-            <div>
-                <p class="eyebrow">Asclepius</p>
-                <h1>ICT ticketsysteem</h1>
-                <p><?= $userIsAdmin ? 'Beheer alle tickets, behandel reacties en verdeel werk slim over ICT.' : 'Maak eenvoudig een ICT-ticket aan en volg je meldingen.' ?></p>
-                <?php if ($localRequester): ?>
-                    <p class="dev-note">Ontwikkelen/testen: gebruik eventueel <code>?dev_user=naam@kvt.nl&amp;dev_admin=0</code> of <code>1</code> om rollen lokaal te wisselen.</p>
+    <div class="page">
+        <header class="hero">
+            <div class="brand">
+                <img class="brand-logo" src="kvtlogo.png" alt="KVT logo">
+                <div>
+                    <p class="eyebrow">Asclepius</p>
+                    <h1>ICT ticketsysteem</h1>
+                    <p><?= $userIsAdmin ? 'Beheer alle tickets, behandel reacties en verdeel werk slim over ICT.' : 'Maak eenvoudig een ICT-ticket aan en volg je meldingen.' ?>
+                    </p>
+                    <?php if ($localRequester): ?>
+                        <p class="dev-note">Ontwikkelen/testen: gebruik eventueel
+                            <code>?dev_user=naam@kvt.nl&amp;dev_admin=0</code> of <code>1</code> om rollen lokaal te
+                            wisselen.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="hero-actions">
+                <span class="user-chip"><?= h($userEmail) ?><?= $userIsAdmin ? ' · admin' : '' ?></span>
+                <a class="nav-link <?= !$isAdminPortal ? 'active' : '' ?>" href="index.php">Nieuw ticket</a>
+                <?php if ($userIsAdmin): ?>
+                    <a class="nav-link <?= $isAdminPortal && $view === 'overview' ? 'active' : '' ?>"
+                        href="admin.php">ICT-overzicht</a>
+                    <a class="nav-link <?= $isAdminPortal && $view === 'settings' ? 'active' : '' ?>"
+                        href="admin.php?view=settings">Instellingen</a>
                 <?php endif; ?>
             </div>
-        </div>
-        <div class="hero-actions">
-            <span class="user-chip"><?= h($userEmail) ?><?= $userIsAdmin ? ' · admin' : '' ?></span>
-            <a class="nav-link <?= !$isAdminPortal ? 'active' : '' ?>" href="index.php">Nieuw ticket</a>
-            <?php if ($userIsAdmin): ?>
-                <a class="nav-link <?= $isAdminPortal && $view === 'overview' ? 'active' : '' ?>" href="admin.php">ICT-overzicht</a>
-                <a class="nav-link <?= $isAdminPortal && $view === 'settings' ? 'active' : '' ?>" href="admin.php?view=settings">Instellingen</a>
-            <?php endif; ?>
-        </div>
-    </header>
+        </header>
 
-    <?php if ($flashMessages !== []): ?>
-        <div class="flash-stack">
-            <?php foreach ($flashMessages as $flashMessage): ?>
-                <div class="flash <?= h((string) ($flashMessage['type'] ?? 'success')) ?>">
-                    <?= h((string) ($flashMessage['message'] ?? '')) ?>
-                </div>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
+        <?php if ($flashMessages !== []): ?>
+            <div class="flash-stack">
+                <?php foreach ($flashMessages as $flashMessage): ?>
+                    <div class="flash <?= h((string) ($flashMessage['type'] ?? 'success')) ?>">
+                        <?= h((string) ($flashMessage['message'] ?? '')) ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
 
-    <?php if ($storeError !== null): ?>
-        <div class="flash-stack">
-            <div class="flash error">Databasefout: <?= h($storeError) ?></div>
-        </div>
-    <?php endif; ?>
+        <?php if ($storeError !== null): ?>
+            <div class="flash-stack">
+                <div class="flash error">Databasefout: <?= h($storeError) ?></div>
+            </div>
+        <?php endif; ?>
 
-    <main class="layout">
-        <?php if (!$isAdminPortal): ?>
-            <section class="panel">
-                <h2>Nieuw ticket maken</h2>
-                <p class="panel-intro">Een ticket krijgt automatisch een ICT-medewerker toegewezen op basis van categorie en actuele openstaande werkdruk.</p>
-                <form method="post" enctype="multipart/form-data" class="form-grid">
-                    <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
-                    <input type="hidden" name="action" value="create_ticket">
-                    <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+        <main class="layout">
+            <?php if (!$isAdminPortal): ?>
+                <section class="panel">
+                    <h2>Nieuw ticket maken</h2>
+                    <p class="panel-intro">Een ticket krijgt automatisch een ICT-medewerker toegewezen op basis van
+                        categorie en actuele openstaande werkdruk.</p>
+                    <form method="post" action="<?= h($currentPage) ?>" enctype="multipart/form-data" class="form-grid">
+                        <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+                        <input type="hidden" name="form_action" value="create_ticket">
+                        <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
 
-                    <div class="form-grid two-columns">
+                        <div class="form-grid two-columns">
+                            <label>
+                                Titel
+                                <input type="text" name="title" maxlength="150"
+                                    placeholder="Bijvoorbeeld: Nieuwe scanner nodig" required>
+                            </label>
+                            <label>
+                                Categorie
+                                <select name="category" required>
+                                    <option value="">Kies een categorie</option>
+                                    <?php foreach (TICKET_CATEGORIES as $category): ?>
+                                        <option value="<?= h($category) ?>"><?= h($category) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+                        </div>
+
                         <label>
-                            Titel
-                            <input type="text" name="title" maxlength="150" placeholder="Bijvoorbeeld: Nieuwe scanner nodig" required>
+                            Beschrijving
+                            <textarea name="description"
+                                placeholder="Beschrijf het probleem of de aanvraag zo duidelijk mogelijk."
+                                required></textarea>
                         </label>
+
                         <label>
-                            Categorie
-                            <select name="category" required>
-                                <option value="">Kies een categorie</option>
-                                <?php foreach (TICKET_CATEGORIES as $category): ?>
-                                    <option value="<?= h($category) ?>"><?= h($category) ?></option>
+                            Screenshots of documenten
+                            <input type="file" name="ticket_attachments[]" multiple>
+                            <span class="hint">Per bestand maximaal 20 MB.</span>
+                        </label>
+
+                        <div class="button-row">
+                            <button type="submit">Ticket indienen</button>
+                        </div>
+                    </form>
+                </section>
+            <?php endif; ?>
+
+            <?php if ($canManageTickets && $view === 'settings'): ?>
+                <section class="panel">
+                    <h2>Instellingen per ICT-gebruiker</h2>
+                    <p class="panel-intro">Zet per ICT-collega categorieën aan of uit. Nieuwe tickets worden automatisch
+                        toegewezen aan de minst belaste collega die de gekozen categorie aan heeft staan.</p>
+                    <?php if ($localRequester): ?>
+                        <p class="hint">
+                            DB: <code><?= h($storageDiagnostics['database_path']) ?></code><br>
+                            Bestand: <?= $storageDiagnostics['database_exists'] ? 'bestaat' : 'ontbreekt' ?> ·
+                            map schrijfbaar: <?= $storageDiagnostics['database_directory_writable'] ? 'ja' : 'nee' ?> ·
+                            bestand schrijfbaar: <?= $storageDiagnostics['database_writable'] ? 'ja' : 'nee' ?>
+                        </p>
+                    <?php endif; ?>
+                    <form method="post" action="admin.php?view=settings" class="form-grid">
+                        <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+                        <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ICT-gebruiker</th>
+                                        <th>Open tickets</th>
+                                        <?php foreach (TICKET_CATEGORIES as $category): ?>
+                                            <th><?= h($category) ?></th>
+                                        <?php endforeach; ?>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($ictUsers as $ictUser):
+                                        $ictUser = strtolower($ictUser); ?>
+                                        <tr>
+                                            <td class="user-color-cell"
+                                                style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
+                                                <span class="assignee-badge"
+                                                    style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
+                                                    <?= h($ictUser) ?>
+                                                </span>
+                                            </td>
+                                            <td><?= (int) ($loadByIctUser[$ictUser] ?? 0) ?></td>
+                                            <?php foreach (TICKET_CATEGORIES as $category): ?>
+                                                <td>
+                                                    <input type="checkbox"
+                                                        name="settings[<?= h($ictUser) ?>][<?= h($category) ?>]"
+                                                        value="1"
+                                                        <?= !empty($settingsMatrix[$ictUser][$category]) ? 'checked' : '' ?>>
+                                                </td>
+                                            <?php endforeach; ?>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" name="form_action" value="save_settings">Instellingen
+                                opslaan</button>
+                        </div>
+                    </form>
+                </section>
+            <?php endif; ?>
+
+            <section class="panel">
+                <h2><?= $isAdminPortal ? 'ICT ticketoverzicht' : 'Mijn tickets' ?></h2>
+
+                <?php if ($isAdminPortal): ?>
+                    <form method="get" class="filters-form">
+                        <?php if ($view === 'settings'): ?>
+                            <input type="hidden" name="view" value="settings">
+                        <?php endif; ?>
+
+                        <input type="hidden" name="status_filter_mode" value="manual">
+
+                        <div>
+                            <label>Status filter</label>
+                            <div class="checkbox-group">
+                                <?php foreach (TICKET_STATUSES as $status): ?>
+                                    <?php $statusSelected = isStatusFilterSelected($status, $statusFilters, $statusFilterRequestActive); ?>
+                                    <label class="checkbox-chip <?= $statusSelected ? 'is-active' : 'is-inactive' ?>"
+                                        style="--status-color: <?= h(getStatusColor($status)) ?>;">
+                                        <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
+                                        <span><?= h($status) ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <label>
+                            ICT-medewerker
+                            <select name="assigned" onchange="this.form.submit()">
+                                <option value="">Alle toegewezen</option>
+                                <option value="__unassigned__" <?= $assignedFilter === '__unassigned__' ? 'selected' : '' ?>>
+                                    Nog niet toegewezen</option>
+                                <?php foreach ($ictUsers as $ictUser):
+                                    $ictUser = strtolower($ictUser); ?>
+                                    <option value="<?= h($ictUser) ?>" <?= $assignedFilter === $ictUser ? 'selected' : '' ?>>
+                                        <?= h($ictUser) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </label>
-                    </div>
 
-                    <label>
-                        Beschrijving
-                        <textarea name="description" placeholder="Beschrijf het probleem of de aanvraag zo duidelijk mogelijk." required></textarea>
-                    </label>
-
-                    <label>
-                        Screenshots of documenten
-                        <input type="file" name="ticket_attachments[]" multiple>
-                        <span class="hint">Per bestand maximaal 20 MB.</span>
-                    </label>
-
-                    <div class="button-row">
-                        <button type="submit">Ticket indienen</button>
-                    </div>
-                </form>
-            </section>
-        <?php endif; ?>
-
-        <?php if ($canManageTickets && $view === 'settings'): ?>
-            <section class="panel">
-                <h2>Instellingen per ICT-gebruiker</h2>
-                <p class="panel-intro">Zet per ICT-collega categorieën aan of uit. Nieuwe tickets worden automatisch toegewezen aan de minst belaste collega die de gekozen categorie aan heeft staan.</p>
-                <form method="post" class="form-grid">
-                    <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
-                    <input type="hidden" name="action" value="save_settings">
-                    <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>ICT-gebruiker</th>
-                                <th>Open tickets</th>
-                                <?php foreach (TICKET_CATEGORIES as $category): ?>
-                                    <th><?= h($category) ?></th>
-                                <?php endforeach; ?>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach ($ictUsers as $ictUser): $ictUser = strtolower($ictUser); ?>
-                                <tr>
-                                    <td class="user-color-cell" style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
-                                        <span class="assignee-badge" style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
-                                            <?= h($ictUser) ?>
-                                        </span>
-                                    </td>
-                                    <td><?= (int) ($loadByIctUser[$ictUser] ?? 0) ?></td>
-                                    <?php foreach (TICKET_CATEGORIES as $category): ?>
-                                        <td>
-                                            <input
-                                                type="checkbox"
-                                                name="settings[<?= h($ictUser) ?>][<?= h($category) ?>]"
-                                                value="1"
-                                                <?= !empty($settingsMatrix[$ictUser][$category]) ? 'checked' : '' ?>
-                                            >
-                                        </td>
-                                    <?php endforeach; ?>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="button-row">
-                        <button type="submit">Instellingen opslaan</button>
-                    </div>
-                </form>
-            </section>
-        <?php endif; ?>
-
-        <section class="panel">
-            <h2><?= $isAdminPortal ? 'ICT ticketoverzicht' : 'Mijn tickets' ?></h2>
-           
-            <?php if ($isAdminPortal): ?>
-                <form method="get" class="filters-form">
-                    <?php if ($view === 'settings'): ?>
-                        <input type="hidden" name="view" value="settings">
-                    <?php endif; ?>
-
-                    <input type="hidden" name="status_filter_mode" value="manual">
-
-                    <div>
-                        <label>Status filter</label>
-                        <div class="checkbox-group">
-                            <?php foreach (TICKET_STATUSES as $status): ?>
-                                <?php $statusSelected = isStatusFilterSelected($status, $statusFilters, $statusFilterRequestActive); ?>
-                                <label class="checkbox-chip <?= $statusSelected ? 'is-active' : 'is-inactive' ?>" style="--status-color: <?= h(getStatusColor($status)) ?>;">
-                                    <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
-                                    <span><?= h($status) ?></span>
-                                </label>
-                            <?php endforeach; ?>
+                        <div class="button-row">
+                            <a class="secondary-button"
+                                href="<?= h($currentPage) ?><?= $view === 'settings' ? '?view=settings' : '' ?>">Reset
+                                filters</a>
                         </div>
+                    </form>
+                <?php endif; ?>
+
+                <?php if ($tickets === []): ?>
+                    <div class="empty-state">
+                        <?= $isAdminPortal ? 'Er zijn nog geen tickets die aan deze filters voldoen.' : 'Je hebt nog geen tickets.' ?>
                     </div>
-
-                    <label>
-                        ICT-medewerker
-                        <select name="assigned" onchange="this.form.submit()">
-                            <option value="">Alle toegewezen</option>
-                            <option value="__unassigned__" <?= $assignedFilter === '__unassigned__' ? 'selected' : '' ?>>Nog niet toegewezen</option>
-                            <?php foreach ($ictUsers as $ictUser): $ictUser = strtolower($ictUser); ?>
-                                <option value="<?= h($ictUser) ?>" <?= $assignedFilter === $ictUser ? 'selected' : '' ?>><?= h($ictUser) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
-
-                    <div class="button-row">
-                        <a class="secondary-button" href="<?= h($currentPage) ?><?= $view === 'settings' ? '?view=settings' : '' ?>">Reset filters</a>
-                    </div>
-                </form>
-            <?php endif; ?>
-
-            <?php if ($tickets === []): ?>
-                <div class="empty-state">
-                    <?= $isAdminPortal ? 'Er zijn nog geen tickets die aan deze filters voldoen.' : 'Je hebt nog geen tickets.' ?>
-                </div>
-            <?php else: ?>
-                <div class="ticket-list">
-                    <?php foreach ($tickets as $index => $ticket): ?>
-                        <?php
-                        $ticketColor = getStatusColor((string) $ticket['status']);
-                        $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
-                        $shouldOpen = $openTicketId > 0 && (int) $ticket['id'] === $openTicketId;
-                        ?>
-                        <details class="ticket-card" style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
-                            <summary>
-                                <div class="ticket-summary">
-                                    <div>
-                                        <p class="ticket-main-title"><strong>#<?= (int) $ticket['id'] ?> · <?= h((string) $ticket['title']) ?></strong></p>
+                <?php else: ?>
+                    <div class="ticket-list">
+                        <?php foreach ($tickets as $index => $ticket): ?>
+                            <?php
+                            $ticketColor = getStatusColor((string) $ticket['status']);
+                            $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
+                            $shouldOpen = $openTicketId > 0 && (int) $ticket['id'] === $openTicketId;
+                            ?>
+                            <details class="ticket-card" style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
+                                <summary>
+                                    <div class="ticket-summary">
+                                        <div>
+                                            <p class="ticket-main-title"><strong>#<?= (int) $ticket['id'] ?> ·
+                                                    <?= h((string) $ticket['title']) ?></strong></p>
+                                            <div class="ticket-subtitle">
+                                                <span><?= h((string) $ticket['user_email']) ?></span>
+                                                <span><?= h((string) $ticket['category']) ?></span>
+                                                <span><?= h(formatDateTime((string) $ticket['created_at'])) ?></span>
+                                            </div>
+                                        </div>
                                         <div class="ticket-subtitle">
-                                            <span><?= h((string) $ticket['user_email']) ?></span>
-                                            <span><?= h((string) $ticket['category']) ?></span>
-                                            <span><?= h(formatDateTime((string) $ticket['created_at'])) ?></span>
+                                            <span class="status-pill"
+                                                style="--ticket-color: <?= h($ticketColor) ?>;"><?= h((string) $ticket['status']) ?></span>
+                                            <span class="assignee-badge"
+                                                style="--assignee-color: <?= h(emailToHexColor((string) ($ticket['assigned_email'] ?? 'onbekend@kvt.nl'))) ?>;">
+                                                <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen')) ?>
+                                            </span>
+                                            <span class="count-badge"><?= (int) ($ticket['message_count'] ?? 0) ?>
+                                                berichten</span>
                                         </div>
                                     </div>
-                                    <div class="ticket-subtitle">
-                                        <span class="status-pill" style="--ticket-color: <?= h($ticketColor) ?>;"><?= h((string) $ticket['status']) ?></span>
-                                        <span class="assignee-badge" style="--assignee-color: <?= h(emailToHexColor((string) ($ticket['assigned_email'] ?? 'onbekend@kvt.nl'))) ?>;">
-                                            <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen')) ?>
-                                        </span>
-                                        <span class="count-badge"><?= (int) ($ticket['message_count'] ?? 0) ?> berichten</span>
-                                    </div>
-                                </div>
-                            </summary>
+                                </summary>
 
-                            <div class="ticket-body">
-                                <div class="meta-grid">
-                                    <div class="meta-item">
-                                        <span class="meta-label">Omschrijving</span>
-                                        <?= nl2br(h((string) $ticket['description'])) ?>
-                                    </div>
-                                    <div class="meta-item">
-                                        <span class="meta-label">Laatst bijgewerkt</span>
-                                        <?= h(formatDateTime((string) $ticket['updated_at'])) ?>
-                                    </div>
-                                    <div class="meta-item">
-                                        <span class="meta-label">Aanvrager</span>
-                                        <?= h((string) $ticket['user_email']) ?>
-                                    </div>
-                                    <div class="meta-item">
-                                        <span class="meta-label">Toegewezen ICT-medewerker</span>
-                                        <span class="assignee-badge" style="--assignee-color: <?= h(emailToHexColor((string) ($ticket['assigned_email'] ?? 'onbekend@kvt.nl'))) ?>;">
-                                            <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen')) ?>
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <?php if ($ticketDetail !== null && !empty($ticketDetail['messages'])): ?>
-                                    <div>
-                                        <h3>Berichten</h3>
-                                        <div class="thread">
-                                            <?php foreach ($ticketDetail['messages'] as $message): ?>
-                                                <article class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>">
-                                                    <div class="message-meta">
-                                                        <strong><?= h((string) $message['sender_email']) ?></strong>
-                                                        <span class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? 'ICT' : 'Gebruiker' ?></span>
-                                                        <span><?= h(formatDateTime((string) $message['created_at'])) ?></span>
-                                                    </div>
-
-                                                    <?php if (trim((string) ($message['message_text'] ?? '')) !== ''): ?>
-                                                        <div class="message-text"><?= formatTicketMessageText((string) $message['message_text']) ?></div>
-                                                    <?php endif; ?>
-
-                                                    <?php if (!empty($message['attachments'])): ?>
-                                                        <ul class="attachment-list">
-                                                            <?php foreach ($message['attachments'] as $attachment): ?>
-                                                                <li>
-                                                                    <a href="index.php?download=<?= (int) $attachment['id'] ?>">
-                                                                        <?= h((string) $attachment['original_name']) ?>
-                                                                    </a>
-                                                                    (<?= number_format(((int) $attachment['file_size']) / 1024 / 1024, 2, ',', '.') ?> MB)
-                                                                </li>
-                                                            <?php endforeach; ?>
-                                                        </ul>
-                                                    <?php endif; ?>
-                                                </article>
-                                            <?php endforeach; ?>
+                                <div class="ticket-body">
+                                    <div class="meta-grid">
+                                        <div class="meta-item">
+                                            <span class="meta-label">Omschrijving</span>
+                                            <?= nl2br(h((string) $ticket['description'])) ?>
+                                        </div>
+                                        <div class="meta-item">
+                                            <span class="meta-label">Laatst bijgewerkt</span>
+                                            <?= h(formatDateTime((string) $ticket['updated_at'])) ?>
+                                        </div>
+                                        <div class="meta-item">
+                                            <span class="meta-label">Aanvrager</span>
+                                            <?= h((string) $ticket['user_email']) ?>
+                                        </div>
+                                        <div class="meta-item">
+                                            <span class="meta-label">Toegewezen ICT-medewerker</span>
+                                            <span class="assignee-badge"
+                                                style="--assignee-color: <?= h(emailToHexColor((string) ($ticket['assigned_email'] ?? 'onbekend@kvt.nl'))) ?>;">
+                                                <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen')) ?>
+                                            </span>
                                         </div>
                                     </div>
-                                <?php endif; ?>
 
-                                <form method="post" enctype="multipart/form-data" class="reply-form">
-                                    <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
-                                    <input type="hidden" name="action" value="reply_ticket">
-                                    <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
-                                    <input type="hidden" name="ticket_id" value="<?= (int) $ticket['id'] ?>">
+                                    <?php if ($ticketDetail !== null && !empty($ticketDetail['messages'])): ?>
+                                        <div>
+                                            <h3>Berichten</h3>
+                                            <div class="thread">
+                                                <?php foreach ($ticketDetail['messages'] as $message): ?>
+                                                    <article
+                                                        class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>">
+                                                        <div class="message-meta">
+                                                            <strong><?= h((string) $message['sender_email']) ?></strong>
+                                                            <span
+                                                                class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? 'ICT' : 'Gebruiker' ?></span>
+                                                            <span><?= h(formatDateTime((string) $message['created_at'])) ?></span>
+                                                        </div>
 
-                                    <?php if ($canManageTickets): ?>
-                                        <div class="admin-grid">
-                                            <label>
-                                                Status
-                                                <select name="status">
-                                                    <?php foreach (TICKET_STATUSES as $status): ?>
-                                                        <option value="<?= h($status) ?>" <?= (string) $ticket['status'] === $status ? 'selected' : '' ?>><?= h($status) ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                            </label>
-                                            <label>
-                                                Toewijzen aan
-                                                <select name="assigned_email">
-                                                    <option value="">Nog niet toegewezen</option>
-                                                    <?php foreach ($ictUsers as $ictUser): $ictUser = strtolower($ictUser); ?>
-                                                        <option value="<?= h($ictUser) ?>" <?= strtolower((string) ($ticket['assigned_email'] ?? '')) === $ictUser ? 'selected' : '' ?>><?= h($ictUser) ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                            </label>
+                                                        <?php if (trim((string) ($message['message_text'] ?? '')) !== ''): ?>
+                                                            <div class="message-text">
+                                                                <?= formatTicketMessageText((string) $message['message_text']) ?></div>
+                                                        <?php endif; ?>
+
+                                                        <?php if (!empty($message['attachments'])): ?>
+                                                            <ul class="attachment-list">
+                                                                <?php foreach ($message['attachments'] as $attachment): ?>
+                                                                    <li>
+                                                                        <a href="index.php?download=<?= (int) $attachment['id'] ?>">
+                                                                            <?= h((string) $attachment['original_name']) ?>
+                                                                        </a>
+                                                                        (<?= number_format(((int) $attachment['file_size']) / 1024 / 1024, 2, ',', '.') ?>
+                                                                        MB)
+                                                                    </li>
+                                                                <?php endforeach; ?>
+                                                            </ul>
+                                                        <?php endif; ?>
+                                                    </article>
+                                                <?php endforeach; ?>
+                                            </div>
                                         </div>
                                     <?php endif; ?>
 
-                                    <label>
-                                        Nieuw bericht
-                                        <textarea name="message" placeholder="Typ hier een update of aanvullende informatie."></textarea>
-                                    </label>
+                                    <form method="post"
+                                        action="<?= h($currentPage) ?><?= $isAdminPortal && $view === 'settings' ? '?view=settings' : '' ?>"
+                                        enctype="multipart/form-data" class="reply-form">
+                                        <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+                                        <input type="hidden" name="form_action" value="reply_ticket">
+                                        <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                                        <input type="hidden" name="ticket_id" value="<?= (int) $ticket['id'] ?>">
 
-                                    <label>
-                                        Bijlagen toevoegen
-                                        <input type="file" name="reply_attachments[]" multiple>
-                                        <span class="hint">Per bestand maximaal 20 MB.</span>
-                                    </label>
+                                        <?php if ($canManageTickets): ?>
+                                            <div class="admin-grid">
+                                                <label>
+                                                    Status
+                                                    <select name="status">
+                                                        <?php foreach (TICKET_STATUSES as $status): ?>
+                                                            <option value="<?= h($status) ?>" <?= (string) $ticket['status'] === $status ? 'selected' : '' ?>><?= h($status) ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </label>
+                                                <label>
+                                                    Toewijzen aan
+                                                    <select name="assigned_email">
+                                                        <option value="">Nog niet toegewezen</option>
+                                                        <?php foreach ($ictUsers as $ictUser):
+                                                            $ictUser = strtolower($ictUser); ?>
+                                                            <option value="<?= h($ictUser) ?>" <?= strtolower((string) ($ticket['assigned_email'] ?? '')) === $ictUser ? 'selected' : '' ?>>
+                                                                <?= h($ictUser) ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </label>
+                                            </div>
+                                        <?php endif; ?>
 
-                                    <div class="button-row">
-                                        <button type="submit"><?= $canManageTickets ? 'Opslaan en gebruiker mailen' : 'Reactie plaatsen en ICT mailen' ?></button>
-                                    </div>
-                                </form>
-                            </div>
-                        </details>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </section>
-    </main>
-</div>
+                                        <label>
+                                            Nieuw bericht
+                                            <textarea name="message"
+                                                placeholder="Typ hier een update of aanvullende informatie."></textarea>
+                                        </label>
+
+                                        <label>
+                                            Bijlagen toevoegen
+                                            <input type="file" name="reply_attachments[]" multiple>
+                                            <span class="hint">Per bestand maximaal 20 MB.</span>
+                                        </label>
+
+                                        <div class="button-row">
+                                            <button
+                                                type="submit"><?= $canManageTickets ? 'Opslaan en gebruiker mailen' : 'Reactie plaatsen en ICT mailen' ?></button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </details>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </section>
+        </main>
+    </div>
 </body>
+
 </html>
