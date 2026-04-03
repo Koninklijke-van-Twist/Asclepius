@@ -287,26 +287,25 @@ function formatDurationSeconds($seconds): string
     }
 
     $seconds = max(0, (int) round((float) $seconds));
-    if ($seconds === 0) {
-        return '0 min';
+
+    $units = [
+        ['seconds' => 31536000, 'singular' => 'jaar', 'plural' => 'jaar'],
+        ['seconds' => 2592000, 'singular' => 'maand', 'plural' => 'maanden'],
+        ['seconds' => 604800, 'singular' => 'week', 'plural' => 'weken'],
+        ['seconds' => 86400, 'singular' => 'dag', 'plural' => 'dagen'],
+        ['seconds' => 3600, 'singular' => 'uur', 'plural' => 'uur'],
+        ['seconds' => 60, 'singular' => 'minuut', 'plural' => 'minuten'],
+    ];
+
+    foreach ($units as $unit) {
+        if ($seconds >= $unit['seconds']) {
+            $value = (int) round($seconds / $unit['seconds']);
+            $label = $value === 1 ? $unit['singular'] : $unit['plural'];
+            return $value . ' ' . $label;
+        }
     }
 
-    $days = intdiv($seconds, 86400);
-    $hours = intdiv($seconds % 86400, 3600);
-    $minutes = intdiv($seconds % 3600, 60);
-
-    $parts = [];
-    if ($days > 0) {
-        $parts[] = $days . ' d';
-    }
-    if ($hours > 0) {
-        $parts[] = $hours . ' u';
-    }
-    if ($minutes > 0 || $parts === []) {
-        $parts[] = $minutes . ' min';
-    }
-
-    return implode(' ', array_slice($parts, 0, 3));
+    return 'minder dan 1 minuut';
 }
 
 function getTicketOpenDurationSeconds(array $ticket): ?int
@@ -882,6 +881,9 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php if ($canManageTickets && $view === 'stats'): ?>
+        <meta http-equiv="refresh" content="600">
+    <?php endif; ?>
     <title>Asclepius - ICT tickets</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
