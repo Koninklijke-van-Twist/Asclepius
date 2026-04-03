@@ -144,16 +144,24 @@ class TicketStore
                     SUM(CASE WHEN status <> 'afgehandeld' THEN 1 ELSE 0 END) AS open_count,
                     SUM(CASE WHEN status = 'afwachtende op bestelling' THEN 1 ELSE 0 END) AS waiting_order_count,
                     AVG(
-                        CASE WHEN status = 'afgehandeld'
-                             THEN (julianday(COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400
-                        END
+                        (julianday(
+                            CASE
+                                WHEN status = 'afgehandeld' THEN COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)
+                                ELSE CURRENT_TIMESTAMP
+                            END
+                        ) - julianday(created_at)) * 86400
                     ) AS average_open_seconds,
                     MAX(
-                        CASE WHEN status = 'afgehandeld'
-                             THEN CAST(
-                                 ROUND((julianday(COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400) AS INTEGER
-                             )
-                        END
+                        CAST(
+                            ROUND(
+                                (julianday(
+                                    CASE
+                                        WHEN status = 'afgehandeld' THEN COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)
+                                        ELSE CURRENT_TIMESTAMP
+                                    END
+                                ) - julianday(created_at)) * 86400
+                            ) AS INTEGER
+                        )
                     ) AS max_open_seconds
              FROM tickets
              WHERE lower(COALESCE(assigned_email, '')) IN ($placeholders)

@@ -1569,7 +1569,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
             <?php if ($canManageTickets && $view === 'stats'): ?>
                 <section class="panel">
                     <h2>ICT-statistieken</h2>
-                    <p class="panel-intro">Bekijk hier de totalen, prestaties per ICT-medewerker en wachttijden per normale gebruiker. Voor afgehandelde tickets meten we van <strong>aangemaakt</strong> tot <strong>afgehandeld</strong>.</p>
+                    <p class="panel-intro">Bekijk hier de totalen, prestaties per ICT-medewerker en wachttijden per normale gebruiker. Voor afgehandelde tickets meten we van <strong>aangemaakt</strong> tot <strong>afgehandeld</strong>; open tickets tellen mee tot <strong>nu</strong>.</p>
 
                     <div class="stats-grid">
                         <div class="stats-card">
