@@ -135,7 +135,8 @@ $statusFilters = $statusFilterRequestActive
     : [];
 $effectiveStatusFilters = $statusFilterRequestActive && $statusFilters === [] ? ['__no_matching_status__'] : $statusFilters;
 $assignedFilter = $canManageTickets ? trim((string) ($_GET['assigned'] ?? '')) : '';
-$view = $canManageTickets && (($_GET['view'] ?? '') === 'settings') ? 'settings' : 'overview';
+$requestedView = trim((string) ($_GET['view'] ?? ''));
+$view = $canManageTickets && in_array($requestedView, ['settings', 'stats'], true) ? $requestedView : 'overview';
 $openTicketId = max(0, (int) ($_GET['open'] ?? 0));
 $baseQuery = buildNavigationQuery($statusFilters, $assignedFilter, $view, $isAdminPortal, $statusFilterRequestActive);
 
@@ -176,8 +177,8 @@ function buildNavigationQuery(array $statusFilters, string $assignedFilter, stri
         $query['assigned'] = $assignedFilter;
     }
 
-    if ($isAdminPortal && $view === 'settings') {
-        $query['view'] = 'settings';
+    if ($isAdminPortal && $view !== 'overview') {
+        $query['view'] = $view;
     }
 
     if ($openTicketId > 0) {
@@ -277,6 +278,35 @@ function formatDateTime(string $value): string
     } catch (Throwable) {
         return $value;
     }
+}
+
+function formatDurationSeconds($seconds): string
+{
+    if ($seconds === null || !is_numeric($seconds)) {
+        return '—';
+    }
+
+    $seconds = max(0, (int) round((float) $seconds));
+    if ($seconds === 0) {
+        return '0 min';
+    }
+
+    $days = intdiv($seconds, 86400);
+    $hours = intdiv($seconds % 86400, 3600);
+    $minutes = intdiv($seconds % 3600, 60);
+
+    $parts = [];
+    if ($days > 0) {
+        $parts[] = $days . ' d';
+    }
+    if ($hours > 0) {
+        $parts[] = $hours . ' u';
+    }
+    if ($minutes > 0 || $parts === []) {
+        $parts[] = $minutes . ' min';
+    }
+
+    return implode(' ', array_slice($parts, 0, 3));
 }
 
 function getStatusColor(string $status): string
@@ -804,6 +834,20 @@ $tickets = $store instanceof TicketStore
     : [];
 $settingsMatrix = $store instanceof TicketStore ? $store->getCategorySettings() : [];
 $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
+$overallStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
+    ? $store->getOverallStats()
+    : [
+        'total_tickets' => 0,
+        'open_tickets' => 0,
+        'resolved_tickets' => 0,
+        'waiting_order_tickets' => 0,
+    ];
+$ictStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
+    ? $store->getIctUserStats()
+    : [];
+$requesterStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
+    ? $store->getRequesterStats()
+    : [];
 ?>
 <!DOCTYPE html>
 <html lang="nl">
@@ -1072,6 +1116,37 @@ $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
             margin-bottom: 14px;
         }
 
+        .stats-grid {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .stats-card {
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: linear-gradient(135deg, #f8fbff, #eef4ff);
+        }
+
+        .stats-card strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 26px;
+            color: var(--accent);
+        }
+
+        .stats-section-title {
+            margin: 18px 0 8px;
+            font-size: 16px;
+        }
+
+        .stats-note {
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
         .checkbox-group {
             display: flex;
             flex-wrap: wrap;
@@ -1295,7 +1370,8 @@ $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
 
             .form-grid.two-columns,
             .admin-grid,
-            .meta-grid {
+            .meta-grid,
+            .stats-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
@@ -1333,6 +1409,8 @@ $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
                         href="admin.php">ICT-overzicht</a>
                     <a class="nav-link <?= $isAdminPortal && $view === 'settings' ? 'active' : '' ?>"
                         href="admin.php?view=settings">Instellingen</a>
+                    <a class="nav-link <?= $isAdminPortal && $view === 'stats' ? 'active' : '' ?>"
+                        href="admin.php?view=stats">ICT-stats</a>
                 <?php endif; ?>
             </div>
         </header>
@@ -1461,10 +1539,98 @@ $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
                 </section>
             <?php endif; ?>
 
-            <section class="panel">
-                <h2><?= $isAdminPortal ? 'ICT ticketoverzicht' : 'Mijn tickets' ?></h2>
+            <?php if ($canManageTickets && $view === 'stats'): ?>
+                <section class="panel">
+                    <h2>ICT-statistieken</h2>
+                    <p class="panel-intro">Bekijk hier de totalen, prestaties per ICT-medewerker en wachttijden per normale gebruiker.</p>
 
-                <?php if ($isAdminPortal): ?>
+                    <div class="stats-grid">
+                        <div class="stats-card">
+                            <span>Totaal aantal tickets</span>
+                            <strong><?= (int) ($overallStats['total_tickets'] ?? 0) ?></strong>
+                        </div>
+                        <div class="stats-card">
+                            <span>Openstaande tickets</span>
+                            <strong><?= (int) ($overallStats['open_tickets'] ?? 0) ?></strong>
+                        </div>
+                        <div class="stats-card">
+                            <span>Afgehandelde tickets</span>
+                            <strong><?= (int) ($overallStats['resolved_tickets'] ?? 0) ?></strong>
+                        </div>
+                        <div class="stats-card">
+                            <span>Wacht op bestelling</span>
+                            <strong><?= (int) ($overallStats['waiting_order_tickets'] ?? 0) ?></strong>
+                        </div>
+                    </div>
+
+                    <h3 class="stats-section-title">Per ICT-medewerker</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ICT-medewerker</th>
+                                    <th>Afgehandeld</th>
+                                    <th>Langste open tijd</th>
+                                    <th>Openstaand</th>
+                                    <th>Wacht op bestelling</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($ictStats as $statsRow): ?>
+                                    <tr>
+                                        <td class="user-color-cell"
+                                            style="--assignee-color: <?= h(emailToHexColor((string) $statsRow['user_email'])) ?>;">
+                                            <span class="assignee-badge"
+                                                style="--assignee-color: <?= h(emailToHexColor((string) $statsRow['user_email'])) ?>;">
+                                                <?= h((string) $statsRow['user_email']) ?>
+                                            </span>
+                                        </td>
+                                        <td><?= (int) ($statsRow['handled_count'] ?? 0) ?></td>
+                                        <td><?= h(formatDurationSeconds($statsRow['max_open_seconds'] ?? null)) ?></td>
+                                        <td><?= (int) ($statsRow['open_count'] ?? 0) ?></td>
+                                        <td><?= (int) ($statsRow['waiting_order_count'] ?? 0) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="stats-section-title">Per normale gebruiker</h3>
+                    <?php if ($requesterStats === []): ?>
+                        <div class="empty-state">Er zijn nog geen statistieken voor normale gebruikers beschikbaar.</div>
+                    <?php else: ?>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Gebruiker</th>
+                                        <th>Tickets ingediend</th>
+                                        <th>Gemiddelde wachttijd</th>
+                                        <th>Langste wachttijd</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($requesterStats as $statsRow): ?>
+                                        <tr>
+                                            <td><?= h((string) $statsRow['user_email']) ?></td>
+                                            <td><?= (int) ($statsRow['submitted_count'] ?? 0) ?></td>
+                                            <td><?= h(formatDurationSeconds($statsRow['average_wait_seconds'] ?? null)) ?></td>
+                                            <td><?= h(formatDurationSeconds($statsRow['max_wait_seconds'] ?? null)) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="stats-note">Wachttijden bij gebruikers worden berekend op basis van tickets met status <strong>afgehandeld</strong>.</p>
+                    <?php endif; ?>
+                </section>
+            <?php endif; ?>
+
+            <?php if (!$isAdminPortal || $view !== 'stats'): ?>
+                <section class="panel">
+                    <h2><?= $isAdminPortal ? 'ICT ticketoverzicht' : 'Mijn tickets' ?></h2>
+
+                    <?php if ($isAdminPortal): ?>
                     <form method="get" class="filters-form">
                         <?php if ($view === 'settings'): ?>
                             <input type="hidden" name="view" value="settings">
@@ -1660,7 +1826,8 @@ $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
-            </section>
+                </section>
+            <?php endif; ?>
         </main>
     </div>
 </body>

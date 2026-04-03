@@ -100,6 +100,132 @@ class TicketStore
         return $loads;
     }
 
+    public function getOverallStats(): array
+    {
+        $statement = $this->pdo->query(
+            "SELECT COUNT(*) AS total_tickets,
+                    SUM(CASE WHEN status <> 'afgehandeld' THEN 1 ELSE 0 END) AS open_tickets,
+                    SUM(CASE WHEN status = 'afgehandeld' THEN 1 ELSE 0 END) AS resolved_tickets,
+                    SUM(CASE WHEN status = 'afwachtende op bestelling' THEN 1 ELSE 0 END) AS waiting_order_tickets
+             FROM tickets"
+        );
+        $row = $statement->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'total_tickets' => (int) ($row['total_tickets'] ?? 0),
+            'open_tickets' => (int) ($row['open_tickets'] ?? 0),
+            'resolved_tickets' => (int) ($row['resolved_tickets'] ?? 0),
+            'waiting_order_tickets' => (int) ($row['waiting_order_tickets'] ?? 0),
+        ];
+    }
+
+    public function getIctUserStats(): array
+    {
+        if ($this->ictUsers === []) {
+            return [];
+        }
+
+        $statsByUser = [];
+        foreach ($this->ictUsers as $ictUser) {
+            $statsByUser[$ictUser] = [
+                'user_email' => $ictUser,
+                'handled_count' => 0,
+                'open_count' => 0,
+                'waiting_order_count' => 0,
+                'max_open_seconds' => null,
+            ];
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($this->ictUsers), '?'));
+        $statement = $this->pdo->prepare(
+            "SELECT lower(assigned_email) AS user_email,
+                    SUM(CASE WHEN status = 'afgehandeld' THEN 1 ELSE 0 END) AS handled_count,
+                    SUM(CASE WHEN status <> 'afgehandeld' THEN 1 ELSE 0 END) AS open_count,
+                    SUM(CASE WHEN status = 'afwachtende op bestelling' THEN 1 ELSE 0 END) AS waiting_order_count,
+                    MAX(
+                        CAST(
+                            ROUND(
+                                (julianday(CASE WHEN status = 'afgehandeld' THEN COALESCE(NULLIF(updated_at, ''), CURRENT_TIMESTAMP) ELSE CURRENT_TIMESTAMP END) - julianday(created_at)) * 86400
+                            ) AS INTEGER
+                        )
+                    ) AS max_open_seconds
+             FROM tickets
+             WHERE lower(COALESCE(assigned_email, '')) IN ($placeholders)
+             GROUP BY lower(assigned_email)
+             ORDER BY open_count DESC, handled_count DESC, user_email ASC"
+        );
+        $statement->execute($this->ictUsers);
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $ictUser = strtolower((string) ($row['user_email'] ?? ''));
+            if (!isset($statsByUser[$ictUser])) {
+                continue;
+            }
+
+            $statsByUser[$ictUser]['handled_count'] = (int) ($row['handled_count'] ?? 0);
+            $statsByUser[$ictUser]['open_count'] = (int) ($row['open_count'] ?? 0);
+            $statsByUser[$ictUser]['waiting_order_count'] = (int) ($row['waiting_order_count'] ?? 0);
+            $statsByUser[$ictUser]['max_open_seconds'] = isset($row['max_open_seconds']) && $row['max_open_seconds'] !== null
+                ? max(0, (int) $row['max_open_seconds'])
+                : null;
+        }
+
+        return array_values($statsByUser);
+    }
+
+    public function getRequesterStats(): array
+    {
+        $conditions = [];
+        $parameters = [];
+
+        if ($this->ictUsers !== []) {
+            $placeholders = implode(', ', array_fill(0, count($this->ictUsers), '?'));
+            $conditions[] = 'lower(user_email) NOT IN (' . $placeholders . ')';
+            $parameters = $this->ictUsers;
+        }
+
+        $sql = "SELECT lower(user_email) AS user_email,
+                       COUNT(*) AS submitted_count,
+                       AVG(
+                           CASE WHEN status = 'afgehandeld'
+                                THEN (julianday(COALESCE(NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400
+                           END
+                       ) AS average_wait_seconds,
+                       MAX(
+                           CASE WHEN status = 'afgehandeld'
+                                THEN CAST(
+                                    ROUND((julianday(COALESCE(NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400) AS INTEGER
+                                )
+                           END
+                       ) AS max_wait_seconds
+                FROM tickets";
+
+        if ($conditions !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $conditions);
+        }
+
+        $sql .= ' GROUP BY lower(user_email) ORDER BY submitted_count DESC, user_email ASC';
+
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($parameters);
+
+        $stats = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $stats[] = [
+                'user_email' => strtolower((string) ($row['user_email'] ?? '')),
+                'submitted_count' => (int) ($row['submitted_count'] ?? 0),
+                'average_wait_seconds' => isset($row['average_wait_seconds']) && $row['average_wait_seconds'] !== null
+                    ? max(0, (float) $row['average_wait_seconds'])
+                    : null,
+                'max_wait_seconds' => isset($row['max_wait_seconds']) && $row['max_wait_seconds'] !== null
+                    ? max(0, (int) $row['max_wait_seconds'])
+                    : null,
+            ];
+        }
+
+        return $stats;
+    }
+
     public function createTicket(string $title, string $category, string $userEmail, string $description, array $files = []): array
     {
         $userEmail = strtolower(trim($userEmail));
