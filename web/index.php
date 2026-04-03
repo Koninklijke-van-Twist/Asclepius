@@ -1733,9 +1733,10 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                     <tr>
                                         <td class="user-color-cell"
                                             style="--assignee-color: <?= h(emailToHexColor((string) $statsRow['user_email'])) ?>;">
-                                            <span class="assignee-badge"
-                                                style="--assignee-color: <?= h(emailToHexColor((string) $statsRow['user_email'])) ?>;">
-                                                <?= h((string) $statsRow['user_email']) ?>
+                                            <?php $statsUserEmail = strtolower((string) $statsRow['user_email']); ?>
+                                            <span class="assignee-badge <?= empty($availabilityByIctUser[$statsUserEmail]) ? 'vacation-badge is-away' : '' ?>"
+                                                style="--assignee-color: <?= h(!empty($availabilityByIctUser[$statsUserEmail]) ? emailToHexColor($statsUserEmail) : '#94a3b8') ?>;">
+                                                <?= h($statsUserEmail) ?><?= empty($availabilityByIctUser[$statsUserEmail]) ? ' 🌴' : '' ?>
                                             </span>
                                         </td>
                                         <td><?= (int) ($statsRow['handled_count'] ?? 0) ?></td>
