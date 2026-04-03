@@ -22,8 +22,8 @@ require_once __DIR__ . '/TicketStore.php';
 /**
  * Constants
  */
-const DATABASE_FILE = __DIR__ . 'data/asclepius.sqlite';
-const UPLOAD_DIRECTORY = __DIR__ . 'data/ticket_uploads';
+const DATABASE_FILE = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR .'asclepius.sqlite';
+const UPLOAD_DIRECTORY = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR .'ticket_uploads';
 const MAX_ATTACHMENT_BYTES = 20971520;
 const TICKET_CATEGORIES = [
     'hardware bestellen',
