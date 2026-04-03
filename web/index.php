@@ -589,6 +589,50 @@ function sendTicketEmail(array $recipients, string $subject, string $message, ?s
     );
 }
 
+function routeNotificationRecipients(?TicketStore $store, array $ictUsers, array $recipients, ?string $ticketCategory = null): array
+{
+    $resolvedRecipients = [];
+    $notes = [];
+    $ictLookup = array_fill_keys(array_map('strtolower', $ictUsers), true);
+    $availabilityByUser = $store instanceof TicketStore ? $store->getIctUserAvailability() : [];
+
+    foreach ($recipients as $recipient) {
+        $email = strtolower(trim((string) $recipient));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            continue;
+        }
+
+        $resolvedRecipients[$email] = $email;
+
+        if (!isset($ictLookup[$email]) || ($availabilityByUser[$email] ?? true)) {
+            continue;
+        }
+
+        $forwardedTo = $store->pickAvailableIctUser($ticketCategory, $email);
+        if ($forwardedTo !== null && $forwardedTo !== $email) {
+            $resolvedRecipients[$forwardedTo] = $forwardedTo;
+            $notes[] = 'Let op: ' . $email . ' staat momenteel als afwezig gemarkeerd. Deze melding is daarom ook doorgestuurd naar ' . $forwardedTo . '.';
+        }
+    }
+
+    return [
+        'recipients' => array_values($resolvedRecipients),
+        'note' => implode(PHP_EOL, array_unique($notes)),
+    ];
+}
+
+function sendTicketNotification(?TicketStore $store, array $ictUsers, array $recipients, string $subject, string $message, ?string $excludeEmail = null, ?string $ticketCategory = null): void
+{
+    $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $ticketCategory);
+    $messageWithRouting = $message;
+
+    if (($routing['note'] ?? '') !== '') {
+        $messageWithRouting .= PHP_EOL . PHP_EOL . ($routing['note'] ?? '');
+    }
+
+    sendTicketEmail($routing['recipients'] ?? $recipients, $subject, $messageWithRouting, $excludeEmail);
+}
+
 function buildAbsoluteTicketUrl(int $ticketId, bool $adminPage = false): string
 {
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -699,11 +743,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($ticket !== null) {
                 $recipients = !empty($result['assigned_email']) ? [$result['assigned_email']] : $ictUsers;
-                sendTicketEmail(
+                sendTicketNotification(
+                    $store,
+                    $ictUsers,
                     $recipients,
                     'Nieuw ticket #' . $ticketId,
                     buildNotificationBody($ticket, 'Er is een nieuw ICT-ticket ingediend.', $description, true),
-                    $userEmail
+                    $userEmail,
+                    (string) ($ticket['category'] ?? $category)
                 );
             }
 
@@ -738,8 +785,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $requestedAssignee = strtolower(trim((string) ($_POST['assigned_email'] ?? (string) ($ticket['assigned_email'] ?? ''))));
+                $availabilityByUser = $store->getIctUserAvailability();
                 if ($requestedAssignee !== '' && !in_array($requestedAssignee, array_map('strtolower', $ictUsers), true)) {
                     $errors[] = 'Kies een geldige ICT-medewerker.';
+                } elseif ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee])) {
+                    $errors[] = 'Deze ICT-medewerker staat als afwezig gemarkeerd en kan geen nieuwe tickets ontvangen.';
                 } else {
                     $newAssignee = $requestedAssignee;
                     $assigneeChanged = $newAssignee !== strtolower((string) ($ticket['assigned_email'] ?? ''));
@@ -772,7 +822,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $updatedTicket = $store->getTicket($ticketId, true, $userEmail);
             if ($updatedTicket !== null) {
                 if ($canManageTickets) {
-                    sendTicketEmail(
+                    sendTicketNotification(
+                        $store,
+                        $ictUsers,
                         [$updatedTicket['user_email']],
                         'Update op ticket #' . $ticketId,
                         buildNotificationBody(
@@ -781,24 +833,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $messageForStorage,
                             false
                         ),
-                        $userEmail
+                        $userEmail,
+                        (string) ($updatedTicket['category'] ?? '')
                     );
 
                     if ($assigneeChanged && $newAssignee !== '') {
-                        sendTicketEmail(
+                        sendTicketNotification(
+                            $store,
+                            $ictUsers,
                             [$newAssignee],
                             'Ticket #' . $ticketId . ' is aan jou toegewezen',
                             buildNotificationBody($updatedTicket, 'Een ICT-ticket is opnieuw aan jou toegewezen.', $message, true),
-                            $userEmail
+                            $userEmail,
+                            (string) ($updatedTicket['category'] ?? '')
                         );
                     }
                 } else {
                     $recipients = !empty($updatedTicket['assigned_email']) ? [$updatedTicket['assigned_email']] : $ictUsers;
-                    sendTicketEmail(
+                    sendTicketNotification(
+                        $store,
+                        $ictUsers,
                         $recipients,
                         'Reactie van gebruiker op ticket #' . $ticketId,
                         buildNotificationBody($updatedTicket, 'De aanvrager heeft gereageerd op een ticket.', $message, true),
-                        $userEmail
+                        $userEmail,
+                        (string) ($updatedTicket['category'] ?? '')
                     );
                 }
             }
@@ -813,6 +872,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $postedSettings = is_array($_POST['settings'] ?? null) ? $_POST['settings'] : [];
+            $postedAvailability = is_array($_POST['availability'] ?? null) ? $_POST['availability'] : [];
             $postedEnabledPairs = array_filter((array) ($_POST['settings_enabled'] ?? []), static fn($value): bool => is_string($value) && $value !== '');
             $enabledLookup = [];
 
@@ -832,15 +892,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $matrix = [];
+            $availability = [];
             foreach ($ictUsers as $ictUser) {
                 $ictUser = strtolower($ictUser);
+                $availability[$ictUser] = !empty($postedAvailability[$ictUser]);
                 foreach (TICKET_CATEGORIES as $category) {
                     $matrix[$ictUser][$category] = !empty($postedSettings[$ictUser][$category]) || !empty($enabledLookup[$ictUser][$category]);
                 }
             }
 
-            $store->saveCategoryMatrix($matrix);
-            pushFlash('success', 'De categorie-instellingen voor ICT zijn opgeslagen.');
+            $store->saveCategoryMatrix($matrix, $availability);
+            pushFlash('success', 'De categorie-instellingen en afwezigheid voor ICT zijn opgeslagen.');
             redirectToPage('admin.php', ['view' => 'settings']);
         }
 
@@ -860,6 +922,9 @@ $tickets = $store instanceof TicketStore
     : [];
 $settingsMatrix = $store instanceof TicketStore ? $store->getCategorySettings() : [];
 $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
+$availabilityByIctUser = $store instanceof TicketStore
+    ? $store->getIctUserAvailability()
+    : array_fill_keys(array_map('strtolower', $ictUsers), true);
 $overallStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getOverallStats()
     : [
@@ -1386,6 +1451,54 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
             background: linear-gradient(90deg, var(--assignee-color, #0b65c2) 0 12px, #f8fbff 12px 100%);
         }
 
+        .settings-user-cell {
+            min-width: 220px;
+        }
+
+        .vacation-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .availability-slot {
+            width: 12px;
+            align-self: stretch;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: -10px 0 -10px -8px;
+        }
+
+        .availability-checkbox {
+            margin: 0;
+            width: 12px;
+            height: 12px;
+            accent-color: #ffffff;
+            cursor: pointer;
+        }
+
+        .vacation-badge.is-away,
+        .settings-row.is-away .vacation-badge {
+            background: #94a3b8 !important;
+            color: #fff;
+        }
+
+        .vacation-indicator {
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        .settings-row.is-away .setting-checkbox-cell,
+        .settings-row.is-away .open-load-cell {
+            opacity: 0.4;
+        }
+
+        .settings-row.is-away .setting-checkbox-cell {
+            pointer-events: none;
+            filter: grayscale(1);
+        }
+
         .empty-state {
             padding: 20px;
             border-radius: 14px;
@@ -1511,8 +1624,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
             <?php if ($canManageTickets && $view === 'settings'): ?>
                 <section class="panel">
                     <h2>Instellingen per ICT-gebruiker</h2>
-                    <p class="panel-intro">Zet per ICT-collega categorieën aan of uit. Nieuwe tickets worden automatisch
-                        toegewezen aan de minst belaste collega die de gekozen categorie aan heeft staan.</p>
+                    <p class="panel-intro">Zet per ICT-collega categorieën aan of uit en markeer medewerkers als afwezig. Nieuwe tickets worden automatisch toegewezen aan de minst belaste beschikbare collega.</p>
                     <?php if ($localRequester): ?>
                         <p class="hint">
                             DB: <code><?= h($storageDiagnostics['database_path']) ?></code><br>
@@ -1537,18 +1649,29 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                 </thead>
                                 <tbody>
                                     <?php foreach ($ictUsers as $ictUser):
-                                        $ictUser = strtolower($ictUser); ?>
-                                        <tr>
-                                            <td class="user-color-cell"
+                                        $ictUser = strtolower($ictUser);
+                                        $isAvailable = !empty($availabilityByIctUser[$ictUser]); ?>
+                                        <tr class="settings-row <?= $isAvailable ? '' : 'is-away' ?>" data-settings-row>
+                                            <td class="user-color-cell settings-user-cell"
                                                 style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
-                                                <span class="assignee-badge"
-                                                    style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
-                                                    <?= h($ictUser) ?>
-                                                </span>
+                                                <label class="vacation-toggle">
+                                                    <span class="availability-slot">
+                                                        <input type="checkbox"
+                                                            class="availability-checkbox"
+                                                            name="availability[<?= h($ictUser) ?>]"
+                                                            value="1"
+                                                            <?= $isAvailable ? 'checked' : '' ?>>
+                                                    </span>
+                                                    <span class="assignee-badge vacation-badge <?= $isAvailable ? '' : 'is-away' ?>"
+                                                        style="--assignee-color: <?= h($isAvailable ? emailToHexColor($ictUser) : '#94a3b8') ?>;">
+                                                        <?= h($ictUser) ?>
+                                                    </span>
+                                                    <span class="vacation-indicator" <?= $isAvailable ? 'hidden' : '' ?>>🌴</span>
+                                                </label>
                                             </td>
-                                            <td><?= (int) ($loadByIctUser[$ictUser] ?? 0) ?></td>
+                                            <td class="open-load-cell"><?= (int) ($loadByIctUser[$ictUser] ?? 0) ?></td>
                                             <?php foreach (TICKET_CATEGORIES as $category): ?>
-                                                <td>
+                                                <td class="setting-checkbox-cell">
                                                     <input type="checkbox"
                                                         name="settings[<?= h($ictUser) ?>][<?= h($category) ?>]"
                                                         value="1"
@@ -1869,6 +1992,33 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
             <?php endif; ?>
         </main>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('[data-settings-row]').forEach(function(row) {
+                var availabilityCheckbox = row.querySelector('.availability-checkbox');
+                var vacationIndicator = row.querySelector('.vacation-indicator');
+                var vacationBadge = row.querySelector('.vacation-badge');
+
+                if (!availabilityCheckbox) {
+                    return;
+                }
+
+                var syncAvailabilityState = function() {
+                    var isAvailable = availabilityCheckbox.checked;
+                    row.classList.toggle('is-away', !isAvailable);
+                    if (vacationIndicator) {
+                        vacationIndicator.hidden = isAvailable;
+                    }
+                    if (vacationBadge) {
+                        vacationBadge.classList.toggle('is-away', !isAvailable);
+                    }
+                };
+
+                availabilityCheckbox.addEventListener('change', syncAvailabilityState);
+                syncAvailabilityState();
+            });
+        });
+    </script>
 </body>
 
 </html>

@@ -37,7 +37,19 @@ class TicketStore
         return $settings;
     }
 
-    public function saveCategoryMatrix(array $matrix): void
+    public function getIctUserAvailability(): array
+    {
+        $statement = $this->pdo->query('SELECT user_email, is_available FROM ict_user_availability ORDER BY user_email');
+        $availability = array_fill_keys($this->ictUsers, true);
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $availability[$row['user_email']] = (bool) $row['is_available'];
+        }
+
+        return $availability;
+    }
+
+    public function saveCategoryMatrix(array $matrix, array $availability = []): void
     {
         $insertStatement = $this->pdo->prepare(
             'INSERT OR IGNORE INTO ict_user_category_settings (user_email, category, is_enabled)
@@ -49,11 +61,28 @@ class TicketStore
              WHERE user_email = :user_email
                AND category = :category'
         );
+        $availabilityInsertStatement = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ict_user_availability (user_email, is_available)
+             VALUES (:user_email, :is_available)'
+        );
+        $availabilityUpdateStatement = $this->pdo->prepare(
+            'UPDATE ict_user_availability
+             SET is_available = :is_available
+             WHERE user_email = :user_email'
+        );
 
         $this->pdo->beginTransaction();
 
         try {
             foreach ($this->ictUsers as $ictUser) {
+                $availabilityParameters = [
+                    ':user_email' => $ictUser,
+                    ':is_available' => !array_key_exists($ictUser, $availability) || !empty($availability[$ictUser]) ? 1 : 0,
+                ];
+
+                $availabilityInsertStatement->execute($availabilityParameters);
+                $availabilityUpdateStatement->execute($availabilityParameters);
+
                 foreach ($this->categories as $category) {
                     $parameters = [
                         ':user_email' => $ictUser,
@@ -240,6 +269,11 @@ class TicketStore
         }
 
         return $stats;
+    }
+
+    public function pickAvailableIctUser(?string $category = null, ?string $excludeEmail = null): ?string
+    {
+        return $this->pickAssignee($category, $excludeEmail);
     }
 
     public function createTicket(string $title, string $category, string $userEmail, string $description, array $files = []): array
@@ -505,6 +539,14 @@ class TicketStore
             )'
         );
 
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ict_user_availability (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_email TEXT NOT NULL UNIQUE,
+                is_available INTEGER NOT NULL DEFAULT 1
+            )'
+        );
+
         $this->ensureColumn('tickets', 'title', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'assigned_email', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'status', 'TEXT NOT NULL DEFAULT "ingediend"');
@@ -547,18 +589,26 @@ class TicketStore
 
     private function syncIctUsers(): void
     {
-        if ($this->ictUsers === [] || $this->categories === []) {
+        if ($this->ictUsers === []) {
             return;
         }
 
-        $statement = $this->pdo->prepare(
+        $settingsStatement = $this->pdo->prepare(
             'INSERT OR IGNORE INTO ict_user_category_settings (user_email, category, is_enabled)
              VALUES (:user_email, :category, 1)'
         );
+        $availabilityStatement = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ict_user_availability (user_email, is_available)
+             VALUES (:user_email, 1)'
+        );
 
         foreach ($this->ictUsers as $ictUser) {
+            $availabilityStatement->execute([
+                ':user_email' => $ictUser,
+            ]);
+
             foreach ($this->categories as $category) {
-                $statement->execute([
+                $settingsStatement->execute([
                     ':user_email' => $ictUser,
                     ':category' => $category,
                 ]);
@@ -566,22 +616,62 @@ class TicketStore
         }
     }
 
-    private function pickAssignee(string $category): ?string
+    private function pickAssignee(?string $category, ?string $excludeEmail = null): ?string
     {
+        $excludeEmail = strtolower(trim((string) $excludeEmail));
+        $excludeSettingsClause = $excludeEmail !== '' ? ' AND lower(settings.user_email) <> :exclude_email' : '';
+        $excludeAvailabilityClause = $excludeEmail !== '' ? ' AND lower(availability.user_email) <> :exclude_email' : '';
+
+        if ($category !== null && trim($category) !== '') {
+            $parameters = [':category' => $category];
+            if ($excludeEmail !== '') {
+                $parameters[':exclude_email'] = $excludeEmail;
+            }
+
+            $statement = $this->pdo->prepare(
+                "SELECT settings.user_email,
+                        COUNT(tickets.id) AS open_count
+                 FROM ict_user_category_settings settings
+                 INNER JOIN ict_user_availability availability
+                    ON availability.user_email = settings.user_email
+                   AND availability.is_available = 1
+                 LEFT JOIN tickets
+                    ON tickets.assigned_email = settings.user_email
+                   AND tickets.status <> 'afgehandeld'
+                 WHERE settings.category = :category
+                   AND settings.is_enabled = 1
+                   $excludeSettingsClause
+                 GROUP BY settings.user_email
+                 ORDER BY open_count ASC, settings.user_email ASC
+                 LIMIT 1"
+            );
+            $statement->execute($parameters);
+
+            $row = $statement->fetch(PDO::FETCH_ASSOC);
+            if ($row !== false) {
+                return $row['user_email'];
+            }
+        }
+
+        $parameters = [];
+        if ($excludeEmail !== '') {
+            $parameters[':exclude_email'] = $excludeEmail;
+        }
+
         $statement = $this->pdo->prepare(
-            "SELECT settings.user_email,
+            "SELECT availability.user_email,
                     COUNT(tickets.id) AS open_count
-             FROM ict_user_category_settings settings
+             FROM ict_user_availability availability
              LEFT JOIN tickets
-                ON tickets.assigned_email = settings.user_email
+                ON tickets.assigned_email = availability.user_email
                AND tickets.status <> 'afgehandeld'
-             WHERE settings.category = :category
-               AND settings.is_enabled = 1
-             GROUP BY settings.user_email
-             ORDER BY open_count ASC, settings.user_email ASC
+             WHERE availability.is_available = 1
+               $excludeAvailabilityClause
+             GROUP BY availability.user_email
+             ORDER BY open_count ASC, availability.user_email ASC
              LIMIT 1"
         );
-        $statement->execute([':category' => $category]);
+        $statement->execute($parameters);
 
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 
