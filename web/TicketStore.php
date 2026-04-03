@@ -132,6 +132,7 @@ class TicketStore
                 'handled_count' => 0,
                 'open_count' => 0,
                 'waiting_order_count' => 0,
+                'average_open_seconds' => null,
                 'max_open_seconds' => null,
             ];
         }
@@ -142,12 +143,17 @@ class TicketStore
                     SUM(CASE WHEN status = 'afgehandeld' THEN 1 ELSE 0 END) AS handled_count,
                     SUM(CASE WHEN status <> 'afgehandeld' THEN 1 ELSE 0 END) AS open_count,
                     SUM(CASE WHEN status = 'afwachtende op bestelling' THEN 1 ELSE 0 END) AS waiting_order_count,
+                    AVG(
+                        CASE WHEN status = 'afgehandeld'
+                             THEN (julianday(COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400
+                        END
+                    ) AS average_open_seconds,
                     MAX(
-                        CAST(
-                            ROUND(
-                                (julianday(CASE WHEN status = 'afgehandeld' THEN COALESCE(NULLIF(updated_at, ''), CURRENT_TIMESTAMP) ELSE CURRENT_TIMESTAMP END) - julianday(created_at)) * 86400
-                            ) AS INTEGER
-                        )
+                        CASE WHEN status = 'afgehandeld'
+                             THEN CAST(
+                                 ROUND((julianday(COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400) AS INTEGER
+                             )
+                        END
                     ) AS max_open_seconds
              FROM tickets
              WHERE lower(COALESCE(assigned_email, '')) IN ($placeholders)
@@ -165,6 +171,9 @@ class TicketStore
             $statsByUser[$ictUser]['handled_count'] = (int) ($row['handled_count'] ?? 0);
             $statsByUser[$ictUser]['open_count'] = (int) ($row['open_count'] ?? 0);
             $statsByUser[$ictUser]['waiting_order_count'] = (int) ($row['waiting_order_count'] ?? 0);
+            $statsByUser[$ictUser]['average_open_seconds'] = isset($row['average_open_seconds']) && $row['average_open_seconds'] !== null
+                ? max(0, (float) $row['average_open_seconds'])
+                : null;
             $statsByUser[$ictUser]['max_open_seconds'] = isset($row['max_open_seconds']) && $row['max_open_seconds'] !== null
                 ? max(0, (int) $row['max_open_seconds'])
                 : null;
@@ -188,18 +197,17 @@ class TicketStore
                        COUNT(*) AS submitted_count,
                        AVG(
                            CASE WHEN status = 'afgehandeld'
-                                THEN (julianday(COALESCE(NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400
+                                THEN (julianday(COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400
                            END
                        ) AS average_wait_seconds,
                        MAX(
                            CASE WHEN status = 'afgehandeld'
                                 THEN CAST(
-                                    ROUND((julianday(COALESCE(NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400) AS INTEGER
+                                    ROUND((julianday(COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400) AS INTEGER
                                 )
                            END
                        ) AS max_wait_seconds
                 FROM tickets";
-
         if ($conditions !== []) {
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
         }
@@ -284,17 +292,22 @@ class TicketStore
 
     public function updateTicket(int $ticketId, string $status, ?string $assignedEmail): void
     {
+        $updatedAt = date('c');
         $statement = $this->pdo->prepare(
-            'UPDATE tickets
+            "UPDATE tickets
              SET status = :status,
                  assigned_email = :assigned_email,
-                 updated_at = :updated_at
-             WHERE id = :id'
+                 updated_at = :updated_at,
+                 resolved_at = CASE
+                     WHEN :status = 'afgehandeld' THEN COALESCE(NULLIF(resolved_at, ''), :updated_at)
+                     ELSE NULL
+                 END
+             WHERE id = :id"
         );
         $statement->execute([
             ':status' => $status,
             ':assigned_email' => $assignedEmail,
-            ':updated_at' => date('c'),
+            ':updated_at' => $updatedAt,
             ':id' => $ticketId,
         ]);
     }
@@ -490,6 +503,7 @@ class TicketStore
         $this->ensureColumn('tickets', 'description', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'created_at', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'updated_at', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('tickets', 'resolved_at', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_messages', 'message_text', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('ticket_attachments', 'mime_type', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_attachments', 'file_size', 'INTEGER NOT NULL DEFAULT 0');
@@ -499,6 +513,12 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
+        $this->pdo->exec(
+            "UPDATE tickets
+             SET resolved_at = COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''))
+             WHERE status = 'afgehandeld'
+               AND (resolved_at IS NULL OR resolved_at = '')"
+        );
 
         $this->syncIctUsers();
     }

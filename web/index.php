@@ -309,6 +309,33 @@ function formatDurationSeconds($seconds): string
     return implode(' ', array_slice($parts, 0, 3));
 }
 
+function getTicketOpenDurationSeconds(array $ticket): ?int
+{
+    $createdAt = trim((string) ($ticket['created_at'] ?? ''));
+    if ($createdAt === '') {
+        return null;
+    }
+
+    try {
+        $start = new DateTimeImmutable($createdAt);
+        $status = (string) ($ticket['status'] ?? '');
+        $resolvedAt = trim((string) ($ticket['resolved_at'] ?? ''));
+        $updatedAt = trim((string) ($ticket['updated_at'] ?? ''));
+
+        if ($status === 'afgehandeld' && $resolvedAt !== '') {
+            $end = new DateTimeImmutable($resolvedAt);
+        } elseif ($status === 'afgehandeld' && $updatedAt !== '') {
+            $end = new DateTimeImmutable($updatedAt);
+        } else {
+            $end = new DateTimeImmutable('now');
+        }
+
+        return max(0, $end->getTimestamp() - $start->getTimestamp());
+    } catch (Throwable) {
+        return null;
+    }
+}
+
 function getStatusColor(string $status): string
 {
     return STATUS_COLORS[$status] ?? '#475569';
@@ -1542,7 +1569,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
             <?php if ($canManageTickets && $view === 'stats'): ?>
                 <section class="panel">
                     <h2>ICT-statistieken</h2>
-                    <p class="panel-intro">Bekijk hier de totalen, prestaties per ICT-medewerker en wachttijden per normale gebruiker.</p>
+                    <p class="panel-intro">Bekijk hier de totalen, prestaties per ICT-medewerker en wachttijden per normale gebruiker. Voor afgehandelde tickets meten we van <strong>aangemaakt</strong> tot <strong>afgehandeld</strong>.</p>
 
                     <div class="stats-grid">
                         <div class="stats-card">
@@ -1570,6 +1597,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                 <tr>
                                     <th>ICT-medewerker</th>
                                     <th>Afgehandeld</th>
+                                    <th>Gemiddelde tijd open</th>
                                     <th>Langste open tijd</th>
                                     <th>Openstaand</th>
                                     <th>Wacht op bestelling</th>
@@ -1586,6 +1614,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                             </span>
                                         </td>
                                         <td><?= (int) ($statsRow['handled_count'] ?? 0) ?></td>
+                                        <td><?= h(formatDurationSeconds($statsRow['average_open_seconds'] ?? null)) ?></td>
                                         <td><?= h(formatDurationSeconds($statsRow['max_open_seconds'] ?? null)) ?></td>
                                         <td><?= (int) ($statsRow['open_count'] ?? 0) ?></td>
                                         <td><?= (int) ($statsRow['waiting_order_count'] ?? 0) ?></td>
@@ -1626,7 +1655,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                 </section>
             <?php endif; ?>
 
-            <?php if (!$isAdminPortal || $view !== 'stats'): ?>
+            <?php if (!$isAdminPortal || ($isAdminPortal && $view === 'overview')): ?>
                 <section class="panel">
                     <h2><?= $isAdminPortal ? 'ICT ticketoverzicht' : 'Mijn tickets' ?></h2>
 
@@ -1685,6 +1714,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                             $ticketColor = getStatusColor((string) $ticket['status']);
                             $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
                             $shouldOpen = $openTicketId > 0 && (int) $ticket['id'] === $openTicketId;
+                            $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
                             ?>
                             <details class="ticket-card" style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
                                 <summary>
@@ -1707,6 +1737,9 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                             </span>
                                             <span class="count-badge"><?= (int) ($ticket['message_count'] ?? 0) ?>
                                                 berichten</span>
+                                            <?php if ($isAdminPortal): ?>
+                                                <span class="count-badge">tijd open <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </summary>
@@ -1720,6 +1753,10 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                         <div class="meta-item">
                                             <span class="meta-label">Laatst bijgewerkt</span>
                                             <?= h(formatDateTime((string) $ticket['updated_at'])) ?>
+                                        </div>
+                                        <div class="meta-item">
+                                            <span class="meta-label">Tijd open</span>
+                                            <?= h(formatDurationSeconds($ticketOpenDuration)) ?>
                                         </div>
                                         <div class="meta-item">
                                             <span class="meta-label">Aanvrager</span>
