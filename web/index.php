@@ -2,13 +2,6 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 
-/**
- * Includes/requires
- */
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
-
 if (!function_exists('array_any')) {
     function array_any(array $array, callable $callback): bool
     {
@@ -29,8 +22,8 @@ require_once __DIR__ . '/TicketStore.php';
 /**
  * Constants
  */
-const DATABASE_FILE = __DIR__ . '/data/asclepius.sqlite';
-const UPLOAD_DIRECTORY = __DIR__ . '/data/ticket_uploads';
+const DATABASE_FILE = __DIR__ . 'data/asclepius.sqlite';
+const UPLOAD_DIRECTORY = __DIR__ . 'data/ticket_uploads';
 const MAX_ATTACHMENT_BYTES = 20971520;
 const TICKET_CATEGORIES = [
     'hardware bestellen',

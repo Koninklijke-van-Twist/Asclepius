@@ -1,5 +1,7 @@
 <?php
 
+const DEBUG_EVERYONE_IS_ADMIN = false;
+
 function is_trusted_requester(): bool
 {
     $remote = $_SERVER['REMOTE_ADDR'] ?? '';
