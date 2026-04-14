@@ -48,6 +48,7 @@ if (!function_exists('array_any')) {
 const DATABASE_FILE = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'asclepius.sqlite';
 const UPLOAD_DIRECTORY = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'ticket_uploads';
 const MAX_ATTACHMENT_BYTES = 20971520;
+const LONG_OPEN_NOTIFICATION_FALLBACK_DAYS = 7;
 const TICKET_CATEGORIES = [
     'hardware bestellen',
     'software bestellen',
@@ -70,6 +71,25 @@ const STATUS_COLORS = [
     'afwachtende op gebruiker' => '#7c3aed',
     'afwachtende op bestelling' => '#b45309',
     'afgehandeld' => '#15803d',
+];
+const PRIORITY_LABELS = [
+    0 => 'Normaal',
+    1 => 'Belemmerd',
+    2 => 'Geblokkeerd',
+];
+const PRIORITY_COLORS = [
+    0 => '#0f766e',
+    1 => '#d97706',
+    2 => '#b91c1c',
+];
+const CATEGORY_COLORS = [
+    'hardware bestellen' => '#0f766e',
+    'software bestellen' => '#1d4ed8',
+    'Business Central' => '#7c3aed',
+    'Hardwareproblemen' => '#dc2626',
+    'Softwareproblemen' => '#ea580c',
+    'sleutels.kvt.nl web-applicatieproblemen' => '#0891b2',
+    'Anders' => '#475569',
 ];
 
 /**
@@ -121,6 +141,15 @@ $storageDiagnostics = [
     'database_directory_writable' => is_dir(dirname(DATABASE_FILE)) && is_writable(dirname(DATABASE_FILE)),
 ];
 
+$longOpenNotificationDays = max(
+    1,
+    (int) (
+        $_ENV['ASCLEPIUS_LONG_OPEN_DAYS']
+            ?? $_SERVER['ASCLEPIUS_LONG_OPEN_DAYS']
+            ?? LONG_OPEN_NOTIFICATION_FALLBACK_DAYS
+    )
+);
+
 if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -134,11 +163,27 @@ $statusFilters = $statusFilterRequestActive
     ))
     : [];
 $effectiveStatusFilters = $statusFilterRequestActive && $statusFilters === [] ? ['__no_matching_status__'] : $statusFilters;
+$categoryFilterRequestActive = $isAdminPortal && (isset($_GET['category_filter_mode']) || isset($_GET['category']));
+$categoryFilters = $categoryFilterRequestActive
+    ? array_values(array_filter(
+        array_map('trim', (array) ($_GET['category'] ?? [])),
+        static fn(string $category): bool => in_array($category, TICKET_CATEGORIES, true)
+    ))
+    : [];
+$effectiveCategoryFilters = $categoryFilterRequestActive && $categoryFilters === [] ? ['__no_matching_category__'] : $categoryFilters;
 $assignedFilter = $canManageTickets ? trim((string) ($_GET['assigned'] ?? '')) : '';
 $requestedView = trim((string) ($_GET['view'] ?? ''));
 $view = $canManageTickets && in_array($requestedView, ['settings', 'stats'], true) ? $requestedView : 'overview';
 $openTicketId = max(0, (int) ($_GET['open'] ?? 0));
-$baseQuery = buildNavigationQuery($statusFilters, $assignedFilter, $view, $isAdminPortal, $statusFilterRequestActive);
+$baseQuery = buildNavigationQuery(
+    $statusFilters,
+    $categoryFilters,
+    $assignedFilter,
+    $view,
+    $isAdminPortal,
+    $statusFilterRequestActive,
+    $categoryFilterRequestActive
+);
 
 /**
  * Functies
@@ -161,7 +206,7 @@ function normalizeReturnPage(?string $page): string
     return basename((string) $page) === 'admin.php' ? 'admin.php' : 'index.php';
 }
 
-function buildNavigationQuery(array $statusFilters, string $assignedFilter, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, int $openTicketId = 0): array
+function buildNavigationQuery(array $statusFilters, array $categoryFilters, string $assignedFilter, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, bool $categoryFilterRequestActive = false, int $openTicketId = 0): array
 {
     $query = [];
 
@@ -171,6 +216,14 @@ function buildNavigationQuery(array $statusFilters, string $assignedFilter, stri
 
     if ($statusFilters !== []) {
         $query['status'] = $statusFilters;
+    }
+
+    if ($categoryFilterRequestActive) {
+        $query['category_filter_mode'] = 'manual';
+    }
+
+    if ($categoryFilters !== []) {
+        $query['category'] = $categoryFilters;
     }
 
     if ($assignedFilter !== '') {
@@ -191,6 +244,61 @@ function buildNavigationQuery(array $statusFilters, string $assignedFilter, stri
 function isStatusFilterSelected(string $status, array $statusFilters, bool $statusFilterRequestActive): bool
 {
     return !$statusFilterRequestActive || in_array($status, $statusFilters, true);
+}
+
+function isCategoryFilterSelected(string $category, array $categoryFilters, bool $categoryFilterRequestActive): bool
+{
+    return !$categoryFilterRequestActive || in_array($category, $categoryFilters, true);
+}
+
+function getPriorityFromFlags(bool $isWorkBlocked, bool $isFullyBlocked): int
+{
+    if ($isWorkBlocked && $isFullyBlocked) {
+        return 2;
+    }
+
+    if ($isWorkBlocked) {
+        return 1;
+    }
+
+    return 0;
+}
+
+function formatPriorityLabel($priority): string
+{
+    $priority = max(0, min(2, (int) $priority));
+    return PRIORITY_LABELS[$priority] ?? PRIORITY_LABELS[0];
+}
+
+function getPriorityColor($priority): string
+{
+    $priority = max(0, min(2, (int) $priority));
+    return PRIORITY_COLORS[$priority] ?? PRIORITY_COLORS[0];
+}
+
+function getCategoryColor(string $category): string
+{
+    return CATEGORY_COLORS[$category] ?? '#334155';
+}
+
+function ticketIsOpenLongerThanDays(array $ticket, int $days): bool
+{
+    if ((string) ($ticket['status'] ?? '') === 'afgehandeld') {
+        return false;
+    }
+
+    $createdAt = trim((string) ($ticket['created_at'] ?? ''));
+    if ($createdAt === '') {
+        return false;
+    }
+
+    try {
+        $created = new DateTimeImmutable($createdAt);
+        $threshold = (new DateTimeImmutable('now'))->modify('-' . max(1, $days) . ' days');
+        return $created <= $threshold;
+    } catch (Throwable) {
+        return false;
+    }
 }
 
 function redirectToPage(string $page = 'index.php', array $parameters = []): void
@@ -720,6 +828,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $title = trim((string) ($_POST['title'] ?? ''));
             $category = trim((string) ($_POST['category'] ?? ''));
             $description = trim((string) ($_POST['description'] ?? ''));
+            $isWorkBlocked = !empty($_POST['priority_blocked']);
+            $isFullyBlocked = !empty($_POST['priority_fully_blocked']);
+            $priority = getPriorityFromFlags($isWorkBlocked, $isFullyBlocked);
+            $requesterEmailInput = strtolower(trim((string) ($_POST['requester_email'] ?? '')));
+            $requesterEmail = $userEmail;
             $files = normalizeUploadedFiles('ticket_attachments');
             $errors = validateUploadedFiles($files);
 
@@ -732,12 +845,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($description === '') {
                 $errors[] = 'Vul een beschrijving in.';
             }
+            if ($isFullyBlocked && !$isWorkBlocked) {
+                $errors[] = 'Je kunt alleen aangeven dat je niet verder kunt werken als werkzaamheden al belemmerd zijn.';
+            }
+            if ($userIsAdmin && $requesterEmailInput !== '') {
+                if (!filter_var($requesterEmailInput, FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = 'Vul een geldig e-mailadres in bij Gebruiker.';
+                } else {
+                    $requesterEmail = $requesterEmailInput;
+                }
+            }
 
             if ($errors !== []) {
                 throw new RuntimeException(implode(' ', $errors));
             }
 
-            $result = $store->createTicket($title, $category, $userEmail, $description, $files);
+            $result = $store->createTicket($title, $category, $requesterEmail, $description, $files, $priority);
             $ticketId = (int) $result['ticket_id'];
             $ticket = $store->getTicket($ticketId, true, $userEmail);
 
@@ -749,7 +872,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $recipients,
                     'Nieuw ticket #' . $ticketId,
                     buildNotificationBody($ticket, 'Er is een nieuw ICT-ticket ingediend.', $description, true),
-                    $userEmail,
+                    $requesterEmail,
+                    (string) ($ticket['category'] ?? $category)
+                );
+
+                $userIntro = strtolower($requesterEmail) === strtolower($userEmail)
+                    ? 'Je ticket is ontvangen door ICT.'
+                    : 'Er is een ticket namens u aangemaakt.';
+
+                sendTicketNotification(
+                    $store,
+                    $ictUsers,
+                    [$requesterEmail],
+                    'Ticket #' . $ticketId . ' is aangemaakt',
+                    buildNotificationBody($ticket, $userIntro, $description, false),
+                    null,
                     (string) ($ticket['category'] ?? $category)
                 );
             }
@@ -772,8 +909,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $newStatus = (string) $ticket['status'];
             $newAssignee = (string) ($ticket['assigned_email'] ?? '');
+            $newPriority = max(0, min(2, (int) ($ticket['priority'] ?? 0)));
             $statusChanged = false;
             $assigneeChanged = false;
+            $priorityChanged = false;
+            $reopenRequested = !empty($_POST['reopen_ticket']);
 
             if ($canManageTickets) {
                 $requestedStatus = trim((string) ($_POST['status'] ?? $ticket['status']));
@@ -785,18 +925,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $requestedAssignee = strtolower(trim((string) ($_POST['assigned_email'] ?? (string) ($ticket['assigned_email'] ?? ''))));
+                $currentAssignee = strtolower((string) ($ticket['assigned_email'] ?? ''));
                 $availabilityByUser = $store->getIctUserAvailability();
                 if ($requestedAssignee !== '' && !in_array($requestedAssignee, array_map('strtolower', $ictUsers), true)) {
                     $errors[] = 'Kies een geldige ICT-medewerker.';
-                } elseif ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee])) {
+                } elseif ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee]) && $requestedAssignee !== $currentAssignee) {
                     $errors[] = 'Deze ICT-medewerker staat als afwezig gemarkeerd en kan geen nieuwe tickets ontvangen.';
                 } else {
                     $newAssignee = $requestedAssignee;
-                    $assigneeChanged = $newAssignee !== strtolower((string) ($ticket['assigned_email'] ?? ''));
+                    $assigneeChanged = $newAssignee !== $currentAssignee;
+                }
+
+                $requestedPriority = (int) ($_POST['priority'] ?? $newPriority);
+                if ($requestedPriority < 0 || $requestedPriority > 2) {
+                    $errors[] = 'Kies een geldige prioriteit.';
+                } else {
+                    $newPriority = $requestedPriority;
+                    $priorityChanged = $newPriority !== (int) ($ticket['priority'] ?? 0);
                 }
             }
 
-            if ($message === '' && $files === [] && !$statusChanged && !$assigneeChanged) {
+            if (!$canManageTickets && $message !== '' && (string) $ticket['status'] === 'afwachtende op gebruiker') {
+                $newStatus = 'in behandeling';
+                $statusChanged = true;
+            }
+
+            if (!$canManageTickets && $reopenRequested && (string) $ticket['status'] === 'afgehandeld') {
+                $newStatus = 'ingediend';
+                $statusChanged = true;
+            }
+
+            if ($message === '' && $files === [] && !$statusChanged && !$assigneeChanged && !$priorityChanged) {
                 $errors[] = 'Voeg een bericht, bijlage of statuswijziging toe.';
             }
 
@@ -811,8 +970,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException(implode(' ', $errors));
             }
 
-            if ($canManageTickets && ($statusChanged || $assigneeChanged)) {
-                $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null);
+            if ($statusChanged || ($canManageTickets && ($assigneeChanged || $priorityChanged))) {
+                $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null, $newPriority);
             }
 
             if ($messageForStorage !== '' || $files !== []) {
@@ -822,20 +981,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $updatedTicket = $store->getTicket($ticketId, true, $userEmail);
             if ($updatedTicket !== null) {
                 if ($canManageTickets) {
-                    sendTicketNotification(
-                        $store,
-                        $ictUsers,
-                        [$updatedTicket['user_email']],
-                        'Update op ticket #' . $ticketId,
-                        buildNotificationBody(
-                            $updatedTicket,
-                            'ICT heeft je ticket bijgewerkt' . ($statusChanged ? ' en de status aangepast.' : '.'),
-                            $messageForStorage,
-                            false
-                        ),
-                        $userEmail,
-                        (string) ($updatedTicket['category'] ?? '')
-                    );
+                    $shouldNotifyRequester = $statusChanged || $assigneeChanged || $messageForStorage !== '' || $files !== [];
+                    if ($shouldNotifyRequester) {
+                        sendTicketNotification(
+                            $store,
+                            $ictUsers,
+                            [$updatedTicket['user_email']],
+                            'Update op ticket #' . $ticketId,
+                            buildNotificationBody(
+                                $updatedTicket,
+                                'ICT heeft je ticket bijgewerkt' . ($statusChanged ? ' en de status aangepast.' : '.'),
+                                $messageForStorage,
+                                false
+                            ),
+                            $userEmail,
+                            (string) ($updatedTicket['category'] ?? '')
+                        );
+                    }
 
                     if ($assigneeChanged && $newAssignee !== '') {
                         sendTicketNotification(
@@ -859,6 +1021,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $userEmail,
                         (string) ($updatedTicket['category'] ?? '')
                     );
+
+                    if ($message !== '' && ticketIsOpenLongerThanDays($updatedTicket, $longOpenNotificationDays)) {
+                        $escalationRecipients = $recipients;
+                        $escalationRecipients[] = 'ict@kvt.nl';
+                        sendTicketNotification(
+                            $store,
+                            $ictUsers,
+                            array_values(array_unique($escalationRecipients)),
+                            'Escalatie ticket #' . $ticketId,
+                            buildNotificationBody($updatedTicket, 'ticket staat lange tijd onbeantwoord open', $message, true),
+                            null,
+                            (string) ($updatedTicket['category'] ?? '')
+                        );
+                    }
                 }
             }
 
@@ -918,7 +1094,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $tickets = $store instanceof TicketStore
-    ? $store->getTickets($canManageTickets, $userEmail, $effectiveStatusFilters, $assignedFilter)
+    ? $store->getTickets($canManageTickets, $userEmail, $effectiveStatusFilters, $assignedFilter, $effectiveCategoryFilters)
     : [];
 $settingsMatrix = $store instanceof TicketStore ? $store->getCategorySettings() : [];
 $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
@@ -974,6 +1150,10 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
 
         * {
             box-sizing: border-box;
+        }
+
+        [hidden] {
+            display: none !important;
         }
 
         body {
@@ -1245,6 +1425,41 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
+        }
+
+        .checkbox-stack {
+            display: grid;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .checkbox-line {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .checkbox-line input {
+            margin-top: 3px;
+        }
+
+        .checkbox-line.flash-blue {
+            animation: flashBlue 0.85s ease;
+        }
+
+        @keyframes flashBlue {
+            0% {
+                background: rgba(37, 99, 235, 0);
+            }
+
+            20% {
+                background: rgba(37, 99, 235, 0.22);
+            }
+
+            100% {
+                background: rgba(37, 99, 235, 0);
+            }
         }
 
         .checkbox-chip {
@@ -1608,6 +1823,26 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                 required></textarea>
                         </label>
 
+                        <div class="checkbox-stack">
+                            <label class="checkbox-line">
+                                <input type="checkbox" name="priority_blocked" id="priority_blocked" value="1">
+                                <span>Mijn werkzaamheden worden belemmerd</span>
+                            </label>
+                            <label class="checkbox-line" id="priority_fully_blocked_wrap" hidden>
+                                <input type="checkbox" name="priority_fully_blocked" id="priority_fully_blocked" value="1">
+                                <span>Ik kan niet verder werken tot dit opgelost is</span>
+                            </label>
+                        </div>
+
+                        <?php if ($userIsAdmin): ?>
+                            <label>
+                                Gebruiker
+                                <input type="email" name="requester_email" maxlength="200"
+                                    placeholder="naam@kvt.nl (optioneel, voor ticket namens iemand anders)">
+                                <span class="hint">Alleen voor ICT: dit e-mailadres wordt als aanvrager gebruikt als je het invult.</span>
+                            </label>
+                        <?php endif; ?>
+
                         <label>
                             Screenshots of documenten
                             <input type="file" name="ticket_attachments[]" multiple>
@@ -1792,6 +2027,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                         <?php endif; ?>
 
                         <input type="hidden" name="status_filter_mode" value="manual">
+                        <input type="hidden" name="category_filter_mode" value="manual">
 
                         <div>
                             <label>Status filter</label>
@@ -1802,6 +2038,20 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                         style="--status-color: <?= h(getStatusColor($status)) ?>;">
                                         <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
                                         <span><?= h($status) ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label>Categorie filter</label>
+                            <div class="checkbox-group">
+                                <?php foreach (TICKET_CATEGORIES as $category): ?>
+                                    <?php $categorySelected = isCategoryFilterSelected($category, $categoryFilters, $categoryFilterRequestActive); ?>
+                                    <label class="checkbox-chip <?= $categorySelected ? 'is-active' : 'is-inactive' ?>"
+                                        style="--status-color: <?= h(getCategoryColor($category)) ?>;">
+                                        <input type="checkbox" name="category[]" value="<?= h($category) ?>" <?= $categorySelected ? 'checked' : '' ?> onchange="this.form.submit()">
+                                        <span><?= h($category) ?></span>
                                     </label>
                                 <?php endforeach; ?>
                             </div>
@@ -1823,7 +2073,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
 
                         <div class="button-row">
                             <a class="secondary-button"
-                                href="<?= h($currentPage) ?><?= $view === 'settings' ? '?view=settings' : '' ?>">Reset
+                                href="<?= h($currentPage) ?><?= $view !== 'overview' ? '?view=' . h($view) : '' ?>">Reset
                                 filters</a>
                         </div>
                     </form>
@@ -1841,6 +2091,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                             $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
                             $shouldOpen = $openTicketId > 0 && (int) $ticket['id'] === $openTicketId;
                             $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
+                            $replyFormId = 'reply-form-' . (int) $ticket['id'];
                             ?>
                             <details class="ticket-card" style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
                                 <summary>
@@ -1855,8 +2106,14 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                             </div>
                                         </div>
                                         <div class="ticket-subtitle">
-                                            <span class="status-pill"
-                                                style="--ticket-color: <?= h($ticketColor) ?>;"><?= h((string) $ticket['status']) ?></span>
+                                            <?php if ($isAdminPortal): ?>
+                                                <span class="status-pill"
+                                                    style="--ticket-color: <?= h($ticketColor) ?>;"><?= h((string) $ticket['status']) ?></span>
+                                            <?php endif; ?>
+                                            <?php if ($userIsAdmin && $isAdminPortal): ?>
+                                                <span class="status-pill"
+                                                    style="--ticket-color: <?= h(getPriorityColor((int) ($ticket['priority'] ?? 0))) ?>;">Prioriteit <?= (int) ($ticket['priority'] ?? 0) ?> · <?= h(formatPriorityLabel((int) ($ticket['priority'] ?? 0))) ?></span>
+                                            <?php endif; ?>
                                             <span class="assignee-badge"
                                                 style="--assignee-color: <?= h(emailToHexColor((string) ($ticket['assigned_email'] ?? 'onbekend@kvt.nl'))) ?>;">
                                                 <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen')) ?>
@@ -1873,28 +2130,23 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                 <div class="ticket-body">
                                     <div class="meta-grid">
                                         <div class="meta-item">
-                                            <span class="meta-label">Omschrijving</span>
-                                            <?= nl2br(h((string) $ticket['description'])) ?>
+                                            <span class="meta-label">Aangemaakt op · Tijd open</span>
+                                            <?= h(formatDateTime((string) $ticket['created_at'])) ?> · <?= h(formatDurationSeconds($ticketOpenDuration)) ?>
                                         </div>
                                         <div class="meta-item">
                                             <span class="meta-label">Laatst bijgewerkt</span>
                                             <?= h(formatDateTime((string) $ticket['updated_at'])) ?>
                                         </div>
-                                        <div class="meta-item">
-                                            <span class="meta-label">Tijd open</span>
-                                            <?= h(formatDurationSeconds($ticketOpenDuration)) ?>
-                                        </div>
-                                        <div class="meta-item">
-                                            <span class="meta-label">Aanvrager</span>
-                                            <?= h((string) $ticket['user_email']) ?>
-                                        </div>
-                                        <div class="meta-item">
-                                            <span class="meta-label">Toegewezen ICT-medewerker</span>
-                                            <span class="assignee-badge"
-                                                style="--assignee-color: <?= h(emailToHexColor((string) ($ticket['assigned_email'] ?? 'onbekend@kvt.nl'))) ?>;">
-                                                <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen')) ?>
-                                            </span>
-                                        </div>
+                                        <?php if ($userIsAdmin && $isAdminPortal): ?>
+                                            <div class="meta-item">
+                                                <span class="meta-label">Prioriteit</span>
+                                                <select name="priority" form="<?= h($replyFormId) ?>">
+                                                    <option value="0" <?= (int) ($ticket['priority'] ?? 0) === 0 ? 'selected' : '' ?>>0 · Normaal</option>
+                                                    <option value="1" <?= (int) ($ticket['priority'] ?? 0) === 1 ? 'selected' : '' ?>>1 · Belemmerd</option>
+                                                    <option value="2" <?= (int) ($ticket['priority'] ?? 0) === 2 ? 'selected' : '' ?>>2 · Geblokkeerd</option>
+                                                </select>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
 
                                     <?php if ($ticketDetail !== null && !empty($ticketDetail['messages'])): ?>
@@ -1937,7 +2189,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
 
                                     <form method="post"
                                         action="<?= h($currentPage) ?><?= $isAdminPortal && $view === 'settings' ? '?view=settings' : '' ?>"
-                                        enctype="multipart/form-data" class="reply-form">
+                                        enctype="multipart/form-data" class="reply-form" id="<?= h($replyFormId) ?>">
                                         <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
                                         <input type="hidden" name="form_action" value="reply_ticket">
                                         <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
@@ -1973,6 +2225,13 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                                                 placeholder="Typ hier een update of aanvullende informatie."></textarea>
                                         </label>
 
+                                        <?php if (!$canManageTickets && (string) $ticket['status'] === 'afgehandeld'): ?>
+                                            <label class="checkbox-line">
+                                                <input type="checkbox" name="reopen_ticket" value="1">
+                                                <span>Ticket weer openen</span>
+                                            </label>
+                                        <?php endif; ?>
+
                                         <label>
                                             Bijlagen toevoegen
                                             <input type="file" name="reply_attachments[]" multiple>
@@ -1981,7 +2240,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
 
                                         <div class="button-row">
                                             <button
-                                                type="submit"><?= $canManageTickets ? 'Opslaan en gebruiker mailen' : 'Reactie plaatsen en ICT mailen' ?></button>
+                                                type="submit"><?= $canManageTickets ? 'Opslaan' : 'Reactie plaatsen en ICT mailen' ?></button>
                                         </div>
                                     </form>
                                 </div>
@@ -1995,6 +2254,36 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            var blockedCheckbox = document.getElementById('priority_blocked');
+            var fullyBlockedCheckbox = document.getElementById('priority_fully_blocked');
+            var fullyBlockedWrap = document.getElementById('priority_fully_blocked_wrap');
+
+            var syncPriorityVisibility = function() {
+                if (!blockedCheckbox || !fullyBlockedWrap || !fullyBlockedCheckbox) {
+                    return;
+                }
+
+                var wasHidden = fullyBlockedWrap.hidden;
+                var showFullyBlocked = blockedCheckbox.checked;
+                fullyBlockedWrap.hidden = !showFullyBlocked;
+
+                if (showFullyBlocked && wasHidden) {
+                    fullyBlockedWrap.classList.remove('flash-blue');
+                    void fullyBlockedWrap.offsetWidth;
+                    fullyBlockedWrap.classList.add('flash-blue');
+                }
+
+                if (!showFullyBlocked) {
+                    fullyBlockedCheckbox.checked = false;
+                    fullyBlockedWrap.classList.remove('flash-blue');
+                }
+            };
+
+            if (blockedCheckbox) {
+                blockedCheckbox.addEventListener('change', syncPriorityVisibility);
+                syncPriorityVisibility();
+            }
+
             document.querySelectorAll('[data-settings-row]').forEach(function(row) {
                 var availabilityCheckbox = row.querySelector('.availability-checkbox');
                 var vacationIndicator = row.querySelector('.vacation-indicator');

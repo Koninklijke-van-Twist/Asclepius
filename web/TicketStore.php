@@ -276,9 +276,10 @@ class TicketStore
         return $this->pickAssignee($category, $excludeEmail);
     }
 
-    public function createTicket(string $title, string $category, string $userEmail, string $description, array $files = []): array
+    public function createTicket(string $title, string $category, string $userEmail, string $description, array $files = [], int $priority = 0): array
     {
         $userEmail = strtolower(trim($userEmail));
+        $priority = max(0, min(2, $priority));
         $assignee = $this->pickAssignee($category);
         $now = date('c');
 
@@ -286,8 +287,8 @@ class TicketStore
 
         try {
             $ticketStatement = $this->pdo->prepare(
-                'INSERT INTO tickets (title, category, user_email, assigned_email, status, description, created_at, updated_at)
-                 VALUES (:title, :category, :user_email, :assigned_email, :status, :description, :created_at, :updated_at)'
+                'INSERT INTO tickets (title, category, user_email, assigned_email, status, description, priority, created_at, updated_at)
+                 VALUES (:title, :category, :user_email, :assigned_email, :status, :description, :priority, :created_at, :updated_at)'
             );
             $ticketStatement->execute([
                 ':title' => $title,
@@ -296,6 +297,7 @@ class TicketStore
                 ':assigned_email' => $assignee,
                 ':status' => 'ingediend',
                 ':description' => $description,
+                ':priority' => $priority,
                 ':created_at' => $now,
                 ':updated_at' => $now,
             ]);
@@ -332,13 +334,15 @@ class TicketStore
         }
     }
 
-    public function updateTicket(int $ticketId, string $status, ?string $assignedEmail): void
+    public function updateTicket(int $ticketId, string $status, ?string $assignedEmail, int $priority = 0): void
     {
         $updatedAt = date('c');
+        $priority = max(0, min(2, $priority));
         $statement = $this->pdo->prepare(
             "UPDATE tickets
              SET status = :status,
                  assigned_email = :assigned_email,
+                 priority = :priority,
                  updated_at = :updated_at,
                  resolved_at = CASE
                      WHEN :status = 'afgehandeld' THEN COALESCE(NULLIF(resolved_at, ''), :updated_at)
@@ -349,6 +353,7 @@ class TicketStore
         $statement->execute([
             ':status' => $status,
             ':assigned_email' => $assignedEmail,
+            ':priority' => $priority,
             ':updated_at' => $updatedAt,
             ':id' => $ticketId,
         ]);
@@ -381,7 +386,7 @@ class TicketStore
         return $messageId;
     }
 
-    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null): array
+    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = []): array
     {
         $conditions = [];
         $parameters = [];
@@ -410,6 +415,16 @@ class TicketStore
             }
         }
 
+        if ($categoryFilters !== []) {
+            $categoryPlaceholders = [];
+            foreach ($categoryFilters as $index => $category) {
+                $placeholder = ':category_' . $index;
+                $categoryPlaceholders[] = $placeholder;
+                $parameters[$placeholder] = $category;
+            }
+            $conditions[] = 't.category IN (' . implode(', ', $categoryPlaceholders) . ')';
+        }
+
         $sql = 'SELECT t.*,
                        (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id) AS message_count,
                        (SELECT COUNT(*) FROM ticket_attachments ta WHERE ta.ticket_id = t.id) AS attachment_count
@@ -419,7 +434,14 @@ class TicketStore
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
         }
 
-        $sql .= ' ORDER BY datetime(t.updated_at) DESC, datetime(t.created_at) DESC, t.id DESC';
+        if ($isAdmin) {
+            $sql .= " ORDER BY CASE WHEN t.status = 'afgehandeld' THEN 1 ELSE 0 END ASC,
+                            COALESCE(t.priority, 0) DESC,
+                            datetime(t.created_at) DESC,
+                            t.id DESC";
+        } else {
+            $sql .= ' ORDER BY datetime(t.updated_at) DESC, datetime(t.created_at) DESC, t.id DESC';
+        }
 
         $statement = $this->pdo->prepare($sql);
         $statement->execute($parameters);
@@ -495,6 +517,7 @@ class TicketStore
                 assigned_email TEXT DEFAULT NULL,
                 status TEXT NOT NULL DEFAULT "ingediend",
                 description TEXT NOT NULL DEFAULT "",
+                priority INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )'
@@ -551,6 +574,7 @@ class TicketStore
         $this->ensureColumn('tickets', 'assigned_email', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'status', 'TEXT NOT NULL DEFAULT "ingediend"');
         $this->ensureColumn('tickets', 'description', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('tickets', 'priority', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('tickets', 'created_at', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'updated_at', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'resolved_at', 'TEXT DEFAULT NULL');
@@ -561,6 +585,7 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_user_email ON tickets(user_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_assigned_email ON tickets(assigned_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
         $this->pdo->exec(
