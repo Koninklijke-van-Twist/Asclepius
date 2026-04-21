@@ -11,7 +11,7 @@
 
 require_once __DIR__ . '/../web/content/localization.php';
 
-$errors    = [];
+$errors = [];
 $languages = array_keys(SUPPORTED_LANGUAGES);
 $reference = $languages[0]; // 'nl' is de leidende taal
 

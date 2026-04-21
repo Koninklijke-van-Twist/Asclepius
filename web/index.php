@@ -32,7 +32,7 @@ require_once __DIR__ . '/content/data.php';
 
         <?php if ($storeError !== null): ?>
             <div class="flash-stack">
-                <div class="flash error"><?= h(__('flash.db_error_prefix')) ?> <?= h($storeError) ?></div>
+                <div class="flash error"><?= h(__('flash.db_error_prefix')) ?>     <?= h($storeError) ?></div>
             </div>
         <?php endif; ?>
 

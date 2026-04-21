@@ -10,8 +10,8 @@
             <div class="form-grid two-columns">
                 <label>
                     <?= h(__('new_ticket.title_label')) ?>
-                    <input type="text" name="title" maxlength="150" placeholder="<?= h(__('new_ticket.title_placeholder')) ?>"
-                        required>
+                    <input type="text" name="title" maxlength="150"
+                        placeholder="<?= h(__('new_ticket.title_placeholder')) ?>" required>
                 </label>
                 <label>
                     <?= h(__('new_ticket.category_label')) ?>

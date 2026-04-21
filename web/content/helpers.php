@@ -209,12 +209,12 @@ function formatDurationSeconds($seconds): string
     $seconds = max(0, (int) round((float) $seconds));
 
     $units = [
-        ['seconds' => 31536000, 'singular' => 'duration.year',   'plural' => 'duration.years'],
-        ['seconds' => 2592000,  'singular' => 'duration.month',  'plural' => 'duration.months'],
-        ['seconds' => 604800,   'singular' => 'duration.week',   'plural' => 'duration.weeks'],
-        ['seconds' => 86400,    'singular' => 'duration.day',    'plural' => 'duration.days'],
-        ['seconds' => 3600,     'singular' => 'duration.hour',   'plural' => 'duration.hours'],
-        ['seconds' => 60,       'singular' => 'duration.minute', 'plural' => 'duration.minutes'],
+        ['seconds' => 31536000, 'singular' => 'duration.year', 'plural' => 'duration.years'],
+        ['seconds' => 2592000, 'singular' => 'duration.month', 'plural' => 'duration.months'],
+        ['seconds' => 604800, 'singular' => 'duration.week', 'plural' => 'duration.weeks'],
+        ['seconds' => 86400, 'singular' => 'duration.day', 'plural' => 'duration.days'],
+        ['seconds' => 3600, 'singular' => 'duration.hour', 'plural' => 'duration.hours'],
+        ['seconds' => 60, 'singular' => 'duration.minute', 'plural' => 'duration.minutes'],
     ];
 
     foreach ($units as $unit) {
@@ -266,11 +266,11 @@ function getStatusColor(string $status): string
 function translateStatus(string $dbStatus): string
 {
     $map = [
-        'ingediend'                  => 'status.ingediend',
-        'in behandeling'             => 'status.in_behandeling',
-        'afwachtende op gebruiker'   => 'status.afwachtende_op_gebruiker',
-        'afwachtende op bestelling'  => 'status.afwachtende_op_bestelling',
-        'afgehandeld'                => 'status.afgehandeld',
+        'ingediend' => 'status.ingediend',
+        'in behandeling' => 'status.in_behandeling',
+        'afwachtende op gebruiker' => 'status.afwachtende_op_gebruiker',
+        'afwachtende op bestelling' => 'status.afwachtende_op_bestelling',
+        'afgehandeld' => 'status.afgehandeld',
     ];
 
     return isset($map[$dbStatus]) ? __($map[$dbStatus]) : $dbStatus;
@@ -282,13 +282,13 @@ function translateStatus(string $dbStatus): string
 function translateCategory(string $dbCategory): string
 {
     $map = [
-        'hardware bestellen'                        => 'category.hardware_bestellen',
-        'software bestellen'                        => 'category.software_bestellen',
-        'Business Central'                          => 'category.business_central',
-        'Hardwareproblemen'                         => 'category.hardwareproblemen',
-        'Softwareproblemen'                         => 'category.softwareproblemen',
-        'sleutels.kvt.nl web-applicatieproblemen'   => 'category.web_app_problemen',
-        'Anders'                                    => 'category.anders',
+        'hardware bestellen' => 'category.hardware_bestellen',
+        'software bestellen' => 'category.software_bestellen',
+        'Business Central' => 'category.business_central',
+        'Hardwareproblemen' => 'category.hardwareproblemen',
+        'Softwareproblemen' => 'category.softwareproblemen',
+        'sleutels.kvt.nl web-applicatieproblemen' => 'category.web_app_problemen',
+        'Anders' => 'category.anders',
     ];
 
     return isset($map[$dbCategory]) ? __($map[$dbCategory]) : $dbCategory;

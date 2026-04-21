@@ -34,10 +34,9 @@
             <ul class="lang-dropdown" role="menu" aria-labelledby="lang-btn" hidden>
                 <?php foreach (SUPPORTED_LANGUAGES as $code => $info): ?>
                     <li role="none">
-                        <a role="menuitem"
-                            href="?<?= h(http_build_query(array_merge($_GET, ['lang' => $code]))) ?>"
+                        <a role="menuitem" href="?<?= h(http_build_query(array_merge($_GET, ['lang' => $code]))) ?>"
                             class="lang-option <?= $code === $currentLang ? 'is-active' : '' ?>">
-                            <?= $info['flag'] ?> <?= h($info['label']) ?>
+                            <?= $info['flag'] ?>     <?= h($info['label']) ?>
                         </a>
                     </li>
                 <?php endforeach; ?>
@@ -46,19 +45,22 @@
     </div>
 </header>
 <script>
-(function () {
-    var btn = document.getElementById('lang-btn');
-    var dropdown = btn ? btn.nextElementSibling : null;
-    if (!btn || !dropdown) { return; }
-    btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var open = !dropdown.hidden;
-        dropdown.hidden = open;
-        btn.setAttribute('aria-expanded', String(!open));
-    });
-    document.addEventListener('click', function () {
-        dropdown.hidden = true;
-        btn.setAttribute('aria-expanded', 'false');
-    });
-}());
+    (function ()
+    {
+        var btn = document.getElementById('lang-btn');
+        var dropdown = btn ? btn.nextElementSibling : null;
+        if (!btn || !dropdown) { return; }
+        btn.addEventListener('click', function (e)
+        {
+            e.stopPropagation();
+            var open = !dropdown.hidden;
+            dropdown.hidden = open;
+            btn.setAttribute('aria-expanded', String(!open));
+        });
+        document.addEventListener('click', function ()
+        {
+            dropdown.hidden = true;
+            btn.setAttribute('aria-expanded', 'false');
+        });
+    }());
 </script>
