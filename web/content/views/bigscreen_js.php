@@ -30,6 +30,20 @@
                     var CURRENT_VER = null;
                     var versionChangedAt = null;
                     var VERSION_RELOAD_DELAY_MS = 600000; // 10 minuten
+                    var reloadScheduled = false;
+
+                    /* ---- Auto-herstel: herlaad na vertraging, maximaal 1x gepland ---- */
+                    function scheduleReload (delayMs)
+                    {
+                        if (reloadScheduled) { return; }
+                        reloadScheduled = true;
+                        setTimeout(function () { location.reload(); }, delayMs || 60000);
+                    }
+
+                    /* Vang onverwachte JS-fouten op de pagina zelf op */
+                    window.onerror = function () { scheduleReload(60000); return false; };
+                    window.onunhandledrejection = function () { scheduleReload(60000); };
+
                     var MOCK_ALERT = <?= $isMockAlert ? 'true' : 'false' ?>;
                     var MOCK_TICKETS = <?= json_encode($bsMockList, JSON_UNESCAPED_UNICODE) ?>;
                     var currentMaxId = <?= $bsMaxId ?>;
@@ -289,8 +303,8 @@
                             {
                                 if (!r.ok)
                                 {
-                                    // Ongeldige state (bijv. sessie verlopen, 500) — 1 minuut wachten dan herladen
-                                    setTimeout(function () { location.reload(); }, 60000);
+                                    // Ongeldige state (bijv. sessie verlopen, 500)
+                                    scheduleReload(60000);
                                     return null;
                                 }
                                 return r.json();
@@ -306,11 +320,7 @@
                                     runAlert(data.latest);
                                 }
                             })
-                            .catch(function ()
-                            {
-                                // Netwerkfout — 1 minuut wachten dan herladen
-                                setTimeout(function () { location.reload(); }, 60000);
-                            });
+                            .catch(function () { scheduleReload(60000); });
                     }
 
                     function pollVersion ()
@@ -330,7 +340,7 @@
                                     }
                                     if (Date.now() - versionChangedAt >= VERSION_RELOAD_DELAY_MS)
                                     {
-                                        location.reload();
+                                        scheduleReload(0);
                                     }
                                 } else
                                 {
@@ -338,7 +348,7 @@
                                     versionChangedAt = null;
                                 }
                             })
-                            .catch(function () { });
+                            .catch(function () { scheduleReload(60000); });
                     }
 
                     setInterval(poll, 2000);
