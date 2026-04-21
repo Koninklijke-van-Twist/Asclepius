@@ -6,6 +6,10 @@ ini_set('session.use_cookies', '1');
 ini_set('session.use_only_cookies', '1');
 ini_set('session.use_trans_sid', '0');
 
+// Start output buffering vroeg zodat PHP-notices of whitespace de response niet corrumperen
+// (met name belangrijk voor binaire downloads via ?download=)
+ob_start();
+
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'TicketStore.php';
 

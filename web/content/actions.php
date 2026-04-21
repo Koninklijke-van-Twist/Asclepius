@@ -34,6 +34,7 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
     header('Content-Type: ' . ((string) ($attachment['mime_type'] ?? '') !== '' ? $attachment['mime_type'] : 'application/octet-stream'));
     header('Content-Disposition: attachment; filename="' . $downloadName . '"');
     header('Content-Length: ' . (string) filesize($storedPath));
+    ob_end_clean(); // Verwijder gebufferde output (notices, whitespace) voor binaire download
     readfile($storedPath);
     exit;
 }
