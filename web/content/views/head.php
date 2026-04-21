@@ -84,7 +84,7 @@
             width: 28px;
             height: 20px;
             border-radius: 3px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
             display: block;
         }
 
@@ -94,7 +94,7 @@
             right: 0;
             background: #fff;
             border-radius: 12px;
-            box-shadow: 0 8px 28px rgba(15,35,63,0.18);
+            box-shadow: 0 8px 28px rgba(15, 35, 63, 0.18);
             padding: 6px;
             margin: 0;
             list-style: none;
@@ -128,7 +128,7 @@
             width: 22px;
             height: 15px;
             border-radius: 2px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
             flex-shrink: 0;
         }
 

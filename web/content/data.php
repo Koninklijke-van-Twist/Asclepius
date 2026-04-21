@@ -56,6 +56,7 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                 'id' => $tid,
                 'title' => (string) ($t['title'] ?? ''),
                 'status' => (string) ($t['status'] ?? ''),
+                'status_label' => translateStatus((string) ($t['status'] ?? '')),
                 'status_color' => getStatusColor((string) ($t['status'] ?? '')),
                 'user_email' => (string) ($t['user_email'] ?? ''),
                 'assigned_email' => (string) ($t['assigned_email'] ?? ''),
