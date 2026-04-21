@@ -30,6 +30,9 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
 
+      - name: Write version file
+        run: echo "${{ github.sha }}" > ./web/version
+
       # Stap 1: alles op de server opruimen behalve .htaccess, .htpasswd, *.json, auth.php
       - name: Deploy web/ to FTP (with delete & excludes)
         env:

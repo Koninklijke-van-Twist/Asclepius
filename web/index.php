@@ -1115,6 +1115,31 @@ $ictStats = $canManageTickets && $view === 'stats' && $store instanceof TicketSt
 $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getRequesterStats()
     : [];
+
+if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
+    $allTicketsForPoll = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
+    $pollMaxId = 0;
+    $pollLatest = null;
+    foreach ($allTicketsForPoll as $t) {
+        if ((int) $t['id'] > $pollMaxId) {
+            $pollMaxId = (int) $t['id'];
+            $pollLatest = $t;
+        }
+    }
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'max_id' => $pollMaxId,
+        'latest' => $pollLatest !== null ? [
+            'id'             => $pollMaxId,
+            'title'          => (string) ($pollLatest['title'] ?? ''),
+            'user_email'     => (string) ($pollLatest['user_email'] ?? ''),
+            'assigned_email' => (string) ($pollLatest['assigned_email'] ?? ''),
+            'assigned_color' => emailToHexColor((string) ($pollLatest['assigned_email'] ?? '')),
+        ] : null,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="nl">
@@ -1122,9 +1147,7 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <?php if ($canManageTickets && $view === 'stats'): ?>
-        <meta http-equiv="refresh" content="600">
-    <?php endif; ?>
+
     <title>Asclepius - ICT tickets</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
@@ -1420,6 +1443,104 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
             color: var(--muted);
             font-size: 13px;
         }
+
+        /* Bigscreen alert overlay */
+        #bigscreen-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #bigscreen-overlay.bs-phase1 {
+            display: flex;
+            background: #000;
+        }
+
+        #bigscreen-overlay.bs-phase2 {
+            display: flex;
+            background: #1a4ed8;
+            color: #fff;
+            text-align: center;
+        }
+
+        .bs-hazard-strip {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background-image: repeating-linear-gradient(
+                60deg,
+                #f7c600 0px,
+                #f7c600 40px,
+                #111 40px,
+                #111 80px
+            );
+            background-size: 93px 100%;
+            overflow: hidden;
+        }
+
+        .bs-hazard-top {
+            top: 0;
+            animation: hazard-scroll-right 2s linear infinite;
+        }
+
+        .bs-hazard-bottom {
+            bottom: 0;
+            animation: hazard-scroll-left 2s linear infinite;
+        }
+
+        @keyframes hazard-scroll-right {
+            from { background-position-x: 0; }
+            to   { background-position-x: 93px; }
+        }
+
+        @keyframes hazard-scroll-left {
+            from { background-position-x: 0; }
+            to   { background-position-x: -93px; }
+        }
+
+        .bs-warning-emoji {
+            font-size: min(50vw, 50vh);
+            line-height: 1;
+            z-index: 1;
+            user-select: none;
+        }
+
+        .bs-ticket-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            padding: 40px;
+        }
+
+        .bs-ticket-info .bs-headline {
+            font-size: clamp(28px, 5vw, 56px);
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .bs-ticket-info .bs-title {
+            font-size: clamp(22px, 4vw, 44px);
+            font-weight: 600;
+            line-height: 1.2;
+            opacity: 0.9;
+        }
+
+        .bs-assignee-pill {
+            display: inline-block;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-size: clamp(18px, 3vw, 36px);
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 0.01em;
+        }
+
 
         .checkbox-group {
             display: flex;
@@ -2016,6 +2137,19 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
                 </section>
             <?php endif; ?>
 
+            <?php if ($canManageTickets && $view === 'stats'): ?>
+                <div id="bigscreen-overlay" aria-live="assertive" aria-atomic="true">
+                    <div class="bs-hazard-strip bs-hazard-top" id="bs-hazard-top"></div>
+                    <span class="bs-warning-emoji" id="bs-warning-emoji" aria-hidden="true">⚠️</span>
+                    <div class="bs-hazard-strip bs-hazard-bottom" id="bs-hazard-bottom"></div>
+                    <div class="bs-ticket-info" id="bs-ticket-info" hidden>
+                        <div class="bs-headline" id="bs-headline"></div>
+                        <div class="bs-title" id="bs-title"></div>
+                        <div id="bs-assignee"></div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <?php if (!$isAdminPortal || ($isAdminPortal && $view === 'overview')): ?>
                 <section class="panel">
                     <h2><?= $isAdminPortal ? 'ICT ticketoverzicht' : 'Mijn tickets' ?></h2>
@@ -2309,6 +2443,151 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
             });
         });
     </script>
+
+    <?php if ($canManageTickets && $view === 'stats'): ?>
+    <?php
+        $isBigscreen = isset($_GET['bigscreen']) && (string) $_GET['bigscreen'] === 'true';
+        $isMockAlert  = isset($_GET['mock-alert']);
+        if ($isBigscreen):
+            $bsAllTickets = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
+            $bsMaxId      = 0;
+            $bsMockList   = [];
+            foreach ($bsAllTickets as $t) {
+                $tid = (int) $t['id'];
+                if ($tid > $bsMaxId) {
+                    $bsMaxId = $tid;
+                }
+                if ($isMockAlert) {
+                    $bsMockList[] = [
+                        'id'             => $tid,
+                        'title'          => (string) ($t['title'] ?? ''),
+                        'user_email'     => (string) ($t['user_email'] ?? ''),
+                        'assigned_email' => (string) ($t['assigned_email'] ?? ''),
+                        'assigned_color' => emailToHexColor((string) ($t['assigned_email'] ?? '')),
+                    ];
+                }
+            }
+    ?>
+    <script>
+    (function () {
+        var POLL_URL     = 'admin.php?view=stats&_bigscreen_poll=1';
+        var VERSION_URL  = 'version';
+        var CURRENT_VER  = null;
+        var MOCK_ALERT  = <?= $isMockAlert ? 'true' : 'false' ?>;
+        var MOCK_TICKETS = <?= json_encode($bsMockList, JSON_UNESCAPED_UNICODE) ?>;
+        var currentMaxId = <?= $bsMaxId ?>;
+        var alertActive  = false;
+        var reloadTimer  = null;
+
+        function scheduleReload(ms) {
+            clearTimeout(reloadTimer);
+            reloadTimer = setTimeout(function () {
+                if (!alertActive) { location.reload(); }
+            }, ms);
+        }
+
+        function showPhase1() {
+            alertActive = true;
+            clearTimeout(reloadTimer);
+            var overlay  = document.getElementById('bigscreen-overlay');
+            var hazTop   = document.getElementById('bs-hazard-top');
+            var hazBot   = document.getElementById('bs-hazard-bottom');
+            var emoji    = document.getElementById('bs-warning-emoji');
+            var info     = document.getElementById('bs-ticket-info');
+            overlay.className = 'bs-phase1';
+            hazTop.hidden  = false;
+            hazBot.hidden  = false;
+            emoji.hidden   = false;
+            info.hidden    = true;
+        }
+
+        function showPhase2(ticket) {
+            var overlay  = document.getElementById('bigscreen-overlay');
+            var hazTop   = document.getElementById('bs-hazard-top');
+            var hazBot   = document.getElementById('bs-hazard-bottom');
+            var emoji    = document.getElementById('bs-warning-emoji');
+            var info     = document.getElementById('bs-ticket-info');
+            var headline = document.getElementById('bs-headline');
+            var titleEl  = document.getElementById('bs-title');
+            var assigneeEl = document.getElementById('bs-assignee');
+
+            headline.textContent = 'Nieuwe ticket van ' + ticket.user_email + '!';
+            titleEl.textContent  = ticket.title;
+
+            assigneeEl.innerHTML = '';
+            if (ticket.assigned_email) {
+                var pill = document.createElement('span');
+                pill.className     = 'bs-assignee-pill';
+                pill.style.background = ticket.assigned_color || '#0b65c2';
+                pill.textContent   = 'Toegewezen aan: ' + ticket.assigned_email;
+                assigneeEl.appendChild(pill);
+            } else {
+                assigneeEl.textContent = 'Nog niet toegewezen';
+            }
+
+            overlay.className = 'bs-phase2';
+            hazTop.hidden  = true;
+            hazBot.hidden  = true;
+            emoji.hidden   = true;
+            info.hidden    = false;
+        }
+
+        function runAlert(ticket) {
+            showPhase1();
+            setTimeout(function () {
+                showPhase2(ticket);
+                setTimeout(function () {
+                    alertActive = false;
+                    location.reload();
+                }, 10000);
+            }, 3000);
+        }
+
+        function poll() {
+            if (alertActive) { return; }
+            fetch(POLL_URL, { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.max_id > currentMaxId && data.latest) {
+                        currentMaxId = data.max_id;
+                        runAlert(data.latest);
+                    }
+                })
+                .catch(function () {});
+        }
+
+        function pollVersion() {
+            if (alertActive) { return; }
+            fetch(VERSION_URL, { credentials: 'same-origin', cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.text() : null; })
+                .then(function (ver) {
+                    if (!ver) { return; }
+                    ver = ver.trim();
+                    if (CURRENT_VER === null) { CURRENT_VER = ver; return; }
+                    if (ver !== CURRENT_VER) {
+                        CURRENT_VER = ver; // niet opnieuw triggeren bij volgende poll
+                        setTimeout(function () { location.reload(); }, 120000);
+                    }
+                })
+                .catch(function () {});
+        }
+
+        setInterval(poll, 2000);
+        setInterval(pollVersion, 10000);
+        scheduleReload(5000);
+
+        if (MOCK_ALERT && MOCK_TICKETS.length > 0) {
+            setTimeout(function () {
+                if (!alertActive) {
+                    var t = MOCK_TICKETS[Math.floor(Math.random() * MOCK_TICKETS.length)];
+                    runAlert(t);
+                }
+            }, 3000);
+        }
+    }());
+    </script>
+    <?php endif; ?>
+    <?php endif; ?>
 </body>
 
 </html>
