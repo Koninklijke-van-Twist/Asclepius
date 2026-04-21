@@ -1,14 +1,13 @@
             <?php if ($canManageTickets && $view === 'settings'): ?>
                 <section class="panel">
-                    <h2>Instellingen per ICT-gebruiker</h2>
-                    <p class="panel-intro">Zet per ICT-collega categorieën aan of uit en markeer medewerkers als afwezig.
-                        Nieuwe tickets worden automatisch toegewezen aan de minst belaste beschikbare collega.</p>
+                    <h2><?= h(__('settings.heading')) ?></h2>
+                    <p class="panel-intro"><?= h(__('settings.intro')) ?></p>
                     <?php if ($localRequester): ?>
                         <p class="hint">
                             DB: <code><?= h($storageDiagnostics['database_path']) ?></code><br>
-                            Bestand: <?= $storageDiagnostics['database_exists'] ? 'bestaat' : 'ontbreekt' ?> ·
-                            map schrijfbaar: <?= $storageDiagnostics['database_directory_writable'] ? 'ja' : 'nee' ?> ·
-                            bestand schrijfbaar: <?= $storageDiagnostics['database_writable'] ? 'ja' : 'nee' ?>
+                            Bestand: <?= $storageDiagnostics['database_exists'] ? h(__('settings.db_exists')) : h(__('settings.db_missing')) ?> ·
+                            <?= h(__('settings.dir_writable')) ?>: <?= $storageDiagnostics['database_directory_writable'] ? h(__('settings.yes')) : h(__('settings.no')) ?> ·
+                            <?= h(__('settings.file_writable')) ?>: <?= $storageDiagnostics['database_writable'] ? h(__('settings.yes')) : h(__('settings.no')) ?>
                         </p>
                     <?php endif; ?>
                     <form method="post" action="admin.php?view=settings" class="form-grid">
@@ -18,10 +17,10 @@
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>ICT-gebruiker</th>
-                                        <th>Open tickets</th>
+                                        <th><?= h(__('settings.col_user')) ?></th>
+                                        <th><?= h(__('settings.col_open_tickets')) ?></th>
                                         <?php foreach (TICKET_CATEGORIES as $category): ?>
-                                            <th><?= h($category) ?></th>
+                                            <th><?= h(translateCategory($category)) ?></th>
                                         <?php endforeach; ?>
                                     </tr>
                                 </thead>
@@ -58,8 +57,7 @@
                             </table>
                         </div>
                         <div class="button-row">
-                            <button type="submit" name="form_action" value="save_settings">Instellingen
-                                opslaan</button>
+                            <button type="submit" name="form_action" value="save_settings"><?= h(__('settings.btn_save')) ?></button>
                         </div>
                     </form>
                 </section>

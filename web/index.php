@@ -1,7 +1,8 @@
-<?php
+﻿<?php
 
 require_once __DIR__ . '/content/bootstrap.php';
 require_once __DIR__ . '/content/constants.php';
+require_once __DIR__ . '/content/localization.php';
 require_once __DIR__ . '/content/helpers.php';
 require_once __DIR__ . '/content/mail.php';
 require_once __DIR__ . '/content/variables.php';
@@ -10,7 +11,7 @@ require_once __DIR__ . '/content/data.php';
 
 ?>
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="<?= h(getCurrentLanguage()) ?>">
 
 <?php require __DIR__ . '/content/views/head.php'; ?>
 
@@ -31,7 +32,7 @@ require_once __DIR__ . '/content/data.php';
 
         <?php if ($storeError !== null): ?>
             <div class="flash-stack">
-                <div class="flash error">Databasefout: <?= h($storeError) ?></div>
+                <div class="flash error"><?= h(__('flash.db_error_prefix')) ?> <?= h($storeError) ?></div>
             </div>
         <?php endif; ?>
 

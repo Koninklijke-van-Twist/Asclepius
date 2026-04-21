@@ -11,8 +11,23 @@
 - Bestand `web/auth.php` alleen aanpassen na expliciete gebruikersvraag.
 
 ## Data en logica werkorders
-- Hoofdflow staat in `web/index.php`.
-- Helpers staan in hun eigen bestand.
+- `web/index.php` is een ~50-regelige controller die alleen `require`-statements en HTML-output bevat.
+- Alle PHP-logica is verdeeld over de volgende bestanden onder `web/content/`:
+
+| Bestand | Verantwoordelijkheid |
+|---|---|
+| `bootstrap.php` | PHP ini-instellingen, session_start(), require auth/logincheck/TicketStore, polyfills |
+| `constants.php` | Alle PHP-constanten (categorieën, statussen, kleuren, limieten, paden) |
+| `localization.php` | Alle user-facing teksten in alle ondersteunde talen (nl, en, de, fr); bevat `__($key, ...$args)` en `getCurrentLanguage()` |
+| `helpers.php` | Pure hulpfuncties: opmaak, filters, CSRF, URL-opbouw, berichtformattering |
+| `mail.php` | SMTP-functies en e-mailnotificaties (`sendTicketEmail`, `sendTicketNotification`) |
+| `variables.php` | Request-parsing, sessiegebruiker, store-initialisatie, filterstate, baseQuery |
+| `actions.php` | POST-handlers (create_ticket, reply_ticket, save_settings) + downloadhandler; eindigt altijd met `exit` of redirect |
+| `data.php` | Data ophalen voor views + bigscreen-poll (JSON response + exit); stelt `$isBigscreen` in |
+
+- HTML-partials staan in `web/content/views/`: `head.php`, `header.php`, `view_tickets.php`, `view_new_ticket.php`, `view_settings.php`, `view_stats.php`, `page_js.php`, `bigscreen_js.php`.
+- Nieuwe functionaliteit hoort in een eigen bestand onder `web/content/`; voeg het toe aan de `require`-keten in `index.php`.
+- Views (`web/content/views/`) bevatten alleen HTML/presentatielogica — geen DB-calls, geen redirects, geen exits.
 
 ## UI-regels
 - Geen zware frameworks introduceren zonder expliciet verzoek.
@@ -53,3 +68,11 @@
   - `web/logincheck.php` niet aanpassen
   - `web/odata.php` niet aanpassen
   - `web/auth.php` alleen aanpassen na expliciete gebruikersvraag
+
+## Lokalisatie (meertaligheid)
+- De app ondersteunt Nederlands (nl), English (en), Deutsch (de) en Français (fr). Nederlands is de leidende taal.
+- **Alle** user-facing tekst (labels, koppen, placeholders, hints, foutmeldingen, flashberichten) moet via `__('sleutel')` worden opgeroepen. Hardcoded Nederlandse of andere tekst in views, actions of helpers is niet toegestaan.
+- Vertalingen worden beheerd in `web/content/localization.php` in de constante `TRANSLATIONS`. Voeg nieuwe sleutels altijd toe aan **alle vier talen** tegelijk.
+- Gebruik `sprintf`-stijl voor dynamische waarden: `__('flash.ticket_created', $ticketId)` waarbij de string `'Ticket #%d is aangemaakt.'` bevat.
+- Na het toevoegen van nieuwe sleutels: controleer dekking met `php tests/check_translations.php` (exitcode 0 = OK).
+- HTML in vertalingen (bijv. `<strong>`) is toegestaan voor `stats.intro` e.d.; gebruik dan geen `h()` om de string te escapen, maar wel voor losse waarden.

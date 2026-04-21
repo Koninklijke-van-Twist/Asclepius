@@ -10,7 +10,7 @@
 $returnPage = normalizeReturnPage((string) ($_POST['return_page'] ?? ($isAdminPortal ? 'admin.php' : 'index.php')));
 
 if ($isAdminPortal && !$userIsAdmin) {
-    pushFlash('error', 'Alleen ICT-gebruikers hebben toegang tot het ticketoverzicht.');
+    pushFlash('error', __('flash.admin_only'));
     redirectToPage('index.php');
 }
 
@@ -20,13 +20,13 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
 
     if ($attachment === null) {
         http_response_code(404);
-        exit('Bijlage niet gevonden.');
+        exit(__('flash.attachment_not_found'));
     }
 
     $storedPath = (string) ($attachment['stored_path'] ?? '');
     if (!is_file($storedPath)) {
         http_response_code(404);
-        exit('Het bestand ontbreekt op de server.');
+        exit(__('flash.attachment_missing'));
     }
 
     $downloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($attachment['original_name'] ?? 'bijlage')) ?: 'bijlage';
@@ -40,12 +40,12 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($csrfToken, (string) ($_POST['csrf_token'] ?? ''))) {
-        pushFlash('error', 'Je sessie is verlopen. Ververs de pagina en probeer het opnieuw.');
+        pushFlash('error', __('flash.session_expired'));
         redirectToPage($returnPage, $baseQuery);
     }
 
     if (!$store instanceof TicketStore) {
-        pushFlash('error', 'De database kon niet worden geopend: ' . $storeError);
+        pushFlash('error', __('flash.db_open_error', $storeError));
         redirectToPage($returnPage, $baseQuery);
     }
 
@@ -65,20 +65,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors = validateUploadedFiles($files);
 
             if ($title === '') {
-                $errors[] = 'Vul een titel in voor het ticket.';
+                $errors[] = __('flash.ticket_title_required');
             }
             if (!in_array($category, TICKET_CATEGORIES, true)) {
-                $errors[] = 'Kies een geldige categorie.';
+                $errors[] = __('flash.invalid_category');
             }
             if ($description === '') {
-                $errors[] = 'Vul een beschrijving in.';
+                $errors[] = __('flash.description_required');
             }
             if ($isFullyBlocked && !$isWorkBlocked) {
-                $errors[] = 'Je kunt alleen aangeven dat je niet verder kunt werken als werkzaamheden al belemmerd zijn.';
+                $errors[] = __('flash.blocked_inconsistent');
             }
             if ($userIsAdmin && $requesterEmailInput !== '') {
                 if (!filter_var($requesterEmailInput, FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = 'Vul een geldig e-mailadres in bij Gebruiker.';
+                    $errors[] = __('flash.invalid_email');
                 } else {
                     $requesterEmail = $requesterEmailInput;
                 }
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
             }
 
-            pushFlash('success', 'Ticket #' . $ticketId . ' is aangemaakt en automatisch toegewezen.');
+            pushFlash('success', __('flash.ticket_created', $ticketId));
             redirectToPage($returnPage, array_merge($baseQuery, ['open' => $ticketId]));
         }
 
@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
             $ticket = $store->getTicket($ticketId, $canManageTickets, $userEmail);
             if ($ticket === null) {
-                throw new RuntimeException('Ticket niet gevonden of niet toegankelijk.');
+                throw new RuntimeException(__('flash.ticket_not_found'));
             }
 
             $message = trim((string) ($_POST['message'] ?? ''));
@@ -146,7 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($canManageTickets) {
                 $requestedStatus = trim((string) ($_POST['status'] ?? $ticket['status']));
                 if (!in_array($requestedStatus, TICKET_STATUSES, true)) {
-                    $errors[] = 'Kies een geldige status.';
+                    $errors[] = __('flash.invalid_status');
                 } else {
                     $newStatus = $requestedStatus;
                     $statusChanged = $newStatus !== (string) $ticket['status'];
@@ -156,9 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $currentAssignee = strtolower((string) ($ticket['assigned_email'] ?? ''));
                 $availabilityByUser = $store->getIctUserAvailability();
                 if ($requestedAssignee !== '' && !in_array($requestedAssignee, array_map('strtolower', $ictUsers), true)) {
-                    $errors[] = 'Kies een geldige ICT-medewerker.';
+                    $errors[] = __('flash.invalid_employee');
                 } elseif ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee]) && $requestedAssignee !== $currentAssignee) {
-                    $errors[] = 'Deze ICT-medewerker staat als afwezig gemarkeerd en kan geen nieuwe tickets ontvangen.';
+                    $errors[] = __('flash.employee_away');
                 } else {
                     $newAssignee = $requestedAssignee;
                     $assigneeChanged = $newAssignee !== $currentAssignee;
@@ -166,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $requestedPriority = (int) ($_POST['priority'] ?? $newPriority);
                 if ($requestedPriority < 0 || $requestedPriority > 2) {
-                    $errors[] = 'Kies een geldige prioriteit.';
+                    $errors[] = __('flash.invalid_priority');
                 } else {
                     $newPriority = $requestedPriority;
                     $priorityChanged = $newPriority !== (int) ($ticket['priority'] ?? 0);
@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($message === '' && $files === [] && !$statusChanged && !$assigneeChanged && !$priorityChanged) {
-                $errors[] = 'Voeg een bericht, bijlage of statuswijziging toe.';
+                $errors[] = __('flash.reply_empty');
             }
 
             if ($canManageTickets && $statusChanged) {
@@ -266,13 +266,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            pushFlash('success', 'Ticket #' . $ticketId . ' is bijgewerkt.');
+            pushFlash('success', __('flash.ticket_updated', $ticketId));
             redirectToPage($returnPage, array_merge($baseQuery, ['open' => $ticketId]));
         }
 
         if ($formAction === 'save_settings') {
             if (!$canManageTickets) {
-                throw new RuntimeException('Alleen admins kunnen instellingen aanpassen.');
+                throw new RuntimeException(__('flash.settings_admin_only'));
             }
 
             $postedSettings = is_array($_POST['settings'] ?? null) ? $_POST['settings'] : [];
@@ -306,11 +306,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $store->saveCategoryMatrix($matrix, $availability);
-            pushFlash('success', 'De categorie-instellingen en afwezigheid voor ICT zijn opgeslagen.');
+            pushFlash('success', __('flash.settings_saved'));
             redirectToPage('admin.php', ['view' => 'settings']);
         }
 
-        throw new RuntimeException('Onbekende actie ontvangen.');
+        throw new RuntimeException(__('flash.unknown_action'));
     } catch (Throwable $exception) {
         if ($formAction === 'save_settings') {
             error_log('[Asclepius save_settings] ' . $exception->getMessage() . ' | db=' . DATABASE_FILE . ' | dir_writable=' . (is_writable(dirname(DATABASE_FILE)) ? '1' : '0') . ' | file_writable=' . ((is_file(DATABASE_FILE) && is_writable(DATABASE_FILE)) ? '1' : '0'));

@@ -79,7 +79,7 @@ function getPriorityFromFlags(bool $isWorkBlocked, bool $isFullyBlocked): int
 function formatPriorityLabel($priority): string
 {
     $priority = max(0, min(2, (int) $priority));
-    return PRIORITY_LABELS[$priority] ?? PRIORITY_LABELS[0];
+    return __('priority.label.' . $priority);
 }
 
 function getPriorityColor($priority): string
@@ -175,12 +175,12 @@ function validateUploadedFiles(array $files): array
         $size = (int) ($file['size'] ?? 0);
 
         if ($error !== UPLOAD_ERR_OK) {
-            $errors[] = 'Bijlage "' . $name . '" kon niet worden geüpload.';
+            $errors[] = __('flash.attachment_upload_error', $name);
             continue;
         }
 
         if ($size > MAX_ATTACHMENT_BYTES) {
-            $errors[] = 'Bijlage "' . $name . '" is groter dan 20 MB.';
+            $errors[] = __('flash.attachment_too_large', $name);
         }
     }
 
@@ -190,7 +190,7 @@ function validateUploadedFiles(array $files): array
 function formatDateTime(string $value): string
 {
     if ($value === '') {
-        return 'Onbekend';
+        return __('datetime.unknown');
     }
 
     try {
@@ -209,23 +209,23 @@ function formatDurationSeconds($seconds): string
     $seconds = max(0, (int) round((float) $seconds));
 
     $units = [
-        ['seconds' => 31536000, 'singular' => 'jaar', 'plural' => 'jaar'],
-        ['seconds' => 2592000, 'singular' => 'maand', 'plural' => 'maanden'],
-        ['seconds' => 604800, 'singular' => 'week', 'plural' => 'weken'],
-        ['seconds' => 86400, 'singular' => 'dag', 'plural' => 'dagen'],
-        ['seconds' => 3600, 'singular' => 'uur', 'plural' => 'uur'],
-        ['seconds' => 60, 'singular' => 'minuut', 'plural' => 'minuten'],
+        ['seconds' => 31536000, 'singular' => 'duration.year',   'plural' => 'duration.years'],
+        ['seconds' => 2592000,  'singular' => 'duration.month',  'plural' => 'duration.months'],
+        ['seconds' => 604800,   'singular' => 'duration.week',   'plural' => 'duration.weeks'],
+        ['seconds' => 86400,    'singular' => 'duration.day',    'plural' => 'duration.days'],
+        ['seconds' => 3600,     'singular' => 'duration.hour',   'plural' => 'duration.hours'],
+        ['seconds' => 60,       'singular' => 'duration.minute', 'plural' => 'duration.minutes'],
     ];
 
     foreach ($units as $unit) {
         if ($seconds >= $unit['seconds']) {
             $value = (int) round($seconds / $unit['seconds']);
-            $label = $value === 1 ? $unit['singular'] : $unit['plural'];
+            $label = __($value === 1 ? $unit['singular'] : $unit['plural']);
             return $value . ' ' . $label;
         }
     }
 
-    return 'minder dan 1 minuut';
+    return __('duration.less_than_minute');
 }
 
 function getTicketOpenDurationSeconds(array $ticket): ?int
@@ -260,6 +260,40 @@ function getStatusColor(string $status): string
     return STATUS_COLORS[$status] ?? '#475569';
 }
 
+/**
+ * Vertaalt een DB-statuswaarde (altijd Nederlands) naar de actieve taal.
+ */
+function translateStatus(string $dbStatus): string
+{
+    $map = [
+        'ingediend'                  => 'status.ingediend',
+        'in behandeling'             => 'status.in_behandeling',
+        'afwachtende op gebruiker'   => 'status.afwachtende_op_gebruiker',
+        'afwachtende op bestelling'  => 'status.afwachtende_op_bestelling',
+        'afgehandeld'                => 'status.afgehandeld',
+    ];
+
+    return isset($map[$dbStatus]) ? __($map[$dbStatus]) : $dbStatus;
+}
+
+/**
+ * Vertaalt een DB-categoriewaarde (altijd Nederlands) naar de actieve taal.
+ */
+function translateCategory(string $dbCategory): string
+{
+    $map = [
+        'hardware bestellen'                        => 'category.hardware_bestellen',
+        'software bestellen'                        => 'category.software_bestellen',
+        'Business Central'                          => 'category.business_central',
+        'Hardwareproblemen'                         => 'category.hardwareproblemen',
+        'Softwareproblemen'                         => 'category.softwareproblemen',
+        'sleutels.kvt.nl web-applicatieproblemen'   => 'category.web_app_problemen',
+        'Anders'                                    => 'category.anders',
+    ];
+
+    return isset($map[$dbCategory]) ? __($map[$dbCategory]) : $dbCategory;
+}
+
 function emailToHexColor(string $email): string
 {
     return '#' . substr(md5(strtolower(trim($email))), 0, 6);
@@ -267,7 +301,7 @@ function emailToHexColor(string $email): string
 
 function buildStatusChangeNote(string $status, string $changedByEmail): string
 {
-    return 'Status gewijzigd naar ' . $status . '.';
+    return __('flash.status_changed_to', translateStatus($status));
 }
 
 function makeTextInteractive(string $text): string

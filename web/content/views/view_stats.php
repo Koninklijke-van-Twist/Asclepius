@@ -1,10 +1,7 @@
 <?php if ($canManageTickets && $view === 'stats'): ?>
     <section class="panel">
-        <h2>ICT-statistieken</h2>
-        <p class="panel-intro">Bekijk hier de totalen, prestaties per ICT-medewerker en wachttijden per normale
-            gebruiker. Voor afgehandelde tickets meten we van <strong>aangemaakt</strong> tot
-            <strong>afgehandeld</strong>; open tickets tellen mee tot <strong>nu</strong>.
-        </p>
+        <h2><?= h(__('stats.heading')) ?></h2>
+        <p class="panel-intro"><?= __('stats.intro') ?></p>
 
         <?php if ($isBigscreen ?? false): ?>
             <div class="stats-layout">
@@ -13,34 +10,34 @@
 
                 <div class="stats-grid">
                     <div class="stats-card">
-                        <span>Totaal aantal tickets</span>
+                        <span><?= h(__('stats.total_tickets')) ?></span>
                         <strong id="stat-total"><?= (int) ($overallStats['total_tickets'] ?? 0) ?></strong>
                     </div>
                     <div class="stats-card">
-                        <span>Openstaande tickets</span>
+                        <span><?= h(__('stats.open_tickets')) ?></span>
                         <strong id="stat-open"><?= (int) ($overallStats['open_tickets'] ?? 0) ?></strong>
                     </div>
                     <div class="stats-card">
-                        <span>Afgehandelde tickets</span>
+                        <span><?= h(__('stats.resolved_tickets')) ?></span>
                         <strong id="stat-resolved"><?= (int) ($overallStats['resolved_tickets'] ?? 0) ?></strong>
                     </div>
                     <div class="stats-card">
-                        <span>Wacht op bestelling</span>
+                        <span><?= h(__('stats.waiting_order')) ?></span>
                         <strong id="stat-waiting"><?= (int) ($overallStats['waiting_order_tickets'] ?? 0) ?></strong>
                     </div>
                 </div>
 
-                <h3 class="stats-section-title">Per ICT-medewerker</h3>
+                <h3 class="stats-section-title"><?= h(__('stats.per_ict')) ?></h3>
                 <div class="table-wrap">
                     <table>
                         <thead>
                             <tr>
-                                <th>ICT-medewerker</th>
-                                <th>Afgehandeld</th>
-                                <th>Gemiddelde tijd open</th>
-                                <th>Langste open tijd</th>
-                                <th>Openstaand</th>
-                                <th>Wacht op bestelling</th>
+                                <th><?= h(__('stats.col_ict_employee')) ?></th>
+                                <th><?= h(__('stats.col_handled')) ?></th>
+                                <th><?= h(__('stats.col_avg_open')) ?></th>
+                                <th><?= h(__('stats.col_max_open')) ?></th>
+                                <th><?= h(__('stats.col_outstanding')) ?></th>
+                                <th><?= h(__('stats.col_waiting_order')) ?></th>
                             </tr>
                         </thead>
                         <tbody id="stats-ict-tbody">
@@ -68,20 +65,19 @@
                     </table>
                 </div>
 
-                <h3 class="stats-section-title">Per normale gebruiker</h3>
+                <h3 class="stats-section-title"><?= h(__('stats.per_user')) ?></h3>
                 <div id="stats-requester-wrap">
                     <?php if ($requesterStats === []): ?>
-                        <div class="empty-state">Er zijn nog geen statistieken voor normale gebruikers beschikbaar.
-                        </div>
+                        <div class="empty-state"><?= h(__('stats.no_user_stats')) ?></div>
                     <?php else: ?>
                         <div class="table-wrap">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Gebruiker</th>
-                                        <th>Tickets ingediend</th>
-                                        <th>Gemiddelde wachttijd</th>
-                                        <th>Langste wachttijd</th>
+                                        <th><?= h(__('stats.col_user')) ?></th>
+                                        <th><?= h(__('stats.col_submitted')) ?></th>
+                                        <th><?= h(__('stats.col_avg_wait')) ?></th>
+                                        <th><?= h(__('stats.col_max_wait')) ?></th>
                                     </tr>
                                 </thead>
                                 <tbody id="stats-requester-tbody">
@@ -98,20 +94,17 @@
                                 </tbody>
                             </table>
                         </div>
-                        <p class="stats-note">Wachttijden bij gebruikers worden berekend op basis van tickets met
-                            status
-                            <strong>afgehandeld</strong>.
-                        </p>
+                        <p class="stats-note"><?= __('stats.wait_note') ?></p>
                     <?php endif; ?>
                 </div><!-- /#stats-requester-wrap -->
 
                 <?php if ($isBigscreen ?? false): ?>
                 </div><!-- /.stats-main -->
                 <aside class="stats-sidebar" id="stats-sidebar">
-                    <h3>Openstaande tickets</h3>
+                    <h3><?= h(__('stats.sidebar_heading')) ?></h3>
                     <div id="stats-sidebar-list">
                         <?php if ($statsOpenTickets === []): ?>
-                            <p style="color:var(--muted);font-size:13px;">Geen openstaande tickets.</p>
+                            <p style="color:var(--muted);font-size:13px;"><?= h(__('stats.sidebar_empty')) ?></p>
                         <?php else: ?>
                             <?php foreach ($statsOpenTickets as $sideTicket): ?>
                                 <?php $sideColor = getStatusColor((string) $sideTicket['status']); ?>
@@ -120,10 +113,10 @@
                                     <div class="sti-body">
                                         <span class="sti-title">#<?= (int) $sideTicket['id'] ?>
                                             <?= h((string) $sideTicket['title']) ?></span>
-                                        <span class="sti-meta"><?= h((string) $sideTicket['status']) ?> &middot;
+                                        <span class="sti-meta"><?= h(translateStatus((string) $sideTicket['status'])) ?> &middot;
                                             <?= h((string) $sideTicket['user_email']) ?></span>
                                         <span
-                                            class="sti-meta"><?= h((string) (($sideTicket['assigned_email'] ?? '') !== '' ? $sideTicket['assigned_email'] : 'Niet toegewezen')) ?></span>
+                                            class="sti-meta"><?= h((string) (($sideTicket['assigned_email'] ?? '') !== '' ? $sideTicket['assigned_email'] : __('stats.no_assigned'))) ?></span>
                                     </div>
                                     <span class="sti-prio sti-prio-<?= $sidePrio ?>"><?= $sidePrio ?></span>
                                 </div>

@@ -1,6 +1,6 @@
             <?php if (!$isAdminPortal || ($isAdminPortal && $view === 'overview')): ?>
                 <section class="panel">
-                    <h2><?= $isAdminPortal ? 'ICT ticketoverzicht' : 'Mijn tickets' ?></h2>
+                    <h2><?= $isAdminPortal ? h(__('tickets.heading_admin')) : h(__('tickets.heading_user')) ?></h2>
 
                     <?php if ($isAdminPortal): ?>
                         <form method="get" class="filters-form">
@@ -12,21 +12,21 @@
                             <input type="hidden" name="category_filter_mode" value="manual">
 
                             <div>
-                                <label>Status filter</label>
+                                <label><?= h(__('filter.status_label')) ?></label>
                                 <div class="checkbox-group">
                                     <?php foreach (TICKET_STATUSES as $status): ?>
                                         <?php $statusSelected = isStatusFilterSelected($status, $statusFilters, $statusFilterRequestActive); ?>
                                         <label class="checkbox-chip <?= $statusSelected ? 'is-active' : 'is-inactive' ?>"
                                             style="--status-color: <?= h(getStatusColor($status)) ?>;">
                                             <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
-                                            <span><?= h($status) ?></span>
+                                            <span><?= h(translateStatus($status)) ?></span>
                                         </label>
                                     <?php endforeach; ?>
                                 </div>
                             </div>
 
                             <div>
-                                <label>Categorie filter</label>
+                                <label><?= h(__('filter.category_label')) ?></label>
                                 <div class="checkbox-group">
                                     <?php foreach (TICKET_CATEGORIES as $category): ?>
                                         <?php $categorySelected = isCategoryFilterSelected($category, $categoryFilters, $categoryFilterRequestActive); ?>
@@ -34,18 +34,18 @@
                                             style="--status-color: <?= h(getCategoryColor($category)) ?>;">
                                             <input type="checkbox" name="category[]" value="<?= h($category) ?>"
                                                 <?= $categorySelected ? 'checked' : '' ?> onchange="this.form.submit()">
-                                            <span><?= h($category) ?></span>
+                                            <span><?= h(translateCategory($category)) ?></span>
                                         </label>
                                     <?php endforeach; ?>
                                 </div>
                             </div>
 
                             <label>
-                                ICT-medewerker
+                                <?= h(__('filter.ict_employee')) ?>
                                 <select name="assigned" onchange="this.form.submit()">
-                                    <option value="">Alle toegewezen</option>
+                                    <option value=""><?= h(__('filter.all_assigned')) ?></option>
                                     <option value="__unassigned__" <?= $assignedFilter === '__unassigned__' ? 'selected' : '' ?>>
-                                        Nog niet toegewezen</option>
+                                        <?= h(__('filter.unassigned')) ?></option>
                                     <?php foreach ($ictUsers as $ictUser):
                                         $ictUser = strtolower($ictUser); ?>
                                         <option value="<?= h($ictUser) ?>" <?= $assignedFilter === $ictUser ? 'selected' : '' ?>>
@@ -57,15 +57,14 @@
 
                             <div class="button-row">
                                 <a class="secondary-button"
-                                    href="<?= h($currentPage) ?><?= $view !== 'overview' ? '?view=' . h($view) : '' ?>">Reset
-                                    filters</a>
+                                    href="<?= h($currentPage) ?><?= $view !== 'overview' ? '?view=' . h($view) : '' ?>"><?= h(__('filter.reset')) ?></a>
                             </div>
                         </form>
                     <?php endif; ?>
 
                     <?php if ($tickets === []): ?>
                         <div class="empty-state">
-                            <?= $isAdminPortal ? 'Er zijn nog geen tickets die aan deze filters voldoen.' : 'Je hebt nog geen tickets.' ?>
+                            <?= $isAdminPortal ? h(__('tickets.empty_admin')) : h(__('tickets.empty_user')) ?>
                         </div>
                     <?php else: ?>
                         <div class="ticket-list">
@@ -85,29 +84,29 @@
                                                         <?= h((string) $ticket['title']) ?></strong></p>
                                                 <div class="ticket-subtitle">
                                                     <span><?= h((string) $ticket['user_email']) ?></span>
-                                                    <span><?= h((string) $ticket['category']) ?></span>
+                                                    <span><?= h(translateCategory((string) $ticket['category'])) ?></span>
                                                     <span><?= h(formatDateTime((string) $ticket['created_at'])) ?></span>
                                                 </div>
                                             </div>
                                             <div class="ticket-subtitle">
                                                 <?php if ($isAdminPortal): ?>
                                                     <span class="status-pill"
-                                                        style="--ticket-color: <?= h($ticketColor) ?>;"><?= h((string) $ticket['status']) ?></span>
+                                                        style="--ticket-color: <?= h($ticketColor) ?>;"><?= h(translateStatus((string) $ticket['status'])) ?></span>
                                                 <?php endif; ?>
                                                 <?php if ($userIsAdmin && $isAdminPortal): ?>
                                                     <span class="status-pill"
-                                                        style="--ticket-color: <?= h(getPriorityColor((int) ($ticket['priority'] ?? 0))) ?>;">Prioriteit
+                                                        style="--ticket-color: <?= h(getPriorityColor((int) ($ticket['priority'] ?? 0))) ?>;"><?= h(__('ticket.meta_priority')) ?>
                                                         <?= (int) ($ticket['priority'] ?? 0) ?> ·
                                                         <?= h(formatPriorityLabel((int) ($ticket['priority'] ?? 0))) ?></span>
                                                 <?php endif; ?>
                                                 <span class="assignee-badge"
                                                     style="--assignee-color: <?= h(emailToHexColor((string) ($ticket['assigned_email'] ?? 'onbekend@kvt.nl'))) ?>;">
-                                                    <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen')) ?>
+                                                    <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : __('ticket.unassigned'))) ?>
                                                 </span>
                                                 <span class="count-badge"><?= (int) ($ticket['message_count'] ?? 0) ?>
-                                                    berichten</span>
+                                                    <?= h(__('ticket.messages_count')) ?></span>
                                                 <?php if ($isAdminPortal): ?>
-                                                    <span class="count-badge">tijd open
+                                                    <span class="count-badge"><?= h(__('ticket.time_open')) ?>
                                                         <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
                                                 <?php endif; ?>
                                             </div>
@@ -117,24 +116,21 @@
                                     <div class="ticket-body">
                                         <div class="meta-grid">
                                             <div class="meta-item">
-                                                <span class="meta-label">Aangemaakt op · Tijd open</span>
+                                                <span class="meta-label"><?= h(__('ticket.meta_created')) ?></span>
                                                 <?= h(formatDateTime((string) $ticket['created_at'])) ?> ·
                                                 <?= h(formatDurationSeconds($ticketOpenDuration)) ?>
                                             </div>
                                             <div class="meta-item">
-                                                <span class="meta-label">Laatst bijgewerkt</span>
+                                                <span class="meta-label"><?= h(__('ticket.meta_updated')) ?></span>
                                                 <?= h(formatDateTime((string) $ticket['updated_at'])) ?>
                                             </div>
                                             <?php if ($userIsAdmin && $isAdminPortal): ?>
                                                 <div class="meta-item">
-                                                    <span class="meta-label">Prioriteit</span>
+                                                    <span class="meta-label"><?= h(__('ticket.meta_priority')) ?></span>
                                                     <select name="priority" form="<?= h($replyFormId) ?>">
-                                                        <option value="0" <?= (int) ($ticket['priority'] ?? 0) === 0 ? 'selected' : '' ?>>0
-                                                            · Normaal</option>
-                                                        <option value="1" <?= (int) ($ticket['priority'] ?? 0) === 1 ? 'selected' : '' ?>>1
-                                                            · Belemmerd</option>
-                                                        <option value="2" <?= (int) ($ticket['priority'] ?? 0) === 2 ? 'selected' : '' ?>>2
-                                                            · Geblokkeerd</option>
+                                                        <option value="0" <?= (int) ($ticket['priority'] ?? 0) === 0 ? 'selected' : '' ?>><?= h(__('ticket.priority_0')) ?></option>
+                                                        <option value="1" <?= (int) ($ticket['priority'] ?? 0) === 1 ? 'selected' : '' ?>><?= h(__('ticket.priority_1')) ?></option>
+                                                        <option value="2" <?= (int) ($ticket['priority'] ?? 0) === 2 ? 'selected' : '' ?>><?= h(__('ticket.priority_2')) ?></option>
                                                     </select>
                                                 </div>
                                             <?php endif; ?>
@@ -142,7 +138,7 @@
 
                                         <?php if ($ticketDetail !== null && !empty($ticketDetail['messages'])): ?>
                                             <div>
-                                                <h3>Berichten</h3>
+                                                <h3><?= h(__('ticket.messages_heading')) ?></h3>
                                                 <div class="thread">
                                                     <?php foreach ($ticketDetail['messages'] as $message): ?>
                                                         <article
@@ -150,7 +146,7 @@
                                                             <div class="message-meta">
                                                                 <strong><?= h((string) $message['sender_email']) ?></strong>
                                                                 <span
-                                                                    class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? 'ICT' : 'Gebruiker' ?></span>
+                                                                    class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? h(__('ticket.role_admin')) : h(__('ticket.role_user')) ?></span>
                                                                 <span><?= h(formatDateTime((string) $message['created_at'])) ?></span>
                                                             </div>
 
@@ -191,17 +187,17 @@
                                             <?php if ($canManageTickets): ?>
                                                 <div class="admin-grid">
                                                     <label>
-                                                        Status
+                                                        <?= h(__('ticket.status_label')) ?>
                                                         <select name="status">
                                                             <?php foreach (TICKET_STATUSES as $status): ?>
-                                                                <option value="<?= h($status) ?>" <?= (string) $ticket['status'] === $status ? 'selected' : '' ?>><?= h($status) ?></option>
+                                                                <option value="<?= h($status) ?>" <?= (string) $ticket['status'] === $status ? 'selected' : '' ?>><?= h(translateStatus($status)) ?></option>
                                                             <?php endforeach; ?>
                                                         </select>
                                                     </label>
                                                     <label>
-                                                        Toewijzen aan
+                                                        <?= h(__('ticket.assigned_to')) ?>
                                                         <select name="assigned_email">
-                                                            <option value="">Nog niet toegewezen</option>
+                                                            <option value=""><?= h(__('ticket.unassigned')) ?></option>
                                                             <?php foreach ($ictUsers as $ictUser):
                                                                 $ictUser = strtolower($ictUser); ?>
                                                                 <option value="<?= h($ictUser) ?>" <?= strtolower((string) ($ticket['assigned_email'] ?? '')) === $ictUser ? 'selected' : '' ?>>
@@ -214,27 +210,27 @@
                                             <?php endif; ?>
 
                                             <label>
-                                                Nieuw bericht
+                                                <?= h(__('ticket.new_message')) ?>
                                                 <textarea name="message"
-                                                    placeholder="Typ hier een update of aanvullende informatie."></textarea>
+                                                    placeholder="<?= h(__('ticket.new_message_placeholder')) ?>"></textarea>
                                             </label>
 
                                             <?php if (!$canManageTickets && (string) $ticket['status'] === 'afgehandeld'): ?>
                                                 <label class="checkbox-line">
                                                     <input type="checkbox" name="reopen_ticket" value="1">
-                                                    <span>Ticket weer openen</span>
+                                                    <span><?= h(__('ticket.reopen')) ?></span>
                                                 </label>
                                             <?php endif; ?>
 
                                             <label>
-                                                Bijlagen toevoegen
+                                                <?= h(__('ticket.add_attachments')) ?>
                                                 <input type="file" name="reply_attachments[]" multiple>
-                                                <span class="hint">Per bestand maximaal 20 MB.</span>
+                                                <span class="hint"><?= h(__('ticket.file_hint')) ?></span>
                                             </label>
 
                                             <div class="button-row">
                                                 <button
-                                                    type="submit"><?= $canManageTickets ? 'Opslaan' : 'Reactie plaatsen en ICT mailen' ?></button>
+                                                    type="submit"><?= $canManageTickets ? h(__('ticket.btn_save')) : h(__('ticket.btn_reply')) ?></button>
                                             </div>
                                         </form>
                                     </div>
