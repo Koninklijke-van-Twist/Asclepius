@@ -1,27 +1,26 @@
 <?php if ($canManageTickets && $view === 'stats'): ?>
     <?php
     $isMockAlert = isset($_GET['mock-alert']);
-    if ($isBigscreen):
-        $bsAllTickets = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
-        $bsMaxId = 0;
-        $bsMockList = [];
-        foreach ($bsAllTickets as $t) {
-            $tid = (int) $t['id'];
-            if ($tid > $bsMaxId) {
-                $bsMaxId = $tid;
-            }
-            if ($isMockAlert) {
-                $bsMockList[] = [
-                    'id' => $tid,
-                    'title' => (string) ($t['title'] ?? ''),
-                    'user_email' => (string) ($t['user_email'] ?? ''),
-                    'assigned_email' => (string) ($t['assigned_email'] ?? ''),
-                    'assigned_color' => emailToHexColor((string) ($t['assigned_email'] ?? '')),
-                ];
-            }
+    $bsAllTickets = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
+    $bsMaxId = 0;
+    $bsMockList = [];
+    foreach ($bsAllTickets as $t) {
+        $tid = (int) $t['id'];
+        if ($tid > $bsMaxId) {
+            $bsMaxId = $tid;
         }
-        ?>
-        <script>
+        if ($isMockAlert) {
+            $bsMockList[] = [
+                'id' => $tid,
+                'title' => (string) ($t['title'] ?? ''),
+                'user_email' => (string) ($t['user_email'] ?? ''),
+                'assigned_email' => (string) ($t['assigned_email'] ?? ''),
+                'assigned_color' => emailToHexColor((string) ($t['assigned_email'] ?? '')),
+            ];
+        }
+    }
+    ?>
+    <script>
             (function ()
             {
                 var POLL_URL = 'admin.php?view=stats&_bigscreen_poll=1';
@@ -386,6 +385,5 @@ headline.textContent = BS.newTicketFrom.replace('%s', ticket.user_email);
                     }, 3000);
                 }
             }());
-        </script>
-    <?php endif; ?>
+    </script>
 <?php endif; ?>

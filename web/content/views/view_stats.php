@@ -3,10 +3,8 @@
         <h2><?= h(__('stats.heading')) ?></h2>
         <p class="panel-intro"><?= __('stats.intro') ?></p>
 
-        <?php if ($isBigscreen ?? false): ?>
-            <div class="stats-layout">
-                <div class="stats-main">
-                <?php endif; ?>
+        <div class="stats-layout">
+            <div class="stats-main">
 
                 <div class="stats-grid">
                     <div class="stats-card">
@@ -98,9 +96,8 @@
                     <?php endif; ?>
                 </div><!-- /#stats-requester-wrap -->
 
-                <?php if ($isBigscreen ?? false): ?>
-                </div><!-- /.stats-main -->
-                <aside class="stats-sidebar" id="stats-sidebar">
+            </div><!-- /.stats-main -->
+            <aside class="stats-sidebar" id="stats-sidebar">
                     <h3><?= h(__('stats.sidebar_heading')) ?></h3>
                     <div id="stats-sidebar-list">
                         <?php if ($statsOpenTickets === []): ?>
@@ -123,10 +120,10 @@
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </div>
-                </aside>
-            </div><!-- /.stats-layout -->
-        <?php endif; ?>
-    <?php endif; ?>
+            </aside>
+        </div><!-- /.stats-layout -->
+    </section>
+<?php endif; ?>
 
     <?php if ($canManageTickets && $view === 'stats'): ?>
         <div id="bs-updates" aria-live="polite" aria-relevant="additions"></div>
