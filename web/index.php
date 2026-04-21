@@ -145,8 +145,8 @@ $longOpenNotificationDays = max(
     1,
     (int) (
         $_ENV['ASCLEPIUS_LONG_OPEN_DAYS']
-            ?? $_SERVER['ASCLEPIUS_LONG_OPEN_DAYS']
-            ?? LONG_OPEN_NOTIFICATION_FALLBACK_DAYS
+        ?? $_SERVER['ASCLEPIUS_LONG_OPEN_DAYS']
+        ?? LONG_OPEN_NOTIFICATION_FALLBACK_DAYS
     )
 );
 
@@ -1115,6 +1115,9 @@ $ictStats = $canManageTickets && $view === 'stats' && $store instanceof TicketSt
 $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getRequesterStats()
     : [];
+$statsOpenTickets = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
+    ? $store->getTickets(true, '', array_filter(TICKET_STATUSES, fn(string $s) => $s !== 'afgehandeld'))
+    : [];
 
 if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     $allTicketsForPoll = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
@@ -1130,15 +1133,17 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     echo json_encode([
         'max_id' => $pollMaxId,
         'latest' => $pollLatest !== null ? [
-            'id'             => $pollMaxId,
-            'title'          => (string) ($pollLatest['title'] ?? ''),
-            'user_email'     => (string) ($pollLatest['user_email'] ?? ''),
+            'id' => $pollMaxId,
+            'title' => (string) ($pollLatest['title'] ?? ''),
+            'user_email' => (string) ($pollLatest['user_email'] ?? ''),
             'assigned_email' => (string) ($pollLatest['assigned_email'] ?? ''),
             'assigned_color' => emailToHexColor((string) ($pollLatest['assigned_email'] ?? '')),
         ] : null,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
+
+$isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen']) && (string) $_GET['bigscreen'] === 'true';
 
 ?>
 <!DOCTYPE html>
@@ -1413,6 +1418,92 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
             margin-bottom: 14px;
         }
 
+        .stats-layout {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .stats-main {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .stats-sidebar {
+            flex: 0 0 25%;
+            width: 25%;
+            min-width: 200px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--panel);
+            padding: 12px;
+        }
+
+        .stats-sidebar h3 {
+            margin: 0 0 10px;
+            font-size: 14px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        .stats-ticket-item {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 6px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border-left: 3px solid var(--ticket-color, #0b65c2);
+            background: #f8fbff;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .stats-ticket-item .sti-body {
+            flex: 1 1 0;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .stats-ticket-item .sti-title {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .stats-ticket-item .sti-meta {
+            color: var(--muted);
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sti-prio {
+            flex: 0 0 auto;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            padding: 3px 6px;
+            border-radius: 6px;
+            margin-top: 1px;
+        }
+
+        .sti-prio-0 { color: #10233f; background: #e8ecf2; }
+        .sti-prio-1 { color: #fff; background: #c2550b; }
+        .sti-prio-2 { color: #fff; background: #cc0000; animation: prio2blink 0.5s step-start infinite; }
+
+        @keyframes prio2blink {
+            0%, 100% { background: #cc0000; }
+            50%       { background: #000; }
+        }
+
         .stats-grid {
             display: grid;
             gap: 12px;
@@ -1472,13 +1563,11 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
             left: 0;
             right: 0;
             height: 80px;
-            background-image: repeating-linear-gradient(
-                60deg,
-                #f7c600 0px,
-                #f7c600 40px,
-                #111 40px,
-                #111 80px
-            );
+            background-image: repeating-linear-gradient(60deg,
+                    #f7c600 0px,
+                    #f7c600 40px,
+                    #111 40px,
+                    #111 80px);
             background-size: 93px 100%;
             overflow: hidden;
         }
@@ -1494,13 +1583,23 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
         }
 
         @keyframes hazard-scroll-right {
-            from { background-position-x: 0; }
-            to   { background-position-x: 93px; }
+            from {
+                background-position-x: 0;
+            }
+
+            to {
+                background-position-x: 93px;
+            }
         }
 
         @keyframes hazard-scroll-left {
-            from { background-position-x: 0; }
-            to   { background-position-x: -93px; }
+            from {
+                background-position-x: 0;
+            }
+
+            to {
+                background-position-x: -93px;
+            }
         }
 
         .bs-warning-emoji {
@@ -1875,7 +1974,8 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                     <?php if ($localRequester): ?>
                         <p class="dev-note">Ontwikkelen/testen: gebruik eventueel
                             <code>?dev_user=naam@kvt.nl&amp;dev_admin=0</code> of <code>1</code> om rollen lokaal te
-                            wisselen.</p>
+                            wisselen.
+                        </p>
                     <?php endif; ?>
                 </div>
             </div>
@@ -1960,7 +2060,8 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                                 Gebruiker
                                 <input type="email" name="requester_email" maxlength="200"
                                     placeholder="naam@kvt.nl (optioneel, voor ticket namens iemand anders)">
-                                <span class="hint">Alleen voor ICT: dit e-mailadres wordt als aanvrager gebruikt als je het invult.</span>
+                                <span class="hint">Alleen voor ICT: dit e-mailadres wordt als aanvrager gebruikt als je het
+                                    invult.</span>
                             </label>
                         <?php endif; ?>
 
@@ -1980,7 +2081,8 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
             <?php if ($canManageTickets && $view === 'settings'): ?>
                 <section class="panel">
                     <h2>Instellingen per ICT-gebruiker</h2>
-                    <p class="panel-intro">Zet per ICT-collega categorieën aan of uit en markeer medewerkers als afwezig. Nieuwe tickets worden automatisch toegewezen aan de minst belaste beschikbare collega.</p>
+                    <p class="panel-intro">Zet per ICT-collega categorieën aan of uit en markeer medewerkers als afwezig.
+                        Nieuwe tickets worden automatisch toegewezen aan de minst belaste beschikbare collega.</p>
                     <?php if ($localRequester): ?>
                         <p class="hint">
                             DB: <code><?= h($storageDiagnostics['database_path']) ?></code><br>
@@ -2012,13 +2114,11 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                                                 style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
                                                 <label class="vacation-toggle">
                                                     <span class="availability-slot">
-                                                        <input type="checkbox"
-                                                            class="availability-checkbox"
-                                                            name="availability[<?= h($ictUser) ?>]"
-                                                            value="1"
-                                                            <?= $isAvailable ? 'checked' : '' ?>>
+                                                        <input type="checkbox" class="availability-checkbox"
+                                                            name="availability[<?= h($ictUser) ?>]" value="1" <?= $isAvailable ? 'checked' : '' ?>>
                                                     </span>
-                                                    <span class="assignee-badge vacation-badge <?= $isAvailable ? '' : 'is-away' ?>"
+                                                    <span
+                                                        class="assignee-badge vacation-badge <?= $isAvailable ? '' : 'is-away' ?>"
                                                         style="--assignee-color: <?= h($isAvailable ? emailToHexColor($ictUser) : '#94a3b8') ?>;">
                                                         <?= h($ictUser) ?>
                                                     </span>
@@ -2028,10 +2128,8 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                                             <td class="open-load-cell"><?= (int) ($loadByIctUser[$ictUser] ?? 0) ?></td>
                                             <?php foreach (TICKET_CATEGORIES as $category): ?>
                                                 <td class="setting-checkbox-cell">
-                                                    <input type="checkbox"
-                                                        name="settings[<?= h($ictUser) ?>][<?= h($category) ?>]"
-                                                        value="1"
-                                                        <?= !empty($settingsMatrix[$ictUser][$category]) ? 'checked' : '' ?>>
+                                                    <input type="checkbox" name="settings[<?= h($ictUser) ?>][<?= h($category) ?>]"
+                                                        value="1" <?= !empty($settingsMatrix[$ictUser][$category]) ? 'checked' : '' ?>>
                                                 </td>
                                             <?php endforeach; ?>
                                         </tr>
@@ -2050,7 +2148,14 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
             <?php if ($canManageTickets && $view === 'stats'): ?>
                 <section class="panel">
                     <h2>ICT-statistieken</h2>
-                    <p class="panel-intro">Bekijk hier de totalen, prestaties per ICT-medewerker en wachttijden per normale gebruiker. Voor afgehandelde tickets meten we van <strong>aangemaakt</strong> tot <strong>afgehandeld</strong>; open tickets tellen mee tot <strong>nu</strong>.</p>
+                    <p class="panel-intro">Bekijk hier de totalen, prestaties per ICT-medewerker en wachttijden per normale
+                        gebruiker. Voor afgehandelde tickets meten we van <strong>aangemaakt</strong> tot
+                        <strong>afgehandeld</strong>; open tickets tellen mee tot <strong>nu</strong>.</p>
+
+                    <?php if ($isBigscreen ?? false): ?>
+                    <div class="stats-layout">
+                    <div class="stats-main">
+                    <?php endif; ?>
 
                     <div class="stats-grid">
                         <div class="stats-card">
@@ -2090,9 +2195,10 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                                         <td class="user-color-cell"
                                             style="--assignee-color: <?= h(emailToHexColor((string) $statsRow['user_email'])) ?>;">
                                             <?php $statsUserEmail = strtolower((string) $statsRow['user_email']); ?>
-                                            <span class="assignee-badge <?= empty($availabilityByIctUser[$statsUserEmail]) ? 'vacation-badge is-away' : '' ?>"
+                                            <span
+                                                class="assignee-badge <?= empty($availabilityByIctUser[$statsUserEmail]) ? 'vacation-badge is-away' : '' ?>"
                                                 style="--assignee-color: <?= h(!empty($availabilityByIctUser[$statsUserEmail]) ? emailToHexColor($statsUserEmail) : '#94a3b8') ?>;">
-                                                <?= h($statsUserEmail) ?><?= empty($availabilityByIctUser[$statsUserEmail]) ? ' 🌴' : '' ?>
+                                                <?= h($statsUserEmail) ?>        <?= empty($availabilityByIctUser[$statsUserEmail]) ? ' 🌴' : '' ?>
                                             </span>
                                         </td>
                                         <td><?= (int) ($statsRow['handled_count'] ?? 0) ?></td>
@@ -2132,8 +2238,34 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                                 </tbody>
                             </table>
                         </div>
-                        <p class="stats-note">Wachttijden bij gebruikers worden berekend op basis van tickets met status <strong>afgehandeld</strong>.</p>
+                        <p class="stats-note">Wachttijden bij gebruikers worden berekend op basis van tickets met status
+                            <strong>afgehandeld</strong>.</p>
                     <?php endif; ?>
+
+                    <?php if ($isBigscreen ?? false): ?>
+                    </div><!-- /.stats-main -->
+                    <aside class="stats-sidebar">
+                        <h3>Openstaande tickets</h3>
+                        <?php if ($statsOpenTickets === []): ?>
+                            <p style="color:var(--muted);font-size:13px;">Geen openstaande tickets.</p>
+                        <?php else: ?>
+                            <?php foreach ($statsOpenTickets as $sideTicket): ?>
+                                <?php $sideColor = getStatusColor((string) $sideTicket['status']); ?>
+                                <?php $sidePrio = (int) ($sideTicket['priority'] ?? 0); ?>
+                                <div class="stats-ticket-item" style="--ticket-color: <?= h($sideColor) ?>;">
+                                    <div class="sti-body">
+                                        <span class="sti-title">#<?= (int) $sideTicket['id'] ?> <?= h((string) $sideTicket['title']) ?></span>
+                                        <span class="sti-meta"><?= h((string) $sideTicket['status']) ?> &middot; <?= h((string) $sideTicket['user_email']) ?></span>
+                                        <span class="sti-meta"><?= h((string) (($sideTicket['assigned_email'] ?? '') !== '' ? $sideTicket['assigned_email'] : 'Niet toegewezen')) ?></span>
+                                    </div>
+                                    <span class="sti-prio sti-prio-<?= $sidePrio ?>"><?= $sidePrio ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </aside>
+                    </div><!-- /.stats-layout -->
+                    <?php endif; ?>
+
                 </section>
             <?php endif; ?>
 
@@ -2155,245 +2287,260 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                     <h2><?= $isAdminPortal ? 'ICT ticketoverzicht' : 'Mijn tickets' ?></h2>
 
                     <?php if ($isAdminPortal): ?>
-                    <form method="get" class="filters-form">
-                        <?php if ($view === 'settings'): ?>
-                            <input type="hidden" name="view" value="settings">
-                        <?php endif; ?>
+                        <form method="get" class="filters-form">
+                            <?php if ($view === 'settings'): ?>
+                                <input type="hidden" name="view" value="settings">
+                            <?php endif; ?>
 
-                        <input type="hidden" name="status_filter_mode" value="manual">
-                        <input type="hidden" name="category_filter_mode" value="manual">
+                            <input type="hidden" name="status_filter_mode" value="manual">
+                            <input type="hidden" name="category_filter_mode" value="manual">
 
-                        <div>
-                            <label>Status filter</label>
-                            <div class="checkbox-group">
-                                <?php foreach (TICKET_STATUSES as $status): ?>
-                                    <?php $statusSelected = isStatusFilterSelected($status, $statusFilters, $statusFilterRequestActive); ?>
-                                    <label class="checkbox-chip <?= $statusSelected ? 'is-active' : 'is-inactive' ?>"
-                                        style="--status-color: <?= h(getStatusColor($status)) ?>;">
-                                        <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
-                                        <span><?= h($status) ?></span>
-                                    </label>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label>Categorie filter</label>
-                            <div class="checkbox-group">
-                                <?php foreach (TICKET_CATEGORIES as $category): ?>
-                                    <?php $categorySelected = isCategoryFilterSelected($category, $categoryFilters, $categoryFilterRequestActive); ?>
-                                    <label class="checkbox-chip <?= $categorySelected ? 'is-active' : 'is-inactive' ?>"
-                                        style="--status-color: <?= h(getCategoryColor($category)) ?>;">
-                                        <input type="checkbox" name="category[]" value="<?= h($category) ?>" <?= $categorySelected ? 'checked' : '' ?> onchange="this.form.submit()">
-                                        <span><?= h($category) ?></span>
-                                    </label>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-
-                        <label>
-                            ICT-medewerker
-                            <select name="assigned" onchange="this.form.submit()">
-                                <option value="">Alle toegewezen</option>
-                                <option value="__unassigned__" <?= $assignedFilter === '__unassigned__' ? 'selected' : '' ?>>
-                                    Nog niet toegewezen</option>
-                                <?php foreach ($ictUsers as $ictUser):
-                                    $ictUser = strtolower($ictUser); ?>
-                                    <option value="<?= h($ictUser) ?>" <?= $assignedFilter === $ictUser ? 'selected' : '' ?>>
-                                        <?= h($ictUser) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </label>
-
-                        <div class="button-row">
-                            <a class="secondary-button"
-                                href="<?= h($currentPage) ?><?= $view !== 'overview' ? '?view=' . h($view) : '' ?>">Reset
-                                filters</a>
-                        </div>
-                    </form>
-                <?php endif; ?>
-
-                <?php if ($tickets === []): ?>
-                    <div class="empty-state">
-                        <?= $isAdminPortal ? 'Er zijn nog geen tickets die aan deze filters voldoen.' : 'Je hebt nog geen tickets.' ?>
-                    </div>
-                <?php else: ?>
-                    <div class="ticket-list">
-                        <?php foreach ($tickets as $index => $ticket): ?>
-                            <?php
-                            $ticketColor = getStatusColor((string) $ticket['status']);
-                            $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
-                            $shouldOpen = $openTicketId > 0 && (int) $ticket['id'] === $openTicketId;
-                            $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
-                            $replyFormId = 'reply-form-' . (int) $ticket['id'];
-                            ?>
-                            <details class="ticket-card" style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
-                                <summary>
-                                    <div class="ticket-summary">
-                                        <div>
-                                            <p class="ticket-main-title"><strong>#<?= (int) $ticket['id'] ?> ·
-                                                    <?= h((string) $ticket['title']) ?></strong></p>
-                                            <div class="ticket-subtitle">
-                                                <span><?= h((string) $ticket['user_email']) ?></span>
-                                                <span><?= h((string) $ticket['category']) ?></span>
-                                                <span><?= h(formatDateTime((string) $ticket['created_at'])) ?></span>
-                                            </div>
-                                        </div>
-                                        <div class="ticket-subtitle">
-                                            <?php if ($isAdminPortal): ?>
-                                                <span class="status-pill"
-                                                    style="--ticket-color: <?= h($ticketColor) ?>;"><?= h((string) $ticket['status']) ?></span>
-                                            <?php endif; ?>
-                                            <?php if ($userIsAdmin && $isAdminPortal): ?>
-                                                <span class="status-pill"
-                                                    style="--ticket-color: <?= h(getPriorityColor((int) ($ticket['priority'] ?? 0))) ?>;">Prioriteit <?= (int) ($ticket['priority'] ?? 0) ?> · <?= h(formatPriorityLabel((int) ($ticket['priority'] ?? 0))) ?></span>
-                                            <?php endif; ?>
-                                            <span class="assignee-badge"
-                                                style="--assignee-color: <?= h(emailToHexColor((string) ($ticket['assigned_email'] ?? 'onbekend@kvt.nl'))) ?>;">
-                                                <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen')) ?>
-                                            </span>
-                                            <span class="count-badge"><?= (int) ($ticket['message_count'] ?? 0) ?>
-                                                berichten</span>
-                                            <?php if ($isAdminPortal): ?>
-                                                <span class="count-badge">tijd open <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </summary>
-
-                                <div class="ticket-body">
-                                    <div class="meta-grid">
-                                        <div class="meta-item">
-                                            <span class="meta-label">Aangemaakt op · Tijd open</span>
-                                            <?= h(formatDateTime((string) $ticket['created_at'])) ?> · <?= h(formatDurationSeconds($ticketOpenDuration)) ?>
-                                        </div>
-                                        <div class="meta-item">
-                                            <span class="meta-label">Laatst bijgewerkt</span>
-                                            <?= h(formatDateTime((string) $ticket['updated_at'])) ?>
-                                        </div>
-                                        <?php if ($userIsAdmin && $isAdminPortal): ?>
-                                            <div class="meta-item">
-                                                <span class="meta-label">Prioriteit</span>
-                                                <select name="priority" form="<?= h($replyFormId) ?>">
-                                                    <option value="0" <?= (int) ($ticket['priority'] ?? 0) === 0 ? 'selected' : '' ?>>0 · Normaal</option>
-                                                    <option value="1" <?= (int) ($ticket['priority'] ?? 0) === 1 ? 'selected' : '' ?>>1 · Belemmerd</option>
-                                                    <option value="2" <?= (int) ($ticket['priority'] ?? 0) === 2 ? 'selected' : '' ?>>2 · Geblokkeerd</option>
-                                                </select>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-
-                                    <?php if ($ticketDetail !== null && !empty($ticketDetail['messages'])): ?>
-                                        <div>
-                                            <h3>Berichten</h3>
-                                            <div class="thread">
-                                                <?php foreach ($ticketDetail['messages'] as $message): ?>
-                                                    <article
-                                                        class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>">
-                                                        <div class="message-meta">
-                                                            <strong><?= h((string) $message['sender_email']) ?></strong>
-                                                            <span
-                                                                class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? 'ICT' : 'Gebruiker' ?></span>
-                                                            <span><?= h(formatDateTime((string) $message['created_at'])) ?></span>
-                                                        </div>
-
-                                                        <?php if (trim((string) ($message['message_text'] ?? '')) !== ''): ?>
-                                                            <div class="message-text">
-                                                                <?= formatTicketMessageText((string) $message['message_text']) ?></div>
-                                                        <?php endif; ?>
-
-                                                        <?php if (!empty($message['attachments'])): ?>
-                                                            <ul class="attachment-list">
-                                                                <?php foreach ($message['attachments'] as $attachment): ?>
-                                                                    <li>
-                                                                        <a href="<?= h($currentPage) ?>?download=<?= (int) $attachment['id'] ?>">
-                                                                            <?= h((string) $attachment['original_name']) ?>
-                                                                        </a>
-                                                                        (<?= number_format(((int) $attachment['file_size']) / 1024 / 1024, 2, ',', '.') ?>
-                                                                        MB)
-                                                                    </li>
-                                                                <?php endforeach; ?>
-                                                            </ul>
-                                                        <?php endif; ?>
-                                                    </article>
-                                                <?php endforeach; ?>
-                                            </div>
-                                        </div>
-                                    <?php endif; ?>
-
-                                    <form method="post"
-                                        action="<?= h($currentPage) ?><?= $isAdminPortal && $view === 'settings' ? '?view=settings' : '' ?>"
-                                        enctype="multipart/form-data" class="reply-form" id="<?= h($replyFormId) ?>">
-                                        <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
-                                        <input type="hidden" name="form_action" value="reply_ticket">
-                                        <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
-                                        <input type="hidden" name="ticket_id" value="<?= (int) $ticket['id'] ?>">
-
-                                        <?php if ($canManageTickets): ?>
-                                            <div class="admin-grid">
-                                                <label>
-                                                    Status
-                                                    <select name="status">
-                                                        <?php foreach (TICKET_STATUSES as $status): ?>
-                                                            <option value="<?= h($status) ?>" <?= (string) $ticket['status'] === $status ? 'selected' : '' ?>><?= h($status) ?></option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                </label>
-                                                <label>
-                                                    Toewijzen aan
-                                                    <select name="assigned_email">
-                                                        <option value="">Nog niet toegewezen</option>
-                                                        <?php foreach ($ictUsers as $ictUser):
-                                                            $ictUser = strtolower($ictUser); ?>
-                                                            <option value="<?= h($ictUser) ?>" <?= strtolower((string) ($ticket['assigned_email'] ?? '')) === $ictUser ? 'selected' : '' ?>>
-                                                                <?= h($ictUser) ?></option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                </label>
-                                            </div>
-                                        <?php endif; ?>
-
-                                        <label>
-                                            Nieuw bericht
-                                            <textarea name="message"
-                                                placeholder="Typ hier een update of aanvullende informatie."></textarea>
+                            <div>
+                                <label>Status filter</label>
+                                <div class="checkbox-group">
+                                    <?php foreach (TICKET_STATUSES as $status): ?>
+                                        <?php $statusSelected = isStatusFilterSelected($status, $statusFilters, $statusFilterRequestActive); ?>
+                                        <label class="checkbox-chip <?= $statusSelected ? 'is-active' : 'is-inactive' ?>"
+                                            style="--status-color: <?= h(getStatusColor($status)) ?>;">
+                                            <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
+                                            <span><?= h($status) ?></span>
                                         </label>
-
-                                        <?php if (!$canManageTickets && (string) $ticket['status'] === 'afgehandeld'): ?>
-                                            <label class="checkbox-line">
-                                                <input type="checkbox" name="reopen_ticket" value="1">
-                                                <span>Ticket weer openen</span>
-                                            </label>
-                                        <?php endif; ?>
-
-                                        <label>
-                                            Bijlagen toevoegen
-                                            <input type="file" name="reply_attachments[]" multiple>
-                                            <span class="hint">Per bestand maximaal 20 MB.</span>
-                                        </label>
-
-                                        <div class="button-row">
-                                            <button
-                                                type="submit"><?= $canManageTickets ? 'Opslaan' : 'Reactie plaatsen en ICT mailen' ?></button>
-                                        </div>
-                                    </form>
+                                    <?php endforeach; ?>
                                 </div>
-                            </details>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
+                            </div>
+
+                            <div>
+                                <label>Categorie filter</label>
+                                <div class="checkbox-group">
+                                    <?php foreach (TICKET_CATEGORIES as $category): ?>
+                                        <?php $categorySelected = isCategoryFilterSelected($category, $categoryFilters, $categoryFilterRequestActive); ?>
+                                        <label class="checkbox-chip <?= $categorySelected ? 'is-active' : 'is-inactive' ?>"
+                                            style="--status-color: <?= h(getCategoryColor($category)) ?>;">
+                                            <input type="checkbox" name="category[]" value="<?= h($category) ?>"
+                                                <?= $categorySelected ? 'checked' : '' ?> onchange="this.form.submit()">
+                                            <span><?= h($category) ?></span>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+
+                            <label>
+                                ICT-medewerker
+                                <select name="assigned" onchange="this.form.submit()">
+                                    <option value="">Alle toegewezen</option>
+                                    <option value="__unassigned__" <?= $assignedFilter === '__unassigned__' ? 'selected' : '' ?>>
+                                        Nog niet toegewezen</option>
+                                    <?php foreach ($ictUsers as $ictUser):
+                                        $ictUser = strtolower($ictUser); ?>
+                                        <option value="<?= h($ictUser) ?>" <?= $assignedFilter === $ictUser ? 'selected' : '' ?>>
+                                            <?= h($ictUser) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+
+                            <div class="button-row">
+                                <a class="secondary-button"
+                                    href="<?= h($currentPage) ?><?= $view !== 'overview' ? '?view=' . h($view) : '' ?>">Reset
+                                    filters</a>
+                            </div>
+                        </form>
+                    <?php endif; ?>
+
+                    <?php if ($tickets === []): ?>
+                        <div class="empty-state">
+                            <?= $isAdminPortal ? 'Er zijn nog geen tickets die aan deze filters voldoen.' : 'Je hebt nog geen tickets.' ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="ticket-list">
+                            <?php foreach ($tickets as $index => $ticket): ?>
+                                <?php
+                                $ticketColor = getStatusColor((string) $ticket['status']);
+                                $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
+                                $shouldOpen = $openTicketId > 0 && (int) $ticket['id'] === $openTicketId;
+                                $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
+                                $replyFormId = 'reply-form-' . (int) $ticket['id'];
+                                ?>
+                                <details class="ticket-card" style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
+                                    <summary>
+                                        <div class="ticket-summary">
+                                            <div>
+                                                <p class="ticket-main-title"><strong>#<?= (int) $ticket['id'] ?> ·
+                                                        <?= h((string) $ticket['title']) ?></strong></p>
+                                                <div class="ticket-subtitle">
+                                                    <span><?= h((string) $ticket['user_email']) ?></span>
+                                                    <span><?= h((string) $ticket['category']) ?></span>
+                                                    <span><?= h(formatDateTime((string) $ticket['created_at'])) ?></span>
+                                                </div>
+                                            </div>
+                                            <div class="ticket-subtitle">
+                                                <?php if ($isAdminPortal): ?>
+                                                    <span class="status-pill"
+                                                        style="--ticket-color: <?= h($ticketColor) ?>;"><?= h((string) $ticket['status']) ?></span>
+                                                <?php endif; ?>
+                                                <?php if ($userIsAdmin && $isAdminPortal): ?>
+                                                    <span class="status-pill"
+                                                        style="--ticket-color: <?= h(getPriorityColor((int) ($ticket['priority'] ?? 0))) ?>;">Prioriteit
+                                                        <?= (int) ($ticket['priority'] ?? 0) ?> ·
+                                                        <?= h(formatPriorityLabel((int) ($ticket['priority'] ?? 0))) ?></span>
+                                                <?php endif; ?>
+                                                <span class="assignee-badge"
+                                                    style="--assignee-color: <?= h(emailToHexColor((string) ($ticket['assigned_email'] ?? 'onbekend@kvt.nl'))) ?>;">
+                                                    <?= h((string) (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen')) ?>
+                                                </span>
+                                                <span class="count-badge"><?= (int) ($ticket['message_count'] ?? 0) ?>
+                                                    berichten</span>
+                                                <?php if ($isAdminPortal): ?>
+                                                    <span class="count-badge">tijd open
+                                                        <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </summary>
+
+                                    <div class="ticket-body">
+                                        <div class="meta-grid">
+                                            <div class="meta-item">
+                                                <span class="meta-label">Aangemaakt op · Tijd open</span>
+                                                <?= h(formatDateTime((string) $ticket['created_at'])) ?> ·
+                                                <?= h(formatDurationSeconds($ticketOpenDuration)) ?>
+                                            </div>
+                                            <div class="meta-item">
+                                                <span class="meta-label">Laatst bijgewerkt</span>
+                                                <?= h(formatDateTime((string) $ticket['updated_at'])) ?>
+                                            </div>
+                                            <?php if ($userIsAdmin && $isAdminPortal): ?>
+                                                <div class="meta-item">
+                                                    <span class="meta-label">Prioriteit</span>
+                                                    <select name="priority" form="<?= h($replyFormId) ?>">
+                                                        <option value="0" <?= (int) ($ticket['priority'] ?? 0) === 0 ? 'selected' : '' ?>>0
+                                                            · Normaal</option>
+                                                        <option value="1" <?= (int) ($ticket['priority'] ?? 0) === 1 ? 'selected' : '' ?>>1
+                                                            · Belemmerd</option>
+                                                        <option value="2" <?= (int) ($ticket['priority'] ?? 0) === 2 ? 'selected' : '' ?>>2
+                                                            · Geblokkeerd</option>
+                                                    </select>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+
+                                        <?php if ($ticketDetail !== null && !empty($ticketDetail['messages'])): ?>
+                                            <div>
+                                                <h3>Berichten</h3>
+                                                <div class="thread">
+                                                    <?php foreach ($ticketDetail['messages'] as $message): ?>
+                                                        <article
+                                                            class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>">
+                                                            <div class="message-meta">
+                                                                <strong><?= h((string) $message['sender_email']) ?></strong>
+                                                                <span
+                                                                    class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? 'ICT' : 'Gebruiker' ?></span>
+                                                                <span><?= h(formatDateTime((string) $message['created_at'])) ?></span>
+                                                            </div>
+
+                                                            <?php if (trim((string) ($message['message_text'] ?? '')) !== ''): ?>
+                                                                <div class="message-text">
+                                                                    <?= formatTicketMessageText((string) $message['message_text']) ?>
+                                                                </div>
+                                                            <?php endif; ?>
+
+                                                            <?php if (!empty($message['attachments'])): ?>
+                                                                <ul class="attachment-list">
+                                                                    <?php foreach ($message['attachments'] as $attachment): ?>
+                                                                        <li>
+                                                                            <a
+                                                                                href="<?= h($currentPage) ?>?download=<?= (int) $attachment['id'] ?>">
+                                                                                <?= h((string) $attachment['original_name']) ?>
+                                                                            </a>
+                                                                            (<?= number_format(((int) $attachment['file_size']) / 1024 / 1024, 2, ',', '.') ?>
+                                                                            MB)
+                                                                        </li>
+                                                                    <?php endforeach; ?>
+                                                                </ul>
+                                                            <?php endif; ?>
+                                                        </article>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+
+                                        <form method="post"
+                                            action="<?= h($currentPage) ?><?= $isAdminPortal && $view === 'settings' ? '?view=settings' : '' ?>"
+                                            enctype="multipart/form-data" class="reply-form" id="<?= h($replyFormId) ?>">
+                                            <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+                                            <input type="hidden" name="form_action" value="reply_ticket">
+                                            <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                                            <input type="hidden" name="ticket_id" value="<?= (int) $ticket['id'] ?>">
+
+                                            <?php if ($canManageTickets): ?>
+                                                <div class="admin-grid">
+                                                    <label>
+                                                        Status
+                                                        <select name="status">
+                                                            <?php foreach (TICKET_STATUSES as $status): ?>
+                                                                <option value="<?= h($status) ?>" <?= (string) $ticket['status'] === $status ? 'selected' : '' ?>><?= h($status) ?></option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </label>
+                                                    <label>
+                                                        Toewijzen aan
+                                                        <select name="assigned_email">
+                                                            <option value="">Nog niet toegewezen</option>
+                                                            <?php foreach ($ictUsers as $ictUser):
+                                                                $ictUser = strtolower($ictUser); ?>
+                                                                <option value="<?= h($ictUser) ?>" <?= strtolower((string) ($ticket['assigned_email'] ?? '')) === $ictUser ? 'selected' : '' ?>>
+                                                                    <?= h($ictUser) ?>
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </label>
+                                                </div>
+                                            <?php endif; ?>
+
+                                            <label>
+                                                Nieuw bericht
+                                                <textarea name="message"
+                                                    placeholder="Typ hier een update of aanvullende informatie."></textarea>
+                                            </label>
+
+                                            <?php if (!$canManageTickets && (string) $ticket['status'] === 'afgehandeld'): ?>
+                                                <label class="checkbox-line">
+                                                    <input type="checkbox" name="reopen_ticket" value="1">
+                                                    <span>Ticket weer openen</span>
+                                                </label>
+                                            <?php endif; ?>
+
+                                            <label>
+                                                Bijlagen toevoegen
+                                                <input type="file" name="reply_attachments[]" multiple>
+                                                <span class="hint">Per bestand maximaal 20 MB.</span>
+                                            </label>
+
+                                            <div class="button-row">
+                                                <button
+                                                    type="submit"><?= $canManageTickets ? 'Opslaan' : 'Reactie plaatsen en ICT mailen' ?></button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </details>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                 </section>
             <?php endif; ?>
         </main>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function ()
+        {
             var blockedCheckbox = document.getElementById('priority_blocked');
             var fullyBlockedCheckbox = document.getElementById('priority_fully_blocked');
             var fullyBlockedWrap = document.getElementById('priority_fully_blocked_wrap');
 
-            var syncPriorityVisibility = function() {
-                if (!blockedCheckbox || !fullyBlockedWrap || !fullyBlockedCheckbox) {
+            var syncPriorityVisibility = function ()
+            {
+                if (!blockedCheckbox || !fullyBlockedWrap || !fullyBlockedCheckbox)
+                {
                     return;
                 }
 
@@ -2401,39 +2548,47 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                 var showFullyBlocked = blockedCheckbox.checked;
                 fullyBlockedWrap.hidden = !showFullyBlocked;
 
-                if (showFullyBlocked && wasHidden) {
+                if (showFullyBlocked && wasHidden)
+                {
                     fullyBlockedWrap.classList.remove('flash-blue');
                     void fullyBlockedWrap.offsetWidth;
                     fullyBlockedWrap.classList.add('flash-blue');
                 }
 
-                if (!showFullyBlocked) {
+                if (!showFullyBlocked)
+                {
                     fullyBlockedCheckbox.checked = false;
                     fullyBlockedWrap.classList.remove('flash-blue');
                 }
             };
 
-            if (blockedCheckbox) {
+            if (blockedCheckbox)
+            {
                 blockedCheckbox.addEventListener('change', syncPriorityVisibility);
                 syncPriorityVisibility();
             }
 
-            document.querySelectorAll('[data-settings-row]').forEach(function(row) {
+            document.querySelectorAll('[data-settings-row]').forEach(function (row)
+            {
                 var availabilityCheckbox = row.querySelector('.availability-checkbox');
                 var vacationIndicator = row.querySelector('.vacation-indicator');
                 var vacationBadge = row.querySelector('.vacation-badge');
 
-                if (!availabilityCheckbox) {
+                if (!availabilityCheckbox)
+                {
                     return;
                 }
 
-                var syncAvailabilityState = function() {
+                var syncAvailabilityState = function ()
+                {
                     var isAvailable = availabilityCheckbox.checked;
                     row.classList.toggle('is-away', !isAvailable);
-                    if (vacationIndicator) {
+                    if (vacationIndicator)
+                    {
                         vacationIndicator.hidden = isAvailable;
                     }
-                    if (vacationBadge) {
+                    if (vacationBadge)
+                    {
                         vacationBadge.classList.toggle('is-away', !isAvailable);
                     }
                 };
@@ -2445,13 +2600,12 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     </script>
 
     <?php if ($canManageTickets && $view === 'stats'): ?>
-    <?php
-        $isBigscreen = isset($_GET['bigscreen']) && (string) $_GET['bigscreen'] === 'true';
-        $isMockAlert  = isset($_GET['mock-alert']);
+        <?php
+        $isMockAlert = isset($_GET['mock-alert']);
         if ($isBigscreen):
             $bsAllTickets = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
-            $bsMaxId      = 0;
-            $bsMockList   = [];
+            $bsMaxId = 0;
+            $bsMockList = [];
             foreach ($bsAllTickets as $t) {
                 $tid = (int) $t['id'];
                 if ($tid > $bsMaxId) {
@@ -2459,134 +2613,153 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
                 }
                 if ($isMockAlert) {
                     $bsMockList[] = [
-                        'id'             => $tid,
-                        'title'          => (string) ($t['title'] ?? ''),
-                        'user_email'     => (string) ($t['user_email'] ?? ''),
+                        'id' => $tid,
+                        'title' => (string) ($t['title'] ?? ''),
+                        'user_email' => (string) ($t['user_email'] ?? ''),
                         'assigned_email' => (string) ($t['assigned_email'] ?? ''),
                         'assigned_color' => emailToHexColor((string) ($t['assigned_email'] ?? '')),
                     ];
                 }
             }
-    ?>
-    <script>
-    (function () {
-        var POLL_URL     = 'admin.php?view=stats&_bigscreen_poll=1';
-        var VERSION_URL  = 'version';
-        var CURRENT_VER  = null;
-        var MOCK_ALERT  = <?= $isMockAlert ? 'true' : 'false' ?>;
-        var MOCK_TICKETS = <?= json_encode($bsMockList, JSON_UNESCAPED_UNICODE) ?>;
-        var currentMaxId = <?= $bsMaxId ?>;
-        var alertActive  = false;
-        var reloadTimer  = null;
+            ?>
+            <script>
+                (function ()
+                {
+                    var POLL_URL = 'admin.php?view=stats&_bigscreen_poll=1';
+                    var VERSION_URL = 'version';
+                    var CURRENT_VER = null;
+                    var MOCK_ALERT = <?= $isMockAlert ? 'true' : 'false' ?>;
+                    var MOCK_TICKETS = <?= json_encode($bsMockList, JSON_UNESCAPED_UNICODE) ?>;
+                    var currentMaxId = <?= $bsMaxId ?>;
+                    var alertActive = false;
+                    var reloadTimer = null;
 
-        function scheduleReload(ms) {
-            clearTimeout(reloadTimer);
-            reloadTimer = setTimeout(function () {
-                if (!alertActive) { location.reload(); }
-            }, ms);
-        }
-
-        function showPhase1() {
-            alertActive = true;
-            clearTimeout(reloadTimer);
-            var overlay  = document.getElementById('bigscreen-overlay');
-            var hazTop   = document.getElementById('bs-hazard-top');
-            var hazBot   = document.getElementById('bs-hazard-bottom');
-            var emoji    = document.getElementById('bs-warning-emoji');
-            var info     = document.getElementById('bs-ticket-info');
-            overlay.className = 'bs-phase1';
-            hazTop.hidden  = false;
-            hazBot.hidden  = false;
-            emoji.hidden   = false;
-            info.hidden    = true;
-        }
-
-        function showPhase2(ticket) {
-            var overlay  = document.getElementById('bigscreen-overlay');
-            var hazTop   = document.getElementById('bs-hazard-top');
-            var hazBot   = document.getElementById('bs-hazard-bottom');
-            var emoji    = document.getElementById('bs-warning-emoji');
-            var info     = document.getElementById('bs-ticket-info');
-            var headline = document.getElementById('bs-headline');
-            var titleEl  = document.getElementById('bs-title');
-            var assigneeEl = document.getElementById('bs-assignee');
-
-            headline.textContent = 'Nieuwe ticket van ' + ticket.user_email + '!';
-            titleEl.textContent  = ticket.title;
-
-            assigneeEl.innerHTML = '';
-            if (ticket.assigned_email) {
-                var pill = document.createElement('span');
-                pill.className     = 'bs-assignee-pill';
-                pill.style.background = ticket.assigned_color || '#0b65c2';
-                pill.textContent   = 'Toegewezen aan: ' + ticket.assigned_email;
-                assigneeEl.appendChild(pill);
-            } else {
-                assigneeEl.textContent = 'Nog niet toegewezen';
-            }
-
-            overlay.className = 'bs-phase2';
-            hazTop.hidden  = true;
-            hazBot.hidden  = true;
-            emoji.hidden   = true;
-            info.hidden    = false;
-        }
-
-        function runAlert(ticket) {
-            showPhase1();
-            setTimeout(function () {
-                showPhase2(ticket);
-                setTimeout(function () {
-                    alertActive = false;
-                    location.reload();
-                }, 10000);
-            }, 3000);
-        }
-
-        function poll() {
-            if (alertActive) { return; }
-            fetch(POLL_URL, { credentials: 'same-origin' })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    if (data && data.max_id > currentMaxId && data.latest) {
-                        currentMaxId = data.max_id;
-                        runAlert(data.latest);
+                    function scheduleReload (ms)
+                    {
+                        clearTimeout(reloadTimer);
+                        reloadTimer = setTimeout(function ()
+                        {
+                            if (!alertActive) { location.reload(); }
+                        }, ms);
                     }
-                })
-                .catch(function () {});
-        }
 
-        function pollVersion() {
-            if (alertActive) { return; }
-            fetch(VERSION_URL, { credentials: 'same-origin', cache: 'no-store' })
-                .then(function (r) { return r.ok ? r.text() : null; })
-                .then(function (ver) {
-                    if (!ver) { return; }
-                    ver = ver.trim();
-                    if (CURRENT_VER === null) { CURRENT_VER = ver; return; }
-                    if (ver !== CURRENT_VER) {
-                        CURRENT_VER = ver; // niet opnieuw triggeren bij volgende poll
-                        setTimeout(function () { location.reload(); }, 120000);
+                    function showPhase1 ()
+                    {
+                        alertActive = true;
+                        clearTimeout(reloadTimer);
+                        var overlay = document.getElementById('bigscreen-overlay');
+                        var hazTop = document.getElementById('bs-hazard-top');
+                        var hazBot = document.getElementById('bs-hazard-bottom');
+                        var emoji = document.getElementById('bs-warning-emoji');
+                        var info = document.getElementById('bs-ticket-info');
+                        overlay.className = 'bs-phase1';
+                        hazTop.hidden = false;
+                        hazBot.hidden = false;
+                        emoji.hidden = false;
+                        info.hidden = true;
                     }
-                })
-                .catch(function () {});
-        }
 
-        setInterval(poll, 2000);
-        setInterval(pollVersion, 10000);
-        scheduleReload(5000);
+                    function showPhase2 (ticket)
+                    {
+                        var overlay = document.getElementById('bigscreen-overlay');
+                        var hazTop = document.getElementById('bs-hazard-top');
+                        var hazBot = document.getElementById('bs-hazard-bottom');
+                        var emoji = document.getElementById('bs-warning-emoji');
+                        var info = document.getElementById('bs-ticket-info');
+                        var headline = document.getElementById('bs-headline');
+                        var titleEl = document.getElementById('bs-title');
+                        var assigneeEl = document.getElementById('bs-assignee');
 
-        if (MOCK_ALERT && MOCK_TICKETS.length > 0) {
-            setTimeout(function () {
-                if (!alertActive) {
-                    var t = MOCK_TICKETS[Math.floor(Math.random() * MOCK_TICKETS.length)];
-                    runAlert(t);
-                }
-            }, 3000);
-        }
-    }());
-    </script>
-    <?php endif; ?>
+                        headline.textContent = 'Nieuwe ticket van ' + ticket.user_email + '!';
+                        titleEl.textContent = ticket.title;
+
+                        assigneeEl.innerHTML = '';
+                        if (ticket.assigned_email)
+                        {
+                            var pill = document.createElement('span');
+                            pill.className = 'bs-assignee-pill';
+                            pill.style.background = ticket.assigned_color || '#0b65c2';
+                            pill.textContent = 'Toegewezen aan: ' + ticket.assigned_email;
+                            assigneeEl.appendChild(pill);
+                        } else
+                        {
+                            assigneeEl.textContent = 'Nog niet toegewezen';
+                        }
+
+                        overlay.className = 'bs-phase2';
+                        hazTop.hidden = true;
+                        hazBot.hidden = true;
+                        emoji.hidden = true;
+                        info.hidden = false;
+                    }
+
+                    function runAlert (ticket)
+                    {
+                        showPhase1();
+                        setTimeout(function ()
+                        {
+                            showPhase2(ticket);
+                            setTimeout(function ()
+                            {
+                                alertActive = false;
+                                location.reload();
+                            }, 10000);
+                        }, 3000);
+                    }
+
+                    function poll ()
+                    {
+                        if (alertActive) { return; }
+                        fetch(POLL_URL, { credentials: 'same-origin' })
+                            .then(function (r) { return r.json(); })
+                            .then(function (data)
+                            {
+                                if (data && data.max_id > currentMaxId && data.latest)
+                                {
+                                    currentMaxId = data.max_id;
+                                    runAlert(data.latest);
+                                }
+                            })
+                            .catch(function () { });
+                    }
+
+                    function pollVersion ()
+                    {
+                        if (alertActive) { return; }
+                        fetch(VERSION_URL, { credentials: 'same-origin', cache: 'no-store' })
+                            .then(function (r) { return r.ok ? r.text() : null; })
+                            .then(function (ver)
+                            {
+                                if (!ver) { return; }
+                                ver = ver.trim();
+                                if (CURRENT_VER === null) { CURRENT_VER = ver; return; }
+                                if (ver !== CURRENT_VER)
+                                {
+                                    CURRENT_VER = ver; // niet opnieuw triggeren bij volgende poll
+                                    setTimeout(function () { location.reload(); }, 120000);
+                                }
+                            })
+                            .catch(function () { });
+                    }
+
+                    setInterval(poll, 2000);
+                    setInterval(pollVersion, 10000);
+                    scheduleReload(5000);
+
+                    if (MOCK_ALERT && MOCK_TICKETS.length > 0)
+                    {
+                        setTimeout(function ()
+                        {
+                            if (!alertActive)
+                            {
+                                var t = MOCK_TICKETS[Math.floor(Math.random() * MOCK_TICKETS.length)];
+                                runAlert(t);
+                            }
+                        }, 3000);
+                    }
+                }());
+            </script>
+        <?php endif; ?>
     <?php endif; ?>
 </body>
 
