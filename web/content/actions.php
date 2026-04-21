@@ -1,0 +1,322 @@
+<?php
+
+/**
+ * Actions
+ * Verwerkt download-verzoeken, POST-acties en bigscreen poll.
+ * Vereist: variables.php, helpers.php, mail.php
+ * Alle paden eindigen met exit of redirect.
+ */
+
+$returnPage = normalizeReturnPage((string) ($_POST['return_page'] ?? ($isAdminPortal ? 'admin.php' : 'index.php')));
+
+if ($isAdminPortal && !$userIsAdmin) {
+    pushFlash('error', 'Alleen ICT-gebruikers hebben toegang tot het ticketoverzicht.');
+    redirectToPage('index.php');
+}
+
+if (isset($_GET['download']) && $store instanceof TicketStore) {
+    $attachmentId = max(0, (int) $_GET['download']);
+    $attachment = $store->getAttachment($attachmentId);
+
+    if ($attachment === null) {
+        http_response_code(404);
+        exit('Bijlage niet gevonden.');
+    }
+
+    $storedPath = (string) ($attachment['stored_path'] ?? '');
+    if (!is_file($storedPath)) {
+        http_response_code(404);
+        exit('Het bestand ontbreekt op de server.');
+    }
+
+    $downloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($attachment['original_name'] ?? 'bijlage')) ?: 'bijlage';
+    header('Content-Description: File Transfer');
+    header('Content-Type: ' . ((string) ($attachment['mime_type'] ?? '') !== '' ? $attachment['mime_type'] : 'application/octet-stream'));
+    header('Content-Disposition: attachment; filename="' . $downloadName . '"');
+    header('Content-Length: ' . (string) filesize($storedPath));
+    readfile($storedPath);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!hash_equals($csrfToken, (string) ($_POST['csrf_token'] ?? ''))) {
+        pushFlash('error', 'Je sessie is verlopen. Ververs de pagina en probeer het opnieuw.');
+        redirectToPage($returnPage, $baseQuery);
+    }
+
+    if (!$store instanceof TicketStore) {
+        pushFlash('error', 'De database kon niet worden geopend: ' . $storeError);
+        redirectToPage($returnPage, $baseQuery);
+    }
+
+    $formAction = trim((string) ($_POST['form_action'] ?? ($_POST['action'] ?? '')));
+
+    try {
+        if ($formAction === 'create_ticket') {
+            $title = trim((string) ($_POST['title'] ?? ''));
+            $category = trim((string) ($_POST['category'] ?? ''));
+            $description = trim((string) ($_POST['description'] ?? ''));
+            $isWorkBlocked = !empty($_POST['priority_blocked']);
+            $isFullyBlocked = !empty($_POST['priority_fully_blocked']);
+            $priority = getPriorityFromFlags($isWorkBlocked, $isFullyBlocked);
+            $requesterEmailInput = strtolower(trim((string) ($_POST['requester_email'] ?? '')));
+            $requesterEmail = $userEmail;
+            $files = normalizeUploadedFiles('ticket_attachments');
+            $errors = validateUploadedFiles($files);
+
+            if ($title === '') {
+                $errors[] = 'Vul een titel in voor het ticket.';
+            }
+            if (!in_array($category, TICKET_CATEGORIES, true)) {
+                $errors[] = 'Kies een geldige categorie.';
+            }
+            if ($description === '') {
+                $errors[] = 'Vul een beschrijving in.';
+            }
+            if ($isFullyBlocked && !$isWorkBlocked) {
+                $errors[] = 'Je kunt alleen aangeven dat je niet verder kunt werken als werkzaamheden al belemmerd zijn.';
+            }
+            if ($userIsAdmin && $requesterEmailInput !== '') {
+                if (!filter_var($requesterEmailInput, FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = 'Vul een geldig e-mailadres in bij Gebruiker.';
+                } else {
+                    $requesterEmail = $requesterEmailInput;
+                }
+            }
+
+            if ($errors !== []) {
+                throw new RuntimeException(implode(' ', $errors));
+            }
+
+            $result = $store->createTicket($title, $category, $requesterEmail, $description, $files, $priority);
+            $ticketId = (int) $result['ticket_id'];
+            $ticket = $store->getTicket($ticketId, true, $userEmail);
+
+            if ($ticket !== null) {
+                $recipients = !empty($result['assigned_email']) ? [$result['assigned_email']] : $ictUsers;
+                sendTicketNotification(
+                    $store,
+                    $ictUsers,
+                    $recipients,
+                    'Nieuw ticket #' . $ticketId,
+                    buildNotificationBody($ticket, 'Er is een nieuw ICT-ticket ingediend.', $description, true),
+                    $requesterEmail,
+                    (string) ($ticket['category'] ?? $category)
+                );
+
+                $userIntro = strtolower($requesterEmail) === strtolower($userEmail)
+                    ? 'Je ticket is ontvangen door ICT.'
+                    : 'Er is een ticket namens u aangemaakt.';
+
+                sendTicketNotification(
+                    $store,
+                    $ictUsers,
+                    [$requesterEmail],
+                    'Ticket #' . $ticketId . ' is aangemaakt',
+                    buildNotificationBody($ticket, $userIntro, $description, false),
+                    null,
+                    (string) ($ticket['category'] ?? $category)
+                );
+            }
+
+            pushFlash('success', 'Ticket #' . $ticketId . ' is aangemaakt en automatisch toegewezen.');
+            redirectToPage($returnPage, array_merge($baseQuery, ['open' => $ticketId]));
+        }
+
+        if ($formAction === 'reply_ticket') {
+            $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
+            $ticket = $store->getTicket($ticketId, $canManageTickets, $userEmail);
+            if ($ticket === null) {
+                throw new RuntimeException('Ticket niet gevonden of niet toegankelijk.');
+            }
+
+            $message = trim((string) ($_POST['message'] ?? ''));
+            $messageForStorage = $message;
+            $files = normalizeUploadedFiles('reply_attachments');
+            $errors = validateUploadedFiles($files);
+
+            $newStatus = (string) $ticket['status'];
+            $newAssignee = (string) ($ticket['assigned_email'] ?? '');
+            $newPriority = max(0, min(2, (int) ($ticket['priority'] ?? 0)));
+            $statusChanged = false;
+            $assigneeChanged = false;
+            $priorityChanged = false;
+            $reopenRequested = !empty($_POST['reopen_ticket']);
+
+            if ($canManageTickets) {
+                $requestedStatus = trim((string) ($_POST['status'] ?? $ticket['status']));
+                if (!in_array($requestedStatus, TICKET_STATUSES, true)) {
+                    $errors[] = 'Kies een geldige status.';
+                } else {
+                    $newStatus = $requestedStatus;
+                    $statusChanged = $newStatus !== (string) $ticket['status'];
+                }
+
+                $requestedAssignee = strtolower(trim((string) ($_POST['assigned_email'] ?? (string) ($ticket['assigned_email'] ?? ''))));
+                $currentAssignee = strtolower((string) ($ticket['assigned_email'] ?? ''));
+                $availabilityByUser = $store->getIctUserAvailability();
+                if ($requestedAssignee !== '' && !in_array($requestedAssignee, array_map('strtolower', $ictUsers), true)) {
+                    $errors[] = 'Kies een geldige ICT-medewerker.';
+                } elseif ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee]) && $requestedAssignee !== $currentAssignee) {
+                    $errors[] = 'Deze ICT-medewerker staat als afwezig gemarkeerd en kan geen nieuwe tickets ontvangen.';
+                } else {
+                    $newAssignee = $requestedAssignee;
+                    $assigneeChanged = $newAssignee !== $currentAssignee;
+                }
+
+                $requestedPriority = (int) ($_POST['priority'] ?? $newPriority);
+                if ($requestedPriority < 0 || $requestedPriority > 2) {
+                    $errors[] = 'Kies een geldige prioriteit.';
+                } else {
+                    $newPriority = $requestedPriority;
+                    $priorityChanged = $newPriority !== (int) ($ticket['priority'] ?? 0);
+                }
+            }
+
+            if (!$canManageTickets && $message !== '' && (string) $ticket['status'] === 'afwachtende op gebruiker') {
+                $newStatus = 'in behandeling';
+                $statusChanged = true;
+            }
+
+            if (!$canManageTickets && $reopenRequested && (string) $ticket['status'] === 'afgehandeld') {
+                $newStatus = 'ingediend';
+                $statusChanged = true;
+            }
+
+            if ($message === '' && $files === [] && !$statusChanged && !$assigneeChanged && !$priorityChanged) {
+                $errors[] = 'Voeg een bericht, bijlage of statuswijziging toe.';
+            }
+
+            if ($canManageTickets && $statusChanged) {
+                $statusChangeNote = buildStatusChangeNote($newStatus, $userEmail);
+                $messageForStorage = $message !== ''
+                    ? rtrim($message) . PHP_EOL . PHP_EOL . $statusChangeNote
+                    : $statusChangeNote;
+            }
+
+            if ($errors !== []) {
+                throw new RuntimeException(implode(' ', $errors));
+            }
+
+            if ($statusChanged || ($canManageTickets && ($assigneeChanged || $priorityChanged))) {
+                $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null, $newPriority);
+            }
+
+            if ($messageForStorage !== '' || $files !== []) {
+                $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $messageForStorage, $files);
+            }
+
+            $updatedTicket = $store->getTicket($ticketId, true, $userEmail);
+            if ($updatedTicket !== null) {
+                if ($canManageTickets) {
+                    $shouldNotifyRequester = $statusChanged || $assigneeChanged || $messageForStorage !== '' || $files !== [];
+                    if ($shouldNotifyRequester) {
+                        sendTicketNotification(
+                            $store,
+                            $ictUsers,
+                            [$updatedTicket['user_email']],
+                            'Update op ticket #' . $ticketId,
+                            buildNotificationBody(
+                                $updatedTicket,
+                                'ICT heeft je ticket bijgewerkt' . ($statusChanged ? ' en de status aangepast.' : '.'),
+                                $messageForStorage,
+                                false
+                            ),
+                            $userEmail,
+                            (string) ($updatedTicket['category'] ?? '')
+                        );
+                    }
+
+                    if ($assigneeChanged && $newAssignee !== '') {
+                        sendTicketNotification(
+                            $store,
+                            $ictUsers,
+                            [$newAssignee],
+                            'Ticket #' . $ticketId . ' is aan jou toegewezen',
+                            buildNotificationBody($updatedTicket, 'Een ICT-ticket is opnieuw aan jou toegewezen.', $message, true),
+                            $userEmail,
+                            (string) ($updatedTicket['category'] ?? '')
+                        );
+                    }
+                } else {
+                    $recipients = !empty($updatedTicket['assigned_email']) ? [$updatedTicket['assigned_email']] : $ictUsers;
+                    sendTicketNotification(
+                        $store,
+                        $ictUsers,
+                        $recipients,
+                        'Reactie van gebruiker op ticket #' . $ticketId,
+                        buildNotificationBody($updatedTicket, 'De aanvrager heeft gereageerd op een ticket.', $message, true),
+                        $userEmail,
+                        (string) ($updatedTicket['category'] ?? '')
+                    );
+
+                    if ($message !== '' && ticketIsOpenLongerThanDays($updatedTicket, $longOpenNotificationDays)) {
+                        $escalationRecipients = $recipients;
+                        $escalationRecipients[] = 'ict@kvt.nl';
+                        sendTicketNotification(
+                            $store,
+                            $ictUsers,
+                            array_values(array_unique($escalationRecipients)),
+                            'Escalatie ticket #' . $ticketId,
+                            buildNotificationBody($updatedTicket, 'ticket staat lange tijd onbeantwoord open', $message, true),
+                            null,
+                            (string) ($updatedTicket['category'] ?? '')
+                        );
+                    }
+                }
+            }
+
+            pushFlash('success', 'Ticket #' . $ticketId . ' is bijgewerkt.');
+            redirectToPage($returnPage, array_merge($baseQuery, ['open' => $ticketId]));
+        }
+
+        if ($formAction === 'save_settings') {
+            if (!$canManageTickets) {
+                throw new RuntimeException('Alleen admins kunnen instellingen aanpassen.');
+            }
+
+            $postedSettings = is_array($_POST['settings'] ?? null) ? $_POST['settings'] : [];
+            $postedAvailability = is_array($_POST['availability'] ?? null) ? $_POST['availability'] : [];
+            $postedEnabledPairs = array_filter((array) ($_POST['settings_enabled'] ?? []), static fn($value): bool => is_string($value) && $value !== '');
+            $enabledLookup = [];
+
+            foreach ($postedEnabledPairs as $postedPair) {
+                $decodedPair = base64_decode((string) $postedPair, true);
+                if ($decodedPair === false) {
+                    continue;
+                }
+
+                $parts = explode('|', $decodedPair, 2);
+                if (count($parts) !== 2) {
+                    continue;
+                }
+
+                [$postedUserEmail, $postedCategory] = $parts;
+                $enabledLookup[strtolower(trim($postedUserEmail))][trim($postedCategory)] = true;
+            }
+
+            $matrix = [];
+            $availability = [];
+            foreach ($ictUsers as $ictUser) {
+                $ictUser = strtolower($ictUser);
+                $availability[$ictUser] = !empty($postedAvailability[$ictUser]);
+                foreach (TICKET_CATEGORIES as $category) {
+                    $matrix[$ictUser][$category] = !empty($postedSettings[$ictUser][$category]) || !empty($enabledLookup[$ictUser][$category]);
+                }
+            }
+
+            $store->saveCategoryMatrix($matrix, $availability);
+            pushFlash('success', 'De categorie-instellingen en afwezigheid voor ICT zijn opgeslagen.');
+            redirectToPage('admin.php', ['view' => 'settings']);
+        }
+
+        throw new RuntimeException('Onbekende actie ontvangen.');
+    } catch (Throwable $exception) {
+        if ($formAction === 'save_settings') {
+            error_log('[Asclepius save_settings] ' . $exception->getMessage() . ' | db=' . DATABASE_FILE . ' | dir_writable=' . (is_writable(dirname(DATABASE_FILE)) ? '1' : '0') . ' | file_writable=' . ((is_file(DATABASE_FILE) && is_writable(DATABASE_FILE)) ? '1' : '0'));
+        }
+
+        pushFlash('error', $exception->getMessage());
+        redirectToPage($returnPage, array_merge($baseQuery, $formAction === 'reply_ticket' ? ['open' => max(1, (int) ($_POST['ticket_id'] ?? 0))] : []));
+    }
+}
