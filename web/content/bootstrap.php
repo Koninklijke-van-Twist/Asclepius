@@ -9,7 +9,27 @@ ini_set('session.use_trans_sid', '0');
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'TicketStore.php';
 
-// Sessie starten vóór logincheck zodat we de bestaande state kunnen inspecteren
+// Korte read-only peek in de sessie om te controleren of bigscreen-bypass van toepassing is.
+// read_and_close voorkomt dat lib.php later een "session already active" notice krijgt.
+$_bigscreenRequest = isset($_GET['bigscreen']) && (string) $_GET['bigscreen'] === 'true';
+$_bigscreenAlreadyAuthenticated = false;
+
+if ($_bigscreenRequest && session_status() !== PHP_SESSION_ACTIVE) {
+    session_start(['read_and_close' => true]);
+    $_bigscreenAlreadyAuthenticated =
+        isset($_SESSION['user']['email'])
+        && trim((string) $_SESSION['user']['email']) !== '';
+}
+unset($_bigscreenRequest);
+
+if (!$_bigscreenAlreadyAuthenticated) {
+    // Normale flow: logincheck (en lib.php daarin) start zelf de sessie
+    require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'logincheck.php';
+}
+unset($_bigscreenAlreadyAuthenticated);
+
+// Sessie nu definitief starten (lib.php heeft dit al gedaan in de normale flow,
+// of we doen het zelf voor de bigscreen-bypass-flow)
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start([
         'cookie_httponly' => true,
@@ -29,19 +49,6 @@ if (session_status() === PHP_SESSION_ACTIVE && session_id() !== '') {
         $_COOKIE[$sessionCookieName] = session_id();
     }
 }
-
-// Bigscreen-bypass: als de gebruiker al eerder heeft ingelogd (sessie heeft e-mail)
-// én we zijn in bigscreen-modus, dan slaan we de logincheck over zodat de pagina
-// zichzelf kan herladen zonder opnieuw door de auth-flow te gaan.
-$_bigscreenAlreadyAuthenticated =
-    isset($_GET['bigscreen']) && (string) $_GET['bigscreen'] === 'true'
-    && isset($_SESSION['user']['email'])
-    && trim((string) $_SESSION['user']['email']) !== '';
-
-if (!$_bigscreenAlreadyAuthenticated) {
-    require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'logincheck.php';
-}
-unset($_bigscreenAlreadyAuthenticated);
 
 if (!function_exists('array_any')) {
     function array_any(array $array, callable $callback): bool
