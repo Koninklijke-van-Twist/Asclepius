@@ -381,27 +381,87 @@ function buildAbsoluteTicketUrl(int $ticketId, bool $adminPage = false): string
     return $scheme . '://' . $host . ($basePath !== '' ? $basePath : '') . '/' . $targetPage . '?open=' . $ticketId;
 }
 
-function buildNotificationBody(array $ticket, string $intro, string $messageText = '', bool $adminPage = false): string
+/**
+ * Vertaalt een e-mail-sleutel in de opgegeven taal (onafhankelijk van actieve sessietaal).
+ */
+function __mail(string $key, string $lang, mixed ...$args): string
 {
+    $translations = TRANSLATIONS[$lang] ?? TRANSLATIONS['nl'];
+    $string = $translations[$key] ?? (TRANSLATIONS['nl'][$key] ?? $key);
+    return $args !== [] ? sprintf($string, ...$args) : $string;
+}
+
+/**
+ * Geeft de opgeslagen taalvoorkeur van een e-mailadres terug, of 'nl' als fallback.
+ */
+function getUserMailLang(string $email): string
+{
+    $prefs = loadUserPrefs($email);
+    $lang = $prefs['lang'] ?? 'nl';
+    return array_key_exists($lang, SUPPORTED_LANGUAGES) ? $lang : 'nl';
+}
+
+function buildNotificationBody(array $ticket, string $introKey, string $messageText = '', bool $adminPage = false, string $lang = 'nl', mixed ...$introArgs): string
+{
+    $t = static fn(string $key, mixed ...$a) => __mail($key, $lang, ...$a);
+    $ticketUrl = buildAbsoluteTicketUrl((int) $ticket['id'], $adminPage);
+    $statusColor = getStatusColor((string) ($ticket['status'] ?? ''));
+    $assignee = ($ticket['assigned_email'] ?? '') !== '' ? (string) $ticket['assigned_email'] : $t('email.not_assigned');
+    $intro = $t($introKey, ...$introArgs);
+
+    // Plain-text fallback
     $lines = [
         $intro,
         '',
         'Ticket: #' . $ticket['id'] . ' - ' . $ticket['title'],
-        'Categorie: ' . $ticket['category'],
-        'Aanvrager: ' . $ticket['user_email'],
-        'Toegewezen aan: ' . (($ticket['assigned_email'] ?? '') !== '' ? $ticket['assigned_email'] : 'Nog niet toegewezen'),
-        'Status: ' . $ticket['status'],
-        'Laatst bijgewerkt: ' . formatDateTime((string) ($ticket['updated_at'] ?? $ticket['created_at'] ?? '')),
+        $t('email.field_category') . ': ' . $ticket['category'],
+        $t('email.field_requester') . ': ' . $ticket['user_email'],
+        $t('email.field_assigned') . ': ' . $assignee,
+        $t('email.field_status') . ': ' . $ticket['status'],
+        $t('email.field_updated') . ': ' . formatDateTime((string) ($ticket['updated_at'] ?? $ticket['created_at'] ?? '')),
     ];
-
     if (trim($messageText) !== '') {
         $lines[] = '';
-        $lines[] = 'Bericht:';
         $lines[] = $messageText;
     }
-
     $lines[] = '';
-    $lines[] = 'Open ticket: ' . buildAbsoluteTicketUrl((int) $ticket['id'], $adminPage);
+    $lines[] = $t('email.btn_view') . ': ' . $ticketUrl;
+    $plain = implode(PHP_EOL, $lines);
 
-    return implode(PHP_EOL, $lines);
+    // HTML body
+    $msgHtml = '';
+    if (trim($messageText) !== '') {
+        $msgHtml = '<div style="margin-top:16px;background:#f4f7fb;border-left:4px solid #0b65c2;padding:12px 16px;border-radius:0 8px 8px 0;font-size:14px;color:#10233f;white-space:pre-wrap;">'
+            . htmlspecialchars($messageText, ENT_QUOTES, 'UTF-8')
+            . '</div>';
+    }
+
+    $html = '<!DOCTYPE html><html lang="' . htmlspecialchars($lang, ENT_QUOTES, 'UTF-8') . '"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#10233f;">'
+        . '<div style="max-width:600px;margin:32px auto;padding:0 16px;">'
+        . '<div style="background:linear-gradient(135deg,#0e2c52,#0b65c2);border-radius:16px 16px 0 0;padding:24px 28px;">'
+        . '<p style="margin:0 0 2px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.7);">Asclepius · ICT Tickets</p>'
+        . '<h1 style="margin:0;font-size:20px;color:#fff;">Ticket #' . (int) $ticket['id'] . '</h1>'
+        . '</div>'
+        . '<div style="background:#fff;border-radius:0 0 16px 16px;padding:24px 28px;box-shadow:0 8px 24px rgba(15,35,63,.08);">'
+        . '<p style="margin:0 0 20px;font-size:15px;">' . htmlspecialchars($intro, ENT_QUOTES, 'UTF-8') . '</p>'
+        . '<div style="background:#f4f7fb;border-radius:10px;padding:16px 18px;margin-bottom:20px;">'
+        . '<p style="margin:0 0 8px;font-size:16px;font-weight:bold;color:#10233f;">' . htmlspecialchars((string) ($ticket['title'] ?? ''), ENT_QUOTES, 'UTF-8') . '</p>'
+        . '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#5b6b82;">'
+        . '<tr><td style="padding:3px 0;width:140px;">' . htmlspecialchars($t('email.field_category'), ENT_QUOTES, 'UTF-8') . '</td><td style="color:#10233f;">' . htmlspecialchars((string) ($ticket['category'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td style="padding:3px 0;">' . htmlspecialchars($t('email.field_requester'), ENT_QUOTES, 'UTF-8') . '</td><td style="color:#10233f;">' . htmlspecialchars((string) ($ticket['user_email'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td style="padding:3px 0;">' . htmlspecialchars($t('email.field_assigned'), ENT_QUOTES, 'UTF-8') . '</td><td style="color:#10233f;">' . htmlspecialchars($assignee, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td style="padding:3px 0;">' . htmlspecialchars($t('email.field_status'), ENT_QUOTES, 'UTF-8') . '</td><td><span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:' . htmlspecialchars($statusColor, ENT_QUOTES, 'UTF-8') . ';color:#fff;">' . htmlspecialchars((string) ($ticket['status'] ?? ''), ENT_QUOTES, 'UTF-8') . '</span></td></tr>'
+        . '<tr><td style="padding:3px 0;">' . htmlspecialchars($t('email.field_updated'), ENT_QUOTES, 'UTF-8') . '</td><td style="color:#10233f;">' . htmlspecialchars(formatDateTime((string) ($ticket['updated_at'] ?? $ticket['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '</table>'
+        . '</div>'
+        . $msgHtml
+        . '<div style="margin-top:24px;text-align:center;">'
+        . '<a href="' . htmlspecialchars($ticketUrl, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:#0b65c2;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">' . htmlspecialchars($t('email.btn_view'), ENT_QUOTES, 'UTF-8') . '</a>'
+        . '</div>'
+        . '</div>'
+        . '<p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px;">Asclepius · KVT ICT</p>'
+        . '</div></body></html>';
+
+    return "ASCLEPIUS_HTML_MAIL\x00" . $plain . "\x00" . $html;
 }
+

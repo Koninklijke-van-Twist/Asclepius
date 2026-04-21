@@ -177,6 +177,30 @@ const TRANSLATIONS = [
         'flash.status_changed_to' => 'Status gewijzigd naar %s.',
         'flash.attachment_upload_error' => 'Bijlage "%s" kon niet worden geüpload.',
         'flash.attachment_too_large' => 'Bijlage "%s" is groter dan 20 MB.',
+
+        // E-mail notificaties
+        'email.subject_new_ticket' => 'Nieuw ticket #%d',
+        'email.subject_created' => 'Ticket #%d is aangemaakt',
+        'email.subject_update' => 'Update op ticket #%d',
+        'email.subject_assigned' => 'Ticket #%d is aan jou toegewezen',
+        'email.subject_user_reply' => 'Reactie van gebruiker op ticket #%d',
+        'email.subject_escalation' => 'Escalatie ticket #%d',
+        'email.intro_new_ict' => 'Er is een nieuw ICT-ticket ingediend.',
+        'email.intro_created_self' => 'Je ticket is ontvangen door ICT.',
+        'email.intro_created_other' => 'Er is een ticket namens u aangemaakt.',
+        'email.intro_update' => 'ICT heeft je ticket bijgewerkt%s',
+        'email.intro_update_status' => ' en de status aangepast.',
+        'email.intro_update_no_status' => '.',
+        'email.intro_assigned' => 'Een ICT-ticket is opnieuw aan jou toegewezen.',
+        'email.intro_user_reply' => 'De aanvrager heeft gereageerd op een ticket.',
+        'email.intro_escalation' => 'Ticket staat lange tijd onbeantwoord open.',
+        'email.btn_view' => 'Ticket bekijken',
+        'email.field_category' => 'Categorie',
+        'email.field_requester' => 'Aanvrager',
+        'email.field_assigned' => 'Toegewezen aan',
+        'email.field_status' => 'Status',
+        'email.field_updated' => 'Bijgewerkt',
+        'email.not_assigned' => 'Nog niet toegewezen',
     ],
 
     /* ------------------------------------------------------------------ */
@@ -344,6 +368,30 @@ const TRANSLATIONS = [
         'flash.status_changed_to' => 'Status changed to %s.',
         'flash.attachment_upload_error' => 'Attachment "%s" could not be uploaded.',
         'flash.attachment_too_large' => 'Attachment "%s" is larger than 20 MB.',
+
+        // Email notifications
+        'email.subject_new_ticket' => 'New ticket #%d',
+        'email.subject_created' => 'Ticket #%d has been created',
+        'email.subject_update' => 'Update on ticket #%d',
+        'email.subject_assigned' => 'Ticket #%d has been assigned to you',
+        'email.subject_user_reply' => 'User reply on ticket #%d',
+        'email.subject_escalation' => 'Escalation ticket #%d',
+        'email.intro_new_ict' => 'A new ICT ticket has been submitted.',
+        'email.intro_created_self' => 'Your ticket has been received by ICT.',
+        'email.intro_created_other' => 'A ticket has been created on your behalf.',
+        'email.intro_update' => 'ICT has updated your ticket%s',
+        'email.intro_update_status' => ' and changed the status.',
+        'email.intro_update_no_status' => '.',
+        'email.intro_assigned' => 'An ICT ticket has been reassigned to you.',
+        'email.intro_user_reply' => 'The requester has replied to a ticket.',
+        'email.intro_escalation' => 'Ticket has been open without a response for a long time.',
+        'email.btn_view' => 'View ticket',
+        'email.field_category' => 'Category',
+        'email.field_requester' => 'Requester',
+        'email.field_assigned' => 'Assigned to',
+        'email.field_status' => 'Status',
+        'email.field_updated' => 'Updated',
+        'email.not_assigned' => 'Not yet assigned',
     ],
 
     /* ------------------------------------------------------------------ */
@@ -511,6 +559,30 @@ const TRANSLATIONS = [
         'flash.status_changed_to' => 'Status geändert auf %s.',
         'flash.attachment_upload_error' => 'Anhang "%s" konnte nicht hochgeladen werden.',
         'flash.attachment_too_large' => 'Anhang "%s" ist größer als 20 MB.',
+
+        // E-Mail-Benachrichtigungen
+        'email.subject_new_ticket' => 'Neues Ticket #%d',
+        'email.subject_created' => 'Ticket #%d wurde erstellt',
+        'email.subject_update' => 'Aktualisierung zu Ticket #%d',
+        'email.subject_assigned' => 'Ticket #%d wurde Ihnen zugewiesen',
+        'email.subject_user_reply' => 'Nutzerantwort auf Ticket #%d',
+        'email.subject_escalation' => 'Eskalation Ticket #%d',
+        'email.intro_new_ict' => 'Ein neues ICT-Ticket wurde eingereicht.',
+        'email.intro_created_self' => 'Ihr Ticket wurde vom ICT-Team empfangen.',
+        'email.intro_created_other' => 'Ein Ticket wurde in Ihrem Namen erstellt.',
+        'email.intro_update' => 'ICT hat Ihr Ticket aktualisiert%s',
+        'email.intro_update_status' => ' und den Status geändert.',
+        'email.intro_update_no_status' => '.',
+        'email.intro_assigned' => 'Ein ICT-Ticket wurde erneut Ihnen zugewiesen.',
+        'email.intro_user_reply' => 'Der Antragsteller hat auf ein Ticket geantwortet.',
+        'email.intro_escalation' => 'Das Ticket steht seit langer Zeit ohne Antwort offen.',
+        'email.btn_view' => 'Ticket ansehen',
+        'email.field_category' => 'Kategorie',
+        'email.field_requester' => 'Antragsteller',
+        'email.field_assigned' => 'Zugewiesen an',
+        'email.field_status' => 'Status',
+        'email.field_updated' => 'Aktualisiert',
+        'email.not_assigned' => 'Noch nicht zugewiesen',
     ],
 
     /* ------------------------------------------------------------------ */
@@ -678,12 +750,76 @@ const TRANSLATIONS = [
         'flash.status_changed_to' => 'Statut modifié en %s.',
         'flash.attachment_upload_error' => 'La pièce jointe "%s" n\'a pas pu être téléchargée.',
         'flash.attachment_too_large' => 'La pièce jointe "%s" dépasse 20 Mo.',
+
+        // Notifications par e-mail
+        'email.subject_new_ticket' => 'Nouveau ticket #%d',
+        'email.subject_created' => 'Le ticket #%d a été créé',
+        'email.subject_update' => 'Mise à jour du ticket #%d',
+        'email.subject_assigned' => 'Le ticket #%d vous a été assigné',
+        'email.subject_user_reply' => 'Réponse de l\'utilisateur sur le ticket #%d',
+        'email.subject_escalation' => 'Escalade ticket #%d',
+        'email.intro_new_ict' => 'Un nouveau ticket ICT a été soumis.',
+        'email.intro_created_self' => 'Votre ticket a été reçu par l\'ICT.',
+        'email.intro_created_other' => 'Un ticket a été créé en votre nom.',
+        'email.intro_update' => 'L\'ICT a mis à jour votre ticket%s',
+        'email.intro_update_status' => ' et modifié le statut.',
+        'email.intro_update_no_status' => '.',
+        'email.intro_assigned' => 'Un ticket ICT vous a été réassigné.',
+        'email.intro_user_reply' => 'Le demandeur a répondu à un ticket.',
+        'email.intro_escalation' => 'Le ticket est ouvert depuis longtemps sans réponse.',
+        'email.btn_view' => 'Voir le ticket',
+        'email.field_category' => 'Catégorie',
+        'email.field_requester' => 'Demandeur',
+        'email.field_assigned' => 'Assigné à',
+        'email.field_status' => 'Statut',
+        'email.field_updated' => 'Mis à jour',
+        'email.not_assigned' => 'Pas encore assigné',
     ],
 ];
 
 /**
  * Functies
  */
+
+/**
+ * Geeft het pad naar het user-prefs bestand voor een e-mailadres.
+ * Geeft null terug als het e-mailadres niet beschikbaar / onveilig is.
+ */
+function getUserPrefsPath(string $email): ?string
+{
+    $email = strtolower(trim($email));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return null;
+    }
+    $dir = __DIR__ . '/../data/user_prefs';
+    $filename = preg_replace('/[^a-z0-9._\-]/', '_', $email) . '.json';
+    return $dir . '/' . $filename;
+}
+
+function loadUserPrefs(string $email): array
+{
+    $path = getUserPrefsPath($email);
+    if ($path === null || !is_file($path)) {
+        return [];
+    }
+    $data = json_decode(file_get_contents($path), true);
+    return is_array($data) ? $data : [];
+}
+
+function saveUserPref(string $email, string $key, string $value): void
+{
+    $path = getUserPrefsPath($email);
+    if ($path === null) {
+        return;
+    }
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0750, true);
+    }
+    $prefs = loadUserPrefs($email);
+    $prefs[$key] = $value;
+    file_put_contents($path, json_encode($prefs, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+}
 
 function getCurrentLanguage(): string
 {
@@ -707,6 +843,22 @@ function __(string $key, mixed ...$args): string
  * Page load
  */
 
+// Laad opgeslagen taalvoorkeur als de sessie nog geen taal heeft
+if (!isset($_SESSION['lang'])) {
+    $prefEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+    if ($prefEmail !== '') {
+        $savedPrefs = loadUserPrefs($prefEmail);
+        if (isset($savedPrefs['lang']) && array_key_exists($savedPrefs['lang'], SUPPORTED_LANGUAGES)) {
+            $_SESSION['lang'] = $savedPrefs['lang'];
+        }
+    }
+}
+
+// Verwerk taalwissel via ?lang= en sla permanent op
 if (isset($_GET['lang']) && array_key_exists($_GET['lang'], SUPPORTED_LANGUAGES)) {
     $_SESSION['lang'] = $_GET['lang'];
+    $prefEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+    if ($prefEmail !== '') {
+        saveUserPref($prefEmail, 'lang', $_GET['lang']);
+    }
 }

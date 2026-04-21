@@ -93,27 +93,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ticket = $store->getTicket($ticketId, true, $userEmail);
 
             if ($ticket !== null) {
-                $recipients = !empty($result['assigned_email']) ? [$result['assigned_email']] : $ictUsers;
+                $ictRecipients = !empty($result['assigned_email']) ? [$result['assigned_email']] : $ictUsers;
+                $ictLang = !empty($result['assigned_email']) ? getUserMailLang((string) $result['assigned_email']) : 'nl';
                 sendTicketNotification(
                     $store,
                     $ictUsers,
-                    $recipients,
-                    'Nieuw ticket #' . $ticketId,
-                    buildNotificationBody($ticket, 'Er is een nieuw ICT-ticket ingediend.', $description, true),
+                    $ictRecipients,
+                    __mail('email.subject_new_ticket', $ictLang, $ticketId),
+                    buildNotificationBody($ticket, 'email.intro_new_ict', $description, true, $ictLang),
                     $requesterEmail,
                     (string) ($ticket['category'] ?? $category)
                 );
 
-                $userIntro = strtolower($requesterEmail) === strtolower($userEmail)
-                    ? 'Je ticket is ontvangen door ICT.'
-                    : 'Er is een ticket namens u aangemaakt.';
+                $requesterLang = getUserMailLang($requesterEmail);
+                $userIntroKey = strtolower($requesterEmail) === strtolower($userEmail)
+                    ? 'email.intro_created_self'
+                    : 'email.intro_created_other';
 
                 sendTicketNotification(
                     $store,
                     $ictUsers,
                     [$requesterEmail],
-                    'Ticket #' . $ticketId . ' is aangemaakt',
-                    buildNotificationBody($ticket, $userIntro, $description, false),
+                    __mail('email.subject_created', $requesterLang, $ticketId),
+                    buildNotificationBody($ticket, $userIntroKey, $description, false, $requesterLang),
                     null,
                     (string) ($ticket['category'] ?? $category)
                 );
@@ -211,41 +213,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($canManageTickets) {
                     $shouldNotifyRequester = $statusChanged || $assigneeChanged || $messageForStorage !== '' || $files !== [];
                     if ($shouldNotifyRequester) {
+                        $reqLang = getUserMailLang((string) $updatedTicket['user_email']);
+                        $updateIntroSuffix = $statusChanged ? __mail('email.intro_update_status', $reqLang) : __mail('email.intro_update_no_status', $reqLang);
                         sendTicketNotification(
                             $store,
                             $ictUsers,
                             [$updatedTicket['user_email']],
-                            'Update op ticket #' . $ticketId,
-                            buildNotificationBody(
-                                $updatedTicket,
-                                'ICT heeft je ticket bijgewerkt' . ($statusChanged ? ' en de status aangepast.' : '.'),
-                                $messageForStorage,
-                                false
-                            ),
+                            __mail('email.subject_update', $reqLang, $ticketId),
+                            buildNotificationBody($updatedTicket, 'email.intro_update', $messageForStorage, false, $reqLang, $updateIntroSuffix),
                             $userEmail,
                             (string) ($updatedTicket['category'] ?? '')
                         );
                     }
 
                     if ($assigneeChanged && $newAssignee !== '') {
+                        $assigneeLang = getUserMailLang($newAssignee);
                         sendTicketNotification(
                             $store,
                             $ictUsers,
                             [$newAssignee],
-                            'Ticket #' . $ticketId . ' is aan jou toegewezen',
-                            buildNotificationBody($updatedTicket, 'Een ICT-ticket is opnieuw aan jou toegewezen.', $message, true),
+                            __mail('email.subject_assigned', $assigneeLang, $ticketId),
+                            buildNotificationBody($updatedTicket, 'email.intro_assigned', $message, true, $assigneeLang),
                             $userEmail,
                             (string) ($updatedTicket['category'] ?? '')
                         );
                     }
                 } else {
                     $recipients = !empty($updatedTicket['assigned_email']) ? [$updatedTicket['assigned_email']] : $ictUsers;
+                    $ictLang2 = !empty($updatedTicket['assigned_email']) ? getUserMailLang((string) $updatedTicket['assigned_email']) : 'nl';
                     sendTicketNotification(
                         $store,
                         $ictUsers,
                         $recipients,
-                        'Reactie van gebruiker op ticket #' . $ticketId,
-                        buildNotificationBody($updatedTicket, 'De aanvrager heeft gereageerd op een ticket.', $message, true),
+                        __mail('email.subject_user_reply', $ictLang2, $ticketId),
+                        buildNotificationBody($updatedTicket, 'email.intro_user_reply', $message, true, $ictLang2),
                         $userEmail,
                         (string) ($updatedTicket['category'] ?? '')
                     );
@@ -257,8 +258,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $store,
                             $ictUsers,
                             array_values(array_unique($escalationRecipients)),
-                            'Escalatie ticket #' . $ticketId,
-                            buildNotificationBody($updatedTicket, 'ticket staat lange tijd onbeantwoord open', $message, true),
+                            __mail('email.subject_escalation', $ictLang2, $ticketId),
+                            buildNotificationBody($updatedTicket, 'email.intro_escalation', $message, true, $ictLang2),
                             null,
                             (string) ($updatedTicket['category'] ?? '')
                         );

@@ -28,6 +28,8 @@
                     var POLL_URL = 'admin.php?view=stats&_bigscreen_poll=1';
                     var VERSION_URL = 'version';
                     var CURRENT_VER = null;
+                    var versionChangedAt = null;
+                    var VERSION_RELOAD_DELAY_MS = 600000; // 10 minuten
                     var MOCK_ALERT = <?= $isMockAlert ? 'true' : 'false' ?>;
                     var MOCK_TICKETS = <?= json_encode($bsMockList, JSON_UNESCAPED_UNICODE) ?>;
                     var currentMaxId = <?= $bsMaxId ?>;
@@ -283,7 +285,16 @@
                     {
                         if (alertActive) { return; }
                         fetch(POLL_URL, { credentials: 'same-origin' })
-                            .then(function (r) { return r.json(); })
+                            .then(function (r)
+                            {
+                                if (!r.ok)
+                                {
+                                    // Ongeldige state (bijv. sessie verlopen, 500) — 1 minuut wachten dan herladen
+                                    setTimeout(function () { location.reload(); }, 60000);
+                                    return null;
+                                }
+                                return r.json();
+                            })
                             .then(function (data)
                             {
                                 if (!data) { return; }
@@ -295,7 +306,11 @@
                                     runAlert(data.latest);
                                 }
                             })
-                            .catch(function () { });
+                            .catch(function ()
+                            {
+                                // Netwerkfout — 1 minuut wachten dan herladen
+                                setTimeout(function () { location.reload(); }, 60000);
+                            });
                     }
 
                     function pollVersion ()
@@ -309,8 +324,18 @@
                                 if (CURRENT_VER === null) { CURRENT_VER = ver; return; }
                                 if (ver !== CURRENT_VER)
                                 {
-                                    CURRENT_VER = ver;
-                                    setTimeout(function () { location.reload(); }, 120000);
+                                    if (versionChangedAt === null)
+                                    {
+                                        versionChangedAt = Date.now();
+                                    }
+                                    if (Date.now() - versionChangedAt >= VERSION_RELOAD_DELAY_MS)
+                                    {
+                                        location.reload();
+                                    }
+                                } else
+                                {
+                                    // Versie weer hetzelfde — reset timer
+                                    versionChangedAt = null;
                                 }
                             })
                             .catch(function () { });

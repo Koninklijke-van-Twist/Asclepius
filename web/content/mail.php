@@ -43,7 +43,57 @@ function smtpCommand($socket, string $command, array $expectedCodes): string
     return smtpExpect($socket, $expectedCodes);
 }
 
-function sendViaSmtp(array $smtp, string $fromEmail, string $fromName, array $recipients, string $subject, string $message): bool
+/**
+ * Splitst het pakket dat buildNotificationBody teruggeeft in plain-text en HTML.
+ * Als het geen HTML-mailpakket is, wordt $plain gevuld met de ruwe tekst en $html met null.
+ */
+function splitMailBody(string $message): array
+{
+    if (str_starts_with($message, "ASCLEPIUS_HTML_MAIL\x00")) {
+        $parts = explode("\x00", $message, 3);
+        return ['plain' => $parts[1] ?? '', 'html' => $parts[2] ?? null];
+    }
+    return ['plain' => $message, 'html' => null];
+}
+
+/**
+ * Bouwt een multipart/alternative MIME-body (plain + html) of een eenvoudige text/plain body.
+ * Geeft [headers_string, body_string] terug.
+ */
+function buildMimeParts(string $fromEmail, string $fromName, array $recipients, string $subject, string $plain, ?string $html): array
+{
+    $baseHeaders = [
+        'From: ' . formatMailAddress($fromName, $fromEmail),
+        'To: ' . implode(', ', $recipients),
+        'Subject: ' . encodeMailHeader($subject),
+        'Date: ' . date(DATE_RFC2822),
+        'Message-ID: <' . uniqid('ticket-', true) . '@kvt.nl>',
+        'MIME-Version: 1.0',
+    ];
+
+    if ($html === null) {
+        $baseHeaders[] = 'Content-Type: text/plain; charset=UTF-8';
+        $baseHeaders[] = 'Content-Transfer-Encoding: 8bit';
+        return [implode("\r\n", $baseHeaders), $plain];
+    }
+
+    $boundary = 'asc_' . bin2hex(random_bytes(12));
+    $baseHeaders[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
+
+    $body = '--' . $boundary . "\r\n"
+        . "Content-Type: text/plain; charset=UTF-8\r\n"
+        . "Content-Transfer-Encoding: 8bit\r\n\r\n"
+        . str_replace(["\r\n", "\r"], "\n", $plain) . "\r\n"
+        . '--' . $boundary . "\r\n"
+        . "Content-Type: text/html; charset=UTF-8\r\n"
+        . "Content-Transfer-Encoding: 8bit\r\n\r\n"
+        . str_replace(["\r\n", "\r"], "\n", $html) . "\r\n"
+        . '--' . $boundary . '--';
+
+    return [implode("\r\n", $baseHeaders), $body];
+}
+
+function sendViaSmtp(array $smtp, string $fromEmail, string $fromName, array $recipients, string $subject, string $plain, ?string $html = null): bool
 {
     $host = trim((string) ($smtp['host'] ?? ''));
     $port = (int) ($smtp['port'] ?? 25);
@@ -103,19 +153,9 @@ function sendViaSmtp(array $smtp, string $fromEmail, string $fromName, array $re
 
         smtpCommand($socket, 'DATA', [354]);
 
-        $headers = [
-            'From: ' . formatMailAddress($fromName, $fromEmail),
-            'To: ' . implode(', ', $recipients),
-            'Subject: ' . encodeMailHeader($subject),
-            'Date: ' . date(DATE_RFC2822),
-            'Message-ID: <' . uniqid('ticket-', true) . '@kvt.nl>',
-            'MIME-Version: 1.0',
-            'Content-Type: text/plain; charset=UTF-8',
-            'Content-Transfer-Encoding: 8bit',
-        ];
-
-        $body = implode("\r\n", $headers) . "\r\n\r\n" . str_replace("\n.", "\n..", str_replace(["\r\n", "\r"], "\n", $message)) . "\r\n.\r\n";
-        fwrite($socket, $body);
+        [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, $recipients, $subject, $plain, $html);
+        $raw = $headersString . "\r\n\r\n" . str_replace("\n.", "\n..", $bodyString) . "\r\n.\r\n";
+        fwrite($socket, $raw);
         smtpExpect($socket, [250]);
         smtpCommand($socket, 'QUIT', [221]);
         fclose($socket);
@@ -154,21 +194,20 @@ function sendTicketEmail(array $recipients, string $subject, string $message, ?s
     $fullSubject = $prefix !== '' ? $prefix . ' - ' . $subject : $subject;
     $smtp = (array) ($mailSettings['smtp'] ?? []);
 
-    if ($smtp !== [] && sendViaSmtp($smtp, $fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $message)) {
+    ['plain' => $plain, 'html' => $html] = splitMailBody($message);
+
+    if ($smtp !== [] && sendViaSmtp($smtp, $fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html)) {
         return;
     }
 
-    $headers = [
-        'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=UTF-8',
-        'From: ' . formatMailAddress($fromName, $fromEmail),
-    ];
+    // Fallback: mail() — multipart als HTML beschikbaar
+    [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html);
 
     @mail(
         implode(', ', array_values($normalizedRecipients)),
         encodeMailHeader($fullSubject),
-        $message,
-        implode("\r\n", $headers)
+        $bodyString,
+        $headersString
     );
 }
 
@@ -207,11 +246,25 @@ function routeNotificationRecipients(?TicketStore $store, array $ictUsers, array
 function sendTicketNotification(?TicketStore $store, array $ictUsers, array $recipients, string $subject, string $message, ?string $excludeEmail = null, ?string $ticketCategory = null): void
 {
     $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $ticketCategory);
-    $messageWithRouting = $message;
+    $note = ($routing['note'] ?? '');
 
-    if (($routing['note'] ?? '') !== '') {
-        $messageWithRouting .= PHP_EOL . PHP_EOL . ($routing['note'] ?? '');
+    if ($note === '') {
+        sendTicketEmail($routing['recipients'] ?? $recipients, $subject, $message, $excludeEmail);
+        return;
     }
 
-    sendTicketEmail($routing['recipients'] ?? $recipients, $subject, $messageWithRouting, $excludeEmail);
+    ['plain' => $plain, 'html' => $html] = splitMailBody($message);
+    $plain .= PHP_EOL . PHP_EOL . $note;
+    if ($html !== null) {
+        $noteHtml = '<p style="margin-top:16px;font-size:12px;color:#5b6b82;border-top:1px solid #d8e0eb;padding-top:12px;">'
+            . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>';
+        $html = str_replace('</body>', $noteHtml . '</body>', $html);
+    }
+
+    // Herverpak als HTML-mailpakket
+    $packed = $html !== null
+        ? "ASCLEPIUS_HTML_MAIL\x00" . $plain . "\x00" . $html
+        : $plain;
+
+    sendTicketEmail($routing['recipients'] ?? $recipients, $subject, $packed, $excludeEmail);
 }
