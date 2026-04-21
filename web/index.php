@@ -1123,21 +1123,32 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     $allTicketsForPoll = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
     $pollMaxId = 0;
     $pollLatest = null;
+    $pollSnapshot = [];
     foreach ($allTicketsForPoll as $t) {
-        if ((int) $t['id'] > $pollMaxId) {
-            $pollMaxId = (int) $t['id'];
+        $tid = (int) $t['id'];
+        if ($tid > $pollMaxId) {
+            $pollMaxId = $tid;
             $pollLatest = $t;
         }
+        $pollSnapshot[] = [
+            'id'             => $tid,
+            'updated_at'     => (string) ($t['updated_at'] ?? ''),
+            'status'         => (string) ($t['status'] ?? ''),
+            'assigned_email' => (string) ($t['assigned_email'] ?? ''),
+            'message_count'  => (int) ($t['message_count'] ?? 0),
+        ];
     }
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
-        'max_id' => $pollMaxId,
-        'latest' => $pollLatest !== null ? [
-            'id' => $pollMaxId,
-            'title' => (string) ($pollLatest['title'] ?? ''),
-            'user_email' => (string) ($pollLatest['user_email'] ?? ''),
+        'max_id'   => $pollMaxId,
+        'snapshot' => $pollSnapshot,
+        'latest'   => $pollLatest !== null ? [
+            'id'             => $pollMaxId,
+            'title'          => (string) ($pollLatest['title'] ?? ''),
+            'user_email'     => (string) ($pollLatest['user_email'] ?? ''),
             'assigned_email' => (string) ($pollLatest['assigned_email'] ?? ''),
             'assigned_color' => emailToHexColor((string) ($pollLatest['assigned_email'] ?? '')),
+            'priority'       => (int) ($pollLatest['priority'] ?? 0),
         ] : null,
     ], JSON_UNESCAPED_UNICODE);
     exit;
@@ -1495,13 +1506,32 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
             margin-top: 1px;
         }
 
-        .sti-prio-0 { color: #10233f; background: #e8ecf2; }
-        .sti-prio-1 { color: #fff; background: #c2550b; }
-        .sti-prio-2 { color: #fff; background: #cc0000; animation: prio2blink 0.5s step-start infinite; }
+        .sti-prio-0 {
+            color: #10233f;
+            background: #e8ecf2;
+        }
+
+        .sti-prio-1 {
+            color: #fff;
+            background: #c2550b;
+        }
+
+        .sti-prio-2 {
+            color: #fff;
+            background: #cc0000;
+            animation: prio2blink 0.5s step-start infinite;
+        }
 
         @keyframes prio2blink {
-            0%, 100% { background: #cc0000; }
-            50%       { background: #000; }
+
+            0%,
+            100% {
+                background: #cc0000;
+            }
+
+            50% {
+                background: #000;
+            }
         }
 
         .stats-grid {
@@ -1603,10 +1633,60 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
         }
 
         .bs-warning-emoji {
-            font-size: min(50vw, 50vh);
+            font-size: min(40vw, 40vh);
             line-height: 1;
             z-index: 1;
             user-select: none;
+        }
+
+        .bs-max-prio-label {
+            color: #f7c600;
+            font-size: clamp(18px, 3vw, 36px);
+            font-weight: 900;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            z-index: 1;
+            margin-top: 8px;
+            text-shadow: 0 2px 8px #000;
+        }
+
+        /* Linkerzijde update-kaarten */
+        #bs-updates {
+            position: fixed;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 260px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .bs-update-card {
+            background: #0e2c52;
+            color: #fff;
+            border-left: 5px solid #f7c600;
+            border-radius: 10px;
+            padding: 14px 16px;
+            font-size: clamp(14px, 1.6vw, 20px);
+            font-weight: 700;
+            line-height: 1.3;
+            animation: bs-card-in 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        .bs-update-card .bsuc-sub {
+            font-size: 0.7em;
+            font-weight: 400;
+            color: #aac4e8;
+            margin-top: 4px;
+        }
+
+        @keyframes bs-card-in {
+            from { opacity: 0; transform: translateX(-24px); }
+            to   { opacity: 1; transform: translateX(0); }
         }
 
         .bs-ticket-info {
@@ -2150,129 +2230,141 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
                     <h2>ICT-statistieken</h2>
                     <p class="panel-intro">Bekijk hier de totalen, prestaties per ICT-medewerker en wachttijden per normale
                         gebruiker. Voor afgehandelde tickets meten we van <strong>aangemaakt</strong> tot
-                        <strong>afgehandeld</strong>; open tickets tellen mee tot <strong>nu</strong>.</p>
+                        <strong>afgehandeld</strong>; open tickets tellen mee tot <strong>nu</strong>.
+                    </p>
 
                     <?php if ($isBigscreen ?? false): ?>
-                    <div class="stats-layout">
-                    <div class="stats-main">
-                    <?php endif; ?>
+                        <div class="stats-layout">
+                            <div class="stats-main">
+                            <?php endif; ?>
 
-                    <div class="stats-grid">
-                        <div class="stats-card">
-                            <span>Totaal aantal tickets</span>
-                            <strong><?= (int) ($overallStats['total_tickets'] ?? 0) ?></strong>
-                        </div>
-                        <div class="stats-card">
-                            <span>Openstaande tickets</span>
-                            <strong><?= (int) ($overallStats['open_tickets'] ?? 0) ?></strong>
-                        </div>
-                        <div class="stats-card">
-                            <span>Afgehandelde tickets</span>
-                            <strong><?= (int) ($overallStats['resolved_tickets'] ?? 0) ?></strong>
-                        </div>
-                        <div class="stats-card">
-                            <span>Wacht op bestelling</span>
-                            <strong><?= (int) ($overallStats['waiting_order_tickets'] ?? 0) ?></strong>
-                        </div>
-                    </div>
-
-                    <h3 class="stats-section-title">Per ICT-medewerker</h3>
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>ICT-medewerker</th>
-                                    <th>Afgehandeld</th>
-                                    <th>Gemiddelde tijd open</th>
-                                    <th>Langste open tijd</th>
-                                    <th>Openstaand</th>
-                                    <th>Wacht op bestelling</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($ictStats as $statsRow): ?>
-                                    <tr>
-                                        <td class="user-color-cell"
-                                            style="--assignee-color: <?= h(emailToHexColor((string) $statsRow['user_email'])) ?>;">
-                                            <?php $statsUserEmail = strtolower((string) $statsRow['user_email']); ?>
-                                            <span
-                                                class="assignee-badge <?= empty($availabilityByIctUser[$statsUserEmail]) ? 'vacation-badge is-away' : '' ?>"
-                                                style="--assignee-color: <?= h(!empty($availabilityByIctUser[$statsUserEmail]) ? emailToHexColor($statsUserEmail) : '#94a3b8') ?>;">
-                                                <?= h($statsUserEmail) ?>        <?= empty($availabilityByIctUser[$statsUserEmail]) ? ' 🌴' : '' ?>
-                                            </span>
-                                        </td>
-                                        <td><?= (int) ($statsRow['handled_count'] ?? 0) ?></td>
-                                        <td><?= h(formatDurationSeconds($statsRow['average_open_seconds'] ?? null)) ?></td>
-                                        <td><?= h(formatDurationSeconds($statsRow['max_open_seconds'] ?? null)) ?></td>
-                                        <td><?= (int) ($statsRow['open_count'] ?? 0) ?></td>
-                                        <td><?= (int) ($statsRow['waiting_order_count'] ?? 0) ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <h3 class="stats-section-title">Per normale gebruiker</h3>
-                    <?php if ($requesterStats === []): ?>
-                        <div class="empty-state">Er zijn nog geen statistieken voor normale gebruikers beschikbaar.</div>
-                    <?php else: ?>
-                        <div class="table-wrap">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Gebruiker</th>
-                                        <th>Tickets ingediend</th>
-                                        <th>Gemiddelde wachttijd</th>
-                                        <th>Langste wachttijd</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($requesterStats as $statsRow): ?>
-                                        <tr>
-                                            <td><?= h((string) $statsRow['user_email']) ?></td>
-                                            <td><?= (int) ($statsRow['submitted_count'] ?? 0) ?></td>
-                                            <td><?= h(formatDurationSeconds($statsRow['average_wait_seconds'] ?? null)) ?></td>
-                                            <td><?= h(formatDurationSeconds($statsRow['max_wait_seconds'] ?? null)) ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                        <p class="stats-note">Wachttijden bij gebruikers worden berekend op basis van tickets met status
-                            <strong>afgehandeld</strong>.</p>
-                    <?php endif; ?>
-
-                    <?php if ($isBigscreen ?? false): ?>
-                    </div><!-- /.stats-main -->
-                    <aside class="stats-sidebar">
-                        <h3>Openstaande tickets</h3>
-                        <?php if ($statsOpenTickets === []): ?>
-                            <p style="color:var(--muted);font-size:13px;">Geen openstaande tickets.</p>
-                        <?php else: ?>
-                            <?php foreach ($statsOpenTickets as $sideTicket): ?>
-                                <?php $sideColor = getStatusColor((string) $sideTicket['status']); ?>
-                                <?php $sidePrio = (int) ($sideTicket['priority'] ?? 0); ?>
-                                <div class="stats-ticket-item" style="--ticket-color: <?= h($sideColor) ?>;">
-                                    <div class="sti-body">
-                                        <span class="sti-title">#<?= (int) $sideTicket['id'] ?> <?= h((string) $sideTicket['title']) ?></span>
-                                        <span class="sti-meta"><?= h((string) $sideTicket['status']) ?> &middot; <?= h((string) $sideTicket['user_email']) ?></span>
-                                        <span class="sti-meta"><?= h((string) (($sideTicket['assigned_email'] ?? '') !== '' ? $sideTicket['assigned_email'] : 'Niet toegewezen')) ?></span>
-                                    </div>
-                                    <span class="sti-prio sti-prio-<?= $sidePrio ?>"><?= $sidePrio ?></span>
+                            <div class="stats-grid">
+                                <div class="stats-card">
+                                    <span>Totaal aantal tickets</span>
+                                    <strong><?= (int) ($overallStats['total_tickets'] ?? 0) ?></strong>
                                 </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </aside>
-                    </div><!-- /.stats-layout -->
+                                <div class="stats-card">
+                                    <span>Openstaande tickets</span>
+                                    <strong><?= (int) ($overallStats['open_tickets'] ?? 0) ?></strong>
+                                </div>
+                                <div class="stats-card">
+                                    <span>Afgehandelde tickets</span>
+                                    <strong><?= (int) ($overallStats['resolved_tickets'] ?? 0) ?></strong>
+                                </div>
+                                <div class="stats-card">
+                                    <span>Wacht op bestelling</span>
+                                    <strong><?= (int) ($overallStats['waiting_order_tickets'] ?? 0) ?></strong>
+                                </div>
+                            </div>
+
+                            <h3 class="stats-section-title">Per ICT-medewerker</h3>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>ICT-medewerker</th>
+                                            <th>Afgehandeld</th>
+                                            <th>Gemiddelde tijd open</th>
+                                            <th>Langste open tijd</th>
+                                            <th>Openstaand</th>
+                                            <th>Wacht op bestelling</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($ictStats as $statsRow): ?>
+                                            <tr>
+                                                <td class="user-color-cell"
+                                                    style="--assignee-color: <?= h(emailToHexColor((string) $statsRow['user_email'])) ?>;">
+                                                    <?php $statsUserEmail = strtolower((string) $statsRow['user_email']); ?>
+                                                    <span
+                                                        class="assignee-badge <?= empty($availabilityByIctUser[$statsUserEmail]) ? 'vacation-badge is-away' : '' ?>"
+                                                        style="--assignee-color: <?= h(!empty($availabilityByIctUser[$statsUserEmail]) ? emailToHexColor($statsUserEmail) : '#94a3b8') ?>;">
+                                                        <?= h($statsUserEmail) ?>
+                                                        <?= empty($availabilityByIctUser[$statsUserEmail]) ? ' 🌴' : '' ?>
+                                                    </span>
+                                                </td>
+                                                <td><?= (int) ($statsRow['handled_count'] ?? 0) ?></td>
+                                                <td><?= h(formatDurationSeconds($statsRow['average_open_seconds'] ?? null)) ?>
+                                                </td>
+                                                <td><?= h(formatDurationSeconds($statsRow['max_open_seconds'] ?? null)) ?></td>
+                                                <td><?= (int) ($statsRow['open_count'] ?? 0) ?></td>
+                                                <td><?= (int) ($statsRow['waiting_order_count'] ?? 0) ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <h3 class="stats-section-title">Per normale gebruiker</h3>
+                            <?php if ($requesterStats === []): ?>
+                                <div class="empty-state">Er zijn nog geen statistieken voor normale gebruikers beschikbaar.
+                                </div>
+                            <?php else: ?>
+                                <div class="table-wrap">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Gebruiker</th>
+                                                <th>Tickets ingediend</th>
+                                                <th>Gemiddelde wachttijd</th>
+                                                <th>Langste wachttijd</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($requesterStats as $statsRow): ?>
+                                                <tr>
+                                                    <td><?= h((string) $statsRow['user_email']) ?></td>
+                                                    <td><?= (int) ($statsRow['submitted_count'] ?? 0) ?></td>
+                                                    <td><?= h(formatDurationSeconds($statsRow['average_wait_seconds'] ?? null)) ?>
+                                                    </td>
+                                                    <td><?= h(formatDurationSeconds($statsRow['max_wait_seconds'] ?? null)) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p class="stats-note">Wachttijden bij gebruikers worden berekend op basis van tickets met status
+                                    <strong>afgehandeld</strong>.
+                                </p>
+                            <?php endif; ?>
+
+                            <?php if ($isBigscreen ?? false): ?>
+                            </div><!-- /.stats-main -->
+                            <aside class="stats-sidebar">
+                                <h3>Openstaande tickets</h3>
+                                <?php if ($statsOpenTickets === []): ?>
+                                    <p style="color:var(--muted);font-size:13px;">Geen openstaande tickets.</p>
+                                <?php else: ?>
+                                    <?php foreach ($statsOpenTickets as $sideTicket): ?>
+                                        <?php $sideColor = getStatusColor((string) $sideTicket['status']); ?>
+                                        <?php $sidePrio = (int) ($sideTicket['priority'] ?? 0); ?>
+                                        <div class="stats-ticket-item" style="--ticket-color: <?= h($sideColor) ?>;">
+                                            <div class="sti-body">
+                                                <span class="sti-title">#<?= (int) $sideTicket['id'] ?>
+                                                    <?= h((string) $sideTicket['title']) ?></span>
+                                                <span class="sti-meta"><?= h((string) $sideTicket['status']) ?> &middot;
+                                                    <?= h((string) $sideTicket['user_email']) ?></span>
+                                                <span
+                                                    class="sti-meta"><?= h((string) (($sideTicket['assigned_email'] ?? '') !== '' ? $sideTicket['assigned_email'] : 'Niet toegewezen')) ?></span>
+                                            </div>
+                                            <span class="sti-prio sti-prio-<?= $sidePrio ?>"><?= $sidePrio ?></span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </aside>
+                        </div><!-- /.stats-layout -->
                     <?php endif; ?>
 
                 </section>
             <?php endif; ?>
 
             <?php if ($canManageTickets && $view === 'stats'): ?>
+                <div id="bs-updates" aria-live="polite" aria-relevant="additions"></div>
+
                 <div id="bigscreen-overlay" aria-live="assertive" aria-atomic="true">
                     <div class="bs-hazard-strip bs-hazard-top" id="bs-hazard-top"></div>
                     <span class="bs-warning-emoji" id="bs-warning-emoji" aria-hidden="true">⚠️</span>
+                    <div class="bs-max-prio-label" id="bs-max-prio-label" hidden>MAXIMUM PRIORITEIT TICKET</div>
                     <div class="bs-hazard-strip bs-hazard-bottom" id="bs-hazard-bottom"></div>
                     <div class="bs-ticket-info" id="bs-ticket-info" hidden>
                         <div class="bs-headline" id="bs-headline"></div>
@@ -2633,6 +2725,9 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
                     var currentMaxId = <?= $bsMaxId ?>;
                     var alertActive = false;
                     var reloadTimer = null;
+                    // snapshot: { [id]: { updated_at, status, assigned_email, message_count } }
+                    var ticketSnapshot = {};
+                    var snapshotReady = false;
 
                     function scheduleReload (ms)
                     {
@@ -2643,6 +2738,40 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
                         }, ms);
                     }
 
+                    /* ---- Update-kaarten links ---- */
+                    var updatesContainer = document.getElementById('bs-updates');
+                    var cardTimers = [];
+
+                    function pushUpdateCard (lines)
+                    {
+                        var card = document.createElement('div');
+                        card.className = 'bs-update-card';
+                        card.innerHTML = lines.map(function (l, i)
+                        {
+                            return i === 0
+                                ? document.createTextNode(l).textContent
+                                : '<div class="bsuc-sub">' + l.replace(/</g, '&lt;') + '</div>';
+                        }).join('');
+                        // Veilig inserten
+                        card.firstChild.nodeValue = lines[0];
+                        card.innerHTML = '';
+                        var main = document.createElement('span');
+                        main.textContent = lines[0];
+                        card.appendChild(main);
+                        for (var i = 1; i < lines.length; i++)
+                        {
+                            var sub = document.createElement('div');
+                            sub.className = 'bsuc-sub';
+                            sub.textContent = lines[i];
+                            card.appendChild(sub);
+                        }
+                        updatesContainer.appendChild(card);
+                        // Auto-verwijder na 12 seconden
+                        var t = setTimeout(function () { if (card.parentNode) { card.parentNode.removeChild(card); } }, 12000);
+                        cardTimers.push(t);
+                    }
+
+                    /* ---- Bigscreen alert overlay ---- */
                     function showPhase1 ()
                     {
                         alertActive = true;
@@ -2651,11 +2780,13 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
                         var hazTop = document.getElementById('bs-hazard-top');
                         var hazBot = document.getElementById('bs-hazard-bottom');
                         var emoji = document.getElementById('bs-warning-emoji');
+                        var label = document.getElementById('bs-max-prio-label');
                         var info = document.getElementById('bs-ticket-info');
                         overlay.className = 'bs-phase1';
                         hazTop.hidden = false;
                         hazBot.hidden = false;
                         emoji.hidden = false;
+                        label.hidden = false;
                         info.hidden = true;
                     }
 
@@ -2665,12 +2796,13 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
                         var hazTop = document.getElementById('bs-hazard-top');
                         var hazBot = document.getElementById('bs-hazard-bottom');
                         var emoji = document.getElementById('bs-warning-emoji');
+                        var label = document.getElementById('bs-max-prio-label');
                         var info = document.getElementById('bs-ticket-info');
                         var headline = document.getElementById('bs-headline');
                         var titleEl = document.getElementById('bs-title');
                         var assigneeEl = document.getElementById('bs-assignee');
 
-                        headline.textContent = 'Nieuwe ticket van ' + ticket.user_email + '!';
+                        headline.textContent = 'Nieuw ticket van ' + ticket.user_email + '!';
                         titleEl.textContent = ticket.title;
 
                         assigneeEl.innerHTML = '';
@@ -2690,23 +2822,77 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
                         hazTop.hidden = true;
                         hazBot.hidden = true;
                         emoji.hidden = true;
+                        label.hidden = true;
                         info.hidden = false;
                     }
 
                     function runAlert (ticket)
                     {
-                        showPhase1();
-                        setTimeout(function ()
+                        var isMaxPrio = (ticket.priority || 0) >= 2;
+                        if (isMaxPrio)
                         {
+                            showPhase1();
+                            setTimeout(function ()
+                            {
+                                showPhase2(ticket);
+                                setTimeout(function ()
+                                {
+                                    alertActive = false;
+                                    location.reload();
+                                }, 10000);
+                            }, 5000);
+                        } else
+                        {
+                            // Geen phase1 bij lagere prio — direct phase2
+                            alertActive = true;
+                            clearTimeout(reloadTimer);
                             showPhase2(ticket);
                             setTimeout(function ()
                             {
                                 alertActive = false;
                                 location.reload();
                             }, 10000);
-                        }, 3000);
+                        }
                     }
 
+                    /* ---- Wijzigingsdetectie via snapshot ---- */
+                    function applySnapshot (snapshotArr)
+                    {
+                        if (!snapshotArr) { return; }
+                        snapshotArr.forEach(function (t)
+                        {
+                            var id = t.id;
+                            var prev = ticketSnapshot[id];
+                            if (!prev)
+                            {
+                                // Nieuw ticket — ook al in pollMaxId-check afgehandeld, geen dubbele kaart
+                                ticketSnapshot[id] = t;
+                                return;
+                            }
+                            if (!snapshotReady) { return; } // eerste run: alleen baseline opslaan
+                            var changes = [];
+                            if (t.status !== prev.status)
+                            {
+                                changes.push('Status: ' + t.status);
+                            }
+                            if (t.assigned_email !== prev.assigned_email)
+                            {
+                                changes.push('Toegewezen aan: ' + (t.assigned_email || 'Niemand'));
+                            }
+                            if (t.message_count !== prev.message_count)
+                            {
+                                changes.push('Nieuw bericht');
+                            }
+                            if (changes.length > 0)
+                            {
+                                pushUpdateCard(['#' + id + ' gewijzigd'].concat(changes));
+                            }
+                            ticketSnapshot[id] = t;
+                        });
+                        snapshotReady = true;
+                    }
+
+                    /* ---- Poll ---- */
                     function poll ()
                     {
                         if (alertActive) { return; }
@@ -2714,7 +2900,9 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
                             .then(function (r) { return r.json(); })
                             .then(function (data)
                             {
-                                if (data && data.max_id > currentMaxId && data.latest)
+                                if (!data) { return; }
+                                applySnapshot(data.snapshot || null);
+                                if (data.max_id > currentMaxId && data.latest)
                                 {
                                     currentMaxId = data.max_id;
                                     runAlert(data.latest);
@@ -2735,7 +2923,7 @@ $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen'
                                 if (CURRENT_VER === null) { CURRENT_VER = ver; return; }
                                 if (ver !== CURRENT_VER)
                                 {
-                                    CURRENT_VER = ver; // niet opnieuw triggeren bij volgende poll
+                                    CURRENT_VER = ver;
                                     setTimeout(function () { location.reload(); }, 120000);
                                 }
                             })
