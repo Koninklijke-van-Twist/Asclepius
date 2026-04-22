@@ -2,6 +2,14 @@
 
 class TicketStore
 {
+    private const REQUESTER_WAIT_STATUSES = [
+        'ingediend',
+        'in behandeling',
+        'afwachtende op bestelling',
+    ];
+
+    private const REQUESTER_RESPONSE_STATUS = 'afwachtende op gebruiker';
+
     private PDO $pdo;
     private string $databasePath;
     private string $uploadRoot;
@@ -226,33 +234,47 @@ class TicketStore
 
         if ($this->ictUsers !== []) {
             $placeholders = implode(', ', array_fill(0, count($this->ictUsers), '?'));
-            $conditions[] = 'lower(user_email) NOT IN (' . $placeholders . ')';
+            $conditions[] = 'lower(t.user_email) NOT IN (' . $placeholders . ')';
             $parameters = $this->ictUsers;
         }
 
-        $sql = "SELECT lower(user_email) AS user_email,
+        $waitStatusPlaceholders = implode(', ', array_fill(0, count(self::REQUESTER_WAIT_STATUSES), '?'));
+        $durationParameters = self::REQUESTER_WAIT_STATUSES;
+        $durationParameters[] = self::REQUESTER_RESPONSE_STATUS;
+
+        $sql = "SELECT lower(t.user_email) AS user_email,
                        COUNT(*) AS submitted_count,
-                       AVG(
-                           CASE WHEN status = 'afgehandeld'
-                                THEN (julianday(COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400
-                           END
-                       ) AS average_wait_seconds,
-                       MAX(
-                           CASE WHEN status = 'afgehandeld'
-                                THEN CAST(
-                                    ROUND((julianday(COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP)) - julianday(created_at)) * 86400) AS INTEGER
-                                )
-                           END
-                       ) AS max_wait_seconds
-                FROM tickets";
+                       AVG(COALESCE(d.wait_seconds, 0)) AS average_wait_seconds,
+                       MAX(CAST(ROUND(COALESCE(d.wait_seconds, 0)) AS INTEGER)) AS max_wait_seconds,
+                       AVG(COALESCE(d.response_seconds, 0)) AS average_response_seconds
+                FROM tickets t
+                LEFT JOIN (
+                    SELECT ticket_id,
+                           SUM(
+                               CASE
+                                   WHEN status IN ($waitStatusPlaceholders)
+                                   THEN MAX(0, (julianday(COALESCE(NULLIF(ended_at, ''), CURRENT_TIMESTAMP)) - julianday(started_at)) * 86400)
+                                   ELSE 0
+                               END
+                           ) AS wait_seconds,
+                           SUM(
+                               CASE
+                                   WHEN status = ?
+                                   THEN MAX(0, (julianday(COALESCE(NULLIF(ended_at, ''), CURRENT_TIMESTAMP)) - julianday(started_at)) * 86400)
+                                   ELSE 0
+                               END
+                           ) AS response_seconds
+                    FROM ticket_status_transitions
+                    GROUP BY ticket_id
+                ) d ON d.ticket_id = t.id";
         if ($conditions !== []) {
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
         }
 
-        $sql .= ' GROUP BY lower(user_email) ORDER BY submitted_count DESC, user_email ASC';
+        $sql .= ' GROUP BY lower(t.user_email) ORDER BY submitted_count DESC, user_email ASC';
 
         $statement = $this->pdo->prepare($sql);
-        $statement->execute($parameters);
+        $statement->execute(array_merge($durationParameters, $parameters));
 
         $stats = [];
         foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -264,6 +286,9 @@ class TicketStore
                     : null,
                 'max_wait_seconds' => isset($row['max_wait_seconds']) && $row['max_wait_seconds'] !== null
                     ? max(0, (int) $row['max_wait_seconds'])
+                    : null,
+                'average_response_seconds' => isset($row['average_response_seconds']) && $row['average_response_seconds'] !== null
+                    ? max(0, (float) $row['average_response_seconds'])
                     : null,
             ];
         }
@@ -304,6 +329,8 @@ class TicketStore
 
             $ticketId = (int) $this->pdo->lastInsertId();
 
+            $this->insertStatusTransition($ticketId, 'ingediend', $now, null);
+
             $messageStatement = $this->pdo->prepare(
                 'INSERT INTO ticket_messages (ticket_id, sender_email, sender_role, message_text, created_at)
                  VALUES (:ticket_id, :sender_email, :sender_role, :message_text, :created_at)'
@@ -336,27 +363,61 @@ class TicketStore
 
     public function updateTicket(int $ticketId, string $status, ?string $assignedEmail, int $priority = 0): void
     {
+        $currentTicket = $this->pdo->prepare('SELECT status FROM tickets WHERE id = :id LIMIT 1');
+        $currentTicket->execute([':id' => $ticketId]);
+        $currentStatus = strtolower((string) ($currentTicket->fetchColumn() ?: ''));
+        $statusChanged = $currentStatus !== strtolower($status);
+
         $updatedAt = date('c');
         $priority = max(0, min(2, $priority));
-        $statement = $this->pdo->prepare(
-            "UPDATE tickets
-             SET status = :status,
-                 assigned_email = :assigned_email,
-                 priority = :priority,
-                 updated_at = :updated_at,
-                 resolved_at = CASE
-                     WHEN :status = 'afgehandeld' THEN COALESCE(NULLIF(resolved_at, ''), :updated_at)
-                     ELSE NULL
-                 END
-             WHERE id = :id"
-        );
-        $statement->execute([
-            ':status' => $status,
-            ':assigned_email' => $assignedEmail,
-            ':priority' => $priority,
-            ':updated_at' => $updatedAt,
-            ':id' => $ticketId,
-        ]);
+
+        $this->pdo->beginTransaction();
+
+        try {
+            $statement = $this->pdo->prepare(
+                "UPDATE tickets
+                 SET status = :status,
+                     assigned_email = :assigned_email,
+                     priority = :priority,
+                     updated_at = :updated_at,
+                     resolved_at = CASE
+                         WHEN :status = 'afgehandeld' THEN COALESCE(NULLIF(resolved_at, ''), :updated_at)
+                         ELSE NULL
+                     END
+                 WHERE id = :id"
+            );
+            $statement->execute([
+                ':status' => $status,
+                ':assigned_email' => $assignedEmail,
+                ':priority' => $priority,
+                ':updated_at' => $updatedAt,
+                ':id' => $ticketId,
+            ]);
+
+            if ($statusChanged) {
+                $closeTransition = $this->pdo->prepare(
+                    'UPDATE ticket_status_transitions
+                     SET ended_at = :ended_at
+                     WHERE ticket_id = :ticket_id
+                       AND (ended_at IS NULL OR ended_at = "")'
+                );
+                $closeTransition->execute([
+                    ':ended_at' => $updatedAt,
+                    ':ticket_id' => $ticketId,
+                ]);
+
+                $newEndedAt = strtolower($status) === 'afgehandeld' ? $updatedAt : null;
+                $this->insertStatusTransition($ticketId, $status, $updatedAt, $newEndedAt);
+            }
+
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
     }
 
     public function addMessage(int $ticketId, string $senderEmail, string $senderRole, string $messageText, array $files = []): int
@@ -824,6 +885,17 @@ class TicketStore
             )'
         );
 
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_status_transitions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                ended_at TEXT DEFAULT NULL,
+                FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+            )'
+        );
+
         $this->ensureColumn('tickets', 'title', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'assigned_email', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'status', 'TEXT NOT NULL DEFAULT "ingediend"');
@@ -842,6 +914,8 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_id ON ticket_status_transitions(ticket_id)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_status ON ticket_status_transitions(ticket_id, status)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_browser_notifications_user_delivered ON browser_notifications(user_email, delivered_at, created_at)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user_email ON web_push_subscriptions(user_email)');
         $this->pdo->exec(
@@ -851,7 +925,160 @@ class TicketStore
                AND (resolved_at IS NULL OR resolved_at = '')"
         );
 
+        $this->seedStatusTransitionHistory();
+
         $this->syncIctUsers();
+    }
+
+    private function insertStatusTransition(int $ticketId, string $status, string $startedAt, ?string $endedAt = null): void
+    {
+        $statement = $this->pdo->prepare(
+            'INSERT INTO ticket_status_transitions (ticket_id, status, started_at, ended_at)
+             VALUES (:ticket_id, :status, :started_at, :ended_at)'
+        );
+        $statement->execute([
+            ':ticket_id' => $ticketId,
+            ':status' => strtolower(trim($status)),
+            ':started_at' => $startedAt,
+            ':ended_at' => $endedAt,
+        ]);
+    }
+
+    private function seedStatusTransitionHistory(): void
+    {
+        $existingCount = (int) $this->pdo->query('SELECT COUNT(*) FROM ticket_status_transitions')->fetchColumn();
+        if ($existingCount > 0) {
+            return;
+        }
+
+        $tickets = $this->pdo->query(
+            'SELECT id, status, created_at, updated_at, resolved_at
+             FROM tickets
+             ORDER BY id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($tickets === []) {
+            return;
+        }
+
+        $messageStatement = $this->pdo->prepare(
+            'SELECT message_text, created_at
+             FROM ticket_messages
+             WHERE ticket_id = :ticket_id
+             ORDER BY datetime(created_at) ASC, id ASC'
+        );
+
+        foreach ($tickets as $ticket) {
+            $ticketId = (int) ($ticket['id'] ?? 0);
+            if ($ticketId <= 0) {
+                continue;
+            }
+
+            $currentStatus = 'ingediend';
+            $currentStartedAt = (string) ($ticket['created_at'] ?? '');
+            if ($currentStartedAt === '') {
+                continue;
+            }
+
+            $messageStatement->execute([':ticket_id' => $ticketId]);
+            $messages = $messageStatement->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($messages as $messageRow) {
+                $messageAt = (string) ($messageRow['created_at'] ?? '');
+                if ($messageAt === '') {
+                    continue;
+                }
+
+                $messageStatus = $this->extractStatusFromMessage((string) ($messageRow['message_text'] ?? ''));
+                if ($messageStatus === null || $messageStatus === $currentStatus) {
+                    continue;
+                }
+
+                if (strtotime($messageAt) < strtotime($currentStartedAt)) {
+                    continue;
+                }
+
+                $this->insertStatusTransition($ticketId, $currentStatus, $currentStartedAt, $messageAt);
+                $currentStatus = $messageStatus;
+                $currentStartedAt = $messageAt;
+            }
+
+            $finalStatus = strtolower(trim((string) ($ticket['status'] ?? $currentStatus)));
+            $finalStatusTime = (string) ($ticket['updated_at'] ?? '');
+            if ($finalStatus === 'afgehandeld') {
+                $finalStatusTime = (string) ($ticket['resolved_at'] ?: $finalStatusTime);
+            }
+
+            if ($finalStatus !== $currentStatus && $finalStatusTime !== '' && strtotime($finalStatusTime) >= strtotime($currentStartedAt)) {
+                $this->insertStatusTransition($ticketId, $currentStatus, $currentStartedAt, $finalStatusTime);
+                $currentStatus = $finalStatus;
+                $currentStartedAt = $finalStatusTime;
+            }
+
+            $endOfCurrent = $currentStatus === 'afgehandeld'
+                ? ($finalStatusTime !== '' ? $finalStatusTime : $currentStartedAt)
+                : null;
+
+            $this->insertStatusTransition($ticketId, $currentStatus, $currentStartedAt, $endOfCurrent);
+        }
+    }
+
+    private function extractStatusFromMessage(string $messageText): ?string
+    {
+        $statusByLabel = [
+            'ingediend' => 'ingediend',
+            'submitted' => 'ingediend',
+            'eingereicht' => 'ingediend',
+            'soumis' => 'ingediend',
+            'in behandeling' => 'in behandeling',
+            'in progress' => 'in behandeling',
+            'in bearbeitung' => 'in behandeling',
+            'en cours' => 'in behandeling',
+            'afwachtende op gebruiker' => 'afwachtende op gebruiker',
+            'awaiting user' => 'afwachtende op gebruiker',
+            'wartet auf benutzer' => 'afwachtende op gebruiker',
+            "en attente de l'utilisateur" => 'afwachtende op gebruiker',
+            'afwachtende op bestelling' => 'afwachtende op bestelling',
+            'awaiting order' => 'afwachtende op bestelling',
+            'wartet auf bestellung' => 'afwachtende op bestelling',
+            'en attente de commande' => 'afwachtende op bestelling',
+            'afgehandeld' => 'afgehandeld',
+            'resolved' => 'afgehandeld',
+            'erledigt' => 'afgehandeld',
+            'résolu' => 'afgehandeld',
+            'resolu' => 'afgehandeld',
+        ];
+
+        $prefixes = [
+            'status gewijzigd naar ',
+            'status changed to ',
+            'status geändert auf ',
+            'statut modifié en ',
+        ];
+
+        $normalized = str_replace(["\r\n", "\r"], "\n", trim($messageText));
+        if ($normalized === '') {
+            return null;
+        }
+
+        foreach (explode("\n", $normalized) as $line) {
+            $trimmedLine = trim($line);
+            if ($trimmedLine === '') {
+                continue;
+            }
+
+            $lowerLine = strtolower($trimmedLine);
+            foreach ($prefixes as $prefix) {
+                if (!str_starts_with($lowerLine, $prefix)) {
+                    continue;
+                }
+
+                $statusLabel = trim(substr($lowerLine, strlen($prefix)), " .\t\n\r\0\x0B");
+                return $statusByLabel[$statusLabel] ?? null;
+            }
+        }
+
+        return null;
     }
 
     private function ensureColumn(string $tableName, string $columnName, string $definition): void

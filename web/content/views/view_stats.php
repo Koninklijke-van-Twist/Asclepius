@@ -73,19 +73,20 @@
                                 <thead>
                                     <tr>
                                         <th><?= h(__('stats.col_user')) ?></th>
-                                        <th><?= h(__('stats.col_submitted')) ?></th>
-                                        <th><?= h(__('stats.col_avg_wait')) ?></th>
-                                        <th><?= h(__('stats.col_max_wait')) ?></th>
+                                        <th><?= h(__('stats.col_avg_wait')) ?>*</th>
+                                        <th><?= h(__('stats.col_max_wait')) ?>*</th>
+                                        <th><?= h(__('stats.col_avg_response')) ?></th>
                                     </tr>
                                 </thead>
                                 <tbody id="stats-requester-tbody">
                                     <?php foreach ($requesterStats as $statsRow): ?>
                                         <tr>
                                             <td><?= h((string) $statsRow['user_email']) ?></td>
-                                            <td><?= (int) ($statsRow['submitted_count'] ?? 0) ?></td>
                                             <td><?= h(formatDurationSeconds($statsRow['average_wait_seconds'] ?? null)) ?>
                                             </td>
                                             <td><?= h(formatDurationSeconds($statsRow['max_wait_seconds'] ?? null)) ?>
+                                            </td>
+                                            <td><?= h(formatDurationSeconds($statsRow['average_response_seconds'] ?? null)) ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

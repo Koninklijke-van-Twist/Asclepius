@@ -224,9 +224,9 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     $pollRequesterStatsMapped = array_map(function (array $r): array {
         return [
             'user_email' => (string) ($r['user_email'] ?? ''),
-            'submitted_count' => (int) ($r['submitted_count'] ?? 0),
             'average_wait' => formatDurationSeconds($r['average_wait_seconds'] ?? null),
             'max_wait' => formatDurationSeconds($r['max_wait_seconds'] ?? null),
+            'average_response' => formatDurationSeconds($r['average_response_seconds'] ?? null),
         ];
     }, $pollRequesterStats);
 

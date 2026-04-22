@@ -52,9 +52,9 @@
                 var BS = <?= json_encode([
                     'noUserStats'  => __('bs.no_user_stats'),
                     'colUser'      => __('bs.col_user'),
-                    'colSubmitted' => __('bs.col_submitted'),
                     'colAvgWait'   => __('bs.col_avg_wait'),
                     'colMaxWait'   => __('bs.col_max_wait'),
+                    'colAvgResponse' => __('bs.col_avg_response'),
                     'waitNote'     => __('bs.wait_note'),
                     'sidebarEmpty' => __('stats.sidebar_empty'),
                     'notAssigned'  => __('stats.no_assigned'),
@@ -237,13 +237,13 @@ headline.textContent = BS.newTicketFrom.replace('%s', ticket.user_email);
                             {
                                 rrows += '<tr>'
                                     + '<td>' + esc(r.user_email) + '</td>'
-                                    + '<td>' + r.submitted_count + '</td>'
                                     + '<td>' + esc(r.average_wait) + '</td>'
                                     + '<td>' + esc(r.max_wait) + '</td>'
+                                    + '<td>' + esc(r.average_response) + '</td>'
                                     + '</tr>';
                             });
                             reqWrap.innerHTML = '<div class="table-wrap"><table>'
-                                + '<thead><tr><th>' + esc(BS.colUser) + '</th><th>' + esc(BS.colSubmitted) + '</th><th>' + esc(BS.colAvgWait) + '</th><th>' + esc(BS.colMaxWait) + '</th></tr></thead>'
+                                + '<thead><tr><th>' + esc(BS.colUser) + '</th><th>' + esc(BS.colAvgWait) + '*</th><th>' + esc(BS.colMaxWait) + '*</th><th>' + esc(BS.colAvgResponse) + '</th></tr></thead>'
                                 + '<tbody>' + rrows + '</tbody></table></div>'
                                 + '<p class="stats-note">' + BS.waitNote + '</p>';
                         }
