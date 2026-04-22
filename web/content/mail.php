@@ -278,6 +278,322 @@ function extractDesktopNotificationBody(string $message): string
     return '';
 }
 
+function base64UrlDecode(string $value): string
+{
+    $value = strtr(trim($value), '-_', '+/');
+    $padding = strlen($value) % 4;
+    if ($padding > 0) {
+        $value .= str_repeat('=', 4 - $padding);
+    }
+
+    $decoded = base64_decode($value, true);
+    return $decoded === false ? '' : $decoded;
+}
+
+function base64UrlEncode(string $value): string
+{
+    return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+}
+
+function buildEcPublicKeyPemFromRaw(string $rawPublicKey): ?string
+{
+    if (strlen($rawPublicKey) !== 65 || $rawPublicKey[0] !== "\x04") {
+        return null;
+    }
+
+    $derPrefix = hex2bin('3059301306072A8648CE3D020106082A8648CE3D030107034200');
+    if ($derPrefix === false) {
+        return null;
+    }
+
+    $der = $derPrefix . $rawPublicKey;
+    return "-----BEGIN PUBLIC KEY-----\n"
+        . chunk_split(base64_encode($der), 64, "\n")
+        . "-----END PUBLIC KEY-----\n";
+}
+
+function hkdfExtract(string $salt, string $ikm): string
+{
+    return hash_hmac('sha256', $ikm, $salt, true);
+}
+
+function hkdfExpand(string $prk, string $info, int $length): string
+{
+    $result = '';
+    $block = '';
+    $counter = 1;
+
+    while (strlen($result) < $length) {
+        $block = hash_hmac('sha256', $block . $info . chr($counter), $prk, true);
+        $result .= $block;
+        $counter++;
+    }
+
+    return substr($result, 0, $length);
+}
+
+function createVapidJwt(string $endpoint, string $subject, string $privatePem): ?array
+{
+    $privatePem = str_replace('\\n', "\n", $privatePem);
+    $parsedEndpoint = parse_url($endpoint);
+    $scheme = $parsedEndpoint['scheme'] ?? '';
+    $host = $parsedEndpoint['host'] ?? '';
+    if ($scheme === '' || $host === '') {
+        return null;
+    }
+
+    $audience = $scheme . '://' . $host;
+    $now = time();
+    $claims = [
+        'aud' => $audience,
+        'exp' => $now + 12 * 60 * 60,
+        'sub' => $subject,
+    ];
+
+    $header = ['alg' => 'ES256', 'typ' => 'JWT'];
+    $encodedHeader = base64UrlEncode(json_encode($header, JSON_UNESCAPED_SLASHES) ?: '{}');
+    $encodedClaims = base64UrlEncode(json_encode($claims, JSON_UNESCAPED_SLASHES) ?: '{}');
+    $payload = $encodedHeader . '.' . $encodedClaims;
+
+    $privateKey = openssl_pkey_get_private($privatePem);
+    if ($privateKey === false) {
+        return null;
+    }
+
+    $signatureDer = '';
+    if (!openssl_sign($payload, $signatureDer, $privateKey, OPENSSL_ALGO_SHA256)) {
+        return null;
+    }
+
+    $signatureRaw = convertEcdsaDerToRaw($signatureDer, 64);
+    if ($signatureRaw === null) {
+        return null;
+    }
+
+    return [
+        'jwt' => $payload . '.' . base64UrlEncode($signatureRaw),
+        'audience' => $audience,
+    ];
+}
+
+function convertEcdsaDerToRaw(string $der, int $partLength): ?string
+{
+    $offset = 0;
+    if (!isset($der[$offset]) || ord($der[$offset]) !== 0x30) {
+        return null;
+    }
+    $offset++;
+    if (!isset($der[$offset])) {
+        return null;
+    }
+
+    $seqLen = ord($der[$offset]);
+    $offset++;
+    if (($seqLen & 0x80) !== 0) {
+        $lenBytes = $seqLen & 0x7f;
+        if ($lenBytes <= 0 || !isset($der[$offset + $lenBytes - 1])) {
+            return null;
+        }
+        $offset += $lenBytes;
+    }
+
+    if (!isset($der[$offset]) || ord($der[$offset]) !== 0x02) {
+        return null;
+    }
+    $offset++;
+    $rLen = ord($der[$offset] ?? "\x00");
+    $offset++;
+    $r = substr($der, $offset, $rLen);
+    $offset += $rLen;
+
+    if (!isset($der[$offset]) || ord($der[$offset]) !== 0x02) {
+        return null;
+    }
+    $offset++;
+    $sLen = ord($der[$offset] ?? "\x00");
+    $offset++;
+    $s = substr($der, $offset, $sLen);
+
+    $r = ltrim($r, "\x00");
+    $s = ltrim($s, "\x00");
+    $r = str_pad($r, $partLength, "\x00", STR_PAD_LEFT);
+    $s = str_pad($s, $partLength, "\x00", STR_PAD_LEFT);
+
+    if (strlen($r) !== $partLength || strlen($s) !== $partLength) {
+        return null;
+    }
+
+    return $r . $s;
+}
+
+function encryptWebPushPayload(string $jsonPayload, string $userPublicKeyRaw, string $authSecretRaw): ?array
+{
+    $userPublicKeyPem = buildEcPublicKeyPemFromRaw($userPublicKeyRaw);
+    if ($userPublicKeyPem === null) {
+        return null;
+    }
+
+    $serverKeyResource = openssl_pkey_new([
+        'private_key_type' => OPENSSL_KEYTYPE_EC,
+        'curve_name' => 'prime256v1',
+    ]);
+    if ($serverKeyResource === false) {
+        return null;
+    }
+
+    $serverKeyDetails = openssl_pkey_get_details($serverKeyResource);
+    $serverX = $serverKeyDetails['ec']['x'] ?? null;
+    $serverY = $serverKeyDetails['ec']['y'] ?? null;
+    if (!is_string($serverX) || !is_string($serverY)) {
+        return null;
+    }
+
+    $serverPublicKeyRaw = "\x04" . $serverX . $serverY;
+    $userPublicResource = openssl_pkey_get_public($userPublicKeyPem);
+    if ($userPublicResource === false) {
+        return null;
+    }
+
+    $sharedSecret = openssl_pkey_derive($userPublicResource, $serverKeyResource, 32);
+    if (!is_string($sharedSecret) || strlen($sharedSecret) !== 32) {
+        return null;
+    }
+
+    $keyInfo = "WebPush: info\0" . $userPublicKeyRaw . $serverPublicKeyRaw;
+    $ikm = hkdfExpand(hkdfExtract($authSecretRaw, $sharedSecret), $keyInfo, 32);
+
+    $salt = random_bytes(16);
+    $prk = hkdfExtract($salt, $ikm);
+    $contentEncryptionKey = hkdfExpand($prk, "Content-Encoding: aes128gcm\0", 16);
+    $nonce = hkdfExpand($prk, "Content-Encoding: nonce\0", 12);
+
+    $plaintext = $jsonPayload . "\x02";
+    $ciphertext = openssl_encrypt($plaintext, 'aes-128-gcm', $contentEncryptionKey, OPENSSL_RAW_DATA, $nonce, $tag);
+    if ($ciphertext === false || !is_string($tag)) {
+        return null;
+    }
+
+    $recordSize = 4096;
+    $binaryBody = $salt
+        . pack('N', $recordSize)
+        . chr(strlen($serverPublicKeyRaw))
+        . $serverPublicKeyRaw
+        . $ciphertext
+        . $tag;
+
+    return [
+        'body' => $binaryBody,
+        'server_public_key' => $serverPublicKeyRaw,
+    ];
+}
+
+function sendSingleWebPush(array $subscription, string $title, string $body, string $openUrl): array
+{
+    if (!function_exists('curl_init')) {
+        return ['success' => false, 'hard_invalid' => false];
+    }
+
+    $endpoint = trim((string) ($subscription['endpoint'] ?? ''));
+    $p256dhKey = base64UrlDecode((string) ($subscription['p256dh_key'] ?? ''));
+    $authKey = base64UrlDecode((string) ($subscription['auth_key'] ?? ''));
+    if ($endpoint === '' || $p256dhKey === '' || $authKey === '') {
+        return ['success' => false, 'hard_invalid' => true];
+    }
+
+    if (WEB_PUSH_VAPID_PRIVATE_PEM === '' || WEB_PUSH_VAPID_PUBLIC_KEY === '') {
+        return ['success' => false, 'hard_invalid' => false];
+    }
+
+    $vapid = createVapidJwt($endpoint, WEB_PUSH_SUBJECT, WEB_PUSH_VAPID_PRIVATE_PEM);
+    if ($vapid === null) {
+        return ['success' => false, 'hard_invalid' => false];
+    }
+
+    $payload = json_encode([
+        'title' => $title,
+        'body' => $body,
+        'open_url' => $openUrl,
+        'tag' => 'ticket-push-' . (string) ($subscription['user_email'] ?? 'user'),
+    ], JSON_UNESCAPED_UNICODE);
+    if ($payload === false) {
+        return ['success' => false, 'hard_invalid' => false];
+    }
+
+    $encrypted = encryptWebPushPayload($payload, $p256dhKey, $authKey);
+    if ($encrypted === null) {
+        return ['success' => false, 'hard_invalid' => true];
+    }
+
+    $authorization = 'vapid t=' . $vapid['jwt'] . ', k=' . WEB_PUSH_VAPID_PUBLIC_KEY;
+    $curl = curl_init($endpoint);
+    curl_setopt_array($curl, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 8,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_HTTPHEADER => [
+            'TTL: 120',
+            'Content-Type: application/octet-stream',
+            'Content-Encoding: aes128gcm',
+            'Authorization: ' . $authorization,
+        ],
+        CURLOPT_POSTFIELDS => $encrypted['body'],
+    ]);
+
+    curl_exec($curl);
+    $httpCode = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    curl_close($curl);
+
+    return [
+        'success' => $httpCode >= 200 && $httpCode < 300,
+        'hard_invalid' => in_array($httpCode, [404, 410], true),
+    ];
+}
+
+function sendWebPushNotifications(
+    ?TicketStore $store,
+    array $ictUsers,
+    array $recipientEmails,
+    int $ticketId,
+    string $title,
+    string $body
+): void {
+    if (!$store instanceof TicketStore || $ticketId <= 0) {
+        return;
+    }
+
+    if (WEB_PUSH_VAPID_PRIVATE_PEM === '' || WEB_PUSH_VAPID_PUBLIC_KEY === '') {
+        return;
+    }
+
+    $subscriptions = $store->getWebPushSubscriptionsByUserEmails($recipientEmails);
+    if ($subscriptions === []) {
+        return;
+    }
+
+    $ictLookup = array_fill_keys(array_map('strtolower', $ictUsers), true);
+    $invalidEndpoints = [];
+
+    foreach ($subscriptions as $subscription) {
+        $subscriptionUser = strtolower(trim((string) ($subscription['user_email'] ?? '')));
+        $openUrl = isset($ictLookup[$subscriptionUser])
+            ? 'admin.php?open=' . $ticketId
+            : 'index.php?open=' . $ticketId;
+
+        $result = sendSingleWebPush($subscription, $title, $body, $openUrl);
+        if (!($result['success'] ?? false) && ($result['hard_invalid'] ?? false)) {
+            $endpoint = trim((string) ($subscription['endpoint'] ?? ''));
+            if ($endpoint !== '') {
+                $invalidEndpoints[$endpoint] = $endpoint;
+            }
+        }
+    }
+
+    if ($invalidEndpoints !== []) {
+        $store->removeWebPushSubscriptionsByEndpoints(array_values($invalidEndpoints));
+    }
+}
+
 function sendTicketNotification(
     ?TicketStore $store,
     array $ictUsers,
@@ -288,8 +604,7 @@ function sendTicketNotification(
     ?string $ticketCategory = null,
     ?int $ticketId = null,
     ?string $browserActorEmail = null
-): void
-{
+): void {
     $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $ticketCategory);
     $routedRecipients = $routing['recipients'] ?? $recipients;
     $note = ($routing['note'] ?? '');
@@ -328,4 +643,5 @@ function sendTicketNotification(
 
     $body = extractDesktopNotificationBody($finalMessage);
     $store->queueBrowserNotifications($browserRecipients, $ticketId, $subject, $body);
+    sendWebPushNotifications($store, $ictUsers, $browserRecipients, $ticketId, $subject, $body);
 }

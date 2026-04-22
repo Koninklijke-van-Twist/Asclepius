@@ -12,6 +12,8 @@ require_once __DIR__ . '/content/data.php';
 $browserNotificationPollUrl = buildCurrentPageUrl($currentPage, ['_browser_notifications_poll' => '1'], ['_partial', '_tickets_poll', '_bigscreen_poll', '_browser_notifications_poll', 'reset_filters']);
 $browserNotificationTargetPage = $userIsAdmin ? 'admin.php' : 'index.php';
 $browserNotificationOpenUrlTemplate = $browserNotificationTargetPage . '?open=__TICKET_ID__';
+$webPushSubscriptionUrl = buildCurrentPageUrl($currentPage, ['_webpush_subscription' => '1'], ['_partial', '_tickets_poll', '_bigscreen_poll', '_browser_notifications_poll', '_webpush_subscription', 'reset_filters']);
+$webPushServiceWorkerUrl = 'sw.js';
 
 ?>
 <!DOCTYPE html>
@@ -23,7 +25,11 @@ $browserNotificationOpenUrlTemplate = $browserNotificationTargetPage . '?open=__
 <body<?= $isBigscreen ? ' style="overflow:hidden;"' : '' ?>
     data-browser-notification-poll-url="<?= h($browserNotificationPollUrl) ?>"
     data-browser-notification-open-template="<?= h($browserNotificationOpenUrlTemplate) ?>"
-    data-browser-notification-poll-interval="15000">
+    data-browser-notification-poll-interval="15000"
+    data-webpush-subscribe-url="<?= h($webPushSubscriptionUrl) ?>"
+    data-webpush-vapid-public-key="<?= h(WEB_PUSH_VAPID_PUBLIC_KEY) ?>"
+    data-webpush-sw-url="<?= h($webPushServiceWorkerUrl) ?>"
+    data-csrf-token="<?= h($csrfToken) ?>">
     <div class="page">
         <?php require __DIR__ . '/content/views/header.php'; ?>
 

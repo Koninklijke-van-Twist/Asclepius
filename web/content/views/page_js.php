@@ -73,6 +73,127 @@
         var browserNotificationRequestAttempted = false;
         var browserNotificationPollUrl = document.body ? (document.body.getAttribute('data-browser-notification-poll-url') || '') : '';
         var browserNotificationOpenTemplate = document.body ? (document.body.getAttribute('data-browser-notification-open-template') || '') : '';
+        var webPushSubscribeUrl = document.body ? (document.body.getAttribute('data-webpush-subscribe-url') || '') : '';
+        var webPushVapidPublicKey = document.body ? (document.body.getAttribute('data-webpush-vapid-public-key') || '') : '';
+        var webPushServiceWorkerUrl = document.body ? (document.body.getAttribute('data-webpush-sw-url') || '') : '';
+        var csrfToken = document.body ? (document.body.getAttribute('data-csrf-token') || '') : '';
+        var webPushSyncInFlight = false;
+
+        var base64UrlToUint8Array = function (base64String)
+        {
+            var normalized = String(base64String || '').replace(/-/g, '+').replace(/_/g, '/');
+            var padding = normalized.length % 4;
+            if (padding)
+            {
+                normalized += '='.repeat(4 - padding);
+            }
+
+            var rawData = window.atob(normalized);
+            var outputArray = new Uint8Array(rawData.length);
+            for (var i = 0; i < rawData.length; ++i)
+            {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        };
+
+        var postWebPushSubscription = function (action, subscription)
+        {
+            if (!webPushSubscribeUrl || !csrfToken)
+            {
+                return Promise.resolve();
+            }
+
+            return fetch(webPushSubscribeUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'fetch'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    action: action,
+                    csrf_token: csrfToken,
+                    subscription: subscription || null
+                })
+            }).catch(function ()
+            {
+                // Retry happens on next refresh/poll cycle.
+            });
+        };
+
+        var syncWebPushSubscription = function ()
+        {
+            if (webPushSyncInFlight)
+            {
+                return;
+            }
+
+            if (!webPushSubscribeUrl || !webPushVapidPublicKey || !webPushServiceWorkerUrl)
+            {
+                return;
+            }
+
+            if (!('serviceWorker' in navigator) || !('PushManager' in window))
+            {
+                return;
+            }
+
+            webPushSyncInFlight = true;
+
+            navigator.serviceWorker.register(webPushServiceWorkerUrl)
+                .then(function (registration)
+                {
+                    return registration.pushManager.getSubscription().then(function (existingSubscription)
+                    {
+                        return {
+                            registration: registration,
+                            subscription: existingSubscription
+                        };
+                    });
+                })
+                .then(function (context)
+                {
+                    if (Notification.permission !== 'granted')
+                    {
+                        if (!context.subscription)
+                        {
+                            return Promise.resolve();
+                        }
+
+                        var existingPayload = context.subscription.toJSON ? context.subscription.toJSON() : null;
+                        return context.subscription.unsubscribe().then(function ()
+                        {
+                            return postWebPushSubscription('unsubscribe', existingPayload);
+                        });
+                    }
+
+                    if (context.subscription)
+                    {
+                        var payload = context.subscription.toJSON ? context.subscription.toJSON() : null;
+                        return postWebPushSubscription('subscribe', payload);
+                    }
+
+                    var appServerKey = base64UrlToUint8Array(webPushVapidPublicKey);
+                    return context.registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: appServerKey
+                    }).then(function (newSubscription)
+                    {
+                        var newPayload = newSubscription.toJSON ? newSubscription.toJSON() : null;
+                        return postWebPushSubscription('subscribe', newPayload);
+                    });
+                })
+                .catch(function ()
+                {
+                    // Browser/policy may block silent subscription attempts.
+                })
+                .finally(function ()
+                {
+                    webPushSyncInFlight = false;
+                });
+        };
 
         var requestBrowserNotificationPermission = function ()
         {
@@ -88,10 +209,18 @@
             }
 
             browserNotificationRequestAttempted = true;
-            Notification.requestPermission().catch(function ()
-            {
-                // Intentionally ignored: browser decides whether prompts are allowed.
-            });
+            Notification.requestPermission()
+                .then(function (permission)
+                {
+                    if (permission === 'granted')
+                    {
+                        syncWebPushSubscription();
+                    }
+                })
+                .catch(function ()
+                {
+                    // Intentionally ignored: browser decides whether prompts are allowed.
+                });
         };
 
         var resolveNotificationOpenUrl = function (notification)
@@ -556,6 +685,7 @@
         {
             var browserNotificationIntervalMs = parseInt((document.body && document.body.getAttribute('data-browser-notification-poll-interval')) || '15000', 10);
             window.setTimeout(requestBrowserNotificationPermission, 900);
+            window.setTimeout(syncWebPushSubscription, 950);
             window.setTimeout(pollBrowserNotifications, 1200);
             browserNotificationPollTimer = window.setInterval(pollBrowserNotifications, Math.max(browserNotificationIntervalMs, 5000));
             document.addEventListener('visibilitychange', function ()
@@ -563,6 +693,7 @@
                 if (!document.hidden)
                 {
                     requestBrowserNotificationPermission();
+                    syncWebPushSubscription();
                     pollBrowserNotifications();
                 }
             });

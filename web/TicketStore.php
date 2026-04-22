@@ -573,6 +573,143 @@ class TicketStore
         );
     }
 
+    public function saveWebPushSubscription(string $userEmail, string $endpoint, string $p256dhKey, string $authKey, string $userAgent = ''): void
+    {
+        $userEmail = strtolower(trim($userEmail));
+        $endpoint = trim($endpoint);
+        $p256dhKey = trim($p256dhKey);
+        $authKey = trim($authKey);
+        $userAgent = trim($userAgent);
+
+        if ($userEmail === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        if ($endpoint === '' || $p256dhKey === '' || $authKey === '') {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'INSERT INTO web_push_subscriptions (
+                user_email,
+                endpoint,
+                p256dh_key,
+                auth_key,
+                user_agent,
+                created_at,
+                updated_at
+            ) VALUES (
+                :user_email,
+                :endpoint,
+                :p256dh_key,
+                :auth_key,
+                :user_agent,
+                :created_at,
+                :updated_at
+            )
+            ON CONFLICT(endpoint) DO UPDATE SET
+                user_email = excluded.user_email,
+                p256dh_key = excluded.p256dh_key,
+                auth_key = excluded.auth_key,
+                user_agent = excluded.user_agent,
+                updated_at = excluded.updated_at'
+        );
+
+        $now = date('c');
+        $statement->execute([
+            ':user_email' => $userEmail,
+            ':endpoint' => $endpoint,
+            ':p256dh_key' => $p256dhKey,
+            ':auth_key' => $authKey,
+            ':user_agent' => $userAgent,
+            ':created_at' => $now,
+            ':updated_at' => $now,
+        ]);
+    }
+
+    public function removeWebPushSubscription(string $userEmail, string $endpoint): void
+    {
+        $userEmail = strtolower(trim($userEmail));
+        $endpoint = trim($endpoint);
+        if ($userEmail === '' || $endpoint === '') {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'DELETE FROM web_push_subscriptions
+             WHERE user_email = :user_email
+               AND endpoint = :endpoint'
+        );
+        $statement->execute([
+            ':user_email' => $userEmail,
+            ':endpoint' => $endpoint,
+        ]);
+    }
+
+    public function removeWebPushSubscriptionsByEndpoints(array $endpoints): void
+    {
+        $normalizedEndpoints = [];
+        foreach ($endpoints as $endpoint) {
+            $value = trim((string) $endpoint);
+            if ($value === '') {
+                continue;
+            }
+            $normalizedEndpoints[$value] = $value;
+        }
+
+        if ($normalizedEndpoints === []) {
+            return;
+        }
+
+        $placeholders = [];
+        $parameters = [];
+        foreach (array_values($normalizedEndpoints) as $index => $endpoint) {
+            $placeholder = ':endpoint_' . $index;
+            $placeholders[] = $placeholder;
+            $parameters[$placeholder] = $endpoint;
+        }
+
+        $statement = $this->pdo->prepare(
+            'DELETE FROM web_push_subscriptions
+             WHERE endpoint IN (' . implode(', ', $placeholders) . ')'
+        );
+        $statement->execute($parameters);
+    }
+
+    public function getWebPushSubscriptionsByUserEmails(array $userEmails): array
+    {
+        $normalizedUsers = [];
+        foreach ($userEmails as $userEmail) {
+            $email = strtolower(trim((string) $userEmail));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+            $normalizedUsers[$email] = $email;
+        }
+
+        if ($normalizedUsers === []) {
+            return [];
+        }
+
+        $placeholders = [];
+        $parameters = [];
+        foreach (array_values($normalizedUsers) as $index => $email) {
+            $placeholder = ':user_' . $index;
+            $placeholders[] = $placeholder;
+            $parameters[$placeholder] = $email;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT user_email, endpoint, p256dh_key, auth_key
+             FROM web_push_subscriptions
+             WHERE user_email IN (' . implode(', ', $placeholders) . ')
+             ORDER BY user_email ASC, id ASC'
+        );
+        $statement->execute($parameters);
+
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     private function connect(): void
     {
         if (!extension_loaded('pdo_sqlite')) {
@@ -674,6 +811,19 @@ class TicketStore
             )'
         );
 
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_email TEXT NOT NULL,
+                endpoint TEXT NOT NULL UNIQUE,
+                p256dh_key TEXT NOT NULL,
+                auth_key TEXT NOT NULL,
+                user_agent TEXT NOT NULL DEFAULT "",
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )'
+        );
+
         $this->ensureColumn('tickets', 'title', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'assigned_email', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'status', 'TEXT NOT NULL DEFAULT "ingediend"');
@@ -693,6 +843,7 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_browser_notifications_user_delivered ON browser_notifications(user_email, delivered_at, created_at)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user_email ON web_push_subscriptions(user_email)');
         $this->pdo->exec(
             "UPDATE tickets
              SET resolved_at = COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''))

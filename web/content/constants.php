@@ -37,6 +37,51 @@ const PRIORITY_COLORS = [
     1 => '#d97706',
     2 => '#b91c1c',
 ];
+if (!defined('WEB_PUSH_VAPID_PUBLIC_KEY')) {
+    $configuredWebPushPublicKey = '';
+    if (isset($webPushSettings) && is_array($webPushSettings)) {
+        $configuredWebPushPublicKey = (string) ($webPushSettings['vapid_public_key'] ?? '');
+    }
+
+    define('WEB_PUSH_VAPID_PUBLIC_KEY', (string) (
+        $configuredWebPushPublicKey
+        ?: (
+        $_ENV['ASCLEPIUS_WEB_PUSH_VAPID_PUBLIC_KEY']
+        ?? $_SERVER['ASCLEPIUS_WEB_PUSH_VAPID_PUBLIC_KEY']
+        ?? ''
+        )
+    ));
+}
+if (!defined('WEB_PUSH_VAPID_PRIVATE_PEM')) {
+    $configuredWebPushPrivatePem = '';
+    if (isset($webPushSettings) && is_array($webPushSettings)) {
+        $configuredWebPushPrivatePem = (string) ($webPushSettings['vapid_private_pem'] ?? '');
+    }
+
+    define('WEB_PUSH_VAPID_PRIVATE_PEM', (string) (
+        $configuredWebPushPrivatePem
+        ?: (
+        $_ENV['ASCLEPIUS_WEB_PUSH_VAPID_PRIVATE_PEM']
+        ?? $_SERVER['ASCLEPIUS_WEB_PUSH_VAPID_PRIVATE_PEM']
+        ?? ''
+        )
+    ));
+}
+if (!defined('WEB_PUSH_SUBJECT')) {
+    $configuredWebPushSubject = '';
+    if (isset($webPushSettings) && is_array($webPushSettings)) {
+        $configuredWebPushSubject = (string) ($webPushSettings['subject'] ?? '');
+    }
+
+    define('WEB_PUSH_SUBJECT', (string) (
+        $configuredWebPushSubject
+        ?: (
+        $_ENV['ASCLEPIUS_WEB_PUSH_SUBJECT']
+        ?? $_SERVER['ASCLEPIUS_WEB_PUSH_SUBJECT']
+        ?? 'mailto:ict@kvt.nl'
+        )
+    ));
+}
 const CATEGORY_COLORS = [
     'hardware bestellen' => '#0f766e',
     'software bestellen' => '#1d4ed8',

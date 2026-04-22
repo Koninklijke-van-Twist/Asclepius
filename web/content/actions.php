@@ -39,7 +39,7 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription'])) {
     if (!hash_equals($csrfToken, (string) ($_POST['csrf_token'] ?? ''))) {
         pushFlash('error', __('flash.session_expired'));
         redirectToPage($returnPage, $baseQuery);

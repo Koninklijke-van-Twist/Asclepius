@@ -33,6 +33,66 @@ $statsOpenTickets = $canManageTickets && $view === 'stats' && $store instanceof 
     : [];
 $ticketSnapshotSignature = buildTicketSnapshotSignature($tickets);
 
+if (isset($_GET['_webpush_subscription'])) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'method_not_allowed'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    if (!$store instanceof TicketStore) {
+        http_response_code(503);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'store_unavailable'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $rawInput = file_get_contents('php://input');
+    $payload = json_decode((string) $rawInput, true);
+    if (!is_array($payload)) {
+        $payload = [];
+    }
+
+    $postedCsrfToken = (string) ($payload['csrf_token'] ?? '');
+    if (!hash_equals($csrfToken, $postedCsrfToken)) {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'invalid_csrf'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $action = trim((string) ($payload['action'] ?? 'subscribe'));
+    $subscription = is_array($payload['subscription'] ?? null) ? $payload['subscription'] : [];
+    $endpoint = trim((string) ($subscription['endpoint'] ?? ''));
+
+    if ($action === 'unsubscribe') {
+        if ($endpoint !== '') {
+            $store->removeWebPushSubscription($userEmail, $endpoint);
+        }
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $keys = is_array($subscription['keys'] ?? null) ? $subscription['keys'] : [];
+    $p256dhKey = trim((string) ($keys['p256dh'] ?? ''));
+    $authKey = trim((string) ($keys['auth'] ?? ''));
+
+    $store->saveWebPushSubscription(
+        $userEmail,
+        $endpoint,
+        $p256dhKey,
+        $authKey,
+        (string) ($_SERVER['HTTP_USER_AGENT'] ?? '')
+    );
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if (isset($_GET['_browser_notifications_poll'])) {
     $notificationItems = $store instanceof TicketStore ? $store->pullBrowserNotifications($userEmail, 25) : [];
     $targetPage = $userIsAdmin ? 'admin.php' : 'index.php';
