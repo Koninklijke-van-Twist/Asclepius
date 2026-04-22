@@ -32,6 +32,18 @@ $canManageTickets = $isAdminPortal && $userIsAdmin;
 $_SESSION['user']['email'] = $userEmail;
 $_SESSION['user']['admin'] = $userIsAdmin;
 
+$userPrefs = loadUserPrefs($userEmail);
+$resetOverviewFilters = $canManageTickets && isset($_GET['reset_filters']) && (string) $_GET['reset_filters'] === '1';
+$savedOverviewFilters = $canManageTickets && !$resetOverviewFilters
+    ? normalizeSavedTicketOverviewFilters($userPrefs)
+    : [
+        'status_filter_active' => false,
+        'status_filters' => [],
+        'category_filter_active' => false,
+        'category_filters' => [],
+        'assigned_filter' => '',
+    ];
+
 $flashMessages = $_SESSION['flash_messages'] ?? [];
 unset($_SESSION['flash_messages']);
 
@@ -66,28 +78,52 @@ if (!isset($_SESSION['csrf_token'])) {
 }
 $csrfToken = (string) $_SESSION['csrf_token'];
 
-$statusFilterRequestActive = $isAdminPortal && (isset($_GET['status_filter_mode']) || isset($_GET['status']));
+$statusFilterRequestActive = $canManageTickets
+    ? (isset($_GET['status_filter_mode']) || isset($_GET['status'])
+        ? true
+        : $savedOverviewFilters['status_filter_active'])
+    : false;
 $statusFilters = $statusFilterRequestActive
     ? array_values(array_filter(
-        array_map('trim', (array) ($_GET['status'] ?? [])),
+        array_map('trim', (array) ((isset($_GET['status_filter_mode']) || isset($_GET['status'])) ? ($_GET['status'] ?? []) : $savedOverviewFilters['status_filters'])),
         static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
     ))
     : [];
 $effectiveStatusFilters = $statusFilterRequestActive && $statusFilters === [] ? ['__no_matching_status__'] : $statusFilters;
 
-$categoryFilterRequestActive = $isAdminPortal && (isset($_GET['category_filter_mode']) || isset($_GET['category']));
+$categoryFilterRequestActive = $canManageTickets
+    ? (isset($_GET['category_filter_mode']) || isset($_GET['category'])
+        ? true
+        : $savedOverviewFilters['category_filter_active'])
+    : false;
 $categoryFilters = $categoryFilterRequestActive
     ? array_values(array_filter(
-        array_map('trim', (array) ($_GET['category'] ?? [])),
+        array_map('trim', (array) ((isset($_GET['category_filter_mode']) || isset($_GET['category'])) ? ($_GET['category'] ?? []) : $savedOverviewFilters['category_filters'])),
         static fn(string $category): bool => in_array($category, TICKET_CATEGORIES, true)
     ))
     : [];
 $effectiveCategoryFilters = $categoryFilterRequestActive && $categoryFilters === [] ? ['__no_matching_category__'] : $categoryFilters;
 
-$assignedFilter = $canManageTickets ? trim((string) ($_GET['assigned'] ?? '')) : '';
+$assignedFilter = $canManageTickets
+    ? trim((string) (array_key_exists('assigned', $_GET) ? $_GET['assigned'] : $savedOverviewFilters['assigned_filter']))
+    : '';
+$validAssignedFilters = array_merge(['', '__unassigned__'], array_map('strtolower', $ictUsers));
+if (!in_array($assignedFilter, $validAssignedFilters, true)) {
+    $assignedFilter = '';
+}
 $requestedView = trim((string) ($_GET['view'] ?? ''));
 $view = $canManageTickets && in_array($requestedView, ['settings', 'stats'], true) ? $requestedView : 'overview';
 $openTicketId = max(0, (int) ($_GET['open'] ?? 0));
+
+if ($canManageTickets) {
+    saveUserPref($userEmail, 'ticket_overview_filters', [
+        'status_filter_active' => $resetOverviewFilters ? false : $statusFilterRequestActive,
+        'status_filters' => $resetOverviewFilters ? [] : $statusFilters,
+        'category_filter_active' => $resetOverviewFilters ? false : $categoryFilterRequestActive,
+        'category_filters' => $resetOverviewFilters ? [] : $categoryFilters,
+        'assigned_filter' => $resetOverviewFilters ? '' : $assignedFilter,
+    ]);
+}
 
 $baseQuery = buildNavigationQuery(
     $statusFilters,

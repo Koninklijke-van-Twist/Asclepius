@@ -53,6 +53,318 @@ function buildNavigationQuery(array $statusFilters, array $categoryFilters, stri
     return $query;
 }
 
+function buildCurrentPageUrl(string $page, array $overrides = [], array $removeKeys = []): string
+{
+    $query = $_GET;
+
+    foreach ($removeKeys as $key) {
+        unset($query[$key]);
+    }
+
+    foreach ($overrides as $key => $value) {
+        if ($value === null || $value === '' || $value === []) {
+            unset($query[$key]);
+            continue;
+        }
+
+        $query[$key] = $value;
+    }
+
+    $queryString = http_build_query($query);
+    return $page . ($queryString !== '' ? '?' . $queryString : '');
+}
+
+function buildTicketSnapshotSignature(array $tickets): string
+{
+    $snapshot = array_map(static function (array $ticket): array {
+        return [
+            'id' => (int) ($ticket['id'] ?? 0),
+            'updated_at' => (string) ($ticket['updated_at'] ?? ''),
+            'status' => (string) ($ticket['status'] ?? ''),
+            'assigned_email' => strtolower((string) ($ticket['assigned_email'] ?? '')),
+            'message_count' => (int) ($ticket['message_count'] ?? 0),
+        ];
+    }, $tickets);
+
+    return sha1(json_encode($snapshot, JSON_UNESCAPED_UNICODE) ?: '[]');
+}
+
+function renderTicketMessageHtml(array $message, string $currentPage): string
+{
+    ob_start();
+    ?>
+    <article class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>"
+        data-message-id="<?= (int) ($message['id'] ?? 0) ?>">
+        <div class="message-meta">
+            <strong><?= h((string) ($message['sender_email'] ?? '')) ?></strong>
+            <span
+                class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? h(__('ticket.role_admin')) : h(__('ticket.role_user')) ?></span>
+            <span><?= h(formatDateTime((string) ($message['created_at'] ?? ''))) ?></span>
+        </div>
+
+        <?php if (trim((string) ($message['message_text'] ?? '')) !== ''): ?>
+            <div class="message-text">
+                <?= formatTicketMessageText((string) ($message['message_text'] ?? '')) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($message['attachments'])): ?>
+            <ul class="attachment-list">
+                <?php foreach ($message['attachments'] as $attachment): ?>
+                    <li>
+                        <a href="<?= h($currentPage) ?>?download=<?= (int) ($attachment['id'] ?? 0) ?>">
+                            <?= h((string) ($attachment['original_name'] ?? '')) ?>
+                        </a>
+                        (<?= number_format(((int) ($attachment['file_size'] ?? 0)) / 1024 / 1024, 2, ',', '.') ?> MB)
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </article>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
+function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $context = []): string
+{
+    $currentPage = (string) ($context['currentPage'] ?? 'index.php');
+    $canManageTickets = !empty($context['canManageTickets']);
+    $userIsAdmin = !empty($context['userIsAdmin']);
+    $isAdminPortal = !empty($context['isAdminPortal']);
+    $ictUsers = is_array($context['ictUsers'] ?? null) ? $context['ictUsers'] : [];
+    $csrfToken = (string) ($context['csrfToken'] ?? '');
+    $openTicketId = (int) ($context['openTicketId'] ?? 0);
+    $view = (string) ($context['view'] ?? 'overview');
+    $ticketColor = getStatusColor((string) ($ticket['status'] ?? ''));
+    $shouldOpen = $openTicketId > 0 && (int) ($ticket['id'] ?? 0) === $openTicketId;
+    $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
+    $replyFormId = 'reply-form-' . (int) ($ticket['id'] ?? 0);
+    $assignedEmail = (string) ($ticket['assigned_email'] ?? '');
+    $assignedLabel = $assignedEmail !== '' ? $assignedEmail : __('ticket.unassigned');
+
+    ob_start();
+    ?>
+    <details class="ticket-card" data-ticket-id="<?= (int) ($ticket['id'] ?? 0) ?>"
+        style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
+        <summary>
+            <div class="ticket-summary">
+                <div>
+                    <p class="ticket-main-title"><strong><span
+                                data-role="ticket-number">#<?= (int) ($ticket['id'] ?? 0) ?></span> · <span
+                                data-role="ticket-title"><?= h((string) ($ticket['title'] ?? '')) ?></span></strong></p>
+                    <div class="ticket-subtitle">
+                        <span data-role="requester-email"><?= h((string) ($ticket['user_email'] ?? '')) ?></span>
+                        <span
+                            data-role="ticket-category"><?= h(translateCategory((string) ($ticket['category'] ?? ''))) ?></span>
+                        <span
+                            data-role="ticket-created"><?= h(formatDateTime((string) ($ticket['created_at'] ?? ''))) ?></span>
+                    </div>
+                </div>
+                <div class="ticket-subtitle">
+                    <?php if ($isAdminPortal): ?>
+                        <span class="status-pill" data-role="status-pill"
+                            style="--ticket-color: <?= h($ticketColor) ?>;"><?= h(translateStatus((string) ($ticket['status'] ?? ''))) ?></span>
+                    <?php endif; ?>
+                    <?php if ($userIsAdmin && $isAdminPortal): ?>
+                        <span class="status-pill" data-role="priority-pill"
+                            style="--ticket-color: <?= h(getPriorityColor((int) ($ticket['priority'] ?? 0))) ?>;"><?= h(__('ticket.meta_priority')) ?>
+                            <?= (int) ($ticket['priority'] ?? 0) ?> ·
+                            <?= h(formatPriorityLabel((int) ($ticket['priority'] ?? 0))) ?></span>
+                    <?php endif; ?>
+                    <span class="assignee-badge" data-role="assignee-badge"
+                        style="--assignee-color: <?= h(emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'))) ?>;">
+                        <?= h($assignedLabel) ?>
+                    </span>
+                    <span class="count-badge" data-role="message-count-badge"><?= (int) ($ticket['message_count'] ?? 0) ?>
+                        <?= h(__('ticket.messages_count')) ?></span>
+                    <?php if ($isAdminPortal): ?>
+                        <span class="count-badge" data-role="time-open-badge"><?= h(__('ticket.time_open')) ?>
+                            <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </summary>
+
+        <div class="ticket-body">
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <span class="meta-label"><?= h(__('ticket.meta_created')) ?></span>
+                    <span data-role="meta-created-value"><?= h(formatDateTime((string) ($ticket['created_at'] ?? ''))) ?> ·
+                        <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label"><?= h(__('ticket.meta_updated')) ?></span>
+                    <span
+                        data-role="meta-updated-value"><?= h(formatDateTime((string) ($ticket['updated_at'] ?? ''))) ?></span>
+                </div>
+                <?php if ($userIsAdmin && $isAdminPortal): ?>
+                    <div class="meta-item">
+                        <span class="meta-label"><?= h(__('ticket.meta_priority')) ?></span>
+                        <select name="priority" form="<?= h($replyFormId) ?>" data-role="priority-select">
+                            <option value="0" <?= (int) ($ticket['priority'] ?? 0) === 0 ? 'selected' : '' ?>>
+                                <?= h(__('ticket.priority_0')) ?></option>
+                            <option value="1" <?= (int) ($ticket['priority'] ?? 0) === 1 ? 'selected' : '' ?>>
+                                <?= h(__('ticket.priority_1')) ?></option>
+                            <option value="2" <?= (int) ($ticket['priority'] ?? 0) === 2 ? 'selected' : '' ?>>
+                                <?= h(__('ticket.priority_2')) ?></option>
+                        </select>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div data-role="messages-wrap" <?= $ticketDetail !== null && !empty($ticketDetail['messages']) ? '' : 'hidden' ?>>
+                <h3><?= h(__('ticket.messages_heading')) ?></h3>
+                <div class="thread" data-role="thread">
+                    <?php foreach (($ticketDetail['messages'] ?? []) as $message): ?>
+                        <?= renderTicketMessageHtml($message, $currentPage) ?>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <form method="post"
+                action="<?= h($currentPage) ?><?= $isAdminPortal && $view === 'settings' ? '?view=settings' : '' ?>"
+                enctype="multipart/form-data" class="reply-form" id="<?= h($replyFormId) ?>">
+                <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+                <input type="hidden" name="form_action" value="reply_ticket">
+                <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                <input type="hidden" name="ticket_id" value="<?= (int) ($ticket['id'] ?? 0) ?>">
+
+                <?php if ($canManageTickets): ?>
+                    <div class="admin-grid">
+                        <label>
+                            <?= h(__('ticket.status_label')) ?>
+                            <select name="status" data-role="status-select">
+                                <?php foreach (TICKET_STATUSES as $status): ?>
+                                    <option value="<?= h($status) ?>" <?= (string) ($ticket['status'] ?? '') === $status ? 'selected' : '' ?>><?= h(translateStatus($status)) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>
+                            <?= h(__('ticket.assigned_to')) ?>
+                            <select name="assigned_email" data-role="assigned-select">
+                                <option value=""><?= h(__('ticket.unassigned')) ?></option>
+                                <?php foreach ($ictUsers as $ictUser):
+                                    $ictUser = strtolower($ictUser); ?>
+                                    <option value="<?= h($ictUser) ?>" <?= strtolower((string) ($ticket['assigned_email'] ?? '')) === $ictUser ? 'selected' : '' ?>>
+                                        <?= h($ictUser) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    </div>
+                <?php endif; ?>
+
+                <label>
+                    <?= h(__('ticket.new_message')) ?>
+                    <textarea name="message" placeholder="<?= h(__('ticket.new_message_placeholder')) ?>"></textarea>
+                </label>
+
+                <?php if (!$canManageTickets && (string) ($ticket['status'] ?? '') === 'afgehandeld'): ?>
+                    <label class="checkbox-line" data-role="reopen-wrap" data-user-reopen-enabled="1">
+                        <input type="checkbox" name="reopen_ticket" value="1">
+                        <span><?= h(__('ticket.reopen')) ?></span>
+                    </label>
+                <?php else: ?>
+                    <label class="checkbox-line" data-role="reopen-wrap"
+                        data-user-reopen-enabled="<?= $canManageTickets ? '0' : '1' ?>" hidden>
+                        <input type="checkbox" name="reopen_ticket" value="1">
+                        <span><?= h(__('ticket.reopen')) ?></span>
+                    </label>
+                <?php endif; ?>
+
+                <label>
+                    <?= h(__('ticket.add_attachments')) ?>
+                    <input type="file" name="reply_attachments[]" multiple>
+                    <span class="hint"><?= h(__('ticket.file_hint')) ?></span>
+                </label>
+
+                <div class="button-row">
+                    <button
+                        type="submit"><?= $canManageTickets ? h(__('ticket.btn_save')) : h(__('ticket.btn_reply')) ?></button>
+                </div>
+            </form>
+        </div>
+    </details>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
+function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $context = []): array
+{
+    $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
+    $assignedEmail = (string) ($ticket['assigned_email'] ?? '');
+
+    return [
+        'id' => (int) ($ticket['id'] ?? 0),
+        'title' => (string) ($ticket['title'] ?? ''),
+        'user_email' => (string) ($ticket['user_email'] ?? ''),
+        'category' => (string) ($ticket['category'] ?? ''),
+        'category_label' => translateCategory((string) ($ticket['category'] ?? '')),
+        'created_at_label' => formatDateTime((string) ($ticket['created_at'] ?? '')),
+        'updated_at_label' => formatDateTime((string) ($ticket['updated_at'] ?? '')),
+        'status' => (string) ($ticket['status'] ?? ''),
+        'status_label' => translateStatus((string) ($ticket['status'] ?? '')),
+        'status_color' => getStatusColor((string) ($ticket['status'] ?? '')),
+        'priority' => (int) ($ticket['priority'] ?? 0),
+        'priority_label' => formatPriorityLabel((int) ($ticket['priority'] ?? 0)),
+        'priority_color' => getPriorityColor((int) ($ticket['priority'] ?? 0)),
+        'assigned_email' => $assignedEmail,
+        'assigned_label' => $assignedEmail !== '' ? $assignedEmail : __('ticket.unassigned'),
+        'assigned_color' => emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl')),
+        'message_count' => (int) ($ticket['message_count'] ?? 0),
+        'time_open_label' => formatDurationSeconds($ticketOpenDuration),
+        'meta_created_value' => formatDateTime((string) ($ticket['created_at'] ?? '')) . ' · ' . formatDurationSeconds($ticketOpenDuration),
+        'meta_updated_value' => formatDateTime((string) ($ticket['updated_at'] ?? '')),
+        'card_html' => renderTicketCardHtml($ticket, $ticketDetail, $context),
+        'messages' => array_map(
+            static fn(array $message): array => [
+                'id' => (int) ($message['id'] ?? 0),
+                'html' => renderTicketMessageHtml($message, (string) ($context['currentPage'] ?? 'index.php')),
+            ],
+            $ticketDetail['messages'] ?? []
+        ),
+    ];
+}
+
+function normalizeSavedTicketOverviewFilters(array $prefs): array
+{
+    $savedFilters = $prefs['ticket_overview_filters'] ?? null;
+    if (!is_array($savedFilters)) {
+        return [
+            'status_filter_active' => false,
+            'status_filters' => [],
+            'category_filter_active' => false,
+            'category_filters' => [],
+            'assigned_filter' => '',
+        ];
+    }
+
+    $statusFilters = array_values(array_filter(
+        array_map('trim', (array) ($savedFilters['status_filters'] ?? [])),
+        static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
+    ));
+    $categoryFilters = array_values(array_filter(
+        array_map('trim', (array) ($savedFilters['category_filters'] ?? [])),
+        static fn(string $category): bool => in_array($category, TICKET_CATEGORIES, true)
+    ));
+    $assignedFilter = trim((string) ($savedFilters['assigned_filter'] ?? ''));
+    $validAssignedValues = array_merge(['', '__unassigned__'], array_map('strtolower', $GLOBALS['ictUsers'] ?? []));
+
+    if (!in_array($assignedFilter, $validAssignedValues, true)) {
+        $assignedFilter = '';
+    }
+
+    return [
+        'status_filter_active' => !empty($savedFilters['status_filter_active']),
+        'status_filters' => $statusFilters,
+        'category_filter_active' => !empty($savedFilters['category_filter_active']),
+        'category_filters' => $categoryFilters,
+        'assigned_filter' => $assignedFilter,
+    ];
+}
+
 function isStatusFilterSelected(string $status, array $statusFilters, bool $statusFilterRequestActive): bool
 {
     return !$statusFilterRequestActive || in_array($status, $statusFilters, true);

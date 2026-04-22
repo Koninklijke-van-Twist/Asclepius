@@ -862,7 +862,7 @@ function loadUserPrefs(string $email): array
     return is_array($data) ? $data : [];
 }
 
-function saveUserPref(string $email, string $key, string $value): void
+function saveUserPref(string $email, string $key, mixed $value): void
 {
     $path = getUserPrefsPath($email);
     if ($path === null) {

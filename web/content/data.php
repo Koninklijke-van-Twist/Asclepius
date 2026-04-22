@@ -31,6 +31,43 @@ $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof Ti
 $statsOpenTickets = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getTickets(true, '', array_filter(TICKET_STATUSES, fn(string $s) => $s !== 'afgehandeld'))
     : [];
+$ticketSnapshotSignature = buildTicketSnapshotSignature($tickets);
+
+if (isset($_GET['_tickets_poll'])) {
+    $ticketPollItems = [];
+    foreach ($tickets as $ticket) {
+        $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
+        $ticketPollItems[] = buildTicketPollEntry($ticket, $ticketDetail, [
+            'currentPage' => $currentPage,
+            'canManageTickets' => $canManageTickets,
+            'userIsAdmin' => $userIsAdmin,
+            'isAdminPortal' => $isAdminPortal,
+            'ictUsers' => $ictUsers,
+            'csrfToken' => $csrfToken,
+            'openTicketId' => $openTicketId,
+            'view' => $view,
+        ]);
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'signature' => $ticketSnapshotSignature,
+        'tickets' => $ticketPollItems,
+        'is_empty' => $tickets === [],
+        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : h(__('tickets.empty_user'))) . '</div>',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if (isset($_GET['_partial']) && (string) $_GET['_partial'] === 'tickets') {
+    ob_start();
+    require __DIR__ . '/views/view_tickets.php';
+    $ticketSectionHtml = ob_get_clean();
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo $ticketSectionHtml;
+    exit;
+}
 
 if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     $allTicketsForPoll = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
