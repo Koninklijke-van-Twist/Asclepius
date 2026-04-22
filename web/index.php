@@ -9,6 +9,10 @@ require_once __DIR__ . '/content/variables.php';
 require_once __DIR__ . '/content/actions.php';
 require_once __DIR__ . '/content/data.php';
 
+$browserNotificationPollUrl = buildCurrentPageUrl($currentPage, ['_browser_notifications_poll' => '1'], ['_partial', '_tickets_poll', '_bigscreen_poll', '_browser_notifications_poll', 'reset_filters']);
+$browserNotificationTargetPage = $userIsAdmin ? 'admin.php' : 'index.php';
+$browserNotificationOpenUrlTemplate = $browserNotificationTargetPage . '?open=__TICKET_ID__';
+
 ?>
 <!DOCTYPE html>
 <html lang="<?= h(getCurrentLanguage()) ?>">
@@ -16,7 +20,10 @@ require_once __DIR__ . '/content/data.php';
 <?php require __DIR__ . '/content/views/head.php'; ?>
 
 
-<body<?= $isBigscreen ? ' style="overflow:hidden;"' : '' ?>>
+<body<?= $isBigscreen ? ' style="overflow:hidden;"' : '' ?>
+    data-browser-notification-poll-url="<?= h($browserNotificationPollUrl) ?>"
+    data-browser-notification-open-template="<?= h($browserNotificationOpenUrlTemplate) ?>"
+    data-browser-notification-poll-interval="15000">
     <div class="page">
         <?php require __DIR__ . '/content/views/header.php'; ?>
 

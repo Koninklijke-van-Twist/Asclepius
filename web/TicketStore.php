@@ -482,6 +482,97 @@ class TicketStore
         return $attachment !== false ? $attachment : null;
     }
 
+    public function queueBrowserNotifications(array $recipientEmails, int $ticketId, string $title, string $body): void
+    {
+        if ($ticketId <= 0) {
+            return;
+        }
+
+        $normalizedRecipients = [];
+        foreach ($recipientEmails as $recipientEmail) {
+            $email = strtolower(trim((string) $recipientEmail));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+            $normalizedRecipients[$email] = $email;
+        }
+
+        if ($normalizedRecipients === []) {
+            return;
+        }
+
+        $title = trim($title);
+        $body = trim($body);
+        $createdAt = date('c');
+
+        $statement = $this->pdo->prepare(
+            'INSERT INTO browser_notifications (user_email, ticket_id, title, body, created_at)
+             VALUES (:user_email, :ticket_id, :title, :body, :created_at)'
+        );
+
+        foreach ($normalizedRecipients as $email) {
+            $statement->execute([
+                ':user_email' => $email,
+                ':ticket_id' => $ticketId,
+                ':title' => $title,
+                ':body' => $body,
+                ':created_at' => $createdAt,
+            ]);
+        }
+    }
+
+    public function pullBrowserNotifications(string $userEmail, int $limit = 25): array
+    {
+        $userEmail = strtolower(trim($userEmail));
+        if ($userEmail === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+            return [];
+        }
+
+        $limit = max(1, min(100, $limit));
+        $statement = $this->pdo->prepare(
+            'SELECT id, ticket_id, title, body, created_at
+             FROM browser_notifications
+             WHERE user_email = :user_email
+               AND delivered_at IS NULL
+             ORDER BY datetime(created_at) ASC, id ASC
+             LIMIT :limit'
+        );
+        $statement->bindValue(':user_email', $userEmail, PDO::PARAM_STR);
+        $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $statement->execute();
+
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        if ($rows === []) {
+            return [];
+        }
+
+        $updateParameters = [':delivered_at' => date('c')];
+        $idPlaceholders = [];
+        foreach ($rows as $index => $row) {
+            $placeholder = ':id_' . $index;
+            $idPlaceholders[] = $placeholder;
+            $updateParameters[$placeholder] = (int) ($row['id'] ?? 0);
+        }
+
+        $update = $this->pdo->prepare(
+            'UPDATE browser_notifications
+             SET delivered_at = :delivered_at
+             WHERE id IN (' . implode(', ', $idPlaceholders) . ')'
+        );
+        $update->execute($updateParameters);
+
+        return array_map(
+            static fn(array $row): array => [
+                'id' => (int) ($row['id'] ?? 0),
+                'ticket_id' => (int) ($row['ticket_id'] ?? 0),
+                'title' => (string) ($row['title'] ?? ''),
+                'body' => (string) ($row['body'] ?? ''),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+            ],
+            $rows
+        );
+    }
+
     private function connect(): void
     {
         if (!extension_loaded('pdo_sqlite')) {
@@ -570,6 +661,19 @@ class TicketStore
             )'
         );
 
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS browser_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_email TEXT NOT NULL,
+                ticket_id INTEGER NOT NULL,
+                title TEXT NOT NULL DEFAULT "",
+                body TEXT NOT NULL DEFAULT "",
+                created_at TEXT NOT NULL,
+                delivered_at TEXT DEFAULT NULL,
+                FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+            )'
+        );
+
         $this->ensureColumn('tickets', 'title', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'assigned_email', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'status', 'TEXT NOT NULL DEFAULT "ingediend"');
@@ -588,6 +692,7 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_browser_notifications_user_delivered ON browser_notifications(user_email, delivered_at, created_at)');
         $this->pdo->exec(
             "UPDATE tickets
              SET resolved_at = COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''))

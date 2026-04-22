@@ -33,6 +33,27 @@ $statsOpenTickets = $canManageTickets && $view === 'stats' && $store instanceof 
     : [];
 $ticketSnapshotSignature = buildTicketSnapshotSignature($tickets);
 
+if (isset($_GET['_browser_notifications_poll'])) {
+    $notificationItems = $store instanceof TicketStore ? $store->pullBrowserNotifications($userEmail, 25) : [];
+    $targetPage = $userIsAdmin ? 'admin.php' : 'index.php';
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'notifications' => array_map(
+            static fn(array $notification): array => [
+                'id' => (int) ($notification['id'] ?? 0),
+                'ticket_id' => (int) ($notification['ticket_id'] ?? 0),
+                'title' => (string) ($notification['title'] ?? ''),
+                'body' => (string) ($notification['body'] ?? ''),
+                'open_url' => $targetPage . '?open=' . (int) ($notification['ticket_id'] ?? 0),
+                'created_at' => (string) ($notification['created_at'] ?? ''),
+            ],
+            $notificationItems
+        ),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if (isset($_GET['_tickets_poll'])) {
     $ticketPollItems = [];
     foreach ($tickets as $ticket) {

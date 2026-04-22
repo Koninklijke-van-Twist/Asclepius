@@ -68,6 +68,132 @@
         var liveTicketSection = document.querySelector('[data-live-ticket-section]');
         var liveTicketPollTimer = null;
         var liveTicketRefreshInFlight = false;
+        var browserNotificationPollTimer = null;
+        var browserNotificationInFlight = false;
+        var browserNotificationRequestAttempted = false;
+        var browserNotificationPollUrl = document.body ? (document.body.getAttribute('data-browser-notification-poll-url') || '') : '';
+        var browserNotificationOpenTemplate = document.body ? (document.body.getAttribute('data-browser-notification-open-template') || '') : '';
+
+        var requestBrowserNotificationPermission = function ()
+        {
+            if (!('Notification' in window) || browserNotificationRequestAttempted)
+            {
+                return;
+            }
+
+            if (Notification.permission !== 'default')
+            {
+                browserNotificationRequestAttempted = true;
+                return;
+            }
+
+            browserNotificationRequestAttempted = true;
+            Notification.requestPermission().catch(function ()
+            {
+                // Intentionally ignored: browser decides whether prompts are allowed.
+            });
+        };
+
+        var resolveNotificationOpenUrl = function (notification)
+        {
+            if (notification && notification.open_url)
+            {
+                return String(notification.open_url);
+            }
+
+            if (browserNotificationOpenTemplate && notification && notification.ticket_id)
+            {
+                return browserNotificationOpenTemplate.replace('__TICKET_ID__', String(notification.ticket_id));
+            }
+
+            return window.location.pathname;
+        };
+
+        var showDesktopNotification = function (notification)
+        {
+            if (!('Notification' in window) || Notification.permission !== 'granted')
+            {
+                return;
+            }
+
+            var title = (notification && notification.title ? String(notification.title) : '<?= addslashes(__('header.title')) ?>');
+            var body = (notification && notification.body ? String(notification.body) : '');
+            var tag = 'ticket-' + String(notification && notification.ticket_id ? notification.ticket_id : 'general');
+            var desktopNotification = new Notification(title, {
+                body: body,
+                tag: tag,
+                renotify: true
+            });
+
+            desktopNotification.onclick = function ()
+            {
+                window.focus();
+                window.location.href = resolveNotificationOpenUrl(notification);
+                desktopNotification.close();
+            };
+
+            window.setTimeout(function ()
+            {
+                desktopNotification.close();
+            }, 12000);
+        };
+
+        var pollBrowserNotifications = function ()
+        {
+            if (!browserNotificationPollUrl || browserNotificationInFlight || document.hidden)
+            {
+                return;
+            }
+
+            if (!('Notification' in window))
+            {
+                return;
+            }
+
+            if (Notification.permission === 'default')
+            {
+                requestBrowserNotificationPermission();
+                return;
+            }
+
+            if (Notification.permission !== 'granted')
+            {
+                return;
+            }
+
+            browserNotificationInFlight = true;
+            fetch(browserNotificationPollUrl, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'fetch'
+                },
+                credentials: 'same-origin'
+            })
+                .then(function (response)
+                {
+                    if (!response.ok)
+                    {
+                        throw new Error('browser-notification-poll-failed');
+                    }
+
+                    return response.json();
+                })
+                .then(function (data)
+                {
+                    (data && Array.isArray(data.notifications) ? data.notifications : []).forEach(function (notification)
+                    {
+                        showDesktopNotification(notification);
+                    });
+                })
+                .catch(function ()
+                {
+                    // Silently ignore: next poll can recover.
+                })
+                .finally(function ()
+                {
+                    browserNotificationInFlight = false;
+                });
+        };
 
         var captureOpenTicketIds = function (section)
         {
@@ -424,6 +550,22 @@
         {
             var intervalMs = parseInt(liveTicketSection.getAttribute('data-ticket-poll-interval') || '15000', 10);
             liveTicketPollTimer = window.setInterval(pollLiveTicketSection, Math.max(intervalMs, 5000));
+        }
+
+        if (browserNotificationPollUrl)
+        {
+            var browserNotificationIntervalMs = parseInt((document.body && document.body.getAttribute('data-browser-notification-poll-interval')) || '15000', 10);
+            window.setTimeout(requestBrowserNotificationPermission, 900);
+            window.setTimeout(pollBrowserNotifications, 1200);
+            browserNotificationPollTimer = window.setInterval(pollBrowserNotifications, Math.max(browserNotificationIntervalMs, 5000));
+            document.addEventListener('visibilitychange', function ()
+            {
+                if (!document.hidden)
+                {
+                    requestBrowserNotificationPermission();
+                    pollBrowserNotifications();
+                }
+            });
         }
     });
 </script>

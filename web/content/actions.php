@@ -103,7 +103,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     __mail('email.subject_new_ticket', $ictLang, $ticketId),
                     buildNotificationBody($ticket, 'email.intro_new_ict', $description, true, $ictLang),
                     $requesterEmail,
-                    (string) ($ticket['category'] ?? $category)
+                    (string) ($ticket['category'] ?? $category),
+                    $ticketId,
+                    $userEmail
                 );
 
                 $requesterLang = getUserMailLang($requesterEmail);
@@ -118,7 +120,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     __mail('email.subject_created', $requesterLang, $ticketId),
                     buildNotificationBody($ticket, $userIntroKey, $description, false, $requesterLang),
                     null,
-                    (string) ($ticket['category'] ?? $category)
+                    (string) ($ticket['category'] ?? $category),
+                    $ticketId,
+                    $userEmail
                 );
             }
 
@@ -223,7 +227,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             __mail('email.subject_update', $reqLang, $ticketId),
                             buildNotificationBody($updatedTicket, 'email.intro_update', $messageForStorage, false, $reqLang, $updateIntroSuffix),
                             $userEmail,
-                            (string) ($updatedTicket['category'] ?? '')
+                            (string) ($updatedTicket['category'] ?? ''),
+                            $ticketId,
+                            $userEmail
                         );
                     }
 
@@ -236,7 +242,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             __mail('email.subject_assigned', $assigneeLang, $ticketId),
                             buildNotificationBody($updatedTicket, 'email.intro_assigned', $message, true, $assigneeLang),
                             $userEmail,
-                            (string) ($updatedTicket['category'] ?? '')
+                            (string) ($updatedTicket['category'] ?? ''),
+                            $ticketId,
+                            $userEmail
                         );
                     }
                 } else {
@@ -249,7 +257,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         __mail('email.subject_user_reply', $ictLang2, $ticketId),
                         buildNotificationBody($updatedTicket, 'email.intro_user_reply', $message, true, $ictLang2),
                         $userEmail,
-                        (string) ($updatedTicket['category'] ?? '')
+                        (string) ($updatedTicket['category'] ?? ''),
+                        $ticketId,
+                        $userEmail
                     );
 
                     if ($message !== '' && ticketIsOpenLongerThanDays($updatedTicket, $longOpenNotificationDays)) {
@@ -262,7 +272,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             __mail('email.subject_escalation', $ictLang2, $ticketId),
                             buildNotificationBody($updatedTicket, 'email.intro_escalation', $message, true, $ictLang2),
                             null,
-                            (string) ($updatedTicket['category'] ?? '')
+                            (string) ($updatedTicket['category'] ?? ''),
+                            $ticketId,
+                            $userEmail
                         );
                     }
                 }

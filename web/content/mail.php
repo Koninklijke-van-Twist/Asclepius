@@ -243,28 +243,89 @@ function routeNotificationRecipients(?TicketStore $store, array $ictUsers, array
     ];
 }
 
-function sendTicketNotification(?TicketStore $store, array $ictUsers, array $recipients, string $subject, string $message, ?string $excludeEmail = null, ?string $ticketCategory = null): void
+function normalizeNotificationRecipients(array $recipients, ?string $excludeEmail = null): array
+{
+    $normalized = [];
+    $exclude = $excludeEmail !== null ? strtolower(trim($excludeEmail)) : null;
+
+    foreach ($recipients as $recipient) {
+        $email = strtolower(trim((string) $recipient));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            continue;
+        }
+        if ($exclude !== null && $email === $exclude) {
+            continue;
+        }
+        $normalized[$email] = $email;
+    }
+
+    return array_values($normalized);
+}
+
+function extractDesktopNotificationBody(string $message): string
+{
+    ['plain' => $plain] = splitMailBody($message);
+    $lines = preg_split('/\R/', $plain) ?: [];
+
+    foreach ($lines as $line) {
+        $trimmed = trim((string) $line);
+        if ($trimmed === '') {
+            continue;
+        }
+        return function_exists('mb_substr') ? mb_substr($trimmed, 0, 220) : substr($trimmed, 0, 220);
+    }
+
+    return '';
+}
+
+function sendTicketNotification(
+    ?TicketStore $store,
+    array $ictUsers,
+    array $recipients,
+    string $subject,
+    string $message,
+    ?string $excludeEmail = null,
+    ?string $ticketCategory = null,
+    ?int $ticketId = null,
+    ?string $browserActorEmail = null
+): void
 {
     $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $ticketCategory);
+    $routedRecipients = $routing['recipients'] ?? $recipients;
     $note = ($routing['note'] ?? '');
 
-    if ($note === '') {
-        sendTicketEmail($routing['recipients'] ?? $recipients, $subject, $message, $excludeEmail);
+    $finalMessage = $message;
+
+    if ($note !== '') {
+        ['plain' => $plain, 'html' => $html] = splitMailBody($message);
+        $plain .= PHP_EOL . PHP_EOL . $note;
+        if ($html !== null) {
+            $noteHtml = '<p style="margin-top:16px;font-size:12px;color:#5b6b82;border-top:1px solid #d8e0eb;padding-top:12px;">'
+                . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>';
+            $html = str_replace('</body>', $noteHtml . '</body>', $html);
+        }
+
+        // Herverpak als HTML-mailpakket
+        $finalMessage = $html !== null
+            ? "ASCLEPIUS_HTML_MAIL\x00" . $plain . "\x00" . $html
+            : $plain;
+    }
+
+    sendTicketEmail($routedRecipients, $subject, $finalMessage, $excludeEmail);
+
+    if (!$store instanceof TicketStore || $ticketId === null || $ticketId <= 0) {
         return;
     }
 
-    ['plain' => $plain, 'html' => $html] = splitMailBody($message);
-    $plain .= PHP_EOL . PHP_EOL . $note;
-    if ($html !== null) {
-        $noteHtml = '<p style="margin-top:16px;font-size:12px;color:#5b6b82;border-top:1px solid #d8e0eb;padding-top:12px;">'
-            . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>';
-        $html = str_replace('</body>', $noteHtml . '</body>', $html);
+    $browserRecipients = normalizeNotificationRecipients($routedRecipients, $excludeEmail);
+    if ($browserActorEmail !== null) {
+        $browserRecipients = normalizeNotificationRecipients($browserRecipients, $browserActorEmail);
     }
 
-    // Herverpak als HTML-mailpakket
-    $packed = $html !== null
-        ? "ASCLEPIUS_HTML_MAIL\x00" . $plain . "\x00" . $html
-        : $plain;
+    if ($browserRecipients === []) {
+        return;
+    }
 
-    sendTicketEmail($routing['recipients'] ?? $recipients, $subject, $packed, $excludeEmail);
+    $body = extractDesktopNotificationBody($finalMessage);
+    $store->queueBrowserNotifications($browserRecipients, $ticketId, $subject, $body);
 }
