@@ -150,6 +150,26 @@ if (isset($_GET['_partial']) && (string) $_GET['_partial'] === 'tickets') {
     exit;
 }
 
+if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_version'])) {
+    $versionFiles = [
+        dirname(__DIR__) . '/index.php',
+        __FILE__,
+        __DIR__ . '/views/bigscreen_js.php',
+        __DIR__ . '/views/page_js.php',
+    ];
+
+    $versionSource = [];
+    foreach ($versionFiles as $versionFile) {
+        if (is_file($versionFile)) {
+            $versionSource[] = basename($versionFile) . ':' . (string) filemtime($versionFile);
+        }
+    }
+
+    header('Content-Type: text/plain; charset=utf-8');
+    echo sha1(implode('|', $versionSource));
+    exit;
+}
+
 if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     $allTicketsForPoll = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
     $pollMaxId = 0;

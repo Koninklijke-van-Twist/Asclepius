@@ -19,6 +19,11 @@
             ];
         }
     }
+    $bigscreenVersionPollUrl = buildCurrentPageUrl(
+        $currentPage,
+        ['_bigscreen_version' => '1'],
+        ['_partial', '_tickets_poll', '_bigscreen_poll', '_browser_notifications_poll', '_webpush_subscription', '_bigscreen_version', 'reset_filters']
+    );
     ?>
     <script>
             (function ()

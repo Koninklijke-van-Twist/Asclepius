@@ -13,18 +13,27 @@ ob_start();
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'TicketStore.php';
 
-// Korte read-only peek in de sessie om te controleren of bigscreen-bypass van toepassing is.
+// Korte read-only peek in de sessie om te controleren of async-bypass van toepassing is.
 // read_and_close voorkomt dat lib.php later een "session already active" notice krijgt.
 $_bigscreenRequest = isset($_GET['bigscreen']) && (string) $_GET['bigscreen'] === 'true';
+$_asyncSessionBypassRequest =
+    $_bigscreenRequest
+    || isset($_GET['_bigscreen_poll'])
+    || isset($_GET['_bigscreen_version'])
+    || isset($_GET['_browser_notifications_poll'])
+    || isset($_GET['_webpush_subscription'])
+    || isset($_GET['_tickets_poll'])
+    || (isset($_GET['_partial']) && (string) $_GET['_partial'] === 'tickets');
 $_bigscreenAlreadyAuthenticated = false;
 
-if ($_bigscreenRequest && session_status() !== PHP_SESSION_ACTIVE) {
+if ($_asyncSessionBypassRequest && session_status() !== PHP_SESSION_ACTIVE) {
     session_start(['read_and_close' => true]);
     $_bigscreenAlreadyAuthenticated =
         isset($_SESSION['user']['email'])
         && trim((string) $_SESSION['user']['email']) !== '';
 }
 unset($_bigscreenRequest);
+unset($_asyncSessionBypassRequest);
 
 if (!$_bigscreenAlreadyAuthenticated) {
     // Normale flow: logincheck (en lib.php daarin) start zelf de sessie
