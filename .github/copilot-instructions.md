@@ -28,6 +28,8 @@
 - HTML-partials staan in `web/content/views/`: `head.php`, `header.php`, `view_tickets.php`, `view_new_ticket.php`, `view_settings.php`, `view_stats.php`, `page_js.php`, `bigscreen_js.php`.
 - Nieuwe functionaliteit hoort in een eigen bestand onder `web/content/`; voeg het toe aan de `require`-keten in `index.php`.
 - Views (`web/content/views/`) bevatten alleen HTML/presentatielogica — geen DB-calls, geen redirects, geen exits.
+- Incrementele updates op de overzichtspagina, of andere asynchrone calls, halen hun data uit `web/api.php`.
+- `web/api.php` mag daarvoor uitgebreid worden, maar mag nooit direct of indirect afhankelijk worden van `web/logincheck.php`.
 
 ## UI-regels
 - Geen zware frameworks introduceren zonder expliciet verzoek.

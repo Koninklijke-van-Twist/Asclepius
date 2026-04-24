@@ -6,6 +6,111 @@
  * Vereist: variables.php, helpers.php
  */
 
+/**
+ * Functies
+ */
+
+function buildLocalApiUrl(string $path): string
+{
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $serverAddress = trim((string) ($_SERVER['SERVER_ADDR'] ?? '127.0.0.1'));
+    if ($serverAddress === '') {
+        $serverAddress = '127.0.0.1';
+    }
+
+    $serverPort = (int) ($_SERVER['SERVER_PORT'] ?? 0);
+    $defaultPort = $scheme === 'https' ? 443 : 80;
+    $portSuffix = ($serverPort > 0 && $serverPort !== $defaultPort) ? ':' . $serverPort : '';
+    $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['PHP_SELF'] ?? '/index.php'))), '/.');
+
+    return $scheme . '://' . $serverAddress . $portSuffix . ($basePath !== '' ? $basePath : '') . '/' . ltrim($path, '/');
+}
+
+function postLocalApiJson(string $path, array $payload): ?array
+{
+    $url = buildLocalApiUrl($path);
+    $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (!is_string($jsonPayload)) {
+        return null;
+    }
+
+    $hostHeader = 'Host: ' . (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $headers = [
+        'Content-Type: application/json',
+        'Accept: application/json',
+        'Content-Length: ' . strlen($jsonPayload),
+        $hostHeader,
+    ];
+    $isHttps = str_starts_with($url, 'https://');
+
+    if (function_exists('curl_init')) {
+        $curlHandle = curl_init($url);
+        if ($curlHandle === false) {
+            return null;
+        }
+
+        curl_setopt($curlHandle, CURLOPT_POST, true);
+        curl_setopt($curlHandle, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curlHandle, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($curlHandle, CURLOPT_POSTFIELDS, $jsonPayload);
+        curl_setopt($curlHandle, CURLOPT_TIMEOUT, 5);
+        if ($isHttps) {
+            curl_setopt($curlHandle, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($curlHandle, CURLOPT_SSL_VERIFYHOST, 0);
+        }
+
+        $body = curl_exec($curlHandle);
+        $statusCode = (int) curl_getinfo($curlHandle, CURLINFO_RESPONSE_CODE);
+        curl_close($curlHandle);
+
+        if (!is_string($body) || $statusCode <= 0) {
+            return null;
+        }
+
+        return [
+            'status' => $statusCode,
+            'body' => $body,
+        ];
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => implode("\r\n", $headers),
+            'content' => $jsonPayload,
+            'timeout' => 5,
+            'ignore_errors' => true,
+        ],
+        'ssl' => [
+            'verify_peer' => !$isHttps,
+            'verify_peer_name' => !$isHttps,
+            'allow_self_signed' => $isHttps,
+        ],
+    ]);
+
+    $body = @file_get_contents($url, false, $context);
+    if (!is_string($body)) {
+        return null;
+    }
+
+    $statusCode = 200;
+    foreach ($http_response_header ?? [] as $responseHeader) {
+        if (preg_match('/^HTTP\/\S+\s+(\d{3})\b/', (string) $responseHeader, $matches) === 1) {
+            $statusCode = (int) ($matches[1] ?? 200);
+            break;
+        }
+    }
+
+    return [
+        'status' => $statusCode,
+        'body' => $body,
+    ];
+}
+
+/**
+ * Page load
+ */
+
 $tickets = $store instanceof TicketStore
     ? $store->getTickets($canManageTickets, $userEmail, $effectiveStatusFilters, $assignedFilter, $effectiveCategoryFilters)
     : [];
@@ -94,11 +199,25 @@ if (isset($_GET['_webpush_subscription'])) {
 }
 
 if (isset($_GET['_browser_notifications_poll'])) {
+    $apiResponse = postLocalApiJson('api.php', [
+        'action' => 'browser_notifications_poll',
+        'viewer_email' => $userEmail,
+        'user_is_admin' => $userIsAdmin,
+    ]);
+
+    if (is_array($apiResponse) && (int) ($apiResponse['status'] ?? 0) >= 200 && (int) ($apiResponse['status'] ?? 0) < 300) {
+        http_response_code((int) ($apiResponse['status'] ?? 200));
+        header('Content-Type: application/json; charset=utf-8');
+        echo (string) ($apiResponse['body'] ?? '');
+        exit;
+    }
+
     $notificationItems = $store instanceof TicketStore ? $store->pullBrowserNotifications($userEmail, 25) : [];
     $targetPage = $userIsAdmin ? 'admin.php' : 'index.php';
 
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
+        'success' => true,
         'notifications' => array_map(
             static fn(array $notification): array => [
                 'id' => (int) ($notification['id'] ?? 0),
@@ -115,25 +234,46 @@ if (isset($_GET['_browser_notifications_poll'])) {
 }
 
 if (isset($_GET['_tickets_poll'])) {
-    $ticketPollItems = [];
-    foreach ($tickets as $ticket) {
-        $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
-        $ticketPollItems[] = buildTicketPollEntry($ticket, $ticketDetail, [
-            'currentPage' => $currentPage,
-            'canManageTickets' => $canManageTickets,
-            'userIsAdmin' => $userIsAdmin,
-            'isAdminPortal' => $isAdminPortal,
-            'ictUsers' => $ictUsers,
-            'csrfToken' => $csrfToken,
-            'openTicketId' => $openTicketId,
-            'view' => $view,
-        ]);
+    $apiResponse = postLocalApiJson('api.php', [
+        'action' => 'ticket_poll',
+        'current_page' => $currentPage,
+        'viewer_email' => $userEmail,
+        'can_manage_tickets' => $canManageTickets,
+        'user_is_admin' => $userIsAdmin,
+        'is_admin_portal' => $isAdminPortal,
+        'csrf_token' => $csrfToken,
+        'open_ticket_id' => $openTicketId,
+        'view' => $view,
+        'assigned_filter' => $assignedFilter,
+        'status_filters' => $effectiveStatusFilters,
+        'category_filters' => $effectiveCategoryFilters,
+    ]);
+
+    if (is_array($apiResponse) && (int) ($apiResponse['status'] ?? 0) >= 200 && (int) ($apiResponse['status'] ?? 0) < 300) {
+        http_response_code((int) ($apiResponse['status'] ?? 200));
+        header('Content-Type: application/json; charset=utf-8');
+        echo (string) ($apiResponse['body'] ?? '');
+        exit;
     }
 
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
+        'success' => true,
         'signature' => $ticketSnapshotSignature,
-        'tickets' => $ticketPollItems,
+        'tickets' => array_map(function (array $ticket) use ($store, $canManageTickets, $userEmail, $currentPage, $userIsAdmin, $isAdminPortal, $ictUsers, $csrfToken, $openTicketId, $view): array {
+            $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
+
+            return buildTicketPollEntry($ticket, $ticketDetail, [
+                'currentPage' => $currentPage,
+                'canManageTickets' => $canManageTickets,
+                'userIsAdmin' => $userIsAdmin,
+                'isAdminPortal' => $isAdminPortal,
+                'ictUsers' => $ictUsers,
+                'csrfToken' => $csrfToken,
+                'openTicketId' => $openTicketId,
+                'view' => $view,
+            ]);
+        }, $tickets),
         'is_empty' => $tickets === [],
         'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : h(__('tickets.empty_user'))) . '</div>',
     ], JSON_UNESCAPED_UNICODE);
