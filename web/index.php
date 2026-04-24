@@ -25,7 +25,7 @@ $apiUrl = 'api.php';
 
 <body<?= $isBigscreen ? ' style="overflow:hidden;"' : '' ?>
     data-api-url="<?= h($apiUrl) ?>"
-    data-api-key="<?= h((string) ($apiClientOid ?? '')) ?>"
+    data-api-key="<?= h((string) ($apiClientKey ?? '')) ?>"
     data-browser-notification-poll-url="<?= h($browserNotificationPollUrl) ?>"
     data-browser-notification-open-template="<?= h($browserNotificationOpenUrlTemplate) ?>"
     data-browser-notification-poll-interval="15000"

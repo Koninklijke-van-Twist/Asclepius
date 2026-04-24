@@ -49,6 +49,22 @@
                         body: JSON.stringify(Object.assign({ action: action }, payload || {}))
                     }).then(function (r)
                     {
+                        if (r.status === 401)
+                        {
+                            return r.json().catch(function ()
+                            {
+                                return {};
+                            }).then(function (data)
+                            {
+                                if (data && data.reason === 'session_expired_refresh_required' && typeof window.asclepiusHandleSessionExpired === 'function')
+                                {
+                                    window.asclepiusHandleSessionExpired();
+                                }
+
+                                return null;
+                            });
+                        }
+
                         return r.ok ? r.json() : null;
                     });
                 }

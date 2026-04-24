@@ -945,6 +945,47 @@
             box-shadow: 0 10px 24px rgba(3, 13, 27, 0.3);
         }
 
+        .session-expired-modal {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            background: rgba(10, 25, 41, 0.64);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 180ms ease;
+            z-index: 2000;
+        }
+
+        .session-expired-modal.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .session-expired-card {
+            width: min(100%, 420px);
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 24px 22px;
+            box-shadow: 0 18px 60px rgba(3, 13, 27, 0.24);
+            border: 1px solid rgba(180, 35, 24, 0.16);
+            text-align: center;
+        }
+
+        .session-expired-title {
+            margin: 0;
+            font-size: 22px;
+            line-height: 1.3;
+            color: var(--danger);
+        }
+
+        .session-expired-countdown {
+            margin: 14px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
         @media (max-width: 640px) {
             .image-preview-modal {
                 padding: 10px;

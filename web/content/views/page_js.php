@@ -80,6 +80,8 @@
         var webPushServiceWorkerUrl = document.body ? (document.body.getAttribute('data-webpush-sw-url') || '') : '';
         var csrfToken = document.body ? (document.body.getAttribute('data-csrf-token') || '') : '';
         var webPushSyncInFlight = false;
+        var sessionExpiredHandled = false;
+        var sessionExpiredCountdownTimer = null;
         var ticketPollPayload = {};
         if (liveTicketSection)
         {
@@ -107,6 +109,21 @@
 
         var imagePreviewFull = imagePreviewModal.querySelector('.image-preview-full');
         var imagePreviewCloseButton = imagePreviewModal.querySelector('[data-image-preview-close]');
+        var sessionExpiredModal = document.createElement('div');
+        sessionExpiredModal.className = 'session-expired-modal';
+        sessionExpiredModal.setAttribute('aria-hidden', 'true');
+        sessionExpiredModal.innerHTML = '' +
+            '<div class="session-expired-card" role="alertdialog" aria-modal="true">' +
+            '<h2 class="session-expired-title"><?= addslashes(__('session.expired_popup')) ?></h2>' +
+            '<p class="session-expired-countdown" data-session-expired-countdown></p>' +
+            '</div>';
+
+        if (document.body)
+        {
+            document.body.appendChild(sessionExpiredModal);
+        }
+
+        var sessionExpiredCountdown = sessionExpiredModal.querySelector('[data-session-expired-countdown]');
 
         var closeImagePreview = function ()
         {
@@ -191,6 +208,77 @@
             return outputArray;
         };
 
+        var updateSessionExpiredCountdown = function (secondsRemaining)
+        {
+            if (!sessionExpiredCountdown)
+            {
+                return;
+            }
+
+            sessionExpiredCountdown.textContent = '<?= addslashes(__('session.auto_refresh_in', 0)) ?>'.replace('0', String(Math.max(0, secondsRemaining)));
+        };
+
+        var clearTicketHtml = function ()
+        {
+            if (!liveTicketSection)
+            {
+                return;
+            }
+
+            liveTicketSection.querySelectorAll('.ticket-list, .empty-state').forEach(function (node)
+            {
+                node.remove();
+            });
+            liveTicketSection.setAttribute('data-ticket-signature', '');
+        };
+
+        var handleSessionExpired = function ()
+        {
+            if (sessionExpiredHandled)
+            {
+                return;
+            }
+
+            sessionExpiredHandled = true;
+            closeImagePreview();
+            clearTicketHtml();
+
+            if (liveTicketPollTimer !== null)
+            {
+                window.clearInterval(liveTicketPollTimer);
+                liveTicketPollTimer = null;
+            }
+
+            if (browserNotificationPollTimer !== null)
+            {
+                window.clearInterval(browserNotificationPollTimer);
+                browserNotificationPollTimer = null;
+            }
+
+            if (sessionExpiredModal)
+            {
+                sessionExpiredModal.classList.add('is-open');
+                sessionExpiredModal.setAttribute('aria-hidden', 'false');
+            }
+
+            document.documentElement.style.overflow = 'hidden';
+
+            var secondsRemaining = 60;
+            updateSessionExpiredCountdown(secondsRemaining);
+            sessionExpiredCountdownTimer = window.setInterval(function ()
+            {
+                secondsRemaining -= 1;
+                updateSessionExpiredCountdown(secondsRemaining);
+                if (secondsRemaining <= 0)
+                {
+                    window.clearInterval(sessionExpiredCountdownTimer);
+                    window.location.replace(window.location.href);
+                }
+            }, 1000);
+        };
+
+        window.asclepiusHandleSessionExpired = handleSessionExpired;
+
         var apiFetchJson = function (action, payload)
         {
             var requestPayload = Object.assign({}, payload || {});
@@ -213,6 +301,23 @@
                 body: JSON.stringify(requestPayload)
             }).then(function (response)
             {
+                if (response.status === 401)
+                {
+                    return response.json().catch(function ()
+                    {
+                        return {};
+                    }).then(function (data)
+                    {
+                        if (data && data.reason === 'session_expired_refresh_required')
+                        {
+                            handleSessionExpired();
+                            throw new Error('refresh-required');
+                        }
+
+                        throw new Error('unauthorized');
+                    });
+                }
+
                 if (!response.ok)
                 {
                     throw new Error('api-request-failed');
@@ -415,8 +520,13 @@
                         showDesktopNotification(notification);
                     });
                 })
-                .catch(function ()
+                .catch(function (error)
                 {
+                    if (error && (error.message === 'unauthorized' || error.message === 'refresh-required'))
+                    {
+                        return;
+                    }
+
                     // Silently ignore: next poll can recover.
                 })
                 .finally(function ()
@@ -472,8 +582,13 @@
                 {
                     applyIncrementalTicketUpdate(data);
                 })
-                .catch(function ()
+                .catch(function (error)
                 {
+                    if (error && (error.message === 'unauthorized' || error.message === 'refresh-required'))
+                    {
+                        return;
+                    }
+
                     window.location.reload();
                 })
                 .finally(function ()
@@ -736,8 +851,13 @@
                         refreshLiveTicketSection();
                     }
                 })
-                .catch(function ()
+                .catch(function (error)
                 {
+                    if (error && (error.message === 'unauthorized' || error.message === 'refresh-required'))
+                    {
+                        return;
+                    }
+
                     if (liveTicketPollTimer !== null)
                     {
                         window.clearInterval(liveTicketPollTimer);

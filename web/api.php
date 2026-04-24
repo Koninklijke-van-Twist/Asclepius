@@ -65,14 +65,14 @@ function isTrustedApiRequester(): bool
     return in_array($remoteAddress, ['127.0.0.1', '::1'], true);
 }
 
-function loadApiClientByOid(string $providedKey): ?array
+function loadApiClientByToken(string $providedKey): ?array
 {
-    $oid = strtolower(trim($providedKey));
-    if ($oid === '' || preg_match('/^[a-z0-9-]{8,128}$/', $oid) !== 1) {
+    $apiKey = strtolower(trim($providedKey));
+    if ($apiKey === '' || preg_match('/^[a-f0-9]{64}$/', $apiKey) !== 1) {
         return null;
     }
 
-    $apiClientFile = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'api_clients' . DIRECTORY_SEPARATOR . sha1($oid) . '.json';
+    $apiClientFile = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'api_clients' . DIRECTORY_SEPARATOR . sha1($apiKey) . '.json';
     if (!is_file($apiClientFile)) {
         return null;
     }
@@ -82,16 +82,62 @@ function loadApiClientByOid(string $providedKey): ?array
         return null;
     }
 
-    $storedOid = strtolower(trim((string) ($decoded['oid'] ?? '')));
-    if ($storedOid === '' || !hash_equals($storedOid, $oid)) {
+    $storedApiKey = strtolower(trim((string) ($decoded['api_key'] ?? '')));
+    if ($storedApiKey === '' || !hash_equals($storedApiKey, $apiKey)) {
         return null;
     }
 
     return [
-        'oid' => $storedOid,
+        'oid' => strtolower(trim((string) ($decoded['oid'] ?? ''))),
+        'api_key' => $storedApiKey,
         'email' => strtolower(trim((string) ($decoded['email'] ?? ''))),
         'is_admin' => !empty($decoded['is_admin']),
     ];
+}
+
+function buildWeeklyApiKeyForWeek(string $oid, string $isoWeek): string
+{
+    $normalizedOid = strtolower(trim($oid));
+    $normalizedWeek = trim($isoWeek);
+    if ($normalizedOid === '' || $normalizedWeek === '') {
+        return '';
+    }
+
+    return hash('sha256', $normalizedOid . '|' . $normalizedWeek);
+}
+
+function getRefreshRequiredUnauthorizedReason(string $providedKey): ?string
+{
+    $normalizedKey = strtolower(trim($providedKey));
+    if ($normalizedKey === '' || preg_match('/^[a-f0-9]{64}$/', $normalizedKey) !== 1) {
+        return null;
+    }
+
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        $sessionCookieName = session_name();
+        if ($sessionCookieName === '' || empty($_COOKIE[$sessionCookieName])) {
+            return null;
+        }
+
+        session_start(['read_and_close' => true]);
+    }
+
+    $oid = strtolower(trim((string) ($_SESSION['user']['oid'] ?? '')));
+    if ($oid === '' || preg_match('/^[a-z0-9-]{8,128}$/', $oid) !== 1) {
+        return null;
+    }
+
+    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+    $currentWeek = $now->format('o-W');
+    $previousWeek = $now->modify('-1 week')->format('o-W');
+    $currentWeekKey = buildWeeklyApiKeyForWeek($oid, $currentWeek);
+    $previousWeekKey = buildWeeklyApiKeyForWeek($oid, $previousWeek);
+
+    if ($currentWeekKey !== '' && !hash_equals($currentWeekKey, $normalizedKey) && $previousWeekKey !== '' && hash_equals($previousWeekKey, $normalizedKey)) {
+        return 'session_expired_refresh_required';
+    }
+
+    return null;
 }
 
 function getRequestBody(): array
@@ -326,11 +372,13 @@ function buildBigscreenVersionApiPayload(): array
  * Page load
  */
 $providedApiKey = getApiKeyFromRequest();
-$apiClient = loadApiClientByOid($providedApiKey);
+$apiClient = loadApiClientByToken($providedApiKey);
 if (!isTrustedApiRequester() && $apiClient === null && !isValidApiKey($providedApiKey, $apiKeys ?? [])) {
+    $unauthorizedReason = getRefreshRequiredUnauthorizedReason($providedApiKey);
     sendJson(401, [
         'success' => false,
         'error' => 'Ongeldige API-key.',
+        'reason' => $unauthorizedReason,
     ]);
 }
 

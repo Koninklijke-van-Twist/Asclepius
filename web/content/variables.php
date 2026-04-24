@@ -6,6 +6,16 @@
  * Vereist: constants.php, bootstrap.php, helpers.php
  */
 
+function buildWeeklyApiClientKey(string $oid): string
+{
+    $normalizedOid = strtolower(trim($oid));
+    if ($normalizedOid === '') {
+        return '';
+    }
+
+    return hash('sha256', $normalizedOid . '|' . gmdate('o-W'));
+}
+
 $currentPage = basename((string) ($_SERVER['PHP_SELF'] ?? 'index.php'));
 $isAdminPortal = ($asclepiusPageMode ?? '') === 'admin' || $currentPage === 'admin.php';
 $localRequester = in_array($_SERVER['REMOTE_ADDR'] ?? '', [$_SERVER['SERVER_ADDR'] ?? '', '127.0.0.1', '::1'], true);
@@ -33,16 +43,38 @@ $_SESSION['user']['email'] = $userEmail;
 $_SESSION['user']['admin'] = $userIsAdmin;
 
 $apiClientOid = strtolower(trim((string) ($_SESSION['user']['oid'] ?? ($_SESSION['users']['oid'] ?? ''))));
+$apiClientKey = '';
 if ($apiClientOid !== '' && preg_match('/^[a-z0-9-]{8,128}$/', $apiClientOid) === 1) {
+    $apiClientKey = buildWeeklyApiClientKey($apiClientOid);
+    $_SESSION['user']['api_key'] = $apiClientKey;
     $apiClientsDir = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'api_clients';
     if (!is_dir($apiClientsDir)) {
         @mkdir($apiClientsDir, 0750, true);
     }
 
     if (is_dir($apiClientsDir) && is_writable($apiClientsDir)) {
-        $apiClientFile = $apiClientsDir . DIRECTORY_SEPARATOR . sha1($apiClientOid) . '.json';
+        foreach ((array) glob($apiClientsDir . DIRECTORY_SEPARATOR . '*.json') as $existingApiClientFile) {
+            if (!is_string($existingApiClientFile) || !is_file($existingApiClientFile)) {
+                continue;
+            }
+
+            $existingApiClient = json_decode((string) file_get_contents($existingApiClientFile), true);
+            if (!is_array($existingApiClient)) {
+                continue;
+            }
+
+            $existingOid = strtolower(trim((string) ($existingApiClient['oid'] ?? '')));
+            $existingApiKey = strtolower(trim((string) ($existingApiClient['api_key'] ?? '')));
+            if ($existingOid === $apiClientOid && $existingApiKey !== strtolower($apiClientKey)) {
+                @unlink($existingApiClientFile);
+            }
+        }
+
+        $apiClientFile = $apiClientsDir . DIRECTORY_SEPARATOR . sha1($apiClientKey) . '.json';
         $apiClientBlob = [
             'oid' => $apiClientOid,
+            'api_key' => $apiClientKey,
+            'rotation_week' => gmdate('o-W'),
             'email' => $userEmail,
             'is_admin' => $userIsAdmin,
             'updated_at' => gmdate('c'),
