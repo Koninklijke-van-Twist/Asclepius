@@ -23,16 +23,13 @@ $apiUrl = 'api.php';
 <?php require __DIR__ . '/content/views/head.php'; ?>
 
 
-<body<?= $isBigscreen ? ' style="overflow:hidden;"' : '' ?>
-    data-api-url="<?= h($apiUrl) ?>"
+<body<?= $isBigscreen ? ' style="overflow:hidden;"' : '' ?> data-api-url="<?= h($apiUrl) ?>"
     data-api-key="<?= h((string) ($apiClientKey ?? '')) ?>"
     data-browser-notification-poll-url="<?= h($browserNotificationPollUrl) ?>"
     data-browser-notification-open-template="<?= h($browserNotificationOpenUrlTemplate) ?>"
-    data-browser-notification-poll-interval="15000"
-    data-webpush-subscribe-url="<?= h($webPushSubscriptionUrl) ?>"
+    data-browser-notification-poll-interval="15000" data-webpush-subscribe-url="<?= h($webPushSubscriptionUrl) ?>"
     data-webpush-vapid-public-key="<?= h(WEB_PUSH_VAPID_PUBLIC_KEY) ?>"
-    data-webpush-sw-url="<?= h($webPushServiceWorkerUrl) ?>"
-    data-csrf-token="<?= h($csrfToken) ?>">
+    data-webpush-sw-url="<?= h($webPushServiceWorkerUrl) ?>" data-csrf-token="<?= h($csrfToken) ?>">
     <div class="page">
         <?php require __DIR__ . '/content/views/header.php'; ?>
 

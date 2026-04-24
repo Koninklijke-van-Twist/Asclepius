@@ -57,7 +57,8 @@
                     <select name="assigned" onchange="this.form.submit()">
                         <option value=""><?= h(__('filter.all_assigned')) ?></option>
                         <option value="__unassigned__" <?= $assignedFilter === '__unassigned__' ? 'selected' : '' ?>>
-                            <?= h(__('filter.unassigned')) ?></option>
+                            <?= h(__('filter.unassigned')) ?>
+                        </option>
                         <?php foreach ($ictUsers as $ictUser):
                             $ictUser = strtolower($ictUser); ?>
                             <option value="<?= h($ictUser) ?>" <?= $assignedFilter === $ictUser ? 'selected' : '' ?>><?= h($ictUser) ?>
