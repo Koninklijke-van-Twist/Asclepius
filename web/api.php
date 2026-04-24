@@ -95,15 +95,15 @@ function loadApiClientByToken(string $providedKey): ?array
     ];
 }
 
-function buildWeeklyApiKeyForWeek(string $oid, string $isoWeek): string
+function buildRotatingApiKeyForDate(string $oid, string $dateKey): string
 {
     $normalizedOid = strtolower(trim($oid));
-    $normalizedWeek = trim($isoWeek);
-    if ($normalizedOid === '' || $normalizedWeek === '') {
+    $normalizedDateKey = trim($dateKey);
+    if ($normalizedOid === '' || $normalizedDateKey === '') {
         return '';
     }
 
-    return hash('sha256', $normalizedOid . '|' . $normalizedWeek);
+    return hash('sha256', $normalizedOid . '|' . $normalizedDateKey);
 }
 
 function getRefreshRequiredUnauthorizedReason(string $providedKey): ?string
@@ -128,12 +128,12 @@ function getRefreshRequiredUnauthorizedReason(string $providedKey): ?string
     }
 
     $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-    $currentWeek = $now->format('o-W');
-    $previousWeek = $now->modify('-1 week')->format('o-W');
-    $currentWeekKey = buildWeeklyApiKeyForWeek($oid, $currentWeek);
-    $previousWeekKey = buildWeeklyApiKeyForWeek($oid, $previousWeek);
+    $currentDate = $now->format('d-m-Y');
+    $previousDate = $now->modify('-1 day')->format('d-m-Y');
+    $currentDateKey = buildRotatingApiKeyForDate($oid, $currentDate);
+    $previousDateKey = buildRotatingApiKeyForDate($oid, $previousDate);
 
-    if ($currentWeekKey !== '' && !hash_equals($currentWeekKey, $normalizedKey) && $previousWeekKey !== '' && hash_equals($previousWeekKey, $normalizedKey)) {
+    if ($currentDateKey !== '' && !hash_equals($currentDateKey, $normalizedKey) && $previousDateKey !== '' && hash_equals($previousDateKey, $normalizedKey)) {
         return 'session_expired_refresh_required';
     }
 

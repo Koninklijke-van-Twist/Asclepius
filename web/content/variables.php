@@ -74,7 +74,7 @@ if ($apiClientOid !== '' && preg_match('/^[a-z0-9-]{8,128}$/', $apiClientOid) ==
         $apiClientBlob = [
             'oid' => $apiClientOid,
             'api_key' => $apiClientKey,
-            'rotation_week' => gmdate('o-W'),
+            'rotation_day' => gmdate('d-m-Y'),
             'email' => $userEmail,
             'is_admin' => $userIsAdmin,
             'updated_at' => gmdate('c'),
