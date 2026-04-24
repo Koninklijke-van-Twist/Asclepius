@@ -24,10 +24,6 @@ $_asyncSessionBypassRequest =
     || isset($_GET['_webpush_subscription'])
     || isset($_GET['_tickets_poll'])
     || (isset($_GET['_partial']) && (string) $_GET['_partial'] === 'tickets');
-$_remoteAddr = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
-$_serverAddr = (string) ($_SERVER['SERVER_ADDR'] ?? '');
-$_trustedAsyncRequester = ($_remoteAddr !== '' && $_remoteAddr === $_serverAddr)
-    || in_array($_remoteAddr, ['127.0.0.1', '::1'], true);
 $_bigscreenAlreadyAuthenticated = false;
 
 if ($_asyncSessionBypassRequest && session_status() !== PHP_SESSION_ACTIVE) {
@@ -36,35 +32,8 @@ if ($_asyncSessionBypassRequest && session_status() !== PHP_SESSION_ACTIVE) {
         isset($_SESSION['user']['email'])
         && trim((string) $_SESSION['user']['email']) !== '';
 }
-
-if ($_asyncSessionBypassRequest && !$_bigscreenAlreadyAuthenticated && !$_trustedAsyncRequester) {
-    http_response_code(401);
-
-    if (isset($_GET['_partial']) && (string) ($_GET['_partial'] ?? '') === 'tickets') {
-        header('Content-Type: text/html; charset=utf-8');
-        echo '<div class="empty-state">Sessie verlopen. Ververs de pagina.</div>';
-        exit;
-    }
-
-    if (isset($_GET['_bigscreen_version'])) {
-        header('Content-Type: text/plain; charset=utf-8');
-        echo 'unauthorized';
-        exit;
-    }
-
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode([
-        'ok' => false,
-        'error' => 'unauthorized',
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
 unset($_bigscreenRequest);
 unset($_asyncSessionBypassRequest);
-unset($_remoteAddr);
-unset($_serverAddr);
-unset($_trustedAsyncRequester);
 
 if (!$_bigscreenAlreadyAuthenticated) {
     // Normale flow: logincheck (en lib.php daarin) start zelf de sessie

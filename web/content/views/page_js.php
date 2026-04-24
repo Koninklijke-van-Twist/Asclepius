@@ -78,7 +78,6 @@
         var webPushServiceWorkerUrl = document.body ? (document.body.getAttribute('data-webpush-sw-url') || '') : '';
         var csrfToken = document.body ? (document.body.getAttribute('data-csrf-token') || '') : '';
         var webPushSyncInFlight = false;
-        var sessionExpiredHandled = false;
         var imagePreviewModal = document.createElement('div');
         imagePreviewModal.className = 'image-preview-modal';
         imagePreviewModal.setAttribute('aria-hidden', 'true');
@@ -382,11 +381,6 @@
             })
                 .then(function (response)
                 {
-                    if (response.status === 401)
-                    {
-                        throw new Error('unauthorized');
-                    }
-
                     if (!response.ok)
                     {
                         throw new Error('browser-notification-poll-failed');
@@ -409,47 +403,6 @@
                 {
                     browserNotificationInFlight = false;
                 });
-        };
-
-        var handleSessionExpired = function ()
-        {
-            if (sessionExpiredHandled)
-            {
-                return;
-            }
-
-            sessionExpiredHandled = true;
-
-            if (liveTicketPollTimer !== null)
-            {
-                window.clearInterval(liveTicketPollTimer);
-                liveTicketPollTimer = null;
-            }
-
-            if (browserNotificationPollTimer !== null)
-            {
-                window.clearInterval(browserNotificationPollTimer);
-                browserNotificationPollTimer = null;
-            }
-
-            if (liveTicketSection)
-            {
-                var list = liveTicketSection.querySelector('.ticket-list');
-                if (list)
-                {
-                    list.remove();
-                }
-
-                var emptyState = liveTicketSection.querySelector('.empty-state');
-                if (!emptyState)
-                {
-                    emptyState = document.createElement('div');
-                    emptyState.className = 'empty-state';
-                    liveTicketSection.appendChild(emptyState);
-                }
-
-                emptyState.textContent = '<?= addslashes(__('flash.session_expired')) ?>';
-            }
         };
 
         var captureOpenTicketIds = function (section)
@@ -503,11 +456,6 @@
             })
                 .then(function (response)
                 {
-                    if (response.status === 401)
-                    {
-                        throw new Error('unauthorized');
-                    }
-
                     if (!response.ok)
                     {
                         throw new Error('ticket-refresh-failed');
@@ -521,7 +469,7 @@
                 })
                 .catch(function ()
                 {
-                    handleSessionExpired();
+                    window.location.reload();
                 })
                 .finally(function ()
                 {
@@ -783,11 +731,6 @@
             })
                 .then(function (response)
                 {
-                    if (response.status === 401)
-                    {
-                        throw new Error('unauthorized');
-                    }
-
                     if (!response.ok)
                     {
                         throw new Error('ticket-poll-failed');
@@ -805,7 +748,11 @@
                 })
                 .catch(function ()
                 {
-                    handleSessionExpired();
+                    if (liveTicketPollTimer !== null)
+                    {
+                        window.clearInterval(liveTicketPollTimer);
+                        liveTicketPollTimer = null;
+                    }
                 });
         };
 

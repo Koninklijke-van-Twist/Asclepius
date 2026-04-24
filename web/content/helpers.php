@@ -136,15 +136,14 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                                 data-preview-alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
                                 aria-label="<?= h(__('ticket.preview_image')) ?>">
                                 <img class="attachment-thumb" src="<?= h($previewUrl) ?>"
-                                    alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="lazy" decoding="async">
+                                    alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="lazy"
+                                    decoding="async">
                             </button>
                         <?php endif; ?>
                         <a href="<?= h($downloadUrl) ?>" class="attachment-download-link">
                             <?= h((string) ($attachment['original_name'] ?? '')) ?>
                         </a>
-                        <span
-                            class="attachment-size">(<?= number_format(((int) ($attachment['file_size'] ?? 0)) / 1024 / 1024, 2, ',', '.') ?>
-                            MB)</span>
+                        <span class="attachment-size">(<?= number_format(((int) ($attachment['file_size'] ?? 0)) / 1024 / 1024, 2, ',', '.') ?> MB)</span>
                     </li>
                 <?php endforeach; ?>
             </ul>
@@ -232,14 +231,11 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         <span class="meta-label"><?= h(__('ticket.meta_priority')) ?></span>
                         <select name="priority" form="<?= h($replyFormId) ?>" data-role="priority-select">
                             <option value="0" <?= (int) ($ticket['priority'] ?? 0) === 0 ? 'selected' : '' ?>>
-                                <?= h(__('ticket.priority_0')) ?>
-                            </option>
+                                <?= h(__('ticket.priority_0')) ?></option>
                             <option value="1" <?= (int) ($ticket['priority'] ?? 0) === 1 ? 'selected' : '' ?>>
-                                <?= h(__('ticket.priority_1')) ?>
-                            </option>
+                                <?= h(__('ticket.priority_1')) ?></option>
                             <option value="2" <?= (int) ($ticket['priority'] ?? 0) === 2 ? 'selected' : '' ?>>
-                                <?= h(__('ticket.priority_2')) ?>
-                            </option>
+                                <?= h(__('ticket.priority_2')) ?></option>
                         </select>
                     </div>
                 <?php endif; ?>
