@@ -17,6 +17,7 @@ if ($isAdminPortal && !$userIsAdmin) {
 if (isset($_GET['download']) && $store instanceof TicketStore) {
     $attachmentId = max(0, (int) $_GET['download']);
     $attachment = $store->getAttachment($attachmentId);
+    $inlinePreviewRequested = isset($_GET['preview']) && (string) $_GET['preview'] === '1';
 
     if ($attachment === null) {
         http_response_code(404);
@@ -41,10 +42,12 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
         ob_end_clean();
     }
 
+    $contentDispositionType = ($inlinePreviewRequested && isImageAttachment($attachment)) ? 'inline' : 'attachment';
+
     header('Content-Description: File Transfer');
     header('Content-Type: ' . ((string) ($attachment['mime_type'] ?? '') !== '' ? $attachment['mime_type'] : 'application/octet-stream'));
     header('Content-Transfer-Encoding: binary');
-    header('Content-Disposition: attachment; filename="' . $downloadName . '"');
+    header('Content-Disposition: ' . $contentDispositionType . '; filename="' . $downloadName . '"');
     header('Content-Length: ' . (string) $fileSize);
     readfile($storedPath);
     exit;

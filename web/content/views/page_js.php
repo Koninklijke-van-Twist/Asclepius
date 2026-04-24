@@ -78,6 +78,87 @@
         var webPushServiceWorkerUrl = document.body ? (document.body.getAttribute('data-webpush-sw-url') || '') : '';
         var csrfToken = document.body ? (document.body.getAttribute('data-csrf-token') || '') : '';
         var webPushSyncInFlight = false;
+        var imagePreviewModal = document.createElement('div');
+        imagePreviewModal.className = 'image-preview-modal';
+        imagePreviewModal.setAttribute('aria-hidden', 'true');
+        imagePreviewModal.innerHTML = '' +
+            '<div class="image-preview-content" role="dialog" aria-modal="true">' +
+            '<button type="button" class="image-preview-close" data-image-preview-close aria-label="<?= addslashes(__('ticket.preview_close')) ?>">&times;</button>' +
+            '<img class="image-preview-full" src="" alt="">' +
+            '</div>';
+
+        if (document.body)
+        {
+            document.body.appendChild(imagePreviewModal);
+        }
+
+        var imagePreviewFull = imagePreviewModal.querySelector('.image-preview-full');
+        var imagePreviewCloseButton = imagePreviewModal.querySelector('[data-image-preview-close]');
+
+        var closeImagePreview = function ()
+        {
+            if (!imagePreviewModal.classList.contains('is-open'))
+            {
+                return;
+            }
+
+            imagePreviewModal.classList.remove('is-open');
+            imagePreviewModal.setAttribute('aria-hidden', 'true');
+            document.documentElement.style.overflow = '';
+
+            window.setTimeout(function ()
+            {
+                if (!imagePreviewModal.classList.contains('is-open') && imagePreviewFull)
+                {
+                    imagePreviewFull.src = '';
+                    imagePreviewFull.alt = '';
+                }
+            }, 250);
+        };
+
+        var openImagePreview = function (previewSrc, previewAlt)
+        {
+            if (!imagePreviewFull || !previewSrc)
+            {
+                return;
+            }
+
+            imagePreviewFull.src = previewSrc;
+            imagePreviewFull.alt = previewAlt || '';
+            imagePreviewModal.classList.add('is-open');
+            imagePreviewModal.setAttribute('aria-hidden', 'false');
+            document.documentElement.style.overflow = 'hidden';
+        };
+
+        document.addEventListener('click', function (event)
+        {
+            var trigger = event.target.closest('[data-image-preview-trigger]');
+            if (trigger)
+            {
+                event.preventDefault();
+                openImagePreview(trigger.getAttribute('data-preview-src') || '', trigger.getAttribute('data-preview-alt') || '');
+                return;
+            }
+
+            if (!imagePreviewModal.classList.contains('is-open'))
+            {
+                return;
+            }
+
+            if ((imagePreviewCloseButton && event.target === imagePreviewCloseButton) || event.target === imagePreviewModal)
+            {
+                event.preventDefault();
+                closeImagePreview();
+            }
+        });
+
+        document.addEventListener('keydown', function (event)
+        {
+            if (event.key === 'Escape')
+            {
+                closeImagePreview();
+            }
+        });
 
         var base64UrlToUint8Array = function (base64String)
         {

@@ -89,6 +89,18 @@ function buildTicketSnapshotSignature(array $tickets): string
     return sha1(json_encode($snapshot, JSON_UNESCAPED_UNICODE) ?: '[]');
 }
 
+function isImageAttachment(array $attachment): bool
+{
+    $mimeType = strtolower(trim((string) ($attachment['mime_type'] ?? '')));
+    if ($mimeType !== '' && str_starts_with($mimeType, 'image/')) {
+        return true;
+    }
+
+    $originalName = (string) ($attachment['original_name'] ?? '');
+    $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+    return in_array($extension, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], true);
+}
+
 function renderTicketMessageHtml(array $message, string $currentPage): string
 {
     ob_start();
@@ -111,11 +123,27 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
         <?php if (!empty($message['attachments'])): ?>
             <ul class="attachment-list">
                 <?php foreach ($message['attachments'] as $attachment): ?>
-                    <li>
-                        <a href="<?= h($currentPage) ?>?download=<?= (int) ($attachment['id'] ?? 0) ?>">
+                    <?php
+                    $attachmentId = (int) ($attachment['id'] ?? 0);
+                    $downloadUrl = $currentPage . '?download=' . $attachmentId;
+                    $isImageAttachment = isImageAttachment($attachment);
+                    $previewUrl = $downloadUrl . '&preview=1';
+                    ?>
+                    <li class="attachment-item">
+                        <?php if ($isImageAttachment): ?>
+                            <button type="button" class="attachment-thumb-button" data-image-preview-trigger
+                                data-preview-src="<?= h($previewUrl) ?>"
+                                data-preview-alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
+                                aria-label="<?= h(__('ticket.preview_image')) ?>">
+                                <img class="attachment-thumb" src="<?= h($previewUrl) ?>"
+                                    alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="lazy"
+                                    decoding="async">
+                            </button>
+                        <?php endif; ?>
+                        <a href="<?= h($downloadUrl) ?>" class="attachment-download-link">
                             <?= h((string) ($attachment['original_name'] ?? '')) ?>
                         </a>
-                        (<?= number_format(((int) ($attachment['file_size'] ?? 0)) / 1024 / 1024, 2, ',', '.') ?> MB)
+                        <span class="attachment-size">(<?= number_format(((int) ($attachment['file_size'] ?? 0)) / 1024 / 1024, 2, ',', '.') ?> MB)</span>
                     </li>
                 <?php endforeach; ?>
             </ul>

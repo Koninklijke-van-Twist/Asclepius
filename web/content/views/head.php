@@ -852,6 +852,114 @@
             padding-left: 18px;
         }
 
+        .attachment-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .attachment-thumb-button {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 2px;
+            background: #fff;
+            line-height: 0;
+            cursor: zoom-in;
+        }
+
+        .attachment-thumb {
+            display: block;
+            width: 100px;
+            max-width: 100px;
+            max-height: 70px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .attachment-download-link {
+            word-break: break-word;
+        }
+
+        .attachment-size {
+            color: var(--muted);
+        }
+
+        .image-preview-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 25, 41, 0.72);
+            display: grid;
+            place-items: center;
+            padding: 22px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 220ms ease;
+            z-index: 1500;
+        }
+
+        .image-preview-modal.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .image-preview-content {
+            position: relative;
+            max-width: min(96vw, 1800px);
+            max-height: min(92vh, 1200px);
+            transform: translateY(20px) scale(0.88);
+            opacity: 0;
+            transition: transform 240ms ease, opacity 240ms ease;
+        }
+
+        .image-preview-modal.is-open .image-preview-content {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .image-preview-full {
+            display: block;
+            max-width: min(96vw, 1800px);
+            max-height: min(92vh, 1200px);
+            width: auto;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 18px 60px rgba(3, 13, 27, 0.38);
+            background: #fff;
+        }
+
+        .image-preview-close {
+            position: absolute;
+            top: -14px;
+            right: -14px;
+            width: 38px;
+            height: 38px;
+            border: 0;
+            border-radius: 999px;
+            background: #0d2238;
+            color: #fff;
+            font-size: 24px;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: 0 10px 24px rgba(3, 13, 27, 0.3);
+        }
+
+        @media (max-width: 640px) {
+            .image-preview-modal {
+                padding: 10px;
+            }
+
+            .image-preview-close {
+                top: 8px;
+                right: 8px;
+            }
+
+            .attachment-thumb {
+                max-height: 64px;
+            }
+        }
+
         .reply-form {
             padding-top: 6px;
             border-top: 1px solid var(--line);
