@@ -32,6 +32,25 @@ $canManageTickets = $isAdminPortal && $userIsAdmin;
 $_SESSION['user']['email'] = $userEmail;
 $_SESSION['user']['admin'] = $userIsAdmin;
 
+$apiClientOid = strtolower(trim((string) ($_SESSION['user']['oid'] ?? ($_SESSION['users']['oid'] ?? ''))));
+if ($apiClientOid !== '' && preg_match('/^[a-z0-9-]{8,128}$/', $apiClientOid) === 1) {
+    $apiClientsDir = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'api_clients';
+    if (!is_dir($apiClientsDir)) {
+        @mkdir($apiClientsDir, 0750, true);
+    }
+
+    if (is_dir($apiClientsDir) && is_writable($apiClientsDir)) {
+        $apiClientFile = $apiClientsDir . DIRECTORY_SEPARATOR . sha1($apiClientOid) . '.json';
+        $apiClientBlob = [
+            'oid' => $apiClientOid,
+            'email' => $userEmail,
+            'is_admin' => $userIsAdmin,
+            'updated_at' => gmdate('c'),
+        ];
+        @file_put_contents($apiClientFile, json_encode($apiClientBlob, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+}
+
 $userPrefs = loadUserPrefs($userEmail);
 $resetOverviewFilters = $canManageTickets && isset($_GET['reset_filters']) && (string) $_GET['reset_filters'] === '1';
 $savedOverviewFilters = $canManageTickets && !$resetOverviewFilters

@@ -23,12 +23,35 @@
     <script>
             (function ()
             {
-                var POLL_URL = 'admin.php?view=stats&_bigscreen_poll=1';
-                var VERSION_URL = 'version';
+                var API_URL = (document.body && document.body.getAttribute('data-api-url')) || 'api.php';
+                var API_KEY = (document.body && document.body.getAttribute('data-api-key')) || '';
                 var CURRENT_VER = null;
                 var versionChangedAt = null;
                 var VERSION_RELOAD_DELAY_MS = 600000; // 10 minuten
                 var reloadScheduled = false;
+
+                function apiPost (action, payload)
+                {
+                    var headers = {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'fetch'
+                    };
+                    if (API_KEY)
+                    {
+                        headers['X-API-Key'] = API_KEY;
+                    }
+
+                    return fetch(API_URL, {
+                        method: 'POST',
+                        headers: headers,
+                        credentials: 'same-origin',
+                        body: JSON.stringify(Object.assign({ action: action }, payload || {}))
+                    }).then(function (r)
+                    {
+                        return r.ok ? r.json() : null;
+                    });
+                }
 
                 /* ---- Auto-herstel: herlaad na vertraging, maximaal 1x gepland ---- */
                 function scheduleReload (delayMs)
@@ -317,17 +340,7 @@ headline.textContent = BS.newTicketFrom.replace('%s', ticket.user_email);
                 function poll ()
                 {
                     if (alertActive) { return; }
-                    fetch(POLL_URL, { credentials: 'same-origin' })
-                        .then(function (r)
-                        {
-                            if (!r.ok)
-                            {
-                                // Ongeldige state (bijv. sessie verlopen, 500)
-                                scheduleReload(60000);
-                                return null;
-                            }
-                            return r.json();
-                        })
+                    apiPost('bigscreen_poll', {})
                         .then(function (data)
                         {
                             if (!data) { return; }
@@ -344,10 +357,10 @@ headline.textContent = BS.newTicketFrom.replace('%s', ticket.user_email);
 
                 function pollVersion ()
                 {
-                    fetch(VERSION_URL, { credentials: 'same-origin', cache: 'no-store' })
-                        .then(function (r) { return r.ok ? r.text() : null; })
-                        .then(function (ver)
+                    apiPost('bigscreen_version', {})
+                        .then(function (data)
                         {
+                            var ver = data && data.version ? String(data.version) : '';
                             if (!ver) { return; }
                             ver = ver.trim();
                             if (CURRENT_VER === null) { CURRENT_VER = ver; return; }

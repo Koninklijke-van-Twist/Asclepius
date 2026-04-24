@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 require_once __DIR__ . '/content/bootstrap.php';
 require_once __DIR__ . '/content/constants.php';
@@ -14,6 +14,7 @@ $browserNotificationTargetPage = $userIsAdmin ? 'admin.php' : 'index.php';
 $browserNotificationOpenUrlTemplate = $browserNotificationTargetPage . '?open=__TICKET_ID__';
 $webPushSubscriptionUrl = buildCurrentPageUrl($currentPage, ['_webpush_subscription' => '1'], ['_partial', '_tickets_poll', '_bigscreen_poll', '_browser_notifications_poll', '_webpush_subscription', 'reset_filters']);
 $webPushServiceWorkerUrl = 'sw.js';
+$apiUrl = 'api.php';
 
 ?>
 <!DOCTYPE html>
@@ -23,6 +24,8 @@ $webPushServiceWorkerUrl = 'sw.js';
 
 
 <body<?= $isBigscreen ? ' style="overflow:hidden;"' : '' ?>
+    data-api-url="<?= h($apiUrl) ?>"
+    data-api-key="<?= h((string) ($apiClientOid ?? '')) ?>"
     data-browser-notification-poll-url="<?= h($browserNotificationPollUrl) ?>"
     data-browser-notification-open-template="<?= h($browserNotificationOpenUrlTemplate) ?>"
     data-browser-notification-poll-interval="15000"

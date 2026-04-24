@@ -1,10 +1,21 @@
 <?php if (!$isAdminPortal || ($isAdminPortal && $view === 'overview')): ?>
     <?php
-    $ticketPollUrl = buildCurrentPageUrl($currentPage, ['_tickets_poll' => '1'], ['_partial', '_tickets_poll', 'reset_filters']);
-    $ticketPartialUrl = buildCurrentPageUrl($currentPage, ['_partial' => 'tickets'], ['_partial', '_tickets_poll', 'reset_filters']);
+    $ticketPollPayload = [
+        'current_page' => $currentPage,
+        'viewer_email' => $userEmail,
+        'can_manage_tickets' => $canManageTickets,
+        'user_is_admin' => $userIsAdmin,
+        'is_admin_portal' => $isAdminPortal,
+        'csrf_token' => $csrfToken,
+        'open_ticket_id' => $openTicketId,
+        'view' => $view,
+        'assigned_filter' => $assignedFilter,
+        'status_filters' => $effectiveStatusFilters,
+        'category_filters' => $effectiveCategoryFilters,
+    ];
     ?>
     <section class="panel" data-live-ticket-section data-ticket-signature="<?= h($ticketSnapshotSignature) ?>"
-        data-ticket-poll-url="<?= h($ticketPollUrl) ?>" data-ticket-partial-url="<?= h($ticketPartialUrl) ?>"
+        data-ticket-poll-payload="<?= h((string) json_encode($ticketPollPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
         data-ticket-poll-interval="15000">
         <h2><?= $isAdminPortal ? h(__('tickets.heading_admin')) : h(__('tickets.heading_user')) ?></h2>
 

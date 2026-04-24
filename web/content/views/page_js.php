@@ -71,13 +71,26 @@
         var browserNotificationPollTimer = null;
         var browserNotificationInFlight = false;
         var browserNotificationRequestAttempted = false;
-        var browserNotificationPollUrl = document.body ? (document.body.getAttribute('data-browser-notification-poll-url') || '') : '';
+        var apiUrl = document.body ? (document.body.getAttribute('data-api-url') || 'api.php') : 'api.php';
+        var apiKey = document.body ? (document.body.getAttribute('data-api-key') || '') : '';
+        var browserNotificationPollUrl = apiUrl;
         var browserNotificationOpenTemplate = document.body ? (document.body.getAttribute('data-browser-notification-open-template') || '') : '';
-        var webPushSubscribeUrl = document.body ? (document.body.getAttribute('data-webpush-subscribe-url') || '') : '';
+        var webPushSubscribeUrl = apiUrl;
         var webPushVapidPublicKey = document.body ? (document.body.getAttribute('data-webpush-vapid-public-key') || '') : '';
         var webPushServiceWorkerUrl = document.body ? (document.body.getAttribute('data-webpush-sw-url') || '') : '';
         var csrfToken = document.body ? (document.body.getAttribute('data-csrf-token') || '') : '';
         var webPushSyncInFlight = false;
+        var ticketPollPayload = {};
+        if (liveTicketSection)
+        {
+            try
+            {
+                ticketPollPayload = JSON.parse(liveTicketSection.getAttribute('data-ticket-poll-payload') || '{}');
+            } catch (error)
+            {
+                ticketPollPayload = {};
+            }
+        }
         var imagePreviewModal = document.createElement('div');
         imagePreviewModal.className = 'image-preview-modal';
         imagePreviewModal.setAttribute('aria-hidden', 'true');
@@ -178,26 +191,48 @@
             return outputArray;
         };
 
+        var apiFetchJson = function (action, payload)
+        {
+            var requestPayload = Object.assign({}, payload || {});
+            requestPayload.action = action;
+
+            var headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'fetch'
+            };
+            if (apiKey)
+            {
+                headers['X-API-Key'] = apiKey;
+            }
+
+            return fetch(apiUrl, {
+                method: 'POST',
+                headers: headers,
+                credentials: 'same-origin',
+                body: JSON.stringify(requestPayload)
+            }).then(function (response)
+            {
+                if (!response.ok)
+                {
+                    throw new Error('api-request-failed');
+                }
+
+                return response.json();
+            });
+        };
+
         var postWebPushSubscription = function (action, subscription)
         {
-            if (!webPushSubscribeUrl || !csrfToken)
+            if (!webPushSubscribeUrl)
             {
                 return Promise.resolve();
             }
 
-            return fetch(webPushSubscribeUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'fetch'
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    action: action,
-                    csrf_token: csrfToken,
-                    subscription: subscription || null
-                })
+            return apiFetchJson('webpush_subscription', {
+                csrf_token: csrfToken,
+                subscription_action: action,
+                subscription: subscription || null
             }).catch(function ()
             {
                 // Retry happens on next refresh/poll cycle.
@@ -372,22 +407,7 @@
             }
 
             browserNotificationInFlight = true;
-            fetch(browserNotificationPollUrl, {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'fetch'
-                },
-                credentials: 'same-origin'
-            })
-                .then(function (response)
-                {
-                    if (!response.ok)
-                    {
-                        throw new Error('browser-notification-poll-failed');
-                    }
-
-                    return response.json();
-                })
+            apiFetchJson('browser_notifications_poll', {})
                 .then(function (data)
                 {
                     (data && Array.isArray(data.notifications) ? data.notifications : []).forEach(function (notification)
@@ -447,22 +467,7 @@
             }
 
             liveTicketRefreshInFlight = true;
-            fetch(liveTicketSection.getAttribute('data-ticket-poll-url'), {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'fetch'
-                },
-                credentials: 'same-origin'
-            })
-                .then(function (response)
-                {
-                    if (!response.ok)
-                    {
-                        throw new Error('ticket-refresh-failed');
-                    }
-
-                    return response.json();
-                })
+            apiFetchJson('ticket_poll', ticketPollPayload)
                 .then(function (data)
                 {
                     applyIncrementalTicketUpdate(data);
@@ -722,22 +727,7 @@
                 return;
             }
 
-            fetch(liveTicketSection.getAttribute('data-ticket-poll-url'), {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'fetch'
-                },
-                credentials: 'same-origin'
-            })
-                .then(function (response)
-                {
-                    if (!response.ok)
-                    {
-                        throw new Error('ticket-poll-failed');
-                    }
-
-                    return response.json();
-                })
+            apiFetchJson('ticket_poll', ticketPollPayload)
                 .then(function (data)
                 {
                     var currentSignature = liveTicketSection.getAttribute('data-ticket-signature') || '';

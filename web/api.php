@@ -65,6 +65,35 @@ function isTrustedApiRequester(): bool
     return in_array($remoteAddress, ['127.0.0.1', '::1'], true);
 }
 
+function loadApiClientByOid(string $providedKey): ?array
+{
+    $oid = strtolower(trim($providedKey));
+    if ($oid === '' || preg_match('/^[a-z0-9-]{8,128}$/', $oid) !== 1) {
+        return null;
+    }
+
+    $apiClientFile = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'api_clients' . DIRECTORY_SEPARATOR . sha1($oid) . '.json';
+    if (!is_file($apiClientFile)) {
+        return null;
+    }
+
+    $decoded = json_decode((string) file_get_contents($apiClientFile), true);
+    if (!is_array($decoded)) {
+        return null;
+    }
+
+    $storedOid = strtolower(trim((string) ($decoded['oid'] ?? '')));
+    if ($storedOid === '' || !hash_equals($storedOid, $oid)) {
+        return null;
+    }
+
+    return [
+        'oid' => $storedOid,
+        'email' => strtolower(trim((string) ($decoded['email'] ?? ''))),
+        'is_admin' => !empty($decoded['is_admin']),
+    ];
+}
+
 function getRequestBody(): array
 {
     $contentType = strtolower(trim((string) ($_SERVER['CONTENT_TYPE'] ?? '')));
@@ -81,13 +110,13 @@ function getRequestBody(): array
     return $_POST;
 }
 
-function buildTicketPollApiPayload(TicketStore $store, array $payload): array
+function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
 {
     $currentPage = normalizeReturnPage((string) ($payload['current_page'] ?? 'index.php'));
-    $viewerEmail = strtolower(trim((string) ($payload['viewer_email'] ?? '')));
-    $canManageTickets = !empty($payload['can_manage_tickets']);
-    $userIsAdmin = !empty($payload['user_is_admin']);
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
     $isAdminPortal = !empty($payload['is_admin_portal']);
+    $canManageTickets = $isAdminPortal && $userIsAdmin;
     $csrfToken = (string) ($payload['csrf_token'] ?? '');
     $openTicketId = max(0, (int) ($payload['open_ticket_id'] ?? 0));
     $view = trim((string) ($payload['view'] ?? 'overview'));
@@ -127,10 +156,10 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload): array
     ];
 }
 
-function buildBrowserNotificationsApiPayload(TicketStore $store, array $payload): array
+function buildBrowserNotificationsApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
 {
-    $viewerEmail = strtolower(trim((string) ($payload['viewer_email'] ?? '')));
-    $userIsAdmin = !empty($payload['user_is_admin']);
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
     $targetPage = $userIsAdmin ? 'admin.php' : 'index.php';
     $notificationItems = $store->pullBrowserNotifications($viewerEmail, 25);
 
@@ -150,11 +179,155 @@ function buildBrowserNotificationsApiPayload(TicketStore $store, array $payload)
     ];
 }
 
+function handleWebPushSubscriptionApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    if ($viewerEmail === '') {
+        return [
+            'success' => false,
+            'error' => 'viewer_missing',
+        ];
+    }
+
+    $action = trim((string) ($payload['subscription_action'] ?? 'subscribe'));
+    $subscription = is_array($payload['subscription'] ?? null) ? $payload['subscription'] : [];
+    $endpoint = trim((string) ($subscription['endpoint'] ?? ''));
+
+    if ($action === 'unsubscribe') {
+        if ($endpoint !== '') {
+            $store->removeWebPushSubscription($viewerEmail, $endpoint);
+        }
+
+        return ['success' => true];
+    }
+
+    $keys = is_array($subscription['keys'] ?? null) ? $subscription['keys'] : [];
+    $p256dhKey = trim((string) ($keys['p256dh'] ?? ''));
+    $authKey = trim((string) ($keys['auth'] ?? ''));
+
+    $store->saveWebPushSubscription(
+        $viewerEmail,
+        $endpoint,
+        $p256dhKey,
+        $authKey,
+        (string) ($_SERVER['HTTP_USER_AGENT'] ?? '')
+    );
+
+    return ['success' => true];
+}
+
+function buildBigscreenPollApiPayload(TicketStore $store): array
+{
+    $allTicketsForPoll = $store->getTickets(true, '');
+    $pollMaxId = 0;
+    $pollLatest = null;
+    $pollSnapshot = [];
+    $pollOpenTickets = [];
+
+    foreach ($allTicketsForPoll as $ticket) {
+        $ticketId = (int) ($ticket['id'] ?? 0);
+        if ($ticketId > $pollMaxId) {
+            $pollMaxId = $ticketId;
+            $pollLatest = $ticket;
+        }
+
+        $pollSnapshot[] = [
+            'id' => $ticketId,
+            'updated_at' => (string) ($ticket['updated_at'] ?? ''),
+            'status' => (string) ($ticket['status'] ?? ''),
+            'assigned_email' => (string) ($ticket['assigned_email'] ?? ''),
+            'message_count' => (int) ($ticket['message_count'] ?? 0),
+        ];
+
+        if ((string) ($ticket['status'] ?? '') !== 'afgehandeld') {
+            $pollOpenTickets[] = [
+                'id' => $ticketId,
+                'title' => (string) ($ticket['title'] ?? ''),
+                'status' => (string) ($ticket['status'] ?? ''),
+                'status_label' => translateStatus((string) ($ticket['status'] ?? '')),
+                'status_color' => getStatusColor((string) ($ticket['status'] ?? '')),
+                'user_email' => (string) ($ticket['user_email'] ?? ''),
+                'assigned_email' => (string) ($ticket['assigned_email'] ?? ''),
+                'priority' => (int) ($ticket['priority'] ?? 0),
+            ];
+        }
+    }
+
+    $pollOverallStats = $store->getOverallStats();
+    $pollIctStats = $store->getIctUserStats();
+    $pollRequesterStats = $store->getRequesterStats();
+    $pollAvailability = $store->getIctUserAvailability();
+
+    $pollIctStatsMapped = array_map(function (array $row) use ($pollAvailability): array {
+        $email = strtolower((string) ($row['user_email'] ?? ''));
+        return [
+            'user_email' => $email,
+            'user_color' => emailToHexColor($email),
+            'available' => !empty($pollAvailability[$email]),
+            'handled_count' => (int) ($row['handled_count'] ?? 0),
+            'average_open' => formatDurationSeconds($row['average_open_seconds'] ?? null),
+            'max_open' => formatDurationSeconds($row['max_open_seconds'] ?? null),
+            'open_count' => (int) ($row['open_count'] ?? 0),
+            'waiting_order_count' => (int) ($row['waiting_order_count'] ?? 0),
+        ];
+    }, $pollIctStats);
+
+    $pollRequesterStatsMapped = array_map(function (array $row): array {
+        return [
+            'user_email' => (string) ($row['user_email'] ?? ''),
+            'average_wait' => formatDurationSeconds($row['average_wait_seconds'] ?? null),
+            'max_wait' => formatDurationSeconds($row['max_wait_seconds'] ?? null),
+            'average_response' => formatDurationSeconds($row['average_response_seconds'] ?? null),
+        ];
+    }, $pollRequesterStats);
+
+    return [
+        'success' => true,
+        'max_id' => $pollMaxId,
+        'snapshot' => $pollSnapshot,
+        'overall_stats' => $pollOverallStats,
+        'ict_stats' => $pollIctStatsMapped,
+        'requester_stats' => $pollRequesterStatsMapped,
+        'open_tickets' => $pollOpenTickets,
+        'latest' => $pollLatest !== null ? [
+            'id' => $pollMaxId,
+            'title' => (string) ($pollLatest['title'] ?? ''),
+            'user_email' => (string) ($pollLatest['user_email'] ?? ''),
+            'assigned_email' => (string) ($pollLatest['assigned_email'] ?? ''),
+            'assigned_color' => emailToHexColor((string) ($pollLatest['assigned_email'] ?? '')),
+            'priority' => (int) ($pollLatest['priority'] ?? 0),
+        ] : null,
+    ];
+}
+
+function buildBigscreenVersionApiPayload(): array
+{
+    $versionFiles = [
+        __DIR__ . DIRECTORY_SEPARATOR . 'index.php',
+        __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'data.php',
+        __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'views' . DIRECTORY_SEPARATOR . 'bigscreen_js.php',
+        __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'views' . DIRECTORY_SEPARATOR . 'page_js.php',
+    ];
+
+    $versionSource = [];
+    foreach ($versionFiles as $versionFile) {
+        if (is_file($versionFile)) {
+            $versionSource[] = basename($versionFile) . ':' . (string) filemtime($versionFile);
+        }
+    }
+
+    return [
+        'success' => true,
+        'version' => sha1(implode('|', $versionSource)),
+    ];
+}
+
 /**
  * Page load
  */
 $providedApiKey = getApiKeyFromRequest();
-if (!isTrustedApiRequester() && !isValidApiKey($providedApiKey, $apiKeys ?? [])) {
+$apiClient = loadApiClientByOid($providedApiKey);
+if (!isTrustedApiRequester() && $apiClient === null && !isValidApiKey($providedApiKey, $apiKeys ?? [])) {
     sendJson(401, [
         'success' => false,
         'error' => 'Ongeldige API-key.',
@@ -204,11 +377,35 @@ if ($method === 'POST') {
     $action = trim((string) ($payload['action'] ?? ''));
 
     if ($action === 'ticket_poll') {
-        sendJson(200, buildTicketPollApiPayload($store, $payload));
+        sendJson(200, buildTicketPollApiPayload($store, $payload, $apiClient));
     }
 
     if ($action === 'browser_notifications_poll') {
-        sendJson(200, buildBrowserNotificationsApiPayload($store, $payload));
+        sendJson(200, buildBrowserNotificationsApiPayload($store, $payload, $apiClient));
+    }
+
+    if ($action === 'webpush_subscription') {
+        sendJson(200, handleWebPushSubscriptionApiAction($store, $payload, $apiClient));
+    }
+
+    if ($action === 'bigscreen_poll') {
+        if (!($apiClient['is_admin'] ?? false) && !isTrustedApiRequester()) {
+            sendJson(403, [
+                'success' => false,
+                'error' => 'forbidden',
+            ]);
+        }
+        sendJson(200, buildBigscreenPollApiPayload($store));
+    }
+
+    if ($action === 'bigscreen_version') {
+        if (!($apiClient['is_admin'] ?? false) && !isTrustedApiRequester()) {
+            sendJson(403, [
+                'success' => false,
+                'error' => 'forbidden',
+            ]);
+        }
+        sendJson(200, buildBigscreenVersionApiPayload());
     }
 
     $title = trim((string) ($payload['title'] ?? ''));
