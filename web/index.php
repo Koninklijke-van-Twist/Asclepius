@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 require_once __DIR__ . '/content/bootstrap.php';
 require_once __DIR__ . '/content/constants.php';

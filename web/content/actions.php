@@ -30,11 +30,22 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
     }
 
     $downloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($attachment['original_name'] ?? 'bijlage')) ?: 'bijlage';
+    clearstatcache(true, $storedPath);
+    $fileSize = filesize($storedPath);
+    if ($fileSize === false) {
+        http_response_code(500);
+        exit(__('flash.attachment_missing'));
+    }
+
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
     header('Content-Description: File Transfer');
     header('Content-Type: ' . ((string) ($attachment['mime_type'] ?? '') !== '' ? $attachment['mime_type'] : 'application/octet-stream'));
+    header('Content-Transfer-Encoding: binary');
     header('Content-Disposition: attachment; filename="' . $downloadName . '"');
-    header('Content-Length: ' . (string) filesize($storedPath));
-    ob_end_clean(); // Verwijder gebufferde output (notices, whitespace) voor binaire download
+    header('Content-Length: ' . (string) $fileSize);
     readfile($storedPath);
     exit;
 }
