@@ -6,14 +6,14 @@
  * Vereist: constants.php, bootstrap.php, helpers.php
  */
 
-function buildWeeklyApiClientKey(string $oid): string
+function buildRotatingApiClientKey(string $oid): string
 {
     $normalizedOid = strtolower(trim($oid));
     if ($normalizedOid === '') {
         return '';
     }
 
-    return hash('sha256', $normalizedOid . '|' . gmdate('o-W'));
+    return hash('sha256', $normalizedOid . '|' . gmdate('d-m-Y'));
 }
 
 $currentPage = basename((string) ($_SERVER['PHP_SELF'] ?? 'index.php'));
@@ -45,7 +45,7 @@ $_SESSION['user']['admin'] = $userIsAdmin;
 $apiClientOid = strtolower(trim((string) ($_SESSION['user']['oid'] ?? ($_SESSION['users']['oid'] ?? ''))));
 $apiClientKey = '';
 if ($apiClientOid !== '' && preg_match('/^[a-z0-9-]{8,128}$/', $apiClientOid) === 1) {
-    $apiClientKey = buildWeeklyApiClientKey($apiClientOid);
+    $apiClientKey = buildRotatingApiClientKey($apiClientOid);
     $_SESSION['user']['api_key'] = $apiClientKey;
     $apiClientsDir = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'api_clients';
     if (!is_dir($apiClientsDir)) {
