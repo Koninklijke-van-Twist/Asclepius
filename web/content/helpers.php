@@ -122,12 +122,14 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
 
         <?php if (!empty($message['attachments'])): ?>
             <ul class="attachment-list">
-                <?php foreach ($message['attachments'] as $attachment): ?>
+                <?php foreach ($message['attachments'] as $attachmentIndex => $attachment): ?>
                     <?php
                     $attachmentId = (int) ($attachment['id'] ?? 0);
                     $downloadUrl = $currentPage . '?download=' . $attachmentId;
                     $isImageAttachment = isImageAttachment($attachment);
                     $previewUrl = $downloadUrl . '&preview=1';
+                    $thumbLoading = $attachmentIndex < 3 ? 'eager' : 'lazy';
+                    $thumbFetchPriority = $attachmentIndex < 3 ? 'high' : 'auto';
                     ?>
                     <li class="attachment-item">
                         <?php if ($isImageAttachment): ?>
@@ -136,8 +138,9 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                                 data-preview-alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
                                 aria-label="<?= h(__('ticket.preview_image')) ?>">
                                 <img class="attachment-thumb" src="<?= h($previewUrl) ?>"
-                                    alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="lazy"
-                                    decoding="async">
+                                    alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
+                                    loading="<?= h($thumbLoading) ?>"
+                                    fetchpriority="<?= h($thumbFetchPriority) ?>" decoding="async">
                             </button>
                         <?php endif; ?>
                         <a href="<?= h($downloadUrl) ?>" class="attachment-download-link">

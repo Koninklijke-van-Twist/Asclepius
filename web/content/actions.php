@@ -30,6 +30,12 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
         exit(__('flash.attachment_missing'));
     }
 
+    $attachmentTicketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
+    if ($attachmentTicketId <= 0 || $store->getTicket($attachmentTicketId, $canManageTickets, $userEmail) === null) {
+        http_response_code(404);
+        exit(__('flash.attachment_not_found'));
+    }
+
     $downloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($attachment['original_name'] ?? 'bijlage')) ?: 'bijlage';
     clearstatcache(true, $storedPath);
     $fileSize = filesize($storedPath);
@@ -43,6 +49,26 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
     }
 
     $contentDispositionType = ($inlinePreviewRequested && isImageAttachment($attachment)) ? 'inline' : 'attachment';
+    $fileMTime = filemtime($storedPath);
+    $etag = '"' . sha1($storedPath . '|' . (string) $fileSize . '|' . (string) ($fileMTime === false ? 0 : $fileMTime)) . '"';
+
+    if ($inlinePreviewRequested && isImageAttachment($attachment)) {
+        header('Cache-Control: private, max-age=300, must-revalidate');
+        if ($fileMTime !== false) {
+            header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $fileMTime) . ' GMT');
+        }
+        header('ETag: ' . $etag);
+
+        $ifNoneMatch = trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
+        $ifModifiedSinceRaw = trim((string) ($_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? ''));
+        $ifModifiedSince = $ifModifiedSinceRaw !== '' ? strtotime($ifModifiedSinceRaw) : false;
+        if (($ifNoneMatch !== '' && hash_equals($etag, $ifNoneMatch)) || ($fileMTime !== false && $ifModifiedSince !== false && $ifModifiedSince >= $fileMTime)) {
+            http_response_code(304);
+            exit;
+        }
+    } else {
+        header('Cache-Control: private, no-store');
+    }
 
     header('Content-Description: File Transfer');
     header('Content-Type: ' . ((string) ($attachment['mime_type'] ?? '') !== '' ? $attachment['mime_type'] : 'application/octet-stream'));
