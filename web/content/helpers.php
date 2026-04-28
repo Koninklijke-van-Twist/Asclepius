@@ -170,6 +170,11 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $replyFormId = 'reply-form-' . (int) ($ticket['id'] ?? 0);
     $assignedEmail = (string) ($ticket['assigned_email'] ?? '');
     $assignedLabel = $assignedEmail !== '' ? $assignedEmail : __('ticket.unassigned');
+    $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
+    $assignableIctUsers = array_values(array_filter(
+        array_map('strtolower', $ictUsers),
+        static fn(string $ictUser): bool => $ictUser !== '' && $ictUser !== $requesterEmail
+    ));
 
     ob_start();
     ?>
@@ -272,7 +277,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                             <?= h(__('ticket.assigned_to')) ?>
                             <select name="assigned_email" data-role="assigned-select">
                                 <option value=""><?= h(__('ticket.unassigned')) ?></option>
-                                <?php foreach ($ictUsers as $ictUser):
+                                <?php foreach ($assignableIctUsers as $ictUser):
                                     $ictUser = strtolower($ictUser); ?>
                                     <option value="<?= h($ictUser) ?>" <?= strtolower((string) ($ticket['assigned_email'] ?? '')) === $ictUser ? 'selected' : '' ?>>
                                         <?= h($ictUser) ?>
