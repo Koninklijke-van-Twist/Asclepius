@@ -497,7 +497,7 @@ class TicketStore
 
         if ($isAdmin) {
             $sql .= " ORDER BY CASE WHEN t.status = 'afgehandeld' THEN 1 ELSE 0 END ASC,
-                            COALESCE(t.priority, 0) DESC,
+                            CASE WHEN t.status = 'afgehandeld' THEN NULL ELSE COALESCE(t.priority, 0) END DESC,
                             datetime(t.created_at) DESC,
                             t.id DESC";
         } else {
