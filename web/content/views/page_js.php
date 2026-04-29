@@ -890,5 +890,71 @@
                 }
             });
         }
+
+        // File preview modal
+        var previewModal = null;
+        var previewIframe = null;
+
+        document.querySelectorAll('[data-file-preview-trigger]').forEach(function (button)
+        {
+            button.addEventListener('click', function (e)
+            {
+                e.preventDefault();
+                var attachmentId = button.getAttribute('data-preview-id');
+                openFilePreview(attachmentId);
+            });
+        });
+
+        var openFilePreview = function (attachmentId)
+        {
+            if (!previewModal)
+            {
+                previewModal = document.createElement('div');
+                previewModal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+                var modalContent = document.createElement('div');
+                modalContent.style.cssText = 'background:white;border-radius:8px;width:90%;height:90%;max-width:1200px;max-height:800px;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+
+                var closeBtn = document.createElement('button');
+                closeBtn.innerHTML = '✕';
+                closeBtn.style.cssText = 'position:absolute;top:12px;right:12px;background:none;border:none;font-size:24px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:#999;';
+                closeBtn.addEventListener('click', closeFilePreview);
+
+                previewIframe = document.createElement('iframe');
+                previewIframe.style.cssText = 'flex:1;border:none;border-radius:8px;';
+                previewIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+
+                modalContent.appendChild(closeBtn);
+                modalContent.appendChild(previewIframe);
+                previewModal.appendChild(modalContent);
+                document.body.appendChild(previewModal);
+            }
+
+            previewModal.style.display = 'flex';
+            if (previewIframe)
+            {
+                previewIframe.src = 'preview.php?id=' + encodeURIComponent(attachmentId);
+            }
+        };
+
+        var closeFilePreview = function ()
+        {
+            if (previewModal)
+            {
+                previewModal.style.display = 'none';
+                if (previewIframe)
+                {
+                    previewIframe.src = '';
+                }
+            }
+        };
+
+        document.addEventListener('keydown', function (e)
+        {
+            if (e.key === 'Escape' && previewModal && previewModal.style.display !== 'none')
+            {
+                closeFilePreview();
+            }
+        });
     });
 </script>

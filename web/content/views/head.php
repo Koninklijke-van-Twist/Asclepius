@@ -1103,5 +1103,29 @@
                 align-items: flex-start;
             }
         }
+
+        /* File preview button */
+        .attachment-preview-button {
+            display: inline-block;
+            padding: 6px 12px;
+            margin-right: 8px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .attachment-preview-button:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .attachment-preview-button:active {
+            transform: scale(0.98);
+        }
     </style>
 </head>

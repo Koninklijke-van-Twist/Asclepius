@@ -152,6 +152,86 @@ function isImageAttachment(array $attachment): bool
     return in_array($extension, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], true);
 }
 
+/**
+ * Determines if a file can be previewed
+ */
+function canPreviewFile(array $attachment): bool
+{
+    $originalName = strtolower((string) ($attachment['original_name'] ?? ''));
+    $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+    
+    $previewableExtensions = [
+        // Text & markup
+        'txt', 'md', 'markdown', 'mdown', 'mkd', 'rst',
+        // Code
+        'js', 'json', 'php', 'py', 'rb', 'go', 'rs', 'c', 'cpp', 'h', 'cs', 'java', 'sql', 'html', 'css', 'xml', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'sh', 'bash',
+        // Data
+        'csv', 'tsv',
+        // Documents
+        'pdf', 'xlsx', 'xls', 'docx', 'doc', 'odt', 'rtf',
+    ];
+    
+    return in_array($extension, $previewableExtensions, true);
+}
+
+/**
+ * Gets the preview format/type for a file
+ */
+function getPreviewFormat(array $attachment): ?string
+{
+    $originalName = strtolower((string) ($attachment['original_name'] ?? ''));
+    $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+    $mimeType = strtolower(trim((string) ($attachment['mime_type'] ?? '')));
+    
+    // Text & markup
+    if (in_array($extension, ['txt', 'log', 'text'], true)) return 'text';
+    if (in_array($extension, ['md', 'markdown', 'mdown', 'mkd', 'rst'], true)) return 'markdown';
+    
+    // Code
+    if (in_array($extension, ['js', 'jsx', 'mjs', 'ts', 'tsx'], true)) return 'javascript';
+    if (in_array($extension, ['json', 'jsonld', 'ndjson'], true)) return 'json';
+    if (in_array($extension, ['py', 'pyw', 'pyi'], true)) return 'python';
+    if (in_array($extension, ['rb', 'erb', 'gemspec'], true)) return 'ruby';
+    if (in_array($extension, ['go'], true)) return 'go';
+    if (in_array($extension, ['rs'], true)) return 'rust';
+    if (in_array($extension, ['c', 'h'], true)) return 'c';
+    if (in_array($extension, ['cpp', 'cc', 'cxx', 'hpp', 'h++'], true)) return 'cpp';
+    if (in_array($extension, ['cs', 'csx'], true)) return 'csharp';
+    if (in_array($extension, ['java'], true)) return 'java';
+    if (in_array($extension, ['php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8'], true)) return 'php';
+    if (in_array($extension, ['sql'], true)) return 'sql';
+    if (in_array($extension, ['html', 'htm'], true)) return 'html';
+    if (in_array($extension, ['css', 'scss', 'sass', 'less'], true)) return 'css';
+    if (in_array($extension, ['xml', 'svg'], true)) return 'xml';
+    if (in_array($extension, ['yaml', 'yml'], true)) return 'yaml';
+    if (in_array($extension, ['toml'], true)) return 'toml';
+    if (in_array($extension, ['ini', 'cfg', 'conf', 'config'], true)) return 'ini';
+    if (in_array($extension, ['sh', 'bash', 'zsh'], true)) return 'bash';
+    
+    // Data
+    if (in_array($extension, ['csv'], true)) return 'csv';
+    if (in_array($extension, ['tsv'], true)) return 'tsv';
+    
+    // Documents
+    if (in_array($extension, ['pdf'], true)) return 'pdf';
+    if (in_array($extension, ['xlsx', 'xls'], true)) return 'excel';
+    if (in_array($extension, ['docx', 'doc'], true)) return 'word';
+    
+    return null;
+}
+
+/**
+ * Gets the file size in human-readable format
+ */
+function formatFileSize(int $bytes): string
+{
+    $sizes = ['B', 'KB', 'MB', 'GB'];
+    if ($bytes <= 0) return '0 B';
+    
+    $i = (int) floor(log($bytes, 1024));
+    return round($bytes / pow(1024, $i), 2) . ' ' . $sizes[$i];
+}
+
 function buildAttachmentDirectUrl(array $attachment): string
 {
     $ticketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
@@ -217,12 +297,18 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                                     fetchpriority="<?= h($thumbFetchPriority) ?>" decoding="async">
                             </button>
                         <?php endif; ?>
+                        <?php if (canPreviewFile($attachment) && !$isImageAttachment): ?>
+                            <button type="button" class="attachment-preview-button" data-file-preview-trigger
+                                data-preview-id="<?= (int) ($attachment['id'] ?? 0) ?>"
+                                aria-label="<?= h(__('ticket.preview_file')) ?>">
+                                <?= h(__('ticket.preview_file')) ?>
+                            </button>
+                        <?php endif; ?>
                         <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link" <?= $downloadUrl !== '' ? '' : 'aria-disabled="true"' ?>>
                             <?= h((string) ($attachment['original_name'] ?? '')) ?>
                         </a>
                         <span
-                            class="attachment-size">(<?= number_format(((int) ($attachment['file_size'] ?? 0)) / 1024 / 1024, 2, ',', '.') ?>
-                            MB)</span>
+                            class="attachment-size">(<?= formatFileSize(max(0, (int) ($attachment['file_size'] ?? 0))) ?>)</span>
                     </li>
                 <?php endforeach; ?>
             </ul>
