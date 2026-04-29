@@ -95,6 +95,7 @@
         }
         var imagePreviewModal = document.createElement('div');
         imagePreviewModal.className = 'image-preview-modal';
+
         imagePreviewModal.setAttribute('aria-hidden', 'true');
         imagePreviewModal.innerHTML = '' +
             '<div class="image-preview-content" role="dialog" aria-modal="true">' +
@@ -816,6 +817,10 @@
                 }
 
                 insertOrMoveCard(list, card, previousCard);
+                if (typeof hydrateTicketThumbnails === 'function')
+                {
+                    hydrateTicketThumbnails(card);
+                }
                 previousCard = card;
             });
 
@@ -891,37 +896,142 @@
             });
         }
 
-        // File preview modal
+        // File preview modal + lazy thumbnails
         var previewModal = null;
         var previewIframe = null;
 
-        document.querySelectorAll('[data-file-preview-trigger]').forEach(function (button)
+        var hydrateTicketThumbnails = function (ticketCard)
         {
-            button.addEventListener('click', function (e)
+            if (!ticketCard || !ticketCard.open)
             {
-                e.preventDefault();
-                var attachmentId = button.getAttribute('data-preview-id');
-                openFilePreview(attachmentId);
+                return;
+            }
+
+            ticketCard.querySelectorAll('img[data-thumb-src]').forEach(function (imageThumb)
+            {
+                if (imageThumb.dataset.thumbLoaded === '1')
+                {
+                    return;
+                }
+
+                var thumbSrc = imageThumb.getAttribute('data-thumb-src') || '';
+                if (!thumbSrc)
+                {
+                    var missingSrcButton = imageThumb.closest('.attachment-thumb-button');
+                    if (missingSrcButton)
+                    {
+                        missingSrcButton.remove();
+                    }
+                    return;
+                }
+
+                imageThumb.dataset.thumbLoaded = '1';
+                imageThumb.src = thumbSrc;
+                imageThumb.addEventListener('error', function ()
+                {
+                    var brokenThumbButton = imageThumb.closest('.attachment-thumb-button');
+                    if (brokenThumbButton)
+                    {
+                        brokenThumbButton.remove();
+                    }
+                }, { once: true });
             });
+
+            ticketCard.querySelectorAll('[data-file-thumb-open]').forEach(function (thumbButton)
+            {
+                if (thumbButton.dataset.thumbInitialized === '1')
+                {
+                    return;
+                }
+
+                thumbButton.dataset.thumbInitialized = '1';
+                var checkUrl = thumbButton.getAttribute('data-file-thumb-check-url') || '';
+                var thumbSrc = thumbButton.getAttribute('data-file-thumb-src') || '';
+                var thumbFrame = thumbButton.querySelector('.attachment-file-thumb-frame');
+
+                if (!checkUrl || !thumbSrc || !thumbFrame)
+                {
+                    thumbButton.remove();
+                    return;
+                }
+
+                fetch(checkUrl, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'fetch'
+                    }
+                })
+                    .then(function (response)
+                    {
+                        if (!response.ok)
+                        {
+                            throw new Error('thumb-check-failed');
+                        }
+
+                        return response.json();
+                    })
+                    .then(function (payload)
+                    {
+                        if (!payload || payload.ok !== true)
+                        {
+                            throw new Error('thumb-not-available');
+                        }
+
+                        thumbButton.hidden = false;
+                        thumbFrame.src = thumbSrc;
+                    })
+                    .catch(function ()
+                    {
+                        thumbButton.remove();
+                    });
+            });
+        };
+
+        document.querySelectorAll('details.ticket-card[open]').forEach(function (ticketCard)
+        {
+            hydrateTicketThumbnails(ticketCard);
         });
+
+        document.addEventListener('toggle', function (event)
+        {
+            var ticketCard = event.target;
+            if (!ticketCard || !ticketCard.matches || !ticketCard.matches('details.ticket-card'))
+            {
+                return;
+            }
+
+            hydrateTicketThumbnails(ticketCard);
+        }, true);
 
         var openFilePreview = function (attachmentId)
         {
+            if (!attachmentId)
+            {
+                return;
+            }
+
             if (!previewModal)
             {
                 previewModal = document.createElement('div');
-                previewModal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+                previewModal.className = 'file-preview-modal';
+                previewModal.setAttribute('aria-hidden', 'true');
 
                 var modalContent = document.createElement('div');
-                modalContent.style.cssText = 'background:white;border-radius:8px;width:90%;height:90%;max-width:1200px;max-height:800px;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+                modalContent.className = 'file-preview-content';
+                modalContent.setAttribute('role', 'dialog');
+                modalContent.setAttribute('aria-modal', 'true');
 
                 var closeBtn = document.createElement('button');
-                closeBtn.innerHTML = '✕';
-                closeBtn.style.cssText = 'position:absolute;top:12px;right:12px;background:none;border:none;font-size:24px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:#999;';
+                closeBtn.innerHTML = '&times;';
+                closeBtn.className = 'image-preview-close';
+                closeBtn.setAttribute('data-file-preview-close', '1');
+                closeBtn.setAttribute('aria-label', '<?= addslashes(__('ticket.preview_close')) ?>');
                 closeBtn.addEventListener('click', closeFilePreview);
 
                 previewIframe = document.createElement('iframe');
-                previewIframe.style.cssText = 'flex:1;border:none;border-radius:8px;';
+                previewIframe.className = 'file-preview-frame';
                 previewIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
 
                 modalContent.appendChild(closeBtn);
@@ -930,7 +1040,9 @@
                 document.body.appendChild(previewModal);
             }
 
-            previewModal.style.display = 'flex';
+            previewModal.classList.add('is-open');
+            previewModal.setAttribute('aria-hidden', 'false');
+            document.documentElement.style.overflow = 'hidden';
             if (previewIframe)
             {
                 previewIframe.src = 'preview.php?id=' + encodeURIComponent(attachmentId);
@@ -941,17 +1053,42 @@
         {
             if (previewModal)
             {
-                previewModal.style.display = 'none';
+                previewModal.classList.remove('is-open');
+                previewModal.setAttribute('aria-hidden', 'true');
+                document.documentElement.style.overflow = '';
                 if (previewIframe)
                 {
-                    previewIframe.src = '';
+                    window.setTimeout(function ()
+                    {
+                        if (!previewModal.classList.contains('is-open'))
+                        {
+                            previewIframe.src = '';
+                        }
+                    }, 200);
                 }
             }
         };
 
+        document.addEventListener('click', function (event)
+        {
+            var filePreviewTrigger = event.target.closest('[data-file-preview-trigger], [data-file-thumb-open]');
+            if (filePreviewTrigger)
+            {
+                event.preventDefault();
+                openFilePreview(filePreviewTrigger.getAttribute('data-preview-id'));
+                return;
+            }
+
+            if (previewModal && event.target === previewModal)
+            {
+                event.preventDefault();
+                closeFilePreview();
+            }
+        });
+
         document.addEventListener('keydown', function (e)
         {
-            if (e.key === 'Escape' && previewModal && previewModal.style.display !== 'none')
+            if (e.key === 'Escape' && previewModal && previewModal.classList.contains('is-open'))
             {
                 closeFilePreview();
             }

@@ -159,6 +159,11 @@ function canPreviewFile(array $attachment): bool
 {
     $originalName = strtolower((string) ($attachment['original_name'] ?? ''));
     $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+    $mimeType = strtolower(trim((string) ($attachment['mime_type'] ?? '')));
+
+    if ($mimeType !== '' && str_starts_with($mimeType, 'video/')) {
+        return true;
+    }
     
     $previewableExtensions = [
         // Text & markup
@@ -169,6 +174,8 @@ function canPreviewFile(array $attachment): bool
         'csv', 'tsv',
         // Documents
         'pdf', 'xlsx', 'xls', 'docx', 'doc', 'odt', 'rtf',
+        // Video
+        'mp4', 'webm', 'ogg', 'mov', 'm4v',
     ];
     
     return in_array($extension, $previewableExtensions, true);
@@ -182,6 +189,8 @@ function getPreviewFormat(array $attachment): ?string
     $originalName = strtolower((string) ($attachment['original_name'] ?? ''));
     $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
     $mimeType = strtolower(trim((string) ($attachment['mime_type'] ?? '')));
+
+    if ($mimeType !== '' && str_starts_with($mimeType, 'video/')) return 'video';
     
     // Text & markup
     if (in_array($extension, ['txt', 'log', 'text'], true)) return 'text';
@@ -216,6 +225,9 @@ function getPreviewFormat(array $attachment): ?string
     if (in_array($extension, ['pdf'], true)) return 'pdf';
     if (in_array($extension, ['xlsx', 'xls'], true)) return 'excel';
     if (in_array($extension, ['docx', 'doc'], true)) return 'word';
+
+    // Video
+    if (in_array($extension, ['mp4', 'webm', 'ogg', 'mov', 'm4v'], true)) return 'video';
     
     return null;
 }
@@ -285,6 +297,9 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                     $isImageAttachment = isImageAttachment($attachment);
                     $thumbLoading = $attachmentIndex < 3 ? 'eager' : 'lazy';
                     $thumbFetchPriority = $attachmentIndex < 3 ? 'high' : 'auto';
+                    $attachmentId = (int) ($attachment['id'] ?? 0);
+                    $fileThumbUrl = 'preview.php?id=' . $attachmentId . '&thumbnail=1';
+                    $fileCheckUrl = 'preview.php?id=' . $attachmentId . '&check=1';
                     ?>
                     <li class="attachment-item">
                         <?php if ($isImageAttachment && $downloadUrl !== ''): ?>
@@ -292,16 +307,18 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                                 data-preview-src="<?= h($downloadUrl) ?>"
                                 data-preview-alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
                                 aria-label="<?= h(__('ticket.preview_image')) ?>">
-                                <img class="attachment-thumb" src="<?= h($downloadUrl) ?>"
+                                <img class="attachment-thumb" data-thumb-src="<?= h($downloadUrl) ?>" src=""
                                     alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="<?= h($thumbLoading) ?>"
                                     fetchpriority="<?= h($thumbFetchPriority) ?>" decoding="async">
                             </button>
                         <?php endif; ?>
                         <?php if (canPreviewFile($attachment) && !$isImageAttachment): ?>
-                            <button type="button" class="attachment-preview-button" data-file-preview-trigger
-                                data-preview-id="<?= (int) ($attachment['id'] ?? 0) ?>"
-                                aria-label="<?= h(__('ticket.preview_file')) ?>">
-                                <?= h(__('ticket.preview_file')) ?>
+                            <button type="button" class="attachment-file-thumb-button" data-file-thumb-open
+                                data-preview-id="<?= $attachmentId ?>" data-file-thumb-check-url="<?= h($fileCheckUrl) ?>"
+                                data-file-thumb-src="<?= h($fileThumbUrl) ?>"
+                                aria-label="<?= h(__('ticket.preview_file')) ?>" hidden>
+                                <iframe class="attachment-file-thumb-frame" title="<?= h(__('ticket.preview_file')) ?>" loading="lazy"
+                                    sandbox="allow-scripts allow-same-origin" scrolling="no"></iframe>
                             </button>
                         <?php endif; ?>
                         <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link" <?= $downloadUrl !== '' ? '' : 'aria-disabled="true"' ?>>

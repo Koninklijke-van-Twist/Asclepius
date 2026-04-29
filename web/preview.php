@@ -5,10 +5,6 @@
  * Supports: TXT, MD, JSON, CSV, XLSX, PDF, DOCX, and all common code formats.
  */
 
-$_SERVER['REMOTE_ADDR'] = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-$_SERVER['SERVER_ADDR'] = $_SERVER['SERVER_ADDR'] ?? '127.0.0.1';
-$_SERVER['PHP_SELF'] = '/asclepius/preview.php';
-
 require_once __DIR__ . '/content/bootstrap.php';
 require_once __DIR__ . '/content/constants.php';
 require_once __DIR__ . '/content/localization.php';
@@ -17,6 +13,8 @@ require_once __DIR__ . '/TicketStore.php';
 
 $attachmentId = max(0, (int) ($_GET['id'] ?? 0));
 $format = trim((string) ($_GET['format'] ?? 'auto'));
+$isThumbnail = isset($_GET['thumbnail']) && (string) $_GET['thumbnail'] === '1';
+$isCheckOnly = isset($_GET['check']) && (string) $_GET['check'] === '1';
 
 if ($attachmentId <= 0) {
     http_response_code(400);
@@ -24,7 +22,17 @@ if ($attachmentId <= 0) {
 }
 
 // Fetch attachment from store
-if (!$store instanceof TicketStore) {
+if (!isset($ictUserColors) || !is_array($ictUserColors)) {
+    $ictUserColors = [];
+}
+if (!isset($ictUsers) || !is_array($ictUsers)) {
+    $ictUsers = [];
+}
+normalizeIctUsersConfig($ictUsers, $ictUserColors);
+
+try {
+    $store = new TicketStore(DATABASE_FILE, UPLOAD_DIRECTORY, $ictUsers, TICKET_CATEGORIES);
+} catch (Throwable $exception) {
     http_response_code(500);
     exit('Database connection failed');
 }
@@ -35,9 +43,14 @@ if ($attachment === null) {
     exit('Attachment not found');
 }
 
+$originalName = (string) ($attachment['original_name'] ?? '');
+$extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+
 // Security: verify user has access
 $ticketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
-if ($ticketId <= 0 || $store->getTicket($ticketId, false, $userEmail) === null) {
+$viewerEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+$viewerIsAdmin = !empty($_SESSION['user']['admin']);
+if ($ticketId <= 0 || $store->getTicket($ticketId, $viewerIsAdmin, $viewerEmail) === null) {
     http_response_code(403);
     exit('Access denied');
 }
@@ -53,19 +66,45 @@ if ($format === 'auto' || $format === '') {
     $format = getPreviewFormat($attachment) ?? 'text';
 }
 
+$downloadUrl = buildAttachmentDirectUrl($attachment);
+if ($downloadUrl === '' && in_array($format, ['pdf', 'excel', 'word', 'video'], true)) {
+    http_response_code(500);
+    exit('Preview path not available');
+}
+
 // Validate format
-$allowedFormats = ['text', 'markdown', 'json', 'javascript', 'python', 'ruby', 'go', 'rust', 'c', 'cpp', 'csharp', 'java', 'php', 'sql', 'html', 'css', 'xml', 'yaml', 'toml', 'ini', 'bash', 'csv', 'tsv', 'pdf', 'excel', 'word'];
+$allowedFormats = ['text', 'markdown', 'json', 'javascript', 'python', 'ruby', 'go', 'rust', 'c', 'cpp', 'csharp', 'java', 'php', 'sql', 'html', 'css', 'xml', 'yaml', 'toml', 'ini', 'bash', 'csv', 'tsv', 'pdf', 'excel', 'word', 'video'];
 if (!in_array($format, $allowedFormats, true)) {
     http_response_code(400);
     exit('Invalid format');
 }
 
 $fileSize = max(0, (int) ($attachment['file_size'] ?? 0));
-$maxPreviewSize = 5242880; // 5MB
+$isBinaryPreview = in_array($format, ['pdf', 'excel', 'word', 'video'], true);
+$maxPreviewSize = $isBinaryPreview ? MAX_ATTACHMENT_BYTES : 5242880;
 
 if ($fileSize > $maxPreviewSize) {
     http_response_code(413);
-    exit('File too large for preview (max 5 MB)');
+    exit('File too large for preview');
+}
+
+if ($isCheckOnly) {
+    if ($format === 'word' && $extension === 'doc') {
+        http_response_code(422);
+        echo json_encode([
+            'ok' => false,
+            'reason' => 'unsupported_word_binary',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok' => true,
+        'format' => $format,
+        'file_size' => $fileSize,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
 }
 
 header('Content-Type: text/html; charset=utf-8');
@@ -80,14 +119,29 @@ echo '<title>' . h((string) ($attachment['original_name'] ?? 'Preview')) . '</ti
 ?>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; line-height: 1.5; }
+html, body { width: 100%; height: 100%; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; line-height: 1.5; overflow-x: hidden; }
 .container { max-width: 1200px; margin: 0 auto; background: white; min-height: 100vh; }
 .header { background: #f9f9f9; border-bottom: 1px solid #e0e0e0; padding: 16px 20px; }
 .header h1 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 4px; }
 .header p { font-size: 12px; color: #999; }
-.content { padding: 20px; }
+.content { padding: 20px; overflow-x: auto; }
+body.thumbnail-mode { background: transparent; overflow: hidden; }
+body.thumbnail-mode .container { max-width: none; min-height: 0; border: 0; }
+body.thumbnail-mode .header { display: none; }
+body.thumbnail-mode .content { padding: 6px; overflow: hidden; }
+body.thumbnail-mode .text-preview,
+body.thumbnail-mode .code-preview { max-height: 112px; overflow: hidden; font-size: 11px; line-height: 1.35; }
+body.thumbnail-mode .csv-table { font-size: 10px; }
+body.thumbnail-mode .csv-table th,
+body.thumbnail-mode .csv-table td { padding: 4px 6px; }
+body.thumbnail-mode #pdf-viewer,
+body.thumbnail-mode #word-viewer,
+body.thumbnail-mode #excel-viewer,
+body.thumbnail-mode #video-viewer { min-height: 112px; max-height: 112px; overflow: hidden; }
 .text-preview { white-space: pre-wrap; word-wrap: break-word; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 13px; line-height: 1.6; background: #fafafa; padding: 16px; border-radius: 4px; border: 1px solid #e0e0e0; overflow-x: auto; }
 .code-preview { background: #282c34; color: #abb2bf; padding: 16px; border-radius: 4px; overflow-x: auto; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 13px; line-height: 1.6; }
+.table-scroll { width: 100%; max-width: 100%; overflow-x: auto; }
 .csv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .csv-table th { background: #f5f5f5; color: #333; font-weight: 600; border: 1px solid #e0e0e0; padding: 8px 12px; text-align: left; }
 .csv-table td { border: 1px solid #e0e0e0; padding: 8px 12px; }
@@ -95,8 +149,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .error-msg { color: #d32f2f; background: #ffebee; padding: 12px; border-radius: 4px; border-left: 4px solid #d32f2f; }
 .loading { text-align: center; padding: 40px; color: #999; }
 #pdf-viewer { width: 100%; height: 600px; border: 1px solid #e0e0e0; border-radius: 4px; }
-#excel-viewer { width: 100%; }
+#excel-viewer { width: 100%; max-width: 100%; overflow-x: auto; }
+#excel-viewer table { width: 100%; border-collapse: collapse; }
+#excel-viewer th, #excel-viewer td { border: 1px solid #d0d7de; padding: 6px 8px; }
 #word-viewer { border: 1px solid #e0e0e0; border-radius: 4px; padding: 16px; }
+#video-viewer { width: 100%; border: 1px solid #e0e0e0; border-radius: 4px; background: #000; }
+body.thumbnail-mode #video-viewer { border: 0; border-radius: 8px; }
 </style>
 
 <?php
@@ -127,7 +185,7 @@ if ($format === 'markdown') {
 }
 
 echo '</head>' . PHP_EOL;
-echo '<body>' . PHP_EOL;
+echo '<body class="' . ($isThumbnail ? 'thumbnail-mode' : '') . '">' . PHP_EOL;
 echo '<div class="container">' . PHP_EOL;
 echo '<div class="header">' . PHP_EOL;
 echo '<h1>' . h((string) ($attachment['original_name'] ?? 'Preview')) . '</h1>' . PHP_EOL;
@@ -135,9 +193,16 @@ echo '<p>' . formatFileSize(max(0, (int) ($attachment['file_size'] ?? 0))) . '</
 echo '</div>' . PHP_EOL;
 echo '<div class="content">' . PHP_EOL;
 
-$fileContent = file_get_contents($storedPath);
-if ($fileContent === false) {
-    echo '<div class="error-msg">Error reading file</div>' . PHP_EOL;
+$fileContent = null;
+if (!in_array($format, ['pdf', 'excel', 'word', 'video'], true)) {
+    $fileContent = file_get_contents($storedPath);
+    if ($fileContent === false) {
+        echo '<div class="error-msg">Error reading file</div>' . PHP_EOL;
+    }
+}
+
+if (!in_array($format, ['pdf', 'excel', 'word', 'video'], true) && $fileContent === false) {
+    // Error already rendered above.
 } else {
     switch ($format) {
         case 'text':
@@ -164,9 +229,25 @@ if ($fileContent === false) {
             $delimiter = $format === 'tsv' ? "\t" : ',';
             $lines = explode("\n", trim($fileContent));
             if (!empty($lines)) {
+                $firstLine = ltrim((string) ($lines[0] ?? ''), "\xEF\xBB\xBF");
+                if ($format !== 'tsv') {
+                    $semicolonCount = substr_count($firstLine, ';');
+                    $commaCount = substr_count($firstLine, ',');
+                    $tabCount = substr_count($firstLine, "\t");
+                    if ($tabCount > $semicolonCount && $tabCount > $commaCount) {
+                        $delimiter = "\t";
+                    } elseif ($semicolonCount >= $commaCount && $semicolonCount > 0) {
+                        $delimiter = ';';
+                    } else {
+                        $delimiter = ',';
+                    }
+                }
+
+                echo '<table class="csv-table">' . PHP_EOL;
+                echo '<div class="table-scroll">' . PHP_EOL;
                 echo '<table class="csv-table">' . PHP_EOL;
                 echo '<thead><tr>' . PHP_EOL;
-                $headerFields = str_getcsv(trim($lines[0]), $delimiter);
+                $headerFields = str_getcsv(trim($firstLine), $delimiter);
                 foreach ($headerFields as $field) {
                     echo '<th>' . h($field) . '</th>' . PHP_EOL;
                 }
@@ -183,17 +264,18 @@ if ($fileContent === false) {
                 }
                 echo '</tbody>' . PHP_EOL;
                 echo '</table>' . PHP_EOL;
+                echo '</div>' . PHP_EOL;
             }
             break;
 
         case 'pdf':
             echo '<div id="pdf-viewer"></div>' . PHP_EOL;
             echo '<script>' . PHP_EOL;
-            echo 'pdfjsLib.getDocument(' . json_encode($storedPath) . ').promise.then(pdf => {' . PHP_EOL;
+            echo 'pdfjsLib.getDocument(' . json_encode($downloadUrl) . ').promise.then(pdf => {' . PHP_EOL;
             echo '  pdf.getPage(1).then(page => {' . PHP_EOL;
             echo '    const canvas = document.createElement("canvas");' . PHP_EOL;
             echo '    const context = canvas.getContext("2d");' . PHP_EOL;
-            echo '    const viewport = page.getViewport({ scale: 1.5 });' . PHP_EOL;
+            echo '    const viewport = page.getViewport({ scale: ' . ($isThumbnail ? '0.32' : '1.5') . ' });' . PHP_EOL;
             echo '    canvas.width = viewport.width;' . PHP_EOL;
             echo '    canvas.height = viewport.height;' . PHP_EOL;
             echo '    const renderContext = { canvasContext: context, viewport };' . PHP_EOL;
@@ -208,7 +290,7 @@ if ($fileContent === false) {
         case 'excel':
             echo '<div id="excel-viewer"></div>' . PHP_EOL;
             echo '<script>' . PHP_EOL;
-            echo 'fetch(' . json_encode($storedPath) . ').then(r => r.arrayBuffer()).then(ab => {' . PHP_EOL;
+            echo 'fetch(' . json_encode($downloadUrl) . ').then(r => r.arrayBuffer()).then(ab => {' . PHP_EOL;
             echo '  const workbook = XLSX.read(new Uint8Array(ab), { type: "array" });' . PHP_EOL;
             echo '  const sheet = workbook.Sheets[workbook.SheetNames[0]];' . PHP_EOL;
             echo '  const html = XLSX.utils.sheet_to_html(sheet);' . PHP_EOL;
@@ -218,14 +300,46 @@ if ($fileContent === false) {
             break;
 
         case 'word':
+            if ($extension === 'doc') {
+                echo '<div class="error-msg">DOC previews are not supported in-browser. Please use DOCX or download the file.</div>' . PHP_EOL;
+                break;
+            }
+
             echo '<div id="word-viewer"></div>' . PHP_EOL;
             echo '<script>' . PHP_EOL;
-            echo 'fetch(' . json_encode($storedPath) . ').then(r => r.arrayBuffer()).then(ab => {' . PHP_EOL;
+            echo 'fetch(' . json_encode($downloadUrl) . ').then(r => r.arrayBuffer()).then(ab => {' . PHP_EOL;
             echo '  mammoth.convertToHtml({ arrayBuffer: ab }).then(result => {' . PHP_EOL;
-            echo '    document.getElementById("word-viewer").innerHTML = result.value;' . PHP_EOL;
+            echo '    const target = document.getElementById("word-viewer");' . PHP_EOL;
+            echo '    if (!result || !result.value || result.value.trim() === "") {' . PHP_EOL;
+            echo '      target.innerHTML = "<div class=\"error-msg\">Could not render this DOCX file.</div>";' . PHP_EOL;
+            echo '      return;' . PHP_EOL;
+            echo '    }' . PHP_EOL;
+            echo '    target.innerHTML = result.value;' . PHP_EOL;
+            echo '  }).catch(() => {' . PHP_EOL;
+            echo '    document.getElementById("word-viewer").innerHTML = "<div class=\"error-msg\">Could not render this DOCX file.</div>";' . PHP_EOL;
             echo '  });' . PHP_EOL;
+            echo '}).catch(() => {' . PHP_EOL;
+            echo '  document.getElementById("word-viewer").innerHTML = "<div class=\"error-msg\">Could not load this DOCX file.</div>";' . PHP_EOL;
             echo '});' . PHP_EOL;
             echo '</script>' . PHP_EOL;
+            break;
+
+        case 'video':
+            echo '<video id="video-viewer" ' . ($isThumbnail ? 'muted playsinline preload="metadata"' : 'controls preload="metadata"') . '>' . PHP_EOL;
+            echo '<source src="' . h($downloadUrl) . '" type="' . h((string) ($attachment['mime_type'] ?? 'video/mp4')) . '">' . PHP_EOL;
+            echo '</video>' . PHP_EOL;
+            if ($isThumbnail) {
+                echo '<script>' . PHP_EOL;
+                echo '(() => {' . PHP_EOL;
+                echo '  const video = document.getElementById("video-viewer");' . PHP_EOL;
+                echo '  if (!video) return;' . PHP_EOL;
+                echo '  video.addEventListener("loadeddata", function () {' . PHP_EOL;
+                echo '    try { video.currentTime = Math.min(0.1, (video.duration || 0)); } catch (e) {}' . PHP_EOL;
+                echo '    video.pause();' . PHP_EOL;
+                echo '  }, { once: true });' . PHP_EOL;
+                echo '})();' . PHP_EOL;
+                echo '</script>' . PHP_EOL;
+            }
             break;
 
         default:
