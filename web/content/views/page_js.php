@@ -110,51 +110,6 @@
         var imagePreviewFull = imagePreviewModal.querySelector('.image-preview-full');
         var imagePreviewCloseButton = imagePreviewModal.querySelector('[data-image-preview-close]');
 
-        var applyImageFallback = function (imageNode, fallbackSrc)
-        {
-            if (!imageNode)
-            {
-                return false;
-            }
-
-            var fallback = String(fallbackSrc || '').trim();
-            if (!fallback)
-            {
-                return false;
-            }
-
-            if (imageNode.dataset && imageNode.dataset.fallbackApplied === '1')
-            {
-                return false;
-            }
-
-            if (imageNode.dataset)
-            {
-                imageNode.dataset.fallbackApplied = '1';
-            }
-            imageNode.src = fallback;
-            return true;
-        };
-
-        if (imagePreviewFull)
-        {
-            imagePreviewFull.addEventListener('error', function ()
-            {
-                applyImageFallback(imagePreviewFull, imagePreviewFull.dataset ? imagePreviewFull.dataset.fallbackSrc : '');
-            });
-        }
-
-        document.addEventListener('error', function (event)
-        {
-            var target = event.target;
-            if (!(target instanceof HTMLImageElement) || !target.classList.contains('attachment-thumb'))
-            {
-                return;
-            }
-
-            applyImageFallback(target, target.getAttribute('data-thumb-fallback-src') || '');
-        }, true);
-
         var sessionExpiredModal = document.createElement('div');
         sessionExpiredModal.className = 'session-expired-modal';
         sessionExpiredModal.setAttribute('aria-hidden', 'true');
@@ -192,18 +147,13 @@
             }, 250);
         };
 
-        var openImagePreview = function (previewSrc, previewAlt, fallbackSrc)
+        var openImagePreview = function (previewSrc, previewAlt)
         {
             if (!imagePreviewFull || !previewSrc)
             {
                 return;
             }
 
-            if (imagePreviewFull.dataset)
-            {
-                imagePreviewFull.dataset.fallbackApplied = '0';
-                imagePreviewFull.dataset.fallbackSrc = String(fallbackSrc || '').trim();
-            }
             imagePreviewFull.src = previewSrc;
             imagePreviewFull.alt = previewAlt || '';
             imagePreviewModal.classList.add('is-open');
@@ -217,11 +167,7 @@
             if (trigger)
             {
                 event.preventDefault();
-                openImagePreview(
-                    trigger.getAttribute('data-preview-src') || '',
-                    trigger.getAttribute('data-preview-alt') || '',
-                    trigger.getAttribute('data-preview-fallback-src') || ''
-                );
+                openImagePreview(trigger.getAttribute('data-preview-src') || '', trigger.getAttribute('data-preview-alt') || '');
                 return;
             }
 

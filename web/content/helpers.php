@@ -126,6 +126,32 @@ function isImageAttachment(array $attachment): bool
     return in_array($extension, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], true);
 }
 
+function buildAttachmentDirectUrl(array $attachment): string
+{
+    $ticketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
+    $storedName = trim((string) ($attachment['stored_name'] ?? ''));
+
+    if ($ticketId > 0 && $storedName !== '') {
+        return 'data/ticket_uploads/' . rawurlencode((string) $ticketId) . '/' . rawurlencode($storedName);
+    }
+
+    $storedPath = trim((string) ($attachment['stored_path'] ?? ''));
+    if ($storedPath !== '') {
+        $normalizedStoredPath = str_replace('\\', '/', $storedPath);
+        $marker = '/data/ticket_uploads/';
+        $markerPosition = strpos($normalizedStoredPath, $marker);
+        if ($markerPosition !== false) {
+            $relativePath = substr($normalizedStoredPath, $markerPosition + 1);
+            $segments = array_values(array_filter(explode('/', (string) $relativePath), static fn(string $segment): bool => $segment !== ''));
+            if ($segments !== []) {
+                return implode('/', array_map('rawurlencode', $segments));
+            }
+        }
+    }
+
+    return '';
+}
+
 function renderTicketMessageHtml(array $message, string $currentPage): string
 {
     ob_start();
@@ -149,27 +175,23 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
             <ul class="attachment-list">
                 <?php foreach ($message['attachments'] as $attachmentIndex => $attachment): ?>
                     <?php
-                    $attachmentId = (int) ($attachment['id'] ?? 0);
-                    $downloadUrl = $currentPage . '?download=' . $attachmentId;
+                    $downloadUrl = buildAttachmentDirectUrl($attachment);
                     $isImageAttachment = isImageAttachment($attachment);
-                    $previewUrl = $downloadUrl . '&preview=1';
                     $thumbLoading = $attachmentIndex < 3 ? 'eager' : 'lazy';
                     $thumbFetchPriority = $attachmentIndex < 3 ? 'high' : 'auto';
                     ?>
                     <li class="attachment-item">
-                        <?php if ($isImageAttachment): ?>
+                        <?php if ($isImageAttachment && $downloadUrl !== ''): ?>
                             <button type="button" class="attachment-thumb-button" data-image-preview-trigger
-                                data-preview-src="<?= h($previewUrl) ?>"
-                                data-preview-fallback-src="<?= h($downloadUrl) ?>"
+                                data-preview-src="<?= h($downloadUrl) ?>"
                                 data-preview-alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
                                 aria-label="<?= h(__('ticket.preview_image')) ?>">
-                                <img class="attachment-thumb" src="<?= h($previewUrl) ?>"
-                                    data-thumb-fallback-src="<?= h($downloadUrl) ?>"
+                                <img class="attachment-thumb" src="<?= h($downloadUrl) ?>"
                                     alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="<?= h($thumbLoading) ?>"
                                     fetchpriority="<?= h($thumbFetchPriority) ?>" decoding="async">
                             </button>
                         <?php endif; ?>
-                        <a href="<?= h($downloadUrl) ?>" class="attachment-download-link">
+                        <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link" <?= $downloadUrl !== '' ? '' : 'aria-disabled="true"' ?>>
                             <?= h((string) ($attachment['original_name'] ?? '')) ?>
                         </a>
                         <span
