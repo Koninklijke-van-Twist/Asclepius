@@ -20,7 +20,17 @@ function normalizeReturnPage(?string $page): string
 
 function normalizeIctUsersConfig(array &$ictUsers, array &$ictUserColors = []): void
 {
-    $ictUserColors = [];
+    $normalizedColors = [];
+    foreach ($ictUserColors as $email => $color) {
+        $normalizedEmail = strtolower(trim((string) $email));
+        if ($normalizedEmail === '') {
+            continue;
+        }
+
+        $normalizedColors[$normalizedEmail] = trim((string) $color);
+    }
+
+    $ictUserColors = $normalizedColors;
     $isAssociativeIctUsers = array_keys($ictUsers) !== range(0, count($ictUsers) - 1);
 
     if ($isAssociativeIctUsers) {
