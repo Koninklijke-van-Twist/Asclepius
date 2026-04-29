@@ -167,6 +167,7 @@ const TRANSLATIONS = [
         // Categorieweergavelabels (DB-sleutel → vertaalde weergave)
         'category.hardware_bestellen' => 'hardware bestellen',
         'category.software_bestellen' => 'software bestellen',
+        'category.licentie_aanvragen' => 'licentie aanvragen',
         'category.business_central' => 'Business Central',
         'category.hardwareproblemen' => 'Hardwareproblemen',
         'category.softwareproblemen' => 'Softwareproblemen',
@@ -379,6 +380,7 @@ const TRANSLATIONS = [
         // Category display labels
         'category.hardware_bestellen' => 'order hardware',
         'category.software_bestellen' => 'order software',
+        'category.licentie_aanvragen' => 'request license',
         'category.business_central' => 'Business Central',
         'category.hardwareproblemen' => 'hardware problems',
         'category.softwareproblemen' => 'software problems',
@@ -591,6 +593,7 @@ const TRANSLATIONS = [
         // Kategorieanzeigebezeichnungen
         'category.hardware_bestellen' => 'Hardware bestellen',
         'category.software_bestellen' => 'Software bestellen',
+        'category.licentie_aanvragen' => 'Lizenz anfordern',
         'category.business_central' => 'Business Central',
         'category.hardwareproblemen' => 'Hardwareprobleme',
         'category.softwareproblemen' => 'Softwareprobleme',
@@ -803,6 +806,7 @@ const TRANSLATIONS = [
         // Libellés d'affichage des catégories
         'category.hardware_bestellen' => 'commander du matériel',
         'category.software_bestellen' => 'commander un logiciel',
+        'category.licentie_aanvragen' => 'demander une licence',
         'category.business_central' => 'Business Central',
         'category.hardwareproblemen' => 'problèmes matériels',
         'category.softwareproblemen' => 'problèmes logiciels',

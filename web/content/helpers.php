@@ -632,6 +632,7 @@ function translateCategory(string $dbCategory): string
     $map = [
         'hardware bestellen' => 'category.hardware_bestellen',
         'software bestellen' => 'category.software_bestellen',
+        'licentie aanvragen' => 'category.licentie_aanvragen',
         'Business Central' => 'category.business_central',
         'Hardwareproblemen' => 'category.hardwareproblemen',
         'Softwareproblemen' => 'category.softwareproblemen',

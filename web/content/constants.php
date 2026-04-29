@@ -7,6 +7,7 @@ const LONG_OPEN_NOTIFICATION_FALLBACK_DAYS = 7;
 const TICKET_CATEGORIES = [
     'hardware bestellen',
     'software bestellen',
+    'licentie aanvragen',
     'Business Central',
     'Hardwareproblemen',
     'Softwareproblemen',
@@ -85,9 +86,10 @@ if (!defined('WEB_PUSH_SUBJECT')) {
 const CATEGORY_COLORS = [
     'hardware bestellen' => '#0f766e',
     'software bestellen' => '#1d4ed8',
+    'licentie aanvragen' => '#2ba512',
     'Business Central' => '#7c3aed',
     'Hardwareproblemen' => '#dc2626',
-    'Softwareproblemen' => '#ea580c',
-    'sleutels.kvt.nl web-applicatieproblemen' => '#0891b2',
+    'Softwareproblemen' => '#eaa40c',
+    'sleutels.kvt.nl web-applicatieproblemen' => '#b2087f',
     'Anders' => '#475569',
 ];
