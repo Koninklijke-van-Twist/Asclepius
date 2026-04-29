@@ -160,9 +160,11 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                         <?php if ($isImageAttachment): ?>
                             <button type="button" class="attachment-thumb-button" data-image-preview-trigger
                                 data-preview-src="<?= h($previewUrl) ?>"
+                                data-preview-fallback-src="<?= h($downloadUrl) ?>"
                                 data-preview-alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
                                 aria-label="<?= h(__('ticket.preview_image')) ?>">
                                 <img class="attachment-thumb" src="<?= h($previewUrl) ?>"
+                                    data-thumb-fallback-src="<?= h($downloadUrl) ?>"
                                     alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="<?= h($thumbLoading) ?>"
                                     fetchpriority="<?= h($thumbFetchPriority) ?>" decoding="async">
                             </button>
