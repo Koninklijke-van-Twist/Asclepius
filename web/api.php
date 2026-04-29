@@ -8,6 +8,11 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . '
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'localization.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'helpers.php';
 
+if (!isset($ictUserColors) || !is_array($ictUserColors)) {
+    $ictUserColors = [];
+}
+normalizeIctUsersConfig($ictUsers, $ictUserColors);
+
 /**
  * Functions
  */

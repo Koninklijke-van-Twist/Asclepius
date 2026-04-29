@@ -11,6 +11,33 @@ ob_start();
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'TicketStore.php';
 
+// Houd auth.php configuratief: normaliseer ict-gebruikers vroeg voor logincheck.
+if (!isset($ictUserColors) || !is_array($ictUserColors)) {
+    $ictUserColors = [];
+}
+if (isset($ictUsers) && is_array($ictUsers)) {
+    $isAssociativeIctUsers = array_keys($ictUsers) !== range(0, count($ictUsers) - 1);
+    if ($isAssociativeIctUsers) {
+        $normalizedIctUsers = [];
+        foreach ($ictUsers as $email => $color) {
+            $normalizedEmail = strtolower(trim((string) $email));
+            if ($normalizedEmail === '') {
+                continue;
+            }
+
+            $normalizedIctUsers[] = $normalizedEmail;
+            $ictUserColors[$normalizedEmail] = trim((string) $color);
+        }
+
+        $ictUsers = array_values(array_unique($normalizedIctUsers));
+    } else {
+        $ictUsers = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $value): string => strtolower(trim((string) $value)),
+            $ictUsers
+        ), static fn(string $email): bool => $email !== '')));
+    }
+}
+
 // Korte read-only peek in de sessie om te controleren of async-bypass van toepassing is.
 // read_and_close voorkomt dat lib.php later een "session already active" notice krijgt.
 $_bigscreenRequest = isset($_GET['bigscreen']) && (string) $_GET['bigscreen'] === 'true';

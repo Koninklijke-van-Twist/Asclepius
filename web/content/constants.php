@@ -47,9 +47,9 @@ if (!defined('WEB_PUSH_VAPID_PUBLIC_KEY')) {
     define('WEB_PUSH_VAPID_PUBLIC_KEY', (string) (
         $configuredWebPushPublicKey
         ?: (
-        $_ENV['ASCLEPIUS_WEB_PUSH_VAPID_PUBLIC_KEY']
-        ?? $_SERVER['ASCLEPIUS_WEB_PUSH_VAPID_PUBLIC_KEY']
-        ?? ''
+            $_ENV['ASCLEPIUS_WEB_PUSH_VAPID_PUBLIC_KEY']
+            ?? $_SERVER['ASCLEPIUS_WEB_PUSH_VAPID_PUBLIC_KEY']
+            ?? ''
         )
     ));
 }
@@ -62,9 +62,9 @@ if (!defined('WEB_PUSH_VAPID_PRIVATE_PEM')) {
     define('WEB_PUSH_VAPID_PRIVATE_PEM', (string) (
         $configuredWebPushPrivatePem
         ?: (
-        $_ENV['ASCLEPIUS_WEB_PUSH_VAPID_PRIVATE_PEM']
-        ?? $_SERVER['ASCLEPIUS_WEB_PUSH_VAPID_PRIVATE_PEM']
-        ?? ''
+            $_ENV['ASCLEPIUS_WEB_PUSH_VAPID_PRIVATE_PEM']
+            ?? $_SERVER['ASCLEPIUS_WEB_PUSH_VAPID_PRIVATE_PEM']
+            ?? ''
         )
     ));
 }
@@ -77,9 +77,9 @@ if (!defined('WEB_PUSH_SUBJECT')) {
     define('WEB_PUSH_SUBJECT', (string) (
         $configuredWebPushSubject
         ?: (
-        $_ENV['ASCLEPIUS_WEB_PUSH_SUBJECT']
-        ?? $_SERVER['ASCLEPIUS_WEB_PUSH_SUBJECT']
-        ?? 'mailto:ict@kvt.nl'
+            $_ENV['ASCLEPIUS_WEB_PUSH_SUBJECT']
+            ?? $_SERVER['ASCLEPIUS_WEB_PUSH_SUBJECT']
+            ?? 'mailto:ict@kvt.nl'
         )
     ));
 }

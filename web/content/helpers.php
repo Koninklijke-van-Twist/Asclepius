@@ -18,6 +18,31 @@ function normalizeReturnPage(?string $page): string
     return basename((string) $page) === 'admin.php' ? 'admin.php' : 'index.php';
 }
 
+function normalizeIctUsersConfig(array &$ictUsers, array &$ictUserColors = []): void
+{
+    $ictUserColors = [];
+    $isAssociativeIctUsers = array_keys($ictUsers) !== range(0, count($ictUsers) - 1);
+
+    if ($isAssociativeIctUsers) {
+        foreach ($ictUsers as $email => $color) {
+            $normalizedEmail = strtolower(trim((string) $email));
+            if ($normalizedEmail === '') {
+                continue;
+            }
+
+            $ictUserColors[$normalizedEmail] = trim((string) $color);
+        }
+
+        $ictUsers = array_keys($ictUserColors);
+        return;
+    }
+
+    $ictUsers = array_values(array_filter(array_map(
+        static fn(mixed $value): string => strtolower(trim((string) $value)),
+        $ictUsers
+    ), static fn(string $email): bool => $email !== ''));
+}
+
 function buildNavigationQuery(array $statusFilters, array $categoryFilters, string $assignedFilter, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, bool $categoryFilterRequestActive = false, int $openTicketId = 0): array
 {
     $query = [];
@@ -138,15 +163,16 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                                 data-preview-alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
                                 aria-label="<?= h(__('ticket.preview_image')) ?>">
                                 <img class="attachment-thumb" src="<?= h($previewUrl) ?>"
-                                    alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
-                                    loading="<?= h($thumbLoading) ?>"
+                                    alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="<?= h($thumbLoading) ?>"
                                     fetchpriority="<?= h($thumbFetchPriority) ?>" decoding="async">
                             </button>
                         <?php endif; ?>
                         <a href="<?= h($downloadUrl) ?>" class="attachment-download-link">
                             <?= h((string) ($attachment['original_name'] ?? '')) ?>
                         </a>
-                        <span class="attachment-size">(<?= number_format(((int) ($attachment['file_size'] ?? 0)) / 1024 / 1024, 2, ',', '.') ?> MB)</span>
+                        <span
+                            class="attachment-size">(<?= number_format(((int) ($attachment['file_size'] ?? 0)) / 1024 / 1024, 2, ',', '.') ?>
+                            MB)</span>
                     </li>
                 <?php endforeach; ?>
             </ul>
@@ -239,11 +265,14 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         <span class="meta-label"><?= h(__('ticket.meta_priority')) ?></span>
                         <select name="priority" form="<?= h($replyFormId) ?>" data-role="priority-select">
                             <option value="0" <?= (int) ($ticket['priority'] ?? 0) === 0 ? 'selected' : '' ?>>
-                                <?= h(__('ticket.priority_0')) ?></option>
+                                <?= h(__('ticket.priority_0')) ?>
+                            </option>
                             <option value="1" <?= (int) ($ticket['priority'] ?? 0) === 1 ? 'selected' : '' ?>>
-                                <?= h(__('ticket.priority_1')) ?></option>
+                                <?= h(__('ticket.priority_1')) ?>
+                            </option>
                             <option value="2" <?= (int) ($ticket['priority'] ?? 0) === 2 ? 'selected' : '' ?>>
-                                <?= h(__('ticket.priority_2')) ?></option>
+                                <?= h(__('ticket.priority_2')) ?>
+                            </option>
                         </select>
                     </div>
                 <?php endif; ?>
@@ -645,7 +674,96 @@ function translateCategory(string $dbCategory): string
 
 function emailToHexColor(string $email): string
 {
-    return '#' . substr(md5(strtolower(trim($email))), 0, 6);
+    $normalizedEmail = strtolower(trim($email));
+    if ($normalizedEmail === '') {
+        return '#64748b';
+    }
+
+    $configuredColor = getConfiguredIctUserColor($normalizedEmail);
+    if ($configuredColor !== null) {
+        return $configuredColor;
+    }
+
+    $hash = hash('sha256', $normalizedEmail);
+    $hueSeed = hexdec(substr($hash, 0, 2));
+    $saturationSeed = hexdec(substr($hash, 2, 2));
+    $lightnessSeed = hexdec(substr($hash, 4, 2));
+
+    $hue = (int) (($hueSeed * 137) % 360);
+    $hue = (int) ((round($hue / 15) * 15) % 360);
+    $saturation = 68 + ($saturationSeed % 18);
+    $lightness = 42 + ($lightnessSeed % 12);
+
+    return hslToHex($hue, $saturation, $lightness);
+}
+
+function getConfiguredIctUserColor(string $normalizedEmail): ?string
+{
+    if (!isset($GLOBALS['ictUserColors']) || !is_array($GLOBALS['ictUserColors'])) {
+        return null;
+    }
+
+    $rawColor = trim((string) ($GLOBALS['ictUserColors'][$normalizedEmail] ?? ''));
+    if ($rawColor === '') {
+        return null;
+    }
+
+    if (preg_match('/^#[0-9a-fA-F]{6}$/', $rawColor) === 1) {
+        return strtolower($rawColor);
+    }
+
+    if (preg_match('/^#[0-9a-fA-F]{3}$/', $rawColor) === 1) {
+        $expanded = strtolower($rawColor);
+        return '#' . $expanded[1] . $expanded[1] . $expanded[2] . $expanded[2] . $expanded[3] . $expanded[3];
+    }
+
+    return null;
+}
+
+function hslToHex(int $hue, int $saturation, int $lightness): string
+{
+    $h = (($hue % 360) + 360) % 360;
+    $s = max(0, min(100, $saturation)) / 100;
+    $l = max(0, min(100, $lightness)) / 100;
+
+    if ($s == 0.0) {
+        $gray = (int) round($l * 255);
+        return sprintf('#%02x%02x%02x', $gray, $gray, $gray);
+    }
+
+    $chroma = (1 - abs((2 * $l) - 1)) * $s;
+    $x = $chroma * (1 - abs(fmod($h / 60, 2) - 1));
+    $match = $l - ($chroma / 2);
+
+    $r1 = 0.0;
+    $g1 = 0.0;
+    $b1 = 0.0;
+
+    if ($h < 60) {
+        $r1 = $chroma;
+        $g1 = $x;
+    } elseif ($h < 120) {
+        $r1 = $x;
+        $g1 = $chroma;
+    } elseif ($h < 180) {
+        $g1 = $chroma;
+        $b1 = $x;
+    } elseif ($h < 240) {
+        $g1 = $x;
+        $b1 = $chroma;
+    } elseif ($h < 300) {
+        $r1 = $x;
+        $b1 = $chroma;
+    } else {
+        $r1 = $chroma;
+        $b1 = $x;
+    }
+
+    $r = (int) round(($r1 + $match) * 255);
+    $g = (int) round(($g1 + $match) * 255);
+    $b = (int) round(($b1 + $match) * 255);
+
+    return sprintf('#%02x%02x%02x', $r, $g, $b);
 }
 
 function buildStatusChangeNote(string $status, string $changedByEmail): string

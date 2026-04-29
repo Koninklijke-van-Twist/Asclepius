@@ -16,6 +16,11 @@ function buildRotatingApiClientKey(string $oid): string
     return hash('sha256', $normalizedOid . '|' . gmdate('d-m-Y'));
 }
 
+if (!isset($ictUserColors) || !is_array($ictUserColors)) {
+    $ictUserColors = [];
+}
+normalizeIctUsersConfig($ictUsers, $ictUserColors);
+
 $currentPage = basename((string) ($_SERVER['PHP_SELF'] ?? 'index.php'));
 $isAdminPortal = ($asclepiusPageMode ?? '') === 'admin' || $currentPage === 'admin.php';
 $localRequester = in_array($_SERVER['REMOTE_ADDR'] ?? '', [$_SERVER['SERVER_ADDR'] ?? '', '127.0.0.1', '::1'], true);
