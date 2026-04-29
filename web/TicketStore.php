@@ -1132,9 +1132,22 @@ class TicketStore
 
     private function pickAssignee(?string $category, ?string $excludeEmail = null): ?string
     {
+        if ($this->ictUsers === []) {
+            return null;
+        }
+
         $excludeEmail = strtolower(trim((string) $excludeEmail));
         $excludeSettingsClause = $excludeEmail !== '' ? ' AND lower(settings.user_email) <> :exclude_email' : '';
         $excludeAvailabilityClause = $excludeEmail !== '' ? ' AND lower(availability.user_email) <> :exclude_email' : '';
+        $allowedUserPlaceholders = [];
+        $allowedUserParameters = [];
+        foreach ($this->ictUsers as $index => $ictUser) {
+            $placeholder = ':ict_user_' . $index;
+            $allowedUserPlaceholders[] = $placeholder;
+            $allowedUserParameters[$placeholder] = $ictUser;
+        }
+
+        $allowedUsersInClause = implode(', ', $allowedUserPlaceholders);
 
         if ($category !== null && trim($category) !== '') {
             $parameters = [':category' => $category];
@@ -1154,12 +1167,13 @@ class TicketStore
                    AND tickets.status <> 'afgehandeld'
                  WHERE settings.category = :category
                    AND settings.is_enabled = 1
+                                     AND lower(settings.user_email) IN ($allowedUsersInClause)
                    $excludeSettingsClause
                  GROUP BY settings.user_email
                  ORDER BY open_count ASC, settings.user_email ASC
                  LIMIT 1"
             );
-            $statement->execute($parameters);
+                        $statement->execute(array_merge($parameters, $allowedUserParameters));
 
             $row = $statement->fetch(PDO::FETCH_ASSOC);
             if ($row !== false) {
@@ -1180,12 +1194,13 @@ class TicketStore
                 ON tickets.assigned_email = availability.user_email
                AND tickets.status <> 'afgehandeld'
              WHERE availability.is_available = 1
+                             AND lower(availability.user_email) IN ($allowedUsersInClause)
                $excludeAvailabilityClause
              GROUP BY availability.user_email
              ORDER BY open_count ASC, availability.user_email ASC
              LIMIT 1"
         );
-        $statement->execute($parameters);
+                $statement->execute(array_merge($parameters, $allowedUserParameters));
 
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 
