@@ -215,7 +215,7 @@ function routeNotificationRecipients(?TicketStore $store, array $ictUsers, array
 {
     $resolvedRecipients = [];
     $notes = [];
-    $ictLookup = array_fill_keys(array_map('strtolower', $ictUsers), true);
+    $ictLookup = array_fill_keys(extractIctUserEmails($ictUsers), true);
     $availabilityByUser = $store instanceof TicketStore ? $store->getIctUserAvailability() : [];
 
     foreach ($recipients as $recipient) {
@@ -571,7 +571,7 @@ function sendWebPushNotifications(
         return;
     }
 
-    $ictLookup = array_fill_keys(array_map('strtolower', $ictUsers), true);
+    $ictLookup = array_fill_keys(extractIctUserEmails($ictUsers), true);
     $invalidEndpoints = [];
 
     foreach ($subscriptions as $subscription) {

@@ -203,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $currentAssignee = strtolower((string) ($ticket['assigned_email'] ?? ''));
                 $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
                 $availabilityByUser = $store->getIctUserAvailability();
-                if ($requestedAssignee !== '' && !in_array($requestedAssignee, array_map('strtolower', $ictUsers), true)) {
+                if ($requestedAssignee !== '' && !in_array($requestedAssignee, extractIctUserEmails($ictUsers), true)) {
                     $errors[] = __('flash.invalid_employee');
                 } elseif ($requestedAssignee !== '' && $requestedAssignee === $requesterEmail) {
                     $errors[] = __('flash.self_assignment_not_allowed');

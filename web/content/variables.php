@@ -38,7 +38,7 @@ if (!isset($_SESSION['user']['email']) || trim((string) $_SESSION['user']['email
 }
 
 if (!isset($_SESSION['user']['admin'])) {
-    $_SESSION['user']['admin'] = in_array(strtolower((string) $_SESSION['user']['email']), array_map('strtolower', $ictUsers), true);
+    $_SESSION['user']['admin'] = in_array(strtolower((string) $_SESSION['user']['email']), extractIctUserEmails($ictUsers), true);
 }
 
 $userEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? 'developer@kvt.nl')));
@@ -163,7 +163,7 @@ $effectiveCategoryFilters = $categoryFilterRequestActive && $categoryFilters ===
 $assignedFilter = $canManageTickets
     ? trim((string) (array_key_exists('assigned', $_GET) ? $_GET['assigned'] : $savedOverviewFilters['assigned_filter']))
     : '';
-$validAssignedFilters = array_merge(['', '__unassigned__'], array_map('strtolower', $ictUsers));
+$validAssignedFilters = array_merge(['', '__unassigned__'], extractIctUserEmails($ictUsers));
 if (!in_array($assignedFilter, $validAssignedFilters, true)) {
     $assignedFilter = '';
 }

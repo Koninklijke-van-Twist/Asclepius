@@ -18,6 +18,11 @@ function normalizeReturnPage(?string $page): string
     return basename((string) $page) === 'admin.php' ? 'admin.php' : 'index.php';
 }
 
+/**
+ * Ensures $ictUsers is a flat array with emails.
+ * Handles both flat arrays (emails) and associative arrays (email => color).
+ * Ensures $ictUserColors is a normalized associative array (email => color).
+ */
 function normalizeIctUsersConfig(array &$ictUsers, array &$ictUserColors = []): void
 {
     $normalizedColors = [];
@@ -51,6 +56,17 @@ function normalizeIctUsersConfig(array &$ictUsers, array &$ictUserColors = []): 
         static fn(mixed $value): string => strtolower(trim((string) $value)),
         $ictUsers
     ), static fn(string $email): bool => $email !== ''));
+}
+
+/**
+ * Helper: Extract email addresses from $ictUsers regardless of whether it's flat or associative.
+ * Returns a normalized lowercase array of email addresses.
+ */
+function extractIctUserEmails(array $ictUsers): array
+{
+    $isAssociative = array_keys($ictUsers) !== range(0, count($ictUsers) - 1);
+    $emails = $isAssociative ? array_keys($ictUsers) : array_values($ictUsers);
+    return array_map('strtolower', $emails);
 }
 
 function buildNavigationQuery(array $statusFilters, array $categoryFilters, string $assignedFilter, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, bool $categoryFilterRequestActive = false, int $openTicketId = 0): array
@@ -235,7 +251,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $assignedLabel = $assignedEmail !== '' ? $assignedEmail : __('ticket.unassigned');
     $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
     $assignableIctUsers = array_values(array_filter(
-        array_map('strtolower', $ictUsers),
+        extractIctUserEmails($ictUsers),
         static fn(string $ictUser): bool => $ictUser !== '' && $ictUser !== $requesterEmail
     ));
 

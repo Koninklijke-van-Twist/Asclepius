@@ -20,7 +20,13 @@ class TicketStore
     {
         $this->databasePath = $databasePath;
         $this->uploadRoot = $uploadRoot;
-        $this->ictUsers = array_values(array_unique(array_map('strtolower', $ictUsers)));
+        
+        // Normalize $ictUsers: if it's an associative array (email => color),
+        // extract keys; if it's already flat, use values.
+        $isAssociative = array_keys($ictUsers) !== range(0, count($ictUsers) - 1);
+        $normalizedIctUsers = $isAssociative ? array_keys($ictUsers) : array_values($ictUsers);
+        $this->ictUsers = array_values(array_unique(array_map('strtolower', $normalizedIctUsers)));
+        
         $this->categories = array_values($categories);
 
         $this->connect();

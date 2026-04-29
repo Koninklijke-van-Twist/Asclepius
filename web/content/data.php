@@ -118,7 +118,7 @@ $settingsMatrix = $store instanceof TicketStore ? $store->getCategorySettings() 
 $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
 $availabilityByIctUser = $store instanceof TicketStore
     ? $store->getIctUserAvailability()
-    : array_fill_keys(array_map('strtolower', $ictUsers), true);
+    : array_fill_keys(extractIctUserEmails($ictUsers), true);
 $overallStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getOverallStats()
     : [
