@@ -205,7 +205,6 @@ echo '<title>' . h((string) ($attachment['original_name'] ?? 'Preview')) . '</ti
         padding: 4px 6px;
     }
 
-    body.thumbnail-mode #pdf-viewer,
     body.thumbnail-mode #word-viewer,
     body.thumbnail-mode #excel-viewer,
     body.thumbnail-mode #video-viewer {
@@ -284,9 +283,23 @@ echo '<title>' . h((string) ($attachment['original_name'] ?? 'Preview')) . '</ti
 
     #pdf-viewer {
         width: 100%;
-        height: 600px;
+        height: calc(100vh - 120px);
+        min-height: 400px;
+        border: none;
+        display: block;
+    }
+
+    #pdf-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 100px;
+        background: #f4f4f4;
         border: 1px solid #e0e0e0;
         border-radius: 4px;
+        color: #888;
+        font-size: 12px;
     }
 
     #excel-viewer {
@@ -331,10 +344,7 @@ if (in_array($format, ['javascript', 'python', 'ruby', 'go', 'rust', 'c', 'cpp',
     echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">' . PHP_EOL;
 }
 
-// PDF viewer
-if ($format === 'pdf') {
-    echo '<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.js"></script>' . PHP_EOL;
-}
+// PDF: native iframe — no external libraries needed
 
 // Excel viewer
 if ($format === 'excel') {
@@ -438,22 +448,16 @@ if (!in_array($format, ['pdf', 'excel', 'word', 'video'], true) && $fileContent 
             break;
 
         case 'pdf':
-            echo '<div id="pdf-viewer"></div>' . PHP_EOL;
-            echo '<script>' . PHP_EOL;
-            echo 'pdfjsLib.getDocument(' . json_encode($downloadUrl) . ').promise.then(pdf => {' . PHP_EOL;
-            echo '  pdf.getPage(1).then(page => {' . PHP_EOL;
-            echo '    const canvas = document.createElement("canvas");' . PHP_EOL;
-            echo '    const context = canvas.getContext("2d");' . PHP_EOL;
-            echo '    const viewport = page.getViewport({ scale: ' . ($isThumbnail ? '0.32' : '1.5') . ' });' . PHP_EOL;
-            echo '    canvas.width = viewport.width;' . PHP_EOL;
-            echo '    canvas.height = viewport.height;' . PHP_EOL;
-            echo '    const renderContext = { canvasContext: context, viewport };' . PHP_EOL;
-            echo '    page.render(renderContext).promise.then(() => {' . PHP_EOL;
-            echo '      document.getElementById("pdf-viewer").appendChild(canvas);' . PHP_EOL;
-            echo '    });' . PHP_EOL;
-            echo '  });' . PHP_EOL;
-            echo '});' . PHP_EOL;
-            echo '</script>' . PHP_EOL;
+            if ($isThumbnail) {
+                echo '<div id="pdf-placeholder">' . PHP_EOL;
+                echo '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' . PHP_EOL;
+                echo '<span>PDF</span>' . PHP_EOL;
+                echo '</div>' . PHP_EOL;
+            } else {
+                echo '<iframe id="pdf-viewer" src="' . h($downloadUrl) . '" title="' . h($originalName) . '">' . PHP_EOL;
+                echo '<p>PDF preview niet beschikbaar. <a href="' . h($downloadUrl) . '">Download het bestand.</a></p>' . PHP_EOL;
+                echo '</iframe>' . PHP_EOL;
+            }
             break;
 
         case 'excel':
