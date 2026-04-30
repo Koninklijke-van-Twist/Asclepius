@@ -682,10 +682,12 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                     <?= h(__('ticket.new_message')) ?>
                     <div class="textarea-wrapper">
                         <textarea name="message" placeholder="<?= h(__('ticket.new_message_placeholder')) ?>"></textarea>
-                        <button type="button" class="key-picker-toggle" title="<?= h(__('ticket.key_picker_tooltip')) ?>" aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <rect x="2" y="6" width="20" height="12" rx="2"/>
-                                <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M10 14h4"/>
+                        <button type="button" class="key-picker-toggle" title="<?= h(__('ticket.key_picker_tooltip')) ?>"
+                            aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="2" y="6" width="20" height="12" rx="2" />
+                                <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M10 14h4" />
                             </svg>
                         </button>
                         <div class="key-picker-popup" hidden aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>"></div>
@@ -1185,7 +1187,7 @@ function getShortcutKeyDefinition(string $keyToken): ?array
     static $rawMap = null;
     if ($aliasMap === null) {
         $aliasMap = [];
-        $rawMap   = [];
+        $rawMap = [];
 
         $register = static function (array $definition) use (&$aliasMap, &$rawMap, $normalizeAlias): void {
             $aliases = is_array($definition['aliases'] ?? null) ? $definition['aliases'] : [];
@@ -1221,17 +1223,17 @@ function getShortcutKeyDefinition(string $keyToken): ?array
             ['label' => 'Insert', 'icon' => null, 'aliases' => ['ins', 'insert']],
             ['label' => 'Home', 'icon' => null, 'aliases' => ['home']],
             ['label' => 'End', 'icon' => null, 'aliases' => ['end']],
-            ['label' => 'Page Up', 'icon' => null, 'aliases' => ['pageup', 'pgup']],
-            ['label' => 'Page Down', 'icon' => null, 'aliases' => ['pagedown', 'pgdn']],
+            ['label' => 'Pg Up', 'icon' => null, 'aliases' => ['pageup', 'pgup']],
+            ['label' => 'Pg Down', 'icon' => null, 'aliases' => ['pagedown', 'pgdn']],
             ['label' => 'PrtSc', 'icon' => null, 'aliases' => ['printscreen', 'prtsc', 'printscr', 'snapshot']],
-            ['label' => 'Scroll Lock', 'icon' => null, 'aliases' => ['scrolllock', 'scrlk']],
+            ['label' => 'Scr Lk', 'icon' => null, 'aliases' => ['scrolllock', 'scrlk']],
             ['label' => 'Pause', 'icon' => null, 'aliases' => ['pause', 'break']],
             ['label' => 'Menu', 'icon' => null, 'aliases' => ['menu', 'contextmenu', 'apps']],
             ['label' => '', 'icon' => 'arrow-up', 'aliases' => ['up', 'arrowup', 'uparrow']],
             ['label' => '', 'icon' => 'arrow-down', 'aliases' => ['down', 'arrowdown', 'downarrow']],
             ['label' => '', 'icon' => 'arrow-left', 'aliases' => ['left', 'arrowleft', 'leftarrow']],
             ['label' => '', 'icon' => 'arrow-right', 'aliases' => ['right', 'arrowright', 'rightarrow']],
-            ['label' => 'Num Lock', 'icon' => null, 'aliases' => ['numlock']],
+            ['label' => 'Num Lk', 'icon' => null, 'aliases' => ['numlock']],
             ['label' => 'Num /', 'icon' => null, 'aliases' => ['numdivide', 'numpaddivide']],
             ['label' => 'Num *', 'icon' => null, 'aliases' => ['nummultiply', 'numpadmultiply']],
             ['label' => 'Num -', 'icon' => null, 'aliases' => ['numminus', 'numpadminus']],
