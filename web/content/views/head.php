@@ -756,6 +756,12 @@
             font-size: 13px;
         }
 
+        .requester-multi {
+            cursor: pointer;
+            text-decoration: underline dotted;
+            text-underline-offset: 2px;
+        }
+
         .status-pill {
             color: #fff;
             background: var(--ticket-color, #2563eb);
@@ -1082,6 +1088,262 @@
             gap: 12px;
         }
 
+        .ticket-users-popover {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 10px 12px;
+        }
+
+        .ticket-users-popover-title {
+            margin: 0 0 6px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .ticket-users-popover-list {
+            margin: 0;
+            padding-left: 18px;
+            display: grid;
+            gap: 3px;
+        }
+
+        .ticket-participants-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 25, 41, 0.64);
+            display: grid;
+            place-items: center;
+            padding: 16px;
+            z-index: 1700;
+        }
+
+        .ticket-participants-modal[hidden] {
+            display: none !important;
+        }
+
+        .ticket-participants-modal-card {
+            width: min(640px, 100%);
+            max-height: min(90vh, 760px);
+            overflow: auto;
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            box-shadow: 0 18px 60px rgba(3, 13, 27, 0.26);
+            padding: 14px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .ticket-participants-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .ticket-participants-modal-head h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .participant-modal-close {
+            border: 0;
+            background: #eef2f7;
+            color: #334155;
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            font-size: 24px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .meta-item .secondary-button[data-role="manage-participants-open"] {
+            width: 100%;
+        }
+
+        .participant-chip-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .participant-chip-form {
+            display: inline-flex;
+            align-items: center;
+            gap: 0;
+            border: 0;
+            padding: 0;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .participant-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            padding: 6px 10px;
+            background: #e8f1fb;
+            color: #0b65c2;
+            font-size: 12px;
+            font-weight: 700;
+            transition: transform 120ms ease, background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+        }
+
+        .participant-chip.is-requester {
+            background: #d1fadf;
+            color: #067647;
+        }
+
+        .participant-chip-label,
+        .participant-chip-remove-text {
+            display: inline-block;
+            min-width: 0;
+            white-space: nowrap;
+        }
+
+        .participant-chip-remove-text {
+            display: none;
+        }
+
+        .participant-chip-form:not(.is-lock-protected):hover .participant-chip,
+        .participant-chip-form:not(.is-lock-protected):focus-visible .participant-chip {
+            transform: translateY(-3px);
+            background: #fee4e2;
+            color: #b42318;
+            box-shadow: 0 6px 14px rgba(180, 35, 24, 0.14);
+        }
+
+        .participant-chip-form:not(.is-lock-protected):hover .participant-chip-label,
+        .participant-chip-form:not(.is-lock-protected):focus-visible .participant-chip-label {
+            display: none;
+        }
+
+        .participant-chip-form:not(.is-lock-protected):hover .participant-chip-remove-text,
+        .participant-chip-form:not(.is-lock-protected):focus-visible .participant-chip-remove-text {
+            display: inline-block;
+        }
+
+        .participant-chip-form.is-lock-protected {
+            cursor: default;
+        }
+
+        .participant-chip-form.is-lock-protected .participant-chip-remove-text {
+            display: none !important;
+        }
+
+        .participant-chip-form.is-pending-remove .participant-chip {
+            background: #fee4e2;
+            color: #b42318;
+            animation: participantPendingShake 0.45s ease-in-out infinite;
+        }
+
+        .participant-chip-form.is-pending-remove .participant-chip-label {
+            display: inline-block;
+        }
+
+        .participant-chip-form.is-pending-remove .participant-chip-remove-text {
+            display: none;
+        }
+
+        .ticket-participants-modal-card.is-save-hover .participant-chip-form.is-pending-remove .participant-chip {
+            animation-duration: 0.2s;
+        }
+
+        @keyframes participantPendingShake {
+            0% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-2px);
+            }
+
+            50% {
+                transform: translateX(2px);
+            }
+
+            75% {
+                transform: translateX(-1px);
+            }
+
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        .participant-add-form {
+            display: grid;
+            gap: 8px;
+        }
+
+        [data-role="manage-participants-feedback"] {
+            min-height: 18px;
+            margin: 0;
+        }
+
+        [data-role="manage-participants-feedback"].is-error {
+            color: var(--danger);
+        }
+
+        [data-role="manage-participants-feedback"].is-success {
+            color: var(--success);
+        }
+
+        .email-chip-field {
+            min-height: 46px;
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 6px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            background: #fff;
+        }
+
+        .email-chip-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 8px;
+        }
+
+        .email-chip-remove {
+            border: 0;
+            border-radius: 999px;
+            width: 18px;
+            height: 18px;
+            background: rgba(37, 99, 235, 0.14);
+            color: #1d4ed8;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .email-chip-input {
+            border: 0 !important;
+            box-shadow: none !important;
+            flex: 1 1 180px;
+            min-width: 140px;
+            padding: 6px;
+            border-radius: 8px;
+        }
+
+        .email-chip-input:focus {
+            outline: none;
+        }
+
         .table-wrap {
             overflow-x: auto;
         }
@@ -1177,6 +1439,5 @@
                 align-items: flex-start;
             }
         }
-
     </style>
 </head>

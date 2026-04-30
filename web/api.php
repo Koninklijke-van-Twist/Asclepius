@@ -7,6 +7,7 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'TicketStore.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'constants.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'localization.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'helpers.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'mail.php';
 
 if (!isset($ictUserColors) || !is_array($ictUserColors)) {
     $ictUserColors = [];
@@ -267,6 +268,184 @@ function handleWebPushSubscriptionApiAction(TicketStore $store, array $payload, 
     return ['success' => true];
 }
 
+function handleManageTicketParticipantsApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    if (!$userIsAdmin && !isTrustedApiRequester()) {
+        return [
+            'success' => false,
+            'error' => __('flash.settings_admin_only'),
+        ];
+    }
+
+    $operation = strtolower(trim((string) ($payload['operation'] ?? '')));
+    $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+    $ticket = $store->getTicket($ticketId, true, $viewerEmail);
+    if ($ticket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+        ];
+    }
+
+    $participantInput = trim((string) ($payload['participant_emails'] ?? ''));
+    $removeParticipantEmailsRaw = $payload['remove_participant_emails'] ?? [];
+
+    if ($operation === 'add') {
+        $removeParticipantEmailsRaw = [];
+    } elseif ($operation === 'remove') {
+        $singleEmail = strtolower(trim((string) ($payload['participant_email'] ?? '')));
+        $removeParticipantEmailsRaw = $singleEmail !== '' ? [$singleEmail] : [];
+        $participantInput = '';
+    } elseif ($operation !== 'apply') {
+        return [
+            'success' => false,
+            'error' => __('flash.unknown_action'),
+        ];
+    }
+
+    $invalidTokens = findInvalidEmailListTokens($participantInput);
+    if ($invalidTokens !== []) {
+        return [
+            'success' => false,
+            'error' => __('flash.invalid_email_list', implode(', ', $invalidTokens)),
+        ];
+    }
+
+    $participantEmailsToAdd = parseEmailListInput($participantInput);
+
+    $removeParticipantEmails = [];
+    if (is_string($removeParticipantEmailsRaw)) {
+        $removeParticipantEmails[] = strtolower(trim($removeParticipantEmailsRaw));
+    } elseif (is_array($removeParticipantEmailsRaw)) {
+        foreach ($removeParticipantEmailsRaw as $emailRaw) {
+            $removeParticipantEmails[] = strtolower(trim((string) $emailRaw));
+        }
+    }
+    $removeParticipantEmails = array_values(array_unique(array_filter(
+        $removeParticipantEmails,
+        static fn(string $email): bool => $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)
+    )));
+
+    if ($participantEmailsToAdd === [] && $removeParticipantEmails === []) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_participant_add_none'),
+        ];
+    }
+
+    $participantsBefore = is_array($ticket['participant_emails'] ?? null) ? $ticket['participant_emails'] : [];
+    $actorEmail = $viewerEmail;
+    if (!filter_var($actorEmail, FILTER_VALIDATE_EMAIL)) {
+        $actorEmail = strtolower(trim((string) ($ticket['assigned_email'] ?? $ticket['user_email'] ?? '')));
+    }
+    if (!filter_var($actorEmail, FILTER_VALIDATE_EMAIL)) {
+        $actorEmail = 'ict@kvt.nl';
+    }
+    $participantsBeforeLookup = array_fill_keys(array_map('strtolower', $participantsBefore), true);
+
+    $addedCount = 0;
+    if ($participantEmailsToAdd !== []) {
+        $addedCount = $store->addTicketParticipants($ticketId, $participantEmailsToAdd, $viewerEmail);
+    }
+
+    $removedCount = 0;
+    foreach ($removeParticipantEmails as $removeEmail) {
+        if ($store->removeTicketParticipant($ticketId, $removeEmail)) {
+            $removedCount++;
+        }
+    }
+
+    $updatedTicket = $store->getTicket($ticketId, true, $viewerEmail);
+    if ($updatedTicket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+        ];
+    }
+
+    $participantsAfter = is_array($updatedTicket['participant_emails'] ?? null) ? $updatedTicket['participant_emails'] : [];
+    if ($participantsAfter === []) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_participant_minimum'),
+        ];
+    }
+
+    $newParticipants = array_values(array_filter(
+        array_map('strtolower', $participantsAfter),
+        static fn(string $email): bool => $email !== '' && !isset($participantsBeforeLookup[$email])
+    ));
+    $participantsAfterLookup = array_fill_keys(array_map('strtolower', $participantsAfter), true);
+    $removedParticipants = array_values(array_filter(
+        array_map('strtolower', $participantsBefore),
+        static fn(string $email): bool => $email !== '' && !isset($participantsAfterLookup[$email])
+    ));
+
+    $participantChangeNotifiedViaUpdate = false;
+    $participantChangeNote = buildParticipantChangeNote($newParticipants, $removedParticipants);
+    if ($participantChangeNote !== '') {
+        $store->addMessage($ticketId, $actorEmail, 'admin', $participantChangeNote);
+        $updatedTicket = $store->getTicket($ticketId, true, $actorEmail) ?? $updatedTicket;
+        $participantsAfter = is_array($updatedTicket['participant_emails'] ?? null) ? $updatedTicket['participant_emails'] : $participantsAfter;
+
+        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
+            ? $updatedTicket['participant_emails']
+            : [(string) ($updatedTicket['user_email'] ?? '')];
+        $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
+        sendTicketNotification(
+            $store,
+            $GLOBALS['ictUsers'] ?? [],
+            $requesterRecipients,
+            __mail('email.subject_update', $reqLang, $ticketId),
+            buildNotificationBody($updatedTicket, 'email.intro_update', $participantChangeNote, false, $reqLang, __mail('email.intro_update_no_status', $reqLang)),
+            $actorEmail,
+            (string) ($updatedTicket['category'] ?? ''),
+            $ticketId,
+            $actorEmail
+        );
+        $participantChangeNotifiedViaUpdate = true;
+    }
+
+    foreach ($newParticipants as $newParticipantEmail) {
+        if ($participantChangeNotifiedViaUpdate) {
+            continue;
+        }
+
+        $participantLang = getUserMailLang($newParticipantEmail);
+        sendTicketNotification(
+            $store,
+            $GLOBALS['ictUsers'] ?? [],
+            [$newParticipantEmail],
+            __mail('email.subject_participant_added', $participantLang, $ticketId),
+            buildNotificationBody($updatedTicket, 'email.intro_participant_added', '', false, $participantLang),
+            $actorEmail,
+            (string) ($updatedTicket['category'] ?? ''),
+            $ticketId,
+            $actorEmail
+        );
+    }
+
+    if ($addedCount <= 0 && $removedCount <= 0) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_participant_add_none'),
+        ];
+    }
+
+    $requesterSummary = buildRequesterSummary($participantsAfter, (string) ($updatedTicket['user_email'] ?? ''));
+    return [
+        'success' => true,
+        'message' => __('flash.ticket_participants_saved'),
+        'participant_emails' => array_values($participantsAfter),
+        'requester_label' => (string) ($requesterSummary['label'] ?? ''),
+        'requester_tooltip' => (string) ($requesterSummary['tooltip'] ?? ''),
+        'requester_extra_count' => (int) ($requesterSummary['extra_count'] ?? 0),
+        'creator_email' => strtolower(trim((string) ($updatedTicket['user_email'] ?? ''))),
+    ];
+}
+
 function buildBigscreenPollApiPayload(TicketStore $store): array
 {
     $allTicketsForPoll = $store->getTickets(true, '');
@@ -441,6 +620,10 @@ if ($method === 'POST') {
         sendJson(200, handleWebPushSubscriptionApiAction($store, $payload, $apiClient));
     }
 
+    if ($action === 'manage_ticket_participants') {
+        sendJson(200, handleManageTicketParticipantsApiAction($store, $payload, $apiClient));
+    }
+
     if ($action === 'bigscreen_poll') {
         if (!($apiClient['is_admin'] ?? false) && !isTrustedApiRequester()) {
             sendJson(403, [
@@ -466,6 +649,14 @@ if ($method === 'POST') {
     $description = trim((string) ($payload['description'] ?? ''));
     $userEmail = strtolower(trim((string) ($payload['user_email'] ?? '')));
     $priority = max(0, min(2, (int) ($payload['priority'] ?? 0)));
+    $participantEmailsRaw = $payload['participant_emails'] ?? [];
+    $participantEmails = [];
+
+    if (is_string($participantEmailsRaw)) {
+        $participantEmails = parseEmailListInput($participantEmailsRaw);
+    } elseif (is_array($participantEmailsRaw)) {
+        $participantEmails = parseEmailListInput(implode(',', array_map(static fn($value): string => (string) $value, $participantEmailsRaw)));
+    }
 
     if ($userEmail === '') {
         $userEmail = strtolower(trim((string) ($payload['requester_email'] ?? '')));
@@ -493,7 +684,7 @@ if ($method === 'POST') {
     }
 
     try {
-        $result = $store->createTicket($title, $category, $userEmail, $description, [], $priority);
+        $result = $store->createTicket($title, $category, $userEmail, $description, [], $priority, $participantEmails);
         $ticketId = (int) ($result['ticket_id'] ?? 0);
         $ticket = $store->getTicket($ticketId, true, '');
 

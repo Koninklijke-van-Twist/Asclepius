@@ -69,6 +69,71 @@ function extractIctUserEmails(array $ictUsers): array
     return array_map('strtolower', $emails);
 }
 
+function parseEmailListInput(string $input): array
+{
+    $parts = preg_split('/[,;\n\r]+/', $input) ?: [];
+    $emails = [];
+
+    foreach ($parts as $part) {
+        $email = strtolower(trim((string) $part));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            continue;
+        }
+
+        $emails[$email] = $email;
+    }
+
+    return array_values($emails);
+}
+
+function findInvalidEmailListTokens(string $input): array
+{
+    $parts = preg_split('/[,;\n\r]+/', $input) ?: [];
+    $invalid = [];
+
+    foreach ($parts as $part) {
+        $token = trim((string) $part);
+        if ($token === '') {
+            continue;
+        }
+
+        if (!filter_var($token, FILTER_VALIDATE_EMAIL)) {
+            $invalid[] = $token;
+        }
+    }
+
+    return array_values(array_unique($invalid));
+}
+
+function buildRequesterSummary(array $participantEmails, string $fallbackEmail): array
+{
+    $normalizedParticipants = [];
+    foreach ($participantEmails as $participantEmail) {
+        $email = strtolower(trim((string) $participantEmail));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            continue;
+        }
+        $normalizedParticipants[$email] = $email;
+    }
+
+    $fallbackEmail = strtolower(trim($fallbackEmail));
+    $participants = array_values($normalizedParticipants);
+    if ($participants === []) {
+        $participants = [$fallbackEmail !== '' ? $fallbackEmail : ''];
+    }
+
+    $firstEmail = (string) ($participants[0] ?? '');
+    $extraCount = max(0, count($participants) - 1);
+    $label = $firstEmail . ($extraCount > 0 ? ' +' . $extraCount : '');
+
+    return [
+        'label' => $label,
+        'tooltip' => implode("\n", array_filter($participants, static fn(string $email): bool => $email !== '')),
+        'participants' => $participants,
+        'extra_count' => $extraCount,
+    ];
+}
+
 function buildNavigationQuery(array $statusFilters, array $categoryFilters, string $assignedFilter, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, bool $categoryFilterRequestActive = false, int $openTicketId = 0): array
 {
     $query = [];
@@ -164,20 +229,59 @@ function canPreviewFile(array $attachment): bool
     if ($mimeType !== '' && str_starts_with($mimeType, 'video/')) {
         return true;
     }
-    
+
     $previewableExtensions = [
         // Text & markup
-        'txt', 'md', 'markdown', 'mdown', 'mkd', 'rst',
+        'txt',
+        'md',
+        'markdown',
+        'mdown',
+        'mkd',
+        'rst',
         // Code
-        'js', 'json', 'php', 'py', 'rb', 'go', 'rs', 'c', 'cpp', 'h', 'cs', 'java', 'sql', 'html', 'css', 'xml', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'sh', 'bash',
+        'js',
+        'json',
+        'php',
+        'py',
+        'rb',
+        'go',
+        'rs',
+        'c',
+        'cpp',
+        'h',
+        'cs',
+        'java',
+        'sql',
+        'html',
+        'css',
+        'xml',
+        'yaml',
+        'yml',
+        'toml',
+        'ini',
+        'cfg',
+        'conf',
+        'sh',
+        'bash',
         // Data
-        'csv', 'tsv',
+        'csv',
+        'tsv',
         // Documents
-        'pdf', 'xlsx', 'xls', 'docx', 'doc', 'odt', 'rtf',
+        'pdf',
+        'xlsx',
+        'xls',
+        'docx',
+        'doc',
+        'odt',
+        'rtf',
         // Video
-        'mp4', 'webm', 'ogg', 'mov', 'm4v',
+        'mp4',
+        'webm',
+        'ogg',
+        'mov',
+        'm4v',
     ];
-    
+
     return in_array($extension, $previewableExtensions, true);
 }
 
@@ -190,45 +294,73 @@ function getPreviewFormat(array $attachment): ?string
     $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
     $mimeType = strtolower(trim((string) ($attachment['mime_type'] ?? '')));
 
-    if ($mimeType !== '' && str_starts_with($mimeType, 'video/')) return 'video';
-    
+    if ($mimeType !== '' && str_starts_with($mimeType, 'video/'))
+        return 'video';
+
     // Text & markup
-    if (in_array($extension, ['txt', 'log', 'text'], true)) return 'text';
-    if (in_array($extension, ['md', 'markdown', 'mdown', 'mkd', 'rst'], true)) return 'markdown';
-    
+    if (in_array($extension, ['txt', 'log', 'text'], true))
+        return 'text';
+    if (in_array($extension, ['md', 'markdown', 'mdown', 'mkd', 'rst'], true))
+        return 'markdown';
+
     // Code
-    if (in_array($extension, ['js', 'jsx', 'mjs', 'ts', 'tsx'], true)) return 'javascript';
-    if (in_array($extension, ['json', 'jsonld', 'ndjson'], true)) return 'json';
-    if (in_array($extension, ['py', 'pyw', 'pyi'], true)) return 'python';
-    if (in_array($extension, ['rb', 'erb', 'gemspec'], true)) return 'ruby';
-    if (in_array($extension, ['go'], true)) return 'go';
-    if (in_array($extension, ['rs'], true)) return 'rust';
-    if (in_array($extension, ['c', 'h'], true)) return 'c';
-    if (in_array($extension, ['cpp', 'cc', 'cxx', 'hpp', 'h++'], true)) return 'cpp';
-    if (in_array($extension, ['cs', 'csx'], true)) return 'csharp';
-    if (in_array($extension, ['java'], true)) return 'java';
-    if (in_array($extension, ['php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8'], true)) return 'php';
-    if (in_array($extension, ['sql'], true)) return 'sql';
-    if (in_array($extension, ['html', 'htm'], true)) return 'html';
-    if (in_array($extension, ['css', 'scss', 'sass', 'less'], true)) return 'css';
-    if (in_array($extension, ['xml', 'svg'], true)) return 'xml';
-    if (in_array($extension, ['yaml', 'yml'], true)) return 'yaml';
-    if (in_array($extension, ['toml'], true)) return 'toml';
-    if (in_array($extension, ['ini', 'cfg', 'conf', 'config'], true)) return 'ini';
-    if (in_array($extension, ['sh', 'bash', 'zsh'], true)) return 'bash';
-    
+    if (in_array($extension, ['js', 'jsx', 'mjs', 'ts', 'tsx'], true))
+        return 'javascript';
+    if (in_array($extension, ['json', 'jsonld', 'ndjson'], true))
+        return 'json';
+    if (in_array($extension, ['py', 'pyw', 'pyi'], true))
+        return 'python';
+    if (in_array($extension, ['rb', 'erb', 'gemspec'], true))
+        return 'ruby';
+    if (in_array($extension, ['go'], true))
+        return 'go';
+    if (in_array($extension, ['rs'], true))
+        return 'rust';
+    if (in_array($extension, ['c', 'h'], true))
+        return 'c';
+    if (in_array($extension, ['cpp', 'cc', 'cxx', 'hpp', 'h++'], true))
+        return 'cpp';
+    if (in_array($extension, ['cs', 'csx'], true))
+        return 'csharp';
+    if (in_array($extension, ['java'], true))
+        return 'java';
+    if (in_array($extension, ['php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8'], true))
+        return 'php';
+    if (in_array($extension, ['sql'], true))
+        return 'sql';
+    if (in_array($extension, ['html', 'htm'], true))
+        return 'html';
+    if (in_array($extension, ['css', 'scss', 'sass', 'less'], true))
+        return 'css';
+    if (in_array($extension, ['xml', 'svg'], true))
+        return 'xml';
+    if (in_array($extension, ['yaml', 'yml'], true))
+        return 'yaml';
+    if (in_array($extension, ['toml'], true))
+        return 'toml';
+    if (in_array($extension, ['ini', 'cfg', 'conf', 'config'], true))
+        return 'ini';
+    if (in_array($extension, ['sh', 'bash', 'zsh'], true))
+        return 'bash';
+
     // Data
-    if (in_array($extension, ['csv'], true)) return 'csv';
-    if (in_array($extension, ['tsv'], true)) return 'tsv';
-    
+    if (in_array($extension, ['csv'], true))
+        return 'csv';
+    if (in_array($extension, ['tsv'], true))
+        return 'tsv';
+
     // Documents
-    if (in_array($extension, ['pdf'], true)) return 'pdf';
-    if (in_array($extension, ['xlsx', 'xls'], true)) return 'excel';
-    if (in_array($extension, ['docx', 'doc'], true)) return 'word';
+    if (in_array($extension, ['pdf'], true))
+        return 'pdf';
+    if (in_array($extension, ['xlsx', 'xls'], true))
+        return 'excel';
+    if (in_array($extension, ['docx', 'doc'], true))
+        return 'word';
 
     // Video
-    if (in_array($extension, ['mp4', 'webm', 'ogg', 'mov', 'm4v'], true)) return 'video';
-    
+    if (in_array($extension, ['mp4', 'webm', 'ogg', 'mov', 'm4v'], true))
+        return 'video';
+
     return null;
 }
 
@@ -238,8 +370,9 @@ function getPreviewFormat(array $attachment): ?string
 function formatFileSize(int $bytes): string
 {
     $sizes = ['B', 'KB', 'MB', 'GB'];
-    if ($bytes <= 0) return '0 B';
-    
+    if ($bytes <= 0)
+        return '0 B';
+
     $i = (int) floor(log($bytes, 1024));
     return round($bytes / pow(1024, $i), 2) . ' ' . $sizes[$i];
 }
@@ -315,17 +448,16 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                         <?php if (canPreviewFile($attachment) && !$isImageAttachment): ?>
                             <button type="button" class="attachment-file-thumb-button" data-file-thumb-open
                                 data-preview-id="<?= $attachmentId ?>" data-file-thumb-check-url="<?= h($fileCheckUrl) ?>"
-                                data-file-thumb-src="<?= h($fileThumbUrl) ?>"
-                                aria-label="<?= h(__('ticket.preview_file')) ?>" hidden>
+                                data-file-thumb-src="<?= h($fileThumbUrl) ?>" aria-label="<?= h(__('ticket.preview_file')) ?>" hidden>
                                 <iframe class="attachment-file-thumb-frame" title="<?= h(__('ticket.preview_file')) ?>" loading="lazy"
                                     sandbox="allow-scripts allow-same-origin" scrolling="no"></iframe>
                             </button>
                         <?php endif; ?>
-                        <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link" <?= $downloadUrl !== '' ? '' : 'aria-disabled="true"' ?>>
+                        <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link"
+                            <?= $downloadUrl !== '' ? '' : 'aria-disabled="true"' ?>>
                             <?= h((string) ($attachment['original_name'] ?? '')) ?>
                         </a>
-                        <span
-                            class="attachment-size">(<?= formatFileSize(max(0, (int) ($attachment['file_size'] ?? 0))) ?>)</span>
+                        <span class="attachment-size">(<?= formatFileSize(max(0, (int) ($attachment['file_size'] ?? 0))) ?>)</span>
                     </li>
                 <?php endforeach; ?>
             </ul>
@@ -353,6 +485,12 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $assignedEmail = (string) ($ticket['assigned_email'] ?? '');
     $assignedLabel = $assignedEmail !== '' ? $assignedEmail : __('ticket.unassigned');
     $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
+    $participantEmails = is_array($ticketDetail['participant_emails'] ?? null) ? $ticketDetail['participant_emails'] : [$requesterEmail];
+    $requesterSummary = buildRequesterSummary($participantEmails, $requesterEmail);
+    $requesterLabel = (string) ($requesterSummary['label'] ?? $requesterEmail);
+    $requesterTooltip = (string) ($requesterSummary['tooltip'] ?? $requesterEmail);
+    $requesterParticipants = is_array($requesterSummary['participants'] ?? null) ? $requesterSummary['participants'] : [$requesterEmail];
+    $requesterExtraCount = (int) ($requesterSummary['extra_count'] ?? 0);
     $assignableIctUsers = array_values(array_filter(
         extractIctUserEmails($ictUsers),
         static fn(string $ictUser): bool => $ictUser !== '' && $ictUser !== $requesterEmail
@@ -369,7 +507,12 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                                 data-role="ticket-number">#<?= (int) ($ticket['id'] ?? 0) ?></span> · <span
                                 data-role="ticket-title"><?= h((string) ($ticket['title'] ?? '')) ?></span></strong></p>
                     <div class="ticket-subtitle">
-                        <span data-role="requester-email"><?= h((string) ($ticket['user_email'] ?? '')) ?></span>
+                        <span data-role="requester-email" class="<?= $requesterExtraCount > 0 ? 'requester-multi' : '' ?>"
+                            title="<?= h($requesterExtraCount > 0 ? $requesterTooltip : '') ?>"
+                            data-ticket-users-trigger="<?= $requesterExtraCount > 0 ? '1' : '0' ?>"
+                            data-user-emails="<?= h((string) json_encode($requesterParticipants, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
+                            <?= h($requesterLabel) ?>
+                        </span>
                         <span
                             data-role="ticket-category"><?= h(translateCategory((string) ($ticket['category'] ?? ''))) ?></span>
                         <span
@@ -428,6 +571,12 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                             </option>
                         </select>
                     </div>
+                    <div class="meta-item">
+                        <span class="meta-label"><?= h(__('ticket.participants_admin_heading')) ?></span>
+                        <button type="button" class="secondary-button" data-role="manage-participants-open">
+                            <?= h(__('ticket.manage_participants_button')) ?>
+                        </button>
+                    </div>
                 <?php endif; ?>
             </div>
 
@@ -439,6 +588,62 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                     <?php endforeach; ?>
                 </div>
             </div>
+
+            <div class="ticket-users-popover" data-role="ticket-users-popover" hidden>
+                <p class="ticket-users-popover-title"><?= h(__('ticket.participants_title')) ?></p>
+                <ul class="ticket-users-popover-list" data-role="ticket-users-popover-list">
+                    <?php foreach ($requesterParticipants as $participantEmail): ?>
+                        <li><?= h($participantEmail) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+
+            <?php if ($canManageTickets): ?>
+                <div class="ticket-participants-modal" data-role="ticket-participants-modal" hidden>
+                    <div class="ticket-participants-modal-card">
+                        <div class="ticket-participants-modal-head">
+                            <h3><?= h(__('ticket.participants_admin_heading')) ?></h3>
+                            <button type="button" class="participant-modal-close" data-role="manage-participants-close"
+                                aria-label="<?= h(__('ticket.preview_close')) ?>">&times;</button>
+                        </div>
+
+                        <p class="hint" data-role="manage-participants-feedback"></p>
+
+                        <div class="participant-chip-list" data-role="participant-chip-list"
+                            data-creator-email="<?= h($requesterEmail) ?>">
+                            <?php foreach ($requesterParticipants as $participantEmail): ?>
+                                <button type="button" class="participant-chip-form" data-role="participant-remove-toggle"
+                                    data-participant-email="<?= h($participantEmail) ?>">
+                                    <span
+                                        class="participant-chip<?= $participantEmail === $requesterEmail ? ' is-requester' : '' ?>">
+                                        <span class="participant-chip-label"><?= h($participantEmail) ?></span>
+                                        <span class="participant-chip-remove-text"><?= h(__('ticket.participant_remove')) ?></span>
+                                    </span>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <form method="post"
+                            action="<?= h($currentPage) ?><?= $isAdminPortal && $view === 'settings' ? '?view=settings' : '' ?>"
+                            class="participant-add-form" data-role="participant-add-form">
+                            <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+                            <input type="hidden" name="form_action" value="add_ticket_participants">
+                            <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                            <input type="hidden" name="ticket_id" value="<?= (int) ($ticket['id'] ?? 0) ?>">
+
+                            <label>
+                                <?= h(__('ticket.participants_add_label')) ?>
+                                <input type="text" name="participant_emails"
+                                    placeholder="<?= h(__('ticket.participants_add_placeholder')) ?>" data-email-chip-input="1">
+                            </label>
+                            <div class="button-row">
+                                <button type="submit"
+                                    data-role="participants-apply-button"><?= h(__('ticket.participants_save_button')) ?></button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <form method="post"
                 action="<?= h($currentPage) ?><?= $isAdminPortal && $view === 'settings' ? '?view=settings' : '' ?>"
@@ -513,11 +718,16 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
 {
     $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
     $assignedEmail = (string) ($ticket['assigned_email'] ?? '');
+    $participantEmails = is_array($ticketDetail['participant_emails'] ?? null) ? $ticketDetail['participant_emails'] : [(string) ($ticket['user_email'] ?? '')];
+    $requesterSummary = buildRequesterSummary($participantEmails, (string) ($ticket['user_email'] ?? ''));
 
     return [
         'id' => (int) ($ticket['id'] ?? 0),
         'title' => (string) ($ticket['title'] ?? ''),
         'user_email' => (string) ($ticket['user_email'] ?? ''),
+        'requester_label' => (string) ($requesterSummary['label'] ?? ''),
+        'requester_tooltip' => (string) ($requesterSummary['tooltip'] ?? ''),
+        'participant_emails' => array_values($requesterSummary['participants'] ?? []),
         'category' => (string) ($ticket['category'] ?? ''),
         'category_label' => translateCategory((string) ($ticket['category'] ?? '')),
         'created_at_label' => formatDateTime((string) ($ticket['created_at'] ?? '')),
@@ -922,6 +1132,37 @@ function hslToHex(int $hue, int $saturation, int $lightness): string
 function buildStatusChangeNote(string $status, string $changedByEmail): string
 {
     return __('flash.status_changed_to', translateStatus($status));
+}
+
+function buildParticipantChangeNote(array $addedParticipants, array $removedParticipants): string
+{
+    $normalize = static function (array $emails): array {
+        $normalized = [];
+        foreach ($emails as $emailRaw) {
+            $email = strtolower(trim((string) $emailRaw));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+
+            $normalized[$email] = $email;
+        }
+
+        return array_values($normalized);
+    };
+
+    $added = $normalize($addedParticipants);
+    $removed = $normalize($removedParticipants);
+    $lines = [];
+
+    if ($added !== []) {
+        $lines[] = __('ticket.participant_note_added', implode(', ', $added));
+    }
+
+    if ($removed !== []) {
+        $lines[] = __('ticket.participant_note_removed', implode(', ', $removed));
+    }
+
+    return implode(PHP_EOL, $lines);
 }
 
 function makeTextInteractive(string $text): string

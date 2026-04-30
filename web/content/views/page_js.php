@@ -36,6 +36,299 @@
             syncPriorityVisibility();
         }
 
+        var initializeEmailChipInputs = function (scope)
+        {
+            (scope || document).querySelectorAll('input[data-email-chip-input="1"]').forEach(function (input)
+            {
+                if (input.dataset.emailChipReady === '1')
+                {
+                    return;
+                }
+
+                var originalName = input.getAttribute('name') || '';
+                var initialValue = input.value || '';
+                var hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = originalName;
+
+                var chipField = document.createElement('div');
+                chipField.className = 'email-chip-field';
+
+                var chipInput = document.createElement('input');
+                chipInput.type = 'text';
+                chipInput.className = 'email-chip-input';
+                chipInput.placeholder = input.getAttribute('placeholder') || '';
+                chipInput.setAttribute('aria-label', input.getAttribute('aria-label') || chipInput.placeholder || 'Email');
+
+                var chips = [];
+                var addChip = function (value)
+                {
+                    var normalized = String(value || '').trim().toLowerCase();
+                    if (!normalized)
+                    {
+                        return false;
+                    }
+
+                    var validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+                    if (!validEmail || chips.indexOf(normalized) !== -1)
+                    {
+                        return false;
+                    }
+
+                    chips.push(normalized);
+                    return true;
+                };
+
+                var syncHiddenValue = function ()
+                {
+                    hiddenInput.value = chips.join(', ');
+                };
+
+                var renderChips = function ()
+                {
+                    chipField.querySelectorAll('.email-chip-item').forEach(function (node)
+                    {
+                        node.remove();
+                    });
+
+                    chips.forEach(function (email, index)
+                    {
+                        var chip = document.createElement('span');
+                        chip.className = 'email-chip-item';
+                        chip.textContent = email;
+
+                        var removeButton = document.createElement('button');
+                        removeButton.type = 'button';
+                        removeButton.className = 'email-chip-remove';
+                        removeButton.setAttribute('aria-label', 'Remove ' + email);
+                        removeButton.textContent = '×';
+                        removeButton.addEventListener('click', function ()
+                        {
+                            chips.splice(index, 1);
+                            renderChips();
+                        });
+
+                        chip.appendChild(removeButton);
+                        chipField.insertBefore(chip, chipInput);
+                    });
+
+                    syncHiddenValue();
+                };
+
+                var flushTypedEmailToChip = function ()
+                {
+                    var candidate = chipInput.value;
+                    if (!candidate)
+                    {
+                        return;
+                    }
+
+                    if (addChip(candidate))
+                    {
+                        chipInput.value = '';
+                        renderChips();
+                    }
+                };
+
+                initialValue.split(/[;,\n\r]+/).forEach(function (token)
+                {
+                    addChip(token);
+                });
+
+                chipInput.addEventListener('keydown', function (event)
+                {
+                    if (event.key === ',' || event.key === 'Enter' || event.key === 'Tab')
+                    {
+                        if (chipInput.value.trim() !== '')
+                        {
+                            event.preventDefault();
+                            flushTypedEmailToChip();
+                        }
+                    }
+                });
+
+                chipInput.addEventListener('blur', function ()
+                {
+                    flushTypedEmailToChip();
+                });
+
+                var parentForm = input.closest('form');
+                if (parentForm)
+                {
+                    parentForm.addEventListener('submit', function ()
+                    {
+                        flushTypedEmailToChip();
+                        syncHiddenValue();
+                    });
+                }
+
+                input.removeAttribute('name');
+                input.style.display = 'none';
+                input.dataset.emailChipReady = '1';
+
+                chipField.appendChild(chipInput);
+                input.parentNode.insertBefore(hiddenInput, input);
+                input.parentNode.insertBefore(chipField, input.nextSibling);
+
+                renderChips();
+            });
+        };
+
+        initializeEmailChipInputs(document);
+
+        var parseParticipantEmails = function (value, fallbackEmail)
+        {
+            if (Array.isArray(value))
+            {
+                return value.map(function (item)
+                {
+                    return String(item || '').trim().toLowerCase();
+                }).filter(function (email)
+                {
+                    return email !== '';
+                });
+            }
+
+            if (typeof value === 'string' && value.trim() !== '')
+            {
+                try
+                {
+                    var parsed = JSON.parse(value);
+                    if (Array.isArray(parsed))
+                    {
+                        return parseParticipantEmails(parsed, fallbackEmail);
+                    }
+                } catch (error)
+                {
+                    // Ignore invalid serialized value and fallback below.
+                }
+            }
+
+            var fallback = String(fallbackEmail || '').trim().toLowerCase();
+            return fallback ? [fallback] : [];
+        };
+
+        var refreshPendingRemoveConstraints = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var toggles = Array.prototype.slice.call(ticketCard.querySelectorAll('[data-role="participant-remove-toggle"]'));
+            if (toggles.length <= 1)
+            {
+                toggles.forEach(function (toggle)
+                {
+                    toggle.classList.add('is-lock-protected');
+                });
+                return;
+            }
+
+            var pending = toggles.filter(function (toggle)
+            {
+                return toggle.classList.contains('is-pending-remove');
+            });
+
+            toggles.forEach(function (toggle)
+            {
+                var lockProtected = !toggle.classList.contains('is-pending-remove') && pending.length >= toggles.length - 1;
+                toggle.classList.toggle('is-lock-protected', lockProtected);
+            });
+        };
+
+        var renderParticipantManagerList = function (ticketCard, participantEmails, creatorEmail)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var list = ticketCard.querySelector('[data-role="participant-chip-list"]');
+            if (!list)
+            {
+                return;
+            }
+
+            var ticketId = Number(ticketCard.getAttribute('data-ticket-id') || 0);
+            var normalizedCreator = String(creatorEmail || '').trim().toLowerCase();
+            var emails = parseParticipantEmails(participantEmails, normalizedCreator);
+            list.innerHTML = '';
+
+            emails.forEach(function (email)
+            {
+                var removeToggle = document.createElement('button');
+                removeToggle.type = 'button';
+                removeToggle.className = 'participant-chip-form';
+                removeToggle.setAttribute('data-role', 'participant-remove-toggle');
+                removeToggle.setAttribute('data-ticket-id', String(ticketId));
+                removeToggle.setAttribute('data-participant-email', email);
+
+                var chip = document.createElement('span');
+                chip.className = 'participant-chip' + (normalizedCreator !== '' && email === normalizedCreator ? ' is-requester' : '');
+
+                var chipLabel = document.createElement('span');
+                chipLabel.className = 'participant-chip-label';
+                chipLabel.textContent = email;
+                chip.appendChild(chipLabel);
+
+                var chipRemoveLabel = document.createElement('span');
+                chipRemoveLabel.className = 'participant-chip-remove-text';
+                chipRemoveLabel.textContent = '<?= addslashes(__('ticket.participant_remove')) ?>';
+                chip.appendChild(chipRemoveLabel);
+
+                removeToggle.appendChild(chip);
+                list.appendChild(removeToggle);
+            });
+
+            refreshPendingRemoveConstraints(ticketCard);
+        };
+
+        var applyParticipantSummaryToCard = function (ticketCard, participantEmails, requesterLabel, requesterTooltip, creatorEmail)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var requesterElement = ticketCard.querySelector('[data-role="requester-email"]');
+            var normalizedCreator = String(creatorEmail || '').trim().toLowerCase();
+            var emails = parseParticipantEmails(participantEmails, normalizedCreator);
+            var label = String(requesterLabel || '');
+            var tooltip = String(requesterTooltip || '');
+            if (!label)
+            {
+                label = emails.length > 0 ? emails[0] + (emails.length > 1 ? ' +' + String(emails.length - 1) : '') : normalizedCreator;
+            }
+            if (!tooltip)
+            {
+                tooltip = emails.join('\n');
+            }
+
+            if (requesterElement)
+            {
+                requesterElement.textContent = label;
+                requesterElement.title = emails.length > 1 ? tooltip : '';
+                requesterElement.setAttribute('data-user-emails', JSON.stringify(emails));
+                requesterElement.setAttribute('data-ticket-users-trigger', emails.length > 1 ? '1' : '0');
+                requesterElement.classList.toggle('requester-multi', emails.length > 1);
+            }
+
+            var usersPopoverList = ticketCard.querySelector('[data-role="ticket-users-popover-list"]');
+            if (usersPopoverList)
+            {
+                usersPopoverList.innerHTML = '';
+                emails.forEach(function (email)
+                {
+                    var listItem = document.createElement('li');
+                    listItem.textContent = email;
+                    usersPopoverList.appendChild(listItem);
+                });
+            }
+
+            renderParticipantManagerList(ticketCard, emails, normalizedCreator);
+        };
+
         document.querySelectorAll('[data-settings-row]').forEach(function (row)
         {
             var availabilityCheckbox = row.querySelector('.availability-checkbox');
@@ -164,6 +457,99 @@
 
         document.addEventListener('click', function (event)
         {
+            var openParticipantsButton = event.target.closest('[data-role="manage-participants-open"]');
+            if (openParticipantsButton)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+                var openCard = openParticipantsButton.closest('details.ticket-card');
+                var openModal = openCard ? openCard.querySelector('[data-role="ticket-participants-modal"]') : null;
+                if (openModal)
+                {
+                    openModal.hidden = false;
+                    openModal.classList.add('is-open');
+                    document.documentElement.style.overflow = 'hidden';
+                    initializeEmailChipInputs(openModal);
+                }
+                return;
+            }
+
+            var closeParticipantsButton = event.target.closest('[data-role="manage-participants-close"]');
+            if (closeParticipantsButton)
+            {
+                event.preventDefault();
+                var closeModal = closeParticipantsButton.closest('[data-role="ticket-participants-modal"]');
+                if (closeModal)
+                {
+                    closeModal.hidden = true;
+                    closeModal.classList.remove('is-open');
+                    document.documentElement.style.overflow = '';
+                }
+                return;
+            }
+
+            if (event.target.matches('[data-role="ticket-participants-modal"]'))
+            {
+                event.preventDefault();
+                event.target.hidden = true;
+                event.target.classList.remove('is-open');
+                document.documentElement.style.overflow = '';
+                return;
+            }
+
+            var removeToggle = event.target.closest('[data-role="participant-remove-toggle"]');
+            if (removeToggle)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (removeToggle.classList.contains('is-lock-protected'))
+                {
+                    return;
+                }
+
+                if (removeToggle.classList.contains('is-pending-remove'))
+                {
+                    removeToggle.classList.remove('is-pending-remove');
+                    refreshPendingRemoveConstraints(removeToggle.closest('details.ticket-card'));
+                    return;
+                }
+
+                removeToggle.classList.add('is-pending-remove');
+                refreshPendingRemoveConstraints(removeToggle.closest('details.ticket-card'));
+                return;
+            }
+
+            var usersTrigger = event.target.closest('[data-ticket-users-trigger="1"]');
+            if (usersTrigger)
+            {
+                var ticketCard = usersTrigger.closest('details.ticket-card');
+                if (!ticketCard || !ticketCard.open)
+                {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+
+                var popover = ticketCard.querySelector('[data-role="ticket-users-popover"]');
+                if (!popover)
+                {
+                    return;
+                }
+
+                popover.hidden = !popover.hidden;
+                return;
+            }
+
+            if (!event.target.closest('[data-role="ticket-users-popover"]'))
+            {
+                document.querySelectorAll('[data-role="ticket-users-popover"]').forEach(function (popover)
+                {
+                    popover.hidden = true;
+                });
+            }
+
             var trigger = event.target.closest('[data-image-preview-trigger]');
             if (trigger)
             {
@@ -188,6 +574,12 @@
         {
             if (event.key === 'Escape')
             {
+                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open').forEach(function (modal)
+                {
+                    modal.hidden = true;
+                    modal.classList.remove('is-open');
+                });
+                document.documentElement.style.overflow = '';
                 closeImagePreview();
             }
         });
@@ -328,6 +720,188 @@
                 return response.json();
             });
         };
+
+        var setParticipantFeedback = function (ticketCard, message, isError)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var feedbackNode = ticketCard.querySelector('[data-role="manage-participants-feedback"]');
+            if (!feedbackNode)
+            {
+                return;
+            }
+
+            feedbackNode.textContent = String(message || '');
+            feedbackNode.classList.toggle('is-error', !!isError);
+            feedbackNode.classList.toggle('is-success', !isError && String(message || '') !== '');
+        };
+
+        var syncParticipantsViaApi = function (ticketCard, operation, payload)
+        {
+            if (!ticketCard)
+            {
+                return Promise.resolve();
+            }
+
+            setParticipantFeedback(ticketCard, '', false);
+            return apiFetchJson('manage_ticket_participants', Object.assign({
+                operation: operation,
+                ticket_id: Number(ticketCard.getAttribute('data-ticket-id') || 0),
+                viewer_email: ticketPollPayload.viewer_email || '',
+                user_is_admin: !!ticketPollPayload.user_is_admin
+            }, payload || {})).then(function (data)
+            {
+                if (!data || data.success !== true)
+                {
+                    setParticipantFeedback(ticketCard, data && data.error ? data.error : '<?= addslashes(__('flash.db_error_prefix')) ?>', true);
+                    return data || null;
+                }
+
+                applyParticipantSummaryToCard(
+                    ticketCard,
+                    data.participant_emails,
+                    data.requester_label,
+                    data.requester_tooltip,
+                    data.creator_email || ''
+                );
+                setParticipantFeedback(ticketCard, data.message || '', false);
+                return data;
+            }).catch(function ()
+            {
+                setParticipantFeedback(ticketCard, '<?= addslashes(__('flash.db_error_prefix')) ?>', true);
+                return null;
+            });
+        };
+
+        var collectPendingRemoveEmails = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return [];
+            }
+
+            return Array.prototype.map.call(
+                ticketCard.querySelectorAll('[data-role="participant-remove-toggle"].is-pending-remove'),
+                function (node)
+                {
+                    return String(node.getAttribute('data-participant-email') || '').trim().toLowerCase();
+                }
+            ).filter(function (email)
+            {
+                return email !== '';
+            });
+        };
+
+        var clearParticipantInputChips = function (form)
+        {
+            if (!form)
+            {
+                return;
+            }
+
+            var participantInput = form.querySelector('input[name="participant_emails"]');
+            if (participantInput)
+            {
+                participantInput.value = '';
+            }
+
+            var chipContainer = form.querySelector('.email-chip-field');
+            if (chipContainer)
+            {
+                chipContainer.querySelectorAll('.email-chip-item').forEach(function (chip)
+                {
+                    chip.remove();
+                });
+            }
+        };
+
+        var closeParticipantsModal = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var modal = ticketCard.querySelector('[data-role="ticket-participants-modal"]');
+            if (!modal)
+            {
+                return;
+            }
+
+            var modalCard = modal.querySelector('.ticket-participants-modal-card');
+            if (modalCard)
+            {
+                modalCard.classList.remove('is-save-hover');
+            }
+            modal.hidden = true;
+            modal.classList.remove('is-open');
+            document.documentElement.style.overflow = '';
+        };
+
+        document.addEventListener('submit', function (event)
+        {
+            var addForm = event.target.closest('[data-role="participant-add-form"]');
+            if (addForm)
+            {
+                event.preventDefault();
+                var addCard = addForm.closest('details.ticket-card');
+                var participantInput = addForm.querySelector('input[name="participant_emails"]');
+                var participantsRaw = participantInput ? participantInput.value : '';
+                var pendingRemovals = collectPendingRemoveEmails(addCard);
+
+                syncParticipantsViaApi(addCard, 'apply', {
+                    participant_emails: participantsRaw,
+                    remove_participant_emails: pendingRemovals
+                }).then(function (data)
+                {
+                    if (!data || data.success !== true)
+                    {
+                        return;
+                    }
+                    clearParticipantInputChips(addForm);
+                });
+                return;
+            }
+
+        });
+
+        document.addEventListener('mouseover', function (event)
+        {
+            var applyButton = event.target.closest('[data-role="participants-apply-button"]');
+            if (!applyButton)
+            {
+                return;
+            }
+
+            var modalCard = applyButton.closest('.ticket-participants-modal-card');
+            if (modalCard)
+            {
+                modalCard.classList.add('is-save-hover');
+            }
+        });
+
+        document.addEventListener('mouseout', function (event)
+        {
+            var applyButton = event.target.closest('[data-role="participants-apply-button"]');
+            if (!applyButton)
+            {
+                return;
+            }
+
+            if (event.relatedTarget && applyButton.contains(event.relatedTarget))
+            {
+                return;
+            }
+
+            var modalCard = applyButton.closest('.ticket-participants-modal-card');
+            if (modalCard)
+            {
+                modalCard.classList.remove('is-save-hover');
+            }
+        });
 
         var postWebPushSubscription = function (action, subscription)
         {
@@ -562,6 +1136,11 @@
 
         var ticketSectionHasActiveInput = function (section)
         {
+            if (section.querySelector('[data-role="ticket-participants-modal"].is-open'))
+            {
+                return true;
+            }
+
             var activeElement = document.activeElement;
             if (!activeElement || !section.contains(activeElement))
             {
@@ -669,7 +1248,7 @@
         {
             setText(card.querySelector('[data-role="ticket-number"]'), '#' + ticket.id);
             setText(card.querySelector('[data-role="ticket-title"]'), ticket.title);
-            setText(card.querySelector('[data-role="requester-email"]'), ticket.user_email);
+            applyParticipantSummaryToCard(card, ticket.participant_emails, ticket.requester_label, ticket.requester_tooltip, ticket.user_email);
             setText(card.querySelector('[data-role="ticket-category"]'), ticket.category_label);
             setText(card.querySelector('[data-role="ticket-created"]'), ticket.created_at_label);
             setText(card.querySelector('[data-role="message-count-badge"]'), String(ticket.message_count) + ' ' + '<?= addslashes(__('ticket.messages_count')) ?>');
@@ -821,6 +1400,7 @@
                 {
                     hydrateTicketThumbnails(card);
                 }
+                initializeEmailChipInputs(card);
                 previousCard = card;
             });
 

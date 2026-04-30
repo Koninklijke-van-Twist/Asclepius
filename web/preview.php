@@ -118,43 +118,211 @@ echo '<title>' . h((string) ($attachment['original_name'] ?? 'Preview')) . '</ti
 // Basic inline styles
 ?>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100%; height: 100%; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; line-height: 1.5; overflow-x: hidden; }
-.container { max-width: 1200px; margin: 0 auto; background: white; min-height: 100vh; }
-.header { background: #f9f9f9; border-bottom: 1px solid #e0e0e0; padding: 16px 20px; }
-.header h1 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 4px; }
-.header p { font-size: 12px; color: #999; }
-.content { padding: 20px; overflow-x: auto; }
-body.thumbnail-mode { background: transparent; overflow: hidden; }
-body.thumbnail-mode .container { max-width: none; min-height: 0; border: 0; }
-body.thumbnail-mode .header { display: none; }
-body.thumbnail-mode .content { padding: 6px; overflow: hidden; }
-body.thumbnail-mode .text-preview,
-body.thumbnail-mode .code-preview { max-height: 112px; overflow: hidden; font-size: 11px; line-height: 1.35; }
-body.thumbnail-mode .csv-table { font-size: 10px; }
-body.thumbnail-mode .csv-table th,
-body.thumbnail-mode .csv-table td { padding: 4px 6px; }
-body.thumbnail-mode #pdf-viewer,
-body.thumbnail-mode #word-viewer,
-body.thumbnail-mode #excel-viewer,
-body.thumbnail-mode #video-viewer { min-height: 112px; max-height: 112px; overflow: hidden; }
-.text-preview { white-space: pre-wrap; word-wrap: break-word; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 13px; line-height: 1.6; background: #fafafa; padding: 16px; border-radius: 4px; border: 1px solid #e0e0e0; overflow-x: auto; }
-.code-preview { background: #282c34; color: #abb2bf; padding: 16px; border-radius: 4px; overflow-x: auto; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 13px; line-height: 1.6; }
-.table-scroll { width: 100%; max-width: 100%; overflow-x: auto; }
-.csv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.csv-table th { background: #f5f5f5; color: #333; font-weight: 600; border: 1px solid #e0e0e0; padding: 8px 12px; text-align: left; }
-.csv-table td { border: 1px solid #e0e0e0; padding: 8px 12px; }
-.csv-table tr:nth-child(odd) { background: #fafafa; }
-.error-msg { color: #d32f2f; background: #ffebee; padding: 12px; border-radius: 4px; border-left: 4px solid #d32f2f; }
-.loading { text-align: center; padding: 40px; color: #999; }
-#pdf-viewer { width: 100%; height: 600px; border: 1px solid #e0e0e0; border-radius: 4px; }
-#excel-viewer { width: 100%; max-width: 100%; overflow-x: auto; }
-#excel-viewer table { width: 100%; border-collapse: collapse; }
-#excel-viewer th, #excel-viewer td { border: 1px solid #d0d7de; padding: 6px 8px; }
-#word-viewer { border: 1px solid #e0e0e0; border-radius: 4px; padding: 16px; }
-#video-viewer { width: 100%; border: 1px solid #e0e0e0; border-radius: 4px; background: #000; }
-body.thumbnail-mode #video-viewer { border: 0; border-radius: 8px; }
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #f5f5f5;
+        color: #333;
+        line-height: 1.5;
+        overflow-x: hidden;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        min-height: 100vh;
+    }
+
+    .header {
+        background: #f9f9f9;
+        border-bottom: 1px solid #e0e0e0;
+        padding: 16px 20px;
+    }
+
+    .header h1 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 4px;
+    }
+
+    .header p {
+        font-size: 12px;
+        color: #999;
+    }
+
+    .content {
+        padding: 20px;
+        overflow-x: auto;
+    }
+
+    body.thumbnail-mode {
+        background: transparent;
+        overflow: hidden;
+    }
+
+    body.thumbnail-mode .container {
+        max-width: none;
+        min-height: 0;
+        border: 0;
+    }
+
+    body.thumbnail-mode .header {
+        display: none;
+    }
+
+    body.thumbnail-mode .content {
+        padding: 6px;
+        overflow: hidden;
+    }
+
+    body.thumbnail-mode .text-preview,
+    body.thumbnail-mode .code-preview {
+        max-height: 112px;
+        overflow: hidden;
+        font-size: 11px;
+        line-height: 1.35;
+    }
+
+    body.thumbnail-mode .csv-table {
+        font-size: 10px;
+    }
+
+    body.thumbnail-mode .csv-table th,
+    body.thumbnail-mode .csv-table td {
+        padding: 4px 6px;
+    }
+
+    body.thumbnail-mode #pdf-viewer,
+    body.thumbnail-mode #word-viewer,
+    body.thumbnail-mode #excel-viewer,
+    body.thumbnail-mode #video-viewer {
+        min-height: 112px;
+        max-height: 112px;
+        overflow: hidden;
+    }
+
+    .text-preview {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        background: #fafafa;
+        padding: 16px;
+        border-radius: 4px;
+        border: 1px solid #e0e0e0;
+        overflow-x: auto;
+    }
+
+    .code-preview {
+        background: #282c34;
+        color: #abb2bf;
+        padding: 16px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    .table-scroll {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    .csv-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .csv-table th {
+        background: #f5f5f5;
+        color: #333;
+        font-weight: 600;
+        border: 1px solid #e0e0e0;
+        padding: 8px 12px;
+        text-align: left;
+    }
+
+    .csv-table td {
+        border: 1px solid #e0e0e0;
+        padding: 8px 12px;
+    }
+
+    .csv-table tr:nth-child(odd) {
+        background: #fafafa;
+    }
+
+    .error-msg {
+        color: #d32f2f;
+        background: #ffebee;
+        padding: 12px;
+        border-radius: 4px;
+        border-left: 4px solid #d32f2f;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #999;
+    }
+
+    #pdf-viewer {
+        width: 100%;
+        height: 600px;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+    }
+
+    #excel-viewer {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    #excel-viewer table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    #excel-viewer th,
+    #excel-viewer td {
+        border: 1px solid #d0d7de;
+        padding: 6px 8px;
+    }
+
+    #word-viewer {
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 16px;
+    }
+
+    #video-viewer {
+        width: 100%;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        background: #000;
+    }
+
+    body.thumbnail-mode #video-viewer {
+        border: 0;
+        border-radius: 8px;
+    }
 </style>
 
 <?php
@@ -254,7 +422,8 @@ if (!in_array($format, ['pdf', 'excel', 'word', 'video'], true) && $fileContent 
                 echo '</tr></thead>' . PHP_EOL;
                 echo '<tbody>' . PHP_EOL;
                 for ($i = 1; $i < count($lines); $i++) {
-                    if (trim($lines[$i]) === '') continue;
+                    if (trim($lines[$i]) === '')
+                        continue;
                     echo '<tr>' . PHP_EOL;
                     $fields = str_getcsv(trim($lines[$i]), $delimiter);
                     foreach ($fields as $field) {
@@ -345,11 +514,24 @@ if (!in_array($format, ['pdf', 'excel', 'word', 'video'], true) && $fileContent 
         default:
             // All code formats get syntax highlighting
             $langMap = [
-                'javascript' => 'javascript', 'python' => 'python', 'ruby' => 'ruby',
-                'go' => 'go', 'rust' => 'rust', 'c' => 'c', 'cpp' => 'cpp',
-                'csharp' => 'csharp', 'java' => 'java', 'php' => 'php',
-                'sql' => 'sql', 'html' => 'html', 'css' => 'css', 'xml' => 'xml',
-                'yaml' => 'yaml', 'toml' => 'toml', 'ini' => 'ini', 'bash' => 'bash'
+                'javascript' => 'javascript',
+                'python' => 'python',
+                'ruby' => 'ruby',
+                'go' => 'go',
+                'rust' => 'rust',
+                'c' => 'c',
+                'cpp' => 'cpp',
+                'csharp' => 'csharp',
+                'java' => 'java',
+                'php' => 'php',
+                'sql' => 'sql',
+                'html' => 'html',
+                'css' => 'css',
+                'xml' => 'xml',
+                'yaml' => 'yaml',
+                'toml' => 'toml',
+                'ini' => 'ini',
+                'bash' => 'bash'
             ];
             $hlLang = $langMap[$format] ?? 'plaintext';
             echo '<pre class="code-preview"><code class="language-' . h($hlLang) . '">' . h($fileContent) . '</code></pre>' . PHP_EOL;

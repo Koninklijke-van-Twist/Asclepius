@@ -100,8 +100,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             $isWorkBlocked = !empty($_POST['priority_blocked']);
             $isFullyBlocked = !empty($_POST['priority_fully_blocked']);
             $priority = getPriorityFromFlags($isWorkBlocked, $isFullyBlocked);
-            $requesterEmailInput = strtolower(trim((string) ($_POST['requester_email'] ?? '')));
+            $requesterEmailsInput = trim((string) ($_POST['requester_emails'] ?? ''));
+            $participantEmailsInput = trim((string) ($_POST['participant_emails'] ?? ''));
             $requesterEmail = $userEmail;
+            $additionalParticipants = [];
             $files = normalizeUploadedFiles('ticket_attachments');
             $errors = validateUploadedFiles($files);
 
@@ -117,19 +119,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             if ($isFullyBlocked && !$isWorkBlocked) {
                 $errors[] = __('flash.blocked_inconsistent');
             }
-            if ($userIsAdmin && $requesterEmailInput !== '') {
-                if (!filter_var($requesterEmailInput, FILTER_VALIDATE_EMAIL)) {
+            if ($userIsAdmin && $requesterEmailsInput !== '') {
+                $invalidTokens = findInvalidEmailListTokens($requesterEmailsInput);
+                if ($invalidTokens !== []) {
+                    $errors[] = __('flash.invalid_email_list', implode(', ', $invalidTokens));
+                }
+
+                $requesterCandidates = parseEmailListInput($requesterEmailsInput);
+                if ($requesterCandidates === []) {
                     $errors[] = __('flash.invalid_email');
                 } else {
-                    $requesterEmail = $requesterEmailInput;
+                    $requesterEmail = (string) $requesterCandidates[0];
+                    $additionalParticipants = array_values(array_filter(
+                        array_slice($requesterCandidates, 1),
+                        static fn(string $email): bool => $email !== '' && $email !== $requesterEmail
+                    ));
                 }
+            }
+
+            if (!$userIsAdmin && $participantEmailsInput !== '') {
+                $invalidTokens = findInvalidEmailListTokens($participantEmailsInput);
+                if ($invalidTokens !== []) {
+                    $errors[] = __('flash.invalid_email_list', implode(', ', $invalidTokens));
+                }
+
+                $additionalParticipants = array_values(array_filter(
+                    parseEmailListInput($participantEmailsInput),
+                    static fn(string $email): bool => $email !== '' && $email !== $requesterEmail
+                ));
             }
 
             if ($errors !== []) {
                 throw new RuntimeException(implode(' ', $errors));
             }
 
-            $result = $store->createTicket($title, $category, $requesterEmail, $description, $files, $priority);
+            $result = $store->createTicket($title, $category, $requesterEmail, $description, $files, $priority, $additionalParticipants);
             $ticketId = (int) $result['ticket_id'];
             $ticket = $store->getTicket($ticketId, true, $userEmail);
 
@@ -148,6 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     $userEmail
                 );
 
+                $requesterRecipients = is_array($ticket['participant_emails'] ?? null) ? $ticket['participant_emails'] : [$requesterEmail];
                 $requesterLang = getUserMailLang($requesterEmail);
                 $userIntroKey = strtolower($requesterEmail) === strtolower($userEmail)
                     ? 'email.intro_created_self'
@@ -156,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 sendTicketNotification(
                     $store,
                     $ictUsers,
-                    [$requesterEmail],
+                    $requesterRecipients,
                     __mail('email.subject_created', $requesterLang, $ticketId),
                     buildNotificationBody($ticket, $userIntroKey, $description, false, $requesterLang),
                     null,
@@ -167,6 +192,151 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             }
 
             pushFlash('success', __('flash.ticket_created', $ticketId));
+            redirectToPage($returnPage, array_merge($baseQuery, ['open' => $ticketId]));
+        }
+
+        if ($formAction === 'add_ticket_participants') {
+            if (!$canManageTickets) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
+            $ticket = $store->getTicket($ticketId, true, $userEmail);
+            if ($ticket === null) {
+                throw new RuntimeException(__('flash.ticket_not_found'));
+            }
+
+            $participantInput = trim((string) ($_POST['participant_emails'] ?? ''));
+            $invalidTokens = findInvalidEmailListTokens($participantInput);
+            if ($invalidTokens !== []) {
+                throw new RuntimeException(__('flash.invalid_email_list', implode(', ', $invalidTokens)));
+            }
+
+            $participantEmails = parseEmailListInput($participantInput);
+            if ($participantEmails === []) {
+                throw new RuntimeException(__('flash.invalid_email'));
+            }
+
+            $participantsBefore = is_array($ticket['participant_emails'] ?? null) ? $ticket['participant_emails'] : [];
+            $participantsBeforeLookup = array_fill_keys(array_map('strtolower', $participantsBefore), true);
+
+            $addedCount = $store->addTicketParticipants($ticketId, $participantEmails, $userEmail);
+            if ($addedCount <= 0) {
+                throw new RuntimeException(__('flash.ticket_participant_add_none'));
+            }
+
+            $updatedTicket = $store->getTicket($ticketId, true, $userEmail);
+            if ($updatedTicket !== null) {
+                $participantChangeNotifiedViaUpdate = false;
+                $participantsAfter = is_array($updatedTicket['participant_emails'] ?? null) ? $updatedTicket['participant_emails'] : [];
+                $newParticipants = array_values(array_filter(
+                    array_map('strtolower', $participantsAfter),
+                    static fn(string $email): bool => $email !== '' && !isset($participantsBeforeLookup[$email])
+                ));
+
+                $participantChangeNote = buildParticipantChangeNote($newParticipants, []);
+                if ($participantChangeNote !== '') {
+                    $store->addMessage($ticketId, $userEmail, 'admin', $participantChangeNote);
+                    $updatedTicket = $store->getTicket($ticketId, true, $userEmail) ?? $updatedTicket;
+
+                    $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
+                        ? $updatedTicket['participant_emails']
+                        : [(string) ($updatedTicket['user_email'] ?? '')];
+                    $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
+                    sendTicketNotification(
+                        $store,
+                        $ictUsers,
+                        $requesterRecipients,
+                        __mail('email.subject_update', $reqLang, $ticketId),
+                        buildNotificationBody($updatedTicket, 'email.intro_update', $participantChangeNote, false, $reqLang, __mail('email.intro_update_no_status', $reqLang)),
+                        $userEmail,
+                        (string) ($updatedTicket['category'] ?? ''),
+                        $ticketId,
+                        $userEmail
+                    );
+                    $participantChangeNotifiedViaUpdate = true;
+                }
+
+                foreach ($newParticipants as $newParticipantEmail) {
+                    if ($participantChangeNotifiedViaUpdate) {
+                        continue;
+                    }
+
+                    $participantLang = getUserMailLang($newParticipantEmail);
+                    sendTicketNotification(
+                        $store,
+                        $ictUsers,
+                        [$newParticipantEmail],
+                        __mail('email.subject_participant_added', $participantLang, $ticketId),
+                        buildNotificationBody($updatedTicket, 'email.intro_participant_added', '', false, $participantLang),
+                        $userEmail,
+                        (string) ($updatedTicket['category'] ?? ''),
+                        $ticketId,
+                        $userEmail
+                    );
+                }
+            }
+
+            pushFlash('success', __('flash.ticket_participant_added', $addedCount));
+            redirectToPage($returnPage, array_merge($baseQuery, ['open' => $ticketId]));
+        }
+
+        if ($formAction === 'remove_ticket_participant') {
+            if (!$canManageTickets) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
+            $participantEmail = strtolower(trim((string) ($_POST['participant_email'] ?? '')));
+            $ticket = $store->getTicket($ticketId, true, $userEmail);
+            if ($ticket === null) {
+                throw new RuntimeException(__('flash.ticket_not_found'));
+            }
+            $participants = is_array($ticket['participant_emails'] ?? null)
+                ? $ticket['participant_emails']
+                : [strtolower(trim((string) ($ticket['user_email'] ?? '')))];
+            $participantsBeforeLookup = array_fill_keys(array_map('strtolower', $participants), true);
+
+            if (count($participants) <= 1) {
+                throw new RuntimeException(__('flash.ticket_participant_minimum'));
+            }
+
+            if (!$store->removeTicketParticipant($ticketId, $participantEmail)) {
+                throw new RuntimeException(__('flash.ticket_participant_remove_failed'));
+            }
+
+            $updatedTicket = $store->getTicket($ticketId, true, $userEmail);
+            if ($updatedTicket !== null) {
+                $participantsAfter = is_array($updatedTicket['participant_emails'] ?? null) ? $updatedTicket['participant_emails'] : [];
+                $participantsAfterLookup = array_fill_keys(array_map('strtolower', $participantsAfter), true);
+                $removedParticipants = isset($participantsBeforeLookup[$participantEmail]) && !isset($participantsAfterLookup[$participantEmail])
+                    ? [$participantEmail]
+                    : [];
+
+                $participantChangeNote = buildParticipantChangeNote([], $removedParticipants);
+                if ($participantChangeNote !== '') {
+                    $store->addMessage($ticketId, $userEmail, 'admin', $participantChangeNote);
+                    $updatedTicket = $store->getTicket($ticketId, true, $userEmail) ?? $updatedTicket;
+
+                    $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
+                        ? $updatedTicket['participant_emails']
+                        : [(string) ($updatedTicket['user_email'] ?? '')];
+                    $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
+                    sendTicketNotification(
+                        $store,
+                        $ictUsers,
+                        $requesterRecipients,
+                        __mail('email.subject_update', $reqLang, $ticketId),
+                        buildNotificationBody($updatedTicket, 'email.intro_update', $participantChangeNote, false, $reqLang, __mail('email.intro_update_no_status', $reqLang)),
+                        $userEmail,
+                        (string) ($updatedTicket['category'] ?? ''),
+                        $ticketId,
+                        $userEmail
+                    );
+                }
+            }
+
+            pushFlash('success', __('flash.ticket_participant_removed'));
             redirectToPage($returnPage, array_merge($baseQuery, ['open' => $ticketId]));
         }
 
@@ -261,12 +431,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 if ($canManageTickets) {
                     $shouldNotifyRequester = $statusChanged || $assigneeChanged || $messageForStorage !== '' || $files !== [];
                     if ($shouldNotifyRequester) {
+                        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
+                            ? $updatedTicket['participant_emails']
+                            : [(string) $updatedTicket['user_email']];
                         $reqLang = getUserMailLang((string) $updatedTicket['user_email']);
                         $updateIntroSuffix = $statusChanged ? __mail('email.intro_update_status', $reqLang) : __mail('email.intro_update_no_status', $reqLang);
                         sendTicketNotification(
                             $store,
                             $ictUsers,
-                            [$updatedTicket['user_email']],
+                            $requesterRecipients,
                             __mail('email.subject_update', $reqLang, $ticketId),
                             buildNotificationBody($updatedTicket, 'email.intro_update', $messageForStorage, false, $reqLang, $updateIntroSuffix),
                             $userEmail,

@@ -20,13 +20,13 @@ class TicketStore
     {
         $this->databasePath = $databasePath;
         $this->uploadRoot = $uploadRoot;
-        
+
         // Normalize $ictUsers: if it's an associative array (email => color),
         // extract keys; if it's already flat, use values.
         $isAssociative = array_keys($ictUsers) !== range(0, count($ictUsers) - 1);
         $normalizedIctUsers = $isAssociative ? array_keys($ictUsers) : array_values($ictUsers);
         $this->ictUsers = array_values(array_unique(array_map('strtolower', $normalizedIctUsers)));
-        
+
         $this->categories = array_values($categories);
 
         $this->connect();
@@ -307,7 +307,7 @@ class TicketStore
         return $this->pickAssignee($category, $excludeEmail);
     }
 
-    public function createTicket(string $title, string $category, string $userEmail, string $description, array $files = [], int $priority = 0): array
+    public function createTicket(string $title, string $category, string $userEmail, string $description, array $files = [], int $priority = 0, array $additionalParticipants = []): array
     {
         $userEmail = strtolower(trim($userEmail));
         $priority = max(0, min(2, $priority));
@@ -334,6 +334,21 @@ class TicketStore
             ]);
 
             $ticketId = (int) $this->pdo->lastInsertId();
+
+            $participantStatement = $this->pdo->prepare(
+                'INSERT OR IGNORE INTO ticket_participants (ticket_id, user_email, added_by_email, created_at)
+                 VALUES (:ticket_id, :user_email, :added_by_email, :created_at)'
+            );
+
+            $allParticipants = $this->normalizeParticipantEmails($additionalParticipants, $userEmail);
+            foreach ($allParticipants as $participantEmail) {
+                $participantStatement->execute([
+                    ':ticket_id' => $ticketId,
+                    ':user_email' => $participantEmail,
+                    ':added_by_email' => $userEmail,
+                    ':created_at' => $now,
+                ]);
+            }
 
             $this->insertStatusTransition($ticketId, 'ingediend', $now, null);
 
@@ -459,7 +474,12 @@ class TicketStore
         $parameters = [];
 
         if (!$isAdmin) {
-            $conditions[] = 't.user_email = :user_email';
+            $conditions[] = 'EXISTS (
+                SELECT 1
+                FROM ticket_participants tp
+                WHERE tp.ticket_id = t.id
+                  AND lower(tp.user_email) = :user_email
+            )';
             $parameters[':user_email'] = strtolower(trim($userEmail));
         }
 
@@ -522,7 +542,12 @@ class TicketStore
         $parameters = [':id' => $ticketId];
 
         if (!$isAdmin) {
-            $conditions[] = 'user_email = :user_email';
+            $conditions[] = 'EXISTS (
+                SELECT 1
+                FROM ticket_participants tp
+                WHERE tp.ticket_id = tickets.id
+                  AND lower(tp.user_email) = :user_email
+            )';
             $parameters[':user_email'] = strtolower(trim($userEmail));
         }
 
@@ -534,9 +559,135 @@ class TicketStore
             return null;
         }
 
+        $ticket['participant_emails'] = $this->getTicketParticipants((int) $ticket['id']);
         $ticket['messages'] = $this->getMessagesForTicket((int) $ticket['id']);
 
         return $ticket;
+    }
+
+    public function getTicketParticipants(int $ticketId): array
+    {
+        if ($ticketId <= 0) {
+            return [];
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT user_email
+             FROM ticket_participants
+             WHERE ticket_id = :ticket_id
+             ORDER BY datetime(created_at) ASC, id ASC'
+        );
+        $statement->execute([':ticket_id' => $ticketId]);
+
+        $participants = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $email = strtolower(trim((string) ($row['user_email'] ?? '')));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+
+            $participants[$email] = $email;
+        }
+
+        return array_values($participants);
+    }
+
+    public function addTicketParticipants(int $ticketId, array $participantEmails, string $addedByEmail): int
+    {
+        $addedByEmail = strtolower(trim($addedByEmail));
+        $participants = $this->normalizeParticipantEmails($participantEmails);
+        if ($ticketId <= 0 || $participants === []) {
+            return 0;
+        }
+
+        $requesterEmail = $this->getTicketRequesterEmail($ticketId);
+        if ($requesterEmail === '') {
+            return 0;
+        }
+
+        $participantStatement = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ticket_participants (ticket_id, user_email, added_by_email, created_at)
+             VALUES (:ticket_id, :user_email, :added_by_email, :created_at)'
+        );
+
+        $now = date('c');
+        $addedCount = 0;
+
+        $this->pdo->beginTransaction();
+        try {
+            $participantStatement->execute([
+                ':ticket_id' => $ticketId,
+                ':user_email' => $requesterEmail,
+                ':added_by_email' => $addedByEmail !== '' ? $addedByEmail : $requesterEmail,
+                ':created_at' => $now,
+            ]);
+
+            foreach ($participants as $participantEmail) {
+                if ($participantEmail === $requesterEmail) {
+                    continue;
+                }
+
+                $participantStatement->execute([
+                    ':ticket_id' => $ticketId,
+                    ':user_email' => $participantEmail,
+                    ':added_by_email' => $addedByEmail !== '' ? $addedByEmail : $requesterEmail,
+                    ':created_at' => $now,
+                ]);
+
+                if ($participantStatement->rowCount() > 0) {
+                    $addedCount++;
+                }
+            }
+
+            if ($addedCount > 0) {
+                $this->touchTicketUpdatedAt($ticketId, $now);
+            }
+
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+
+        return $addedCount;
+    }
+
+    public function removeTicketParticipant(int $ticketId, string $participantEmail): bool
+    {
+        $participantEmail = strtolower(trim($participantEmail));
+        if ($ticketId <= 0 || $participantEmail === '' || !filter_var($participantEmail, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+
+        $participants = $this->getTicketParticipants($ticketId);
+        if (count($participants) <= 1) {
+            return false;
+        }
+
+        $deleteStatement = $this->pdo->prepare(
+            'DELETE FROM ticket_participants
+             WHERE ticket_id = :ticket_id
+               AND lower(user_email) = :user_email'
+        );
+        $deleteStatement->execute([
+            ':ticket_id' => $ticketId,
+            ':user_email' => $participantEmail,
+        ]);
+
+        if ($deleteStatement->rowCount() <= 0) {
+            return false;
+        }
+
+        $remainingParticipants = $this->getTicketParticipants($ticketId);
+        if (count($remainingParticipants) <= 0) {
+            return false;
+        }
+
+        $this->touchTicketUpdatedAt($ticketId);
+        return true;
     }
 
     public function getAttachment(int $attachmentId): ?array
@@ -902,6 +1053,18 @@ class TicketStore
             )'
         );
 
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_participants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                user_email TEXT NOT NULL,
+                added_by_email TEXT DEFAULT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(ticket_id, user_email),
+                FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+            )'
+        );
+
         $this->ensureColumn('tickets', 'title', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'assigned_email', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'status', 'TEXT NOT NULL DEFAULT "ingediend"');
@@ -922,6 +1085,8 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_id ON ticket_status_transitions(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_status ON ticket_status_transitions(ticket_id, status)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_ticket_id ON ticket_participants(ticket_id)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_user_email ON ticket_participants(user_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_browser_notifications_user_delivered ON browser_notifications(user_email, delivered_at, created_at)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user_email ON web_push_subscriptions(user_email)');
         $this->pdo->exec(
@@ -932,8 +1097,44 @@ class TicketStore
         );
 
         $this->seedStatusTransitionHistory();
+        $this->seedTicketParticipants();
 
         $this->syncIctUsers();
+    }
+
+    private function seedTicketParticipants(): void
+    {
+        $statement = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ticket_participants (ticket_id, user_email, added_by_email, created_at)
+             VALUES (:ticket_id, :user_email, :added_by_email, :created_at)'
+        );
+
+        $tickets = $this->pdo->query(
+            'SELECT t.id, t.user_email, t.created_at
+             FROM tickets t
+             LEFT JOIN (
+                 SELECT ticket_id, COUNT(*) AS participant_count
+                 FROM ticket_participants
+                 GROUP BY ticket_id
+             ) tp ON tp.ticket_id = t.id
+             WHERE COALESCE(tp.participant_count, 0) = 0'
+        )->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($tickets as $ticket) {
+            $ticketId = (int) ($ticket['id'] ?? 0);
+            $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
+            $createdAt = (string) ($ticket['created_at'] ?? date('c'));
+
+            if ($ticketId <= 0 || $requesterEmail === '' || !filter_var($requesterEmail, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+
+            $statement->execute([
+                ':ticket_id' => $ticketId,
+                ':user_email' => $requesterEmail,
+                ':added_by_email' => $requesterEmail,
+                ':created_at' => $createdAt !== '' ? $createdAt : date('c'),
+            ]);
+        }
     }
 
     private function insertStatusTransition(int $ticketId, string $status, string $startedAt, ?string $endedAt = null): void
@@ -1173,7 +1374,7 @@ class TicketStore
                  ORDER BY open_count ASC, settings.user_email ASC
                  LIMIT 1"
             );
-                        $statement->execute(array_merge($parameters, $allowedUserParameters));
+            $statement->execute(array_merge($parameters, $allowedUserParameters));
 
             $row = $statement->fetch(PDO::FETCH_ASSOC);
             if ($row !== false) {
@@ -1200,7 +1401,7 @@ class TicketStore
              ORDER BY open_count ASC, availability.user_email ASC
              LIMIT 1"
         );
-                $statement->execute(array_merge($parameters, $allowedUserParameters));
+        $statement->execute(array_merge($parameters, $allowedUserParameters));
 
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 
@@ -1239,6 +1440,44 @@ class TicketStore
         unset($message);
 
         return $messages;
+    }
+
+    private function normalizeParticipantEmails(array $participantEmails, string $primaryEmail = ''): array
+    {
+        $normalized = [];
+
+        $primaryEmail = strtolower(trim($primaryEmail));
+        if ($primaryEmail !== '' && filter_var($primaryEmail, FILTER_VALIDATE_EMAIL)) {
+            $normalized[$primaryEmail] = $primaryEmail;
+        }
+
+        foreach ($participantEmails as $participantEmail) {
+            $email = strtolower(trim((string) $participantEmail));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+
+            $normalized[$email] = $email;
+        }
+
+        return array_values($normalized);
+    }
+
+    private function getTicketRequesterEmail(int $ticketId): string
+    {
+        $statement = $this->pdo->prepare('SELECT user_email FROM tickets WHERE id = :id LIMIT 1');
+        $statement->execute([':id' => $ticketId]);
+
+        return strtolower(trim((string) ($statement->fetchColumn() ?: '')));
+    }
+
+    private function touchTicketUpdatedAt(int $ticketId, ?string $updatedAt = null): void
+    {
+        $statement = $this->pdo->prepare('UPDATE tickets SET updated_at = :updated_at WHERE id = :id');
+        $statement->execute([
+            ':updated_at' => $updatedAt ?? date('c'),
+            ':id' => $ticketId,
+        ]);
     }
 
     private function storeAttachments(int $ticketId, int $messageId, array $files, string $uploadedByEmail): void

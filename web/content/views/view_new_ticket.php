@@ -43,10 +43,17 @@
 
             <?php if ($userIsAdmin): ?>
                 <label>
-                    <?= h(__('new_ticket.requester_label')) ?>
-                    <input type="email" name="requester_email" maxlength="200"
+                    <?= h(__('new_ticket.requester_list_label')) ?>
+                    <input type="text" name="requester_emails" maxlength="1200" data-email-chip-input="1"
                         placeholder="<?= h(__('new_ticket.requester_placeholder')) ?>">
-                    <span class="hint"><?= h(__('new_ticket.requester_hint')) ?></span>
+                    <span class="hint"><?= h(__('new_ticket.requester_list_hint')) ?></span>
+                </label>
+            <?php else: ?>
+                <label>
+                    <?= h(__('new_ticket.participants_label')) ?>
+                    <input type="text" name="participant_emails" maxlength="1200" data-email-chip-input="1"
+                        placeholder="<?= h(__('new_ticket.participants_placeholder')) ?>">
+                    <span class="hint"><?= h(__('new_ticket.participants_hint')) ?></span>
                 </label>
             <?php endif; ?>
 
