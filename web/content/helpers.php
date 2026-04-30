@@ -680,7 +680,16 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
 
                 <label>
                     <?= h(__('ticket.new_message')) ?>
-                    <textarea name="message" placeholder="<?= h(__('ticket.new_message_placeholder')) ?>"></textarea>
+                    <div class="textarea-wrapper">
+                        <textarea name="message" placeholder="<?= h(__('ticket.new_message_placeholder')) ?>"></textarea>
+                        <button type="button" class="key-picker-toggle" title="<?= h(__('ticket.key_picker_tooltip')) ?>" aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="2" y="6" width="20" height="12" rx="2"/>
+                                <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M10 14h4"/>
+                            </svg>
+                        </button>
+                        <div class="key-picker-popup" hidden aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>"></div>
+                    </div>
                 </label>
 
                 <?php if (!$canManageTickets && (string) ($ticket['status'] ?? '') === 'afgehandeld'): ?>
@@ -1173,12 +1182,19 @@ function getShortcutKeyDefinition(string $keyToken): ?array
     };
 
     static $aliasMap = null;
+    static $rawMap = null;
     if ($aliasMap === null) {
         $aliasMap = [];
+        $rawMap   = [];
 
-        $register = static function (array $definition) use (&$aliasMap, $normalizeAlias): void {
+        $register = static function (array $definition) use (&$aliasMap, &$rawMap, $normalizeAlias): void {
             $aliases = is_array($definition['aliases'] ?? null) ? $definition['aliases'] : [];
             foreach ($aliases as $alias) {
+                $raw = strtolower(trim((string) $alias));
+                if ($raw !== '') {
+                    $rawMap[$raw] = $definition;
+                }
+
                 $normalizedAlias = $normalizeAlias((string) $alias);
                 if ($normalizedAlias === '') {
                     continue;
@@ -1222,17 +1238,32 @@ function getShortcutKeyDefinition(string $keyToken): ?array
             ['label' => 'Num +', 'icon' => null, 'aliases' => ['numplus', 'numpadplus']],
             ['label' => 'Num Enter', 'icon' => null, 'aliases' => ['numenter', 'numpadenter']],
             ['label' => 'Num .', 'icon' => null, 'aliases' => ['numdecimal', 'numpaddecimal', 'numdot']],
-            ['label' => '-', 'icon' => null, 'aliases' => ['minus', 'hyphen', 'dash']],
-            ['label' => '=', 'icon' => null, 'aliases' => ['equals', 'equal']],
-            ['label' => ',', 'icon' => null, 'aliases' => ['comma']],
-            ['label' => '.', 'icon' => null, 'aliases' => ['period', 'dot']],
-            ['label' => '/', 'icon' => null, 'aliases' => ['slash', 'forwardslash']],
-            ['label' => '\\', 'icon' => null, 'aliases' => ['backslash']],
-            ['label' => ';', 'icon' => null, 'aliases' => ['semicolon']],
-            ['label' => "'", 'icon' => null, 'aliases' => ['quote', 'apostrophe']],
-            ['label' => '`', 'icon' => null, 'aliases' => ['backtick', 'grave']],
+            ['label' => '-', 'icon' => null, 'aliases' => ['minus', 'hyphen', 'dash', '-']],
+            ['label' => '=', 'icon' => null, 'aliases' => ['equals', 'equal', '=']],
+            ['label' => ',', 'icon' => null, 'aliases' => ['comma', ',']],
+            ['label' => '.', 'icon' => null, 'aliases' => ['period', 'dot', '.']],
+            ['label' => '/', 'icon' => null, 'aliases' => ['slash', 'forwardslash', '/']],
+            ['label' => '\\', 'icon' => null, 'aliases' => ['backslash', '\\']],
+            ['label' => ';', 'icon' => null, 'aliases' => ['semicolon', ';']],
+            ['label' => "'", 'icon' => null, 'aliases' => ['quote', 'apostrophe', "'"]],
+            ['label' => '`', 'icon' => null, 'aliases' => ['backtick', 'grave', '`']],
             ['label' => '[', 'icon' => null, 'aliases' => ['lbracket', 'leftbracket', 'openbracket']],
             ['label' => ']', 'icon' => null, 'aliases' => ['rbracket', 'rightbracket', 'closebracket']],
+            ['label' => '@', 'icon' => null, 'aliases' => ['at', 'atsign', '@']],
+            ['label' => '*', 'icon' => null, 'aliases' => ['asterisk', 'star', '*']],
+            ['label' => '#', 'icon' => null, 'aliases' => ['hash', 'pound', 'hashtag', '#']],
+            ['label' => '!', 'icon' => null, 'aliases' => ['exclamation', 'bang', '!']],
+            ['label' => '?', 'icon' => null, 'aliases' => ['question', '?']],
+            ['label' => '&', 'icon' => null, 'aliases' => ['ampersand', 'and', '&']],
+            ['label' => '%', 'icon' => null, 'aliases' => ['percent', '%']],
+            ['label' => '^', 'icon' => null, 'aliases' => ['caret', '^']],
+            ['label' => '+', 'icon' => null, 'aliases' => ['plus', '+']],
+            ['label' => '<', 'icon' => null, 'aliases' => ['lessthan', 'lt', '<']],
+            ['label' => '>', 'icon' => null, 'aliases' => ['greaterthan', 'gt', '>']],
+            ['label' => '~', 'icon' => null, 'aliases' => ['tilde', '~']],
+            ['label' => '|', 'icon' => null, 'aliases' => ['pipe', 'bar', '|']],
+            ['label' => '_', 'icon' => null, 'aliases' => ['underscore', '_']],
+            ['label' => '"', 'icon' => null, 'aliases' => ['doublequote', 'dquote', '"']],
             ['label' => 'Vol +', 'icon' => null, 'aliases' => ['volumeup', 'volup']],
             ['label' => 'Vol -', 'icon' => null, 'aliases' => ['volumedown', 'voldown']],
             ['label' => 'Mute', 'icon' => null, 'aliases' => ['volumemute', 'mute']],
@@ -1255,6 +1286,11 @@ function getShortcutKeyDefinition(string $keyToken): ?array
             $aliasMap['num' . $numPadDigit] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['num' . $numPadDigit]];
             $aliasMap['numpad' . $numPadDigit] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['numpad' . $numPadDigit]];
         }
+    }
+
+    $rawToken = strtolower(trim($keyToken));
+    if (isset($rawMap[$rawToken])) {
+        return $rawMap[$rawToken];
     }
 
     $normalizedToken = $normalizeAlias($keyToken);

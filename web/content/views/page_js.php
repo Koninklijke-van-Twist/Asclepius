@@ -1673,5 +1673,183 @@
                 closeFilePreview();
             }
         });
+
+        /**
+         * Key picker popup
+         */
+        var KEY_PICKER_GROUPS = [
+            {
+                label: 'Modifiers',
+                keys: [
+                    { token: 'ctrl',    label: 'Ctrl' },
+                    { token: 'alt',     label: 'Alt' },
+                    { token: 'shift',   label: 'Shift' },
+                    { token: 'win',     label: '',  icon: 'windows' },
+                    { token: 'altgr',   label: 'Alt Gr' },
+                    { token: 'fn',      label: 'Fn' }
+                ]
+            },
+            {
+                label: 'Navigatie',
+                keys: [
+                    { token: 'esc',      label: 'Esc' },
+                    { token: 'tab',      label: 'Tab' },
+                    { token: 'caps',     label: 'Caps Lock' },
+                    { token: 'enter',    label: 'Enter' },
+                    { token: 'space',    label: 'Space' },
+                    { token: 'backspace',label: 'Backspace' },
+                    { token: 'delete',   label: 'Delete' },
+                    { token: 'ins',      label: 'Insert' },
+                    { token: 'home',     label: 'Home' },
+                    { token: 'end',      label: 'End' },
+                    { token: 'pageup',   label: 'Page Up' },
+                    { token: 'pagedown', label: 'Page Down' }
+                ]
+            },
+            {
+                label: 'Pijltjes',
+                keys: [
+                    { token: 'up',    label: '', icon: 'arrow-up' },
+                    { token: 'down',  label: '', icon: 'arrow-down' },
+                    { token: 'left',  label: '', icon: 'arrow-left' },
+                    { token: 'right', label: '', icon: 'arrow-right' }
+                ]
+            },
+            {
+                label: 'Functietoetsen',
+                keys: (function () {
+                    var rows = [];
+                    for (var i = 1; i <= 12; i++) { rows.push({ token: 'f' + i, label: 'F' + i }); }
+                    return rows;
+                }())
+            },
+            {
+                label: 'Systeem',
+                keys: [
+                    { token: 'prtsc',      label: 'PrtSc' },
+                    { token: 'scrolllock', label: 'Scroll Lock' },
+                    { token: 'pause',      label: 'Pause' },
+                    { token: 'menu',       label: 'Menu' },
+                    { token: 'numlock',    label: 'Num Lock' }
+                ]
+            },
+            {
+                label: 'Media',
+                keys: [
+                    { token: 'volup',        label: 'Vol +' },
+                    { token: 'voldown',      label: 'Vol -' },
+                    { token: 'mute',         label: 'Mute' },
+                    { token: 'playpause',    label: 'Play/Pause' },
+                    { token: 'nexttrack',    label: 'Next' },
+                    { token: 'previoustrack',label: 'Prev' }
+                ]
+            },
+            {
+                label: 'Symbolen',
+                keys: [
+                    { token: 'minus',       label: '-' },
+                    { token: 'equals',      label: '=' },
+                    { token: 'comma',       label: ',' },
+                    { token: 'period',      label: '.' },
+                    { token: 'slash',       label: '/' },
+                    { token: 'backslash',   label: '\\' },
+                    { token: 'semicolon',   label: ';' },
+                    { token: 'quote',       label: "'" },
+                    { token: 'backtick',    label: '`' },
+                    { token: 'lbracket',    label: '[' },
+                    { token: 'rbracket',    label: ']' }
+                ]
+            }
+        ];
+
+        var KEY_PICKER_ICONS = {
+            'windows': '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 3.5L11 2v9H2v-7.5zm11 7.5V2l11-1.5V11H13zM2 13h9v9L2 20.5V13zm11 0h11v10.5L13 22v-9z"/></svg>',
+            'arrow-up':    '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4l6 6h-4v10h-4V10H6l6-6z"/></svg>',
+            'arrow-down':  '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20l-6-6h4V4h4v10h4l-6 6z"/></svg>',
+            'arrow-left':  '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 12l6-6v4h10v4H10v4l-6-6z"/></svg>',
+            'arrow-right': '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 12l-6 6v-4H4v-4h10V6l6 6z"/></svg>'
+        };
+
+        var buildKeyPickerPopup = function (popup)
+        {
+            var html = '';
+            KEY_PICKER_GROUPS.forEach(function (group)
+            {
+                html += '<div class="key-picker-group">'
+                    + '<div class="key-picker-group-label">' + group.label + '</div>'
+                    + '<div class="key-picker-group-keys">';
+
+                group.keys.forEach(function (key)
+                {
+                    var inner = (KEY_PICKER_ICONS[key.icon || ''] || '') + (key.label ? key.label : '');
+                    html += '<button type="button" class="key-picker-key" data-key-token="' + key.token + '">'
+                        + inner + '</button>';
+                });
+
+                html += '</div></div>';
+            });
+            popup.innerHTML = html;
+        };
+
+        var initKeyPicker = function (wrapper)
+        {
+            var toggle = wrapper.querySelector('.key-picker-toggle');
+            var popup  = wrapper.querySelector('.key-picker-popup');
+            var textarea = wrapper.querySelector('textarea');
+            if (!toggle || !popup || !textarea) { return; }
+
+            buildKeyPickerPopup(popup);
+
+            toggle.addEventListener('click', function (e)
+            {
+                e.stopPropagation();
+                var isOpen = !popup.hidden;
+                popup.hidden = isOpen;
+                toggle.classList.toggle('is-active', !isOpen);
+            });
+
+            popup.addEventListener('click', function (e)
+            {
+                var keyBtn = e.target.closest('.key-picker-key');
+                if (!keyBtn) { return; }
+
+                var token = keyBtn.getAttribute('data-key-token') || '';
+                if (!token) { return; }
+
+                var insertion = '[' + token + ']';
+
+                if (typeof textarea.setRangeText === 'function')
+                {
+                    var start = textarea.selectionStart;
+                    var end   = textarea.selectionEnd;
+                    textarea.setRangeText(insertion, start, end, 'end');
+                }
+                else
+                {
+                    textarea.value += insertion;
+                }
+
+                textarea.focus();
+                popup.hidden = true;
+                toggle.classList.remove('is-active');
+            });
+        };
+
+        document.querySelectorAll('.textarea-wrapper').forEach(initKeyPicker);
+
+        document.addEventListener('click', function (e)
+        {
+            if (!e.target.closest('.textarea-wrapper'))
+            {
+                document.querySelectorAll('.key-picker-popup').forEach(function (p)
+                {
+                    p.hidden = true;
+                });
+                document.querySelectorAll('.key-picker-toggle.is-active').forEach(function (t)
+                {
+                    t.classList.remove('is-active');
+                });
+            }
+        });
     });
 </script>

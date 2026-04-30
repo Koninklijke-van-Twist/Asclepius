@@ -1124,6 +1124,125 @@
             gap: 12px;
         }
 
+        .textarea-wrapper {
+            position: relative;
+        }
+
+        .textarea-wrapper textarea {
+            padding-bottom: 34px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .key-picker-toggle {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            width: 26px;
+            height: 26px;
+            padding: 4px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.88);
+            color: var(--muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            z-index: 2;
+            transition: background 0.12s, color 0.12s, border-color 0.12s;
+        }
+
+        .key-picker-toggle:hover,
+        .key-picker-toggle.is-active {
+            background: #fff;
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .key-picker-toggle svg {
+            width: 16px;
+            height: 16px;
+            display: block;
+        }
+
+        .key-picker-popup {
+            position: absolute;
+            bottom: 38px;
+            right: 0;
+            z-index: 200;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(3, 13, 27, 0.18);
+            padding: 10px 12px 12px;
+            width: min(440px, calc(100vw - 24px));
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .key-picker-popup[hidden] {
+            display: none !important;
+        }
+
+        .key-picker-group {
+            margin-top: 8px;
+        }
+
+        .key-picker-group:first-child {
+            margin-top: 0;
+        }
+
+        .key-picker-group-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            margin-bottom: 5px;
+        }
+
+        .key-picker-group-keys {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .key-picker-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            height: 24px;
+            padding: 0 7px;
+            min-width: 26px;
+            border: 1px solid #b7c1d0;
+            border-bottom-width: 2px;
+            border-radius: 6px;
+            background: #f8fbff;
+            color: #132238;
+            font-size: 0.82em;
+            font-weight: 600;
+            line-height: 1;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.1s, color 0.1s, border-color 0.1s;
+        }
+
+        .key-picker-key:hover {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .key-picker-key-icon {
+            width: 11px;
+            height: 11px;
+            display: block;
+            flex: 0 0 auto;
+        }
+
         .ticket-users-popover {
             border: 1px solid var(--line);
             border-radius: 12px;
