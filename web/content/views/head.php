@@ -839,6 +839,7 @@
             color: var(--text);
             line-height: 1.5;
             word-break: break-word;
+            --shortcut-key-height: 22px;
         }
 
         .message-text a {
@@ -851,6 +852,41 @@
             margin-top: 6px;
             color: var(--muted);
             font-size: 0.82em;
+        }
+
+        .message-text .shortcut-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            box-sizing: border-box;
+            height: var(--shortcut-key-height);
+            padding: 0 7px;
+            min-width: 24px;
+            border: 1px solid #b7c1d0;
+            border-bottom-width: 2px;
+            border-radius: 6px;
+            background: #fff;
+            color: #132238;
+            font-size: 0.86em;
+            font-weight: 600;
+            line-height: 1;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .message-text .shortcut-key-icon {
+            width: 12px;
+            height: 12px;
+            display: block;
+            flex: 0 0 auto;
+        }
+
+        .message-text .shortcut-plus {
+            display: inline-block;
+            padding: 0 4px;
+            color: var(--muted);
+            font-weight: 700;
         }
 
         .attachment-list {

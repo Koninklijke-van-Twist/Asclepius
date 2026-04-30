@@ -1165,17 +1165,213 @@ function buildParticipantChangeNote(array $addedParticipants, array $removedPart
     return implode(PHP_EOL, $lines);
 }
 
-function makeTextInteractive(string $text): string
+function getShortcutKeyDefinition(string $keyToken): ?array
+{
+    $normalizeAlias = static function (string $value): string {
+        $value = strtolower(trim($value));
+        return preg_replace('/[^a-z0-9]/', '', $value) ?? '';
+    };
+
+    static $aliasMap = null;
+    if ($aliasMap === null) {
+        $aliasMap = [];
+
+        $register = static function (array $definition) use (&$aliasMap, $normalizeAlias): void {
+            $aliases = is_array($definition['aliases'] ?? null) ? $definition['aliases'] : [];
+            foreach ($aliases as $alias) {
+                $normalizedAlias = $normalizeAlias((string) $alias);
+                if ($normalizedAlias === '') {
+                    continue;
+                }
+
+                $aliasMap[$normalizedAlias] = $definition;
+            }
+        };
+
+        $definitions = [
+            ['label' => 'Ctrl', 'icon' => null, 'aliases' => ['ctrl', 'control', 'ctl', 'strg']],
+            ['label' => 'Alt', 'icon' => null, 'aliases' => ['alt', 'option']],
+            ['label' => 'Alt Gr', 'icon' => null, 'aliases' => ['altgr', 'altgraph']],
+            ['label' => 'Shift', 'icon' => null, 'aliases' => ['shift']],
+            ['label' => '', 'icon' => 'windows', 'aliases' => ['win', 'windows', 'meta', 'super', 'cmd', 'command']],
+            ['label' => 'Fn', 'icon' => null, 'aliases' => ['fn', 'function']],
+            ['label' => 'Delete', 'icon' => null, 'aliases' => ['delete', 'del']],
+            ['label' => 'Backspace', 'icon' => null, 'aliases' => ['backspace', 'bksp']],
+            ['label' => 'Enter', 'icon' => null, 'aliases' => ['enter', 'return']],
+            ['label' => 'Esc', 'icon' => null, 'aliases' => ['esc', 'escape']],
+            ['label' => 'Tab', 'icon' => null, 'aliases' => ['tab']],
+            ['label' => 'Space', 'icon' => null, 'aliases' => ['space', 'spacebar']],
+            ['label' => 'Caps Lock', 'icon' => null, 'aliases' => ['caps', 'capslock']],
+            ['label' => 'Insert', 'icon' => null, 'aliases' => ['ins', 'insert']],
+            ['label' => 'Home', 'icon' => null, 'aliases' => ['home']],
+            ['label' => 'End', 'icon' => null, 'aliases' => ['end']],
+            ['label' => 'Page Up', 'icon' => null, 'aliases' => ['pageup', 'pgup']],
+            ['label' => 'Page Down', 'icon' => null, 'aliases' => ['pagedown', 'pgdn']],
+            ['label' => 'PrtSc', 'icon' => null, 'aliases' => ['printscreen', 'prtsc', 'printscr', 'snapshot']],
+            ['label' => 'Scroll Lock', 'icon' => null, 'aliases' => ['scrolllock', 'scrlk']],
+            ['label' => 'Pause', 'icon' => null, 'aliases' => ['pause', 'break']],
+            ['label' => 'Menu', 'icon' => null, 'aliases' => ['menu', 'contextmenu', 'apps']],
+            ['label' => '', 'icon' => 'arrow-up', 'aliases' => ['up', 'arrowup', 'uparrow']],
+            ['label' => '', 'icon' => 'arrow-down', 'aliases' => ['down', 'arrowdown', 'downarrow']],
+            ['label' => '', 'icon' => 'arrow-left', 'aliases' => ['left', 'arrowleft', 'leftarrow']],
+            ['label' => '', 'icon' => 'arrow-right', 'aliases' => ['right', 'arrowright', 'rightarrow']],
+            ['label' => 'Num Lock', 'icon' => null, 'aliases' => ['numlock']],
+            ['label' => 'Num /', 'icon' => null, 'aliases' => ['numdivide', 'numpaddivide']],
+            ['label' => 'Num *', 'icon' => null, 'aliases' => ['nummultiply', 'numpadmultiply']],
+            ['label' => 'Num -', 'icon' => null, 'aliases' => ['numminus', 'numpadminus']],
+            ['label' => 'Num +', 'icon' => null, 'aliases' => ['numplus', 'numpadplus']],
+            ['label' => 'Num Enter', 'icon' => null, 'aliases' => ['numenter', 'numpadenter']],
+            ['label' => 'Num .', 'icon' => null, 'aliases' => ['numdecimal', 'numpaddecimal', 'numdot']],
+            ['label' => '-', 'icon' => null, 'aliases' => ['minus', 'hyphen', 'dash']],
+            ['label' => '=', 'icon' => null, 'aliases' => ['equals', 'equal']],
+            ['label' => ',', 'icon' => null, 'aliases' => ['comma']],
+            ['label' => '.', 'icon' => null, 'aliases' => ['period', 'dot']],
+            ['label' => '/', 'icon' => null, 'aliases' => ['slash', 'forwardslash']],
+            ['label' => '\\', 'icon' => null, 'aliases' => ['backslash']],
+            ['label' => ';', 'icon' => null, 'aliases' => ['semicolon']],
+            ['label' => "'", 'icon' => null, 'aliases' => ['quote', 'apostrophe']],
+            ['label' => '`', 'icon' => null, 'aliases' => ['backtick', 'grave']],
+            ['label' => '[', 'icon' => null, 'aliases' => ['lbracket', 'leftbracket', 'openbracket']],
+            ['label' => ']', 'icon' => null, 'aliases' => ['rbracket', 'rightbracket', 'closebracket']],
+            ['label' => 'Vol +', 'icon' => null, 'aliases' => ['volumeup', 'volup']],
+            ['label' => 'Vol -', 'icon' => null, 'aliases' => ['volumedown', 'voldown']],
+            ['label' => 'Mute', 'icon' => null, 'aliases' => ['volumemute', 'mute']],
+            ['label' => 'Play/Pause', 'icon' => null, 'aliases' => ['mediaplaypause', 'playpause']],
+            ['label' => 'Next', 'icon' => null, 'aliases' => ['medianexttrack', 'nexttrack']],
+            ['label' => 'Prev', 'icon' => null, 'aliases' => ['mediaprevtrack', 'previoustrack']],
+        ];
+
+        foreach ($definitions as $definition) {
+            $register($definition);
+        }
+
+        foreach (range(1, 12) as $functionNumber) {
+            $fLabel = 'F' . $functionNumber;
+            $aliasMap[strtolower($fLabel)] = ['label' => $fLabel, 'icon' => null, 'aliases' => [strtolower($fLabel)]];
+        }
+
+        foreach (range(0, 9) as $numPadDigit) {
+            $numLabel = 'Num ' . $numPadDigit;
+            $aliasMap['num' . $numPadDigit] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['num' . $numPadDigit]];
+            $aliasMap['numpad' . $numPadDigit] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['numpad' . $numPadDigit]];
+        }
+    }
+
+    $normalizedToken = $normalizeAlias($keyToken);
+    if ($normalizedToken === '') {
+        return null;
+    }
+
+    if (isset($aliasMap[$normalizedToken])) {
+        return $aliasMap[$normalizedToken];
+    }
+
+    if (preg_match('/^[a-z0-9]$/', $normalizedToken) === 1) {
+        return ['label' => strtoupper($normalizedToken), 'icon' => null, 'aliases' => [$normalizedToken]];
+    }
+
+    if (preg_match('/^f([1-9]|1[0-2])$/', $normalizedToken) === 1) {
+        return ['label' => strtoupper($normalizedToken), 'icon' => null, 'aliases' => [$normalizedToken]];
+    }
+
+    return null;
+}
+
+function renderShortcutKeyHtml(string $keyToken, bool $forEmail = false): ?string
+{
+    $definition = getShortcutKeyDefinition($keyToken);
+    if ($definition === null) {
+        return null;
+    }
+
+    $labelValue = trim((string) ($definition['label'] ?? ''));
+    $label = $labelValue !== '' ? h($labelValue) : '';
+    $iconType = (string) ($definition['icon'] ?? '');
+
+    if ($label === '' && $iconType === '') {
+        return null;
+    }
+
+    $iconHtml = '';
+    if ($iconType === 'windows') {
+        $iconAttributes = $forEmail
+            ? 'style="width:12px;height:12px;display:block;flex:0 0 auto;"'
+            : 'class="shortcut-key-icon"';
+        $iconHtml = '<svg ' . $iconAttributes . ' viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+            . '<path d="M2 3.5L11 2v9H2v-7.5zm11 7.5V2l11-1.5V11H13zM2 13h9v9L2 20.5V13zm11 0h11v10.5L13 22v-9z"/>'
+            . '</svg>';
+    } elseif ($iconType === 'arrow-up' || $iconType === 'arrow-down' || $iconType === 'arrow-left' || $iconType === 'arrow-right') {
+        $iconAttributes = $forEmail
+            ? 'style="width:12px;height:12px;display:block;flex:0 0 auto;"'
+            : 'class="shortcut-key-icon"';
+        $arrowPath = 'M12 4l6 6h-4v10h-4V10H6l6-6z';
+        if ($iconType === 'arrow-down') {
+            $arrowPath = 'M12 20l-6-6h4V4h4v10h4l-6 6z';
+        } elseif ($iconType === 'arrow-left') {
+            $arrowPath = 'M4 12l6-6v4h10v4H10v4l-6-6z';
+        } elseif ($iconType === 'arrow-right') {
+            $arrowPath = 'M20 12l-6 6v-4H4v-4h10V6l6 6z';
+        }
+
+        $iconHtml = '<svg ' . $iconAttributes . ' viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+            . '<path d="' . $arrowPath . '"/>'
+            . '</svg>';
+    }
+
+    $labelHtml = $label !== '' ? '<span class="shortcut-key-label">' . $label . '</span>' : '';
+
+    if ($forEmail) {
+        return '<span class="shortcut-key" style="display:inline-flex;align-items:center;justify-content:center;gap:4px;box-sizing:border-box;height:22px;padding:0 7px;border:1px solid #b7c1d0;border-bottom-width:2px;border-radius:6px;background:#ffffff;color:#132238;font-size:12px;font-weight:600;line-height:1;vertical-align:middle;white-space:nowrap;">'
+            . $iconHtml
+            . $labelHtml
+            . '</span>';
+    }
+
+    return '<span class="shortcut-key">'
+        . $iconHtml
+        . $labelHtml
+        . '</span>';
+}
+
+function renderShortcutMarkup(string $escapedText, bool $forEmail = false): string
+{
+    $rendered = preg_replace_callback(
+        '/\[([^\[\]\r\n]{1,24})\]/',
+        static function (array $matches) use ($forEmail): string {
+            $keyToken = html_entity_decode((string) ($matches[1] ?? ''), ENT_QUOTES, 'UTF-8');
+            $replacement = renderShortcutKeyHtml($keyToken, $forEmail);
+            return $replacement ?? (string) ($matches[0] ?? '');
+        },
+        $escapedText
+    ) ?? $escapedText;
+
+    $plusSeparator = $forEmail
+        ? '<span class="shortcut-plus" style="display:inline-block;padding:0 4px;color:#5b6b82;font-weight:700;">+</span>'
+        : '<span class="shortcut-plus">+</span>';
+
+    return preg_replace(
+        '/(<span class="shortcut-key"(?:\s[^>]*)?>.*?<\/span>)\s*\+\s*(?=<span class="shortcut-key"(?:\s[^>]*)?>)/s',
+        '$1' . $plusSeparator,
+        $rendered
+    ) ?? $rendered;
+}
+
+function makeTextInteractive(string $text, bool $forEmail = false): string
 {
     $escapedText = h($text);
+    $escapedText = renderShortcutMarkup($escapedText, $forEmail);
 
     $escapedText = preg_replace_callback(
         '~(?:(https?://|www\.)[^\s<]+)~i',
-        static function (array $matches): string {
+        static function (array $matches) use ($forEmail): string {
             $displayValue = $matches[0];
             $href = str_starts_with(strtolower($displayValue), 'www.') ? 'https://' . $displayValue : $displayValue;
             $safeHref = h($href);
             $safeLabel = h($displayValue);
+
+            if ($forEmail) {
+                return '<a href="' . $safeHref . '">' . $safeLabel . '</a>';
+            }
 
             return '<a href="' . $safeHref . '" target="_blank" rel="noopener noreferrer">' . $safeLabel . '</a>';
         },
@@ -1227,6 +1423,26 @@ function formatTicketMessageText(?string $messageText): string
         }
 
         $formattedLines[] = $interactiveLine;
+    }
+
+    return implode('<br>', $formattedLines);
+}
+
+function formatTicketMessageTextForEmail(?string $messageText): string
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", trim((string) $messageText));
+    if ($normalized === '') {
+        return '';
+    }
+
+    $formattedLines = [];
+    foreach (explode("\n", $normalized) as $line) {
+        if (trim($line) === '') {
+            $formattedLines[] = '';
+            continue;
+        }
+
+        $formattedLines[] = makeTextInteractive($line, true);
     }
 
     return implode('<br>', $formattedLines);
@@ -1292,8 +1508,9 @@ function buildNotificationBody(array $ticket, string $introKey, string $messageT
     // HTML body
     $msgHtml = '';
     if (trim($messageText) !== '') {
+        $messageTextHtml = formatTicketMessageTextForEmail($messageText);
         $msgHtml = '<div style="margin-top:16px;background:#f4f7fb;border-left:4px solid #0b65c2;padding:12px 16px;border-radius:0 8px 8px 0;font-size:14px;color:#10233f;white-space:pre-wrap;">'
-            . htmlspecialchars($messageText, ENT_QUOTES, 'UTF-8')
+            . $messageTextHtml
             . '</div>';
     }
 
