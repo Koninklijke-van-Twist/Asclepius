@@ -83,7 +83,7 @@
 - Elke nieuwe feature of functionele wijziging moet minimaal 1 relevante unit-test krijgen.
 - Voer na elke implementatie of wijziging de unit-tests lokaal uit (`vendor/bin/phpunit`) en los eventuele failures op voordat werk als klaar wordt beschouwd.
 - De GitHub pipeline moet alle unit-tests draaien; deploy mag alleen doorgaan als de tests slagen.
-- Bij het bewerken van bestaande code mogen ontbrekende tests zonder aanvullende bevestiging worden toegevoegd.
+- Bij het bewerken van bestaande code moeten ontbrekende tests zonder aanvullende bevestiging worden toegevoegd.
 - Als functionaliteit vervalt of bewust wijzigt, mogen irrelevante/verouderde tests worden verwijderd of aangepast.
 - Gebruik in unit-tests zo veel mogelijk echte codepaden en echte functies; gebruik mocks/stubs alleen wanneer externe afhankelijkheden dit noodzakelijk maken.
 - de Deploy workflow mag NIET starten tenzij de unit-tests slagen.
