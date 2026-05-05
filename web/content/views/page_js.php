@@ -180,7 +180,6 @@
         if (templateTicketCreateForm)
         {
             var templateTitleInput = document.getElementById('template_ticket_title');
-            var templatePreview = document.getElementById('template_ticket_preview');
             var templatePreviewRendered = document.getElementById('template_ticket_preview_rendered');
             var selectedTemplateIdsInput = document.getElementById('selected_template_ids');
 
@@ -256,19 +255,15 @@
                     selectedTemplateIdsInput.value = selectedIds.join(',');
                 }
 
-                if (templatePreview)
-                {
-                    var title = templateTitleInput ? String(templateTitleInput.value || '').trim() : '';
-                    var body = selectedBodies.join('\n\n');
-                    var previewValue = title !== '' && body !== ''
-                        ? title + '\n\n' + body
-                        : (title !== '' ? title : body);
-                    templatePreview.value = previewValue;
+                var title = templateTitleInput ? String(templateTitleInput.value || '').trim() : '';
+                var body = selectedBodies.join('\n\n');
+                var previewValue = title !== '' && body !== ''
+                    ? title + '\n\n' + body
+                    : (title !== '' ? title : body);
 
-                    if (templatePreviewRendered)
-                    {
-                        templatePreviewRendered.innerHTML = renderTemplatePreviewHtml(previewValue);
-                    }
+                if (templatePreviewRendered)
+                {
+                    templatePreviewRendered.innerHTML = renderTemplatePreviewHtml(previewValue);
                 }
             };
 
@@ -2318,63 +2313,7 @@
             });
         };
 
-        var EMOJI_PICKER_ITEMS = ['😀', '😁', '😂', '🙂', '😉', '😍', '🤔', '✅', '❌', '⚠️', '📌', '🛠️', '💻', '🔒', '📅', '📎'];
-
-        var buildEmojiPickerPopup = function (popup)
-        {
-            var html = '<div class="emoji-picker-grid">';
-            EMOJI_PICKER_ITEMS.forEach(function (emoji)
-            {
-                html += '<button type="button" class="emoji-picker-item" data-emoji-value="' + emoji + '">' + emoji + '</button>';
-            });
-            html += '</div>';
-            popup.innerHTML = html;
-        };
-
-        var initEmojiPicker = function (wrapper)
-        {
-            var toggle = wrapper.querySelector('.emoji-picker-toggle');
-            var popup = wrapper.querySelector('.emoji-picker-popup');
-            var textarea = wrapper.querySelector('textarea');
-            if (!toggle || !popup || !textarea) { return; }
-
-            buildEmojiPickerPopup(popup);
-
-            toggle.addEventListener('click', function (e)
-            {
-                e.stopPropagation();
-                var isOpen = !popup.hidden;
-                popup.hidden = isOpen;
-                toggle.classList.toggle('is-active', !isOpen);
-            });
-
-            popup.addEventListener('click', function (e)
-            {
-                var emojiBtn = e.target.closest('.emoji-picker-item');
-                if (!emojiBtn) { return; }
-
-                var emoji = emojiBtn.getAttribute('data-emoji-value') || '';
-                if (!emoji) { return; }
-
-                if (typeof textarea.setRangeText === 'function')
-                {
-                    var start = textarea.selectionStart;
-                    var end = textarea.selectionEnd;
-                    textarea.setRangeText(emoji, start, end, 'end');
-                }
-                else
-                {
-                    textarea.value += emoji;
-                }
-
-                textarea.focus();
-                popup.hidden = true;
-                toggle.classList.remove('is-active');
-            });
-        };
-
         document.querySelectorAll('.textarea-wrapper').forEach(initKeyPicker);
-        document.querySelectorAll('.textarea-wrapper').forEach(initEmojiPicker);
 
         document.addEventListener('click', function (e)
         {
@@ -2385,14 +2324,6 @@
                     p.hidden = true;
                 });
                 document.querySelectorAll('.key-picker-toggle.is-active').forEach(function (t)
-                {
-                    t.classList.remove('is-active');
-                });
-                document.querySelectorAll('.emoji-picker-popup').forEach(function (p)
-                {
-                    p.hidden = true;
-                });
-                document.querySelectorAll('.emoji-picker-toggle.is-active').forEach(function (t)
                 {
                     t.classList.remove('is-active');
                 });

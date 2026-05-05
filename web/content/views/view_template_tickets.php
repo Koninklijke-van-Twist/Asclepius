@@ -37,7 +37,6 @@
 
                     <label>
                         <?= h(__('template_ticket.preview_label')) ?>
-                        <textarea id="template_ticket_preview" readonly></textarea>
                         <div id="template_ticket_preview_rendered" class="template-preview-rendered"></div>
                         <span class="hint"><?= h(__('template_ticket.preview_hint')) ?></span>
                     </label>
@@ -110,10 +109,7 @@
                             <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M10 14h4" />
                         </svg>
                     </button>
-                    <button type="button" class="emoji-picker-toggle" title="<?= h(__('ticket.emoji_picker_tooltip')) ?>"
-                        aria-label="<?= h(__('ticket.emoji_picker_tooltip')) ?>">🙂</button>
                     <div class="key-picker-popup" hidden aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>"></div>
-                    <div class="emoji-picker-popup" hidden aria-label="<?= h(__('ticket.emoji_picker_tooltip')) ?>"></div>
                 </div>
             </label>
             <div class="button-row">
