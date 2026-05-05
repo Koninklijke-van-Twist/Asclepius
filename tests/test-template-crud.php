@@ -113,10 +113,11 @@ assertSame('Template heeft veld "created_by_email"', true, array_key_exists('cre
 assertSame('Template heeft veld "updated_by_email"', true, array_key_exists('updated_by_email', $first));
 assertSame('Template heeft veld "created_at"', true, array_key_exists('created_at', $first));
 assertSame('Template heeft veld "updated_at"', true, array_key_exists('updated_at', $first));
+assertSame('Template heeft veld "sort_order"', true, array_key_exists('sort_order', $first));
 
-// Controleer sortering: alfabetisch op naam (Netwerk < Standaard)
-assertSame('Eerste template is alfabetisch gesorteerd (Netwerk voor Standaard)', 'Netwerk instellen', $templates[0]['name']);
-assertSame('Tweede template is Standaard Setup', 'Standaard Setup', $templates[1]['name']);
+// Controleer sortering: op aanmaakvolgorde (sort_order), Standaard voor Netwerk
+assertSame('Eerste template is in aanmaakvolgorde (Standaard voor Netwerk)', 'Standaard Setup', $templates[0]['name']);
+assertSame('Tweede template is Netwerk instellen', 'Netwerk instellen', $templates[1]['name']);
 
 // Controleer dat e-mailadres genormaliseerd is (lowercase)
 $byId1 = $store->getTicketTemplateById($id1);
@@ -197,6 +198,40 @@ $idTrimmed = $store->createTicketTemplate('  Spaties rondom  ', '  Tekst met spa
 $trimmed   = $store->getTicketTemplateById($idTrimmed);
 assertSame('Naam wordt getrimd bij opslaan', 'Spaties rondom', $trimmed['name']);
 assertSame('Body wordt getrimd bij opslaan', 'Tekst met spaties', $trimmed['body']);
+
+echo PHP_EOL;
+
+// -----------------------------------------------------------------------
+// 8. reorderTicketTemplates()
+// -----------------------------------------------------------------------
+echo "--- 8. reorderTicketTemplates() ---" . PHP_EOL;
+
+// Maak een nieuwe lege store voor een schone reorder-test
+$store2 = makeStore();
+$rId1 = $store2->createTicketTemplate('A', 'body A', 'a@kvt.nl');
+$rId2 = $store2->createTicketTemplate('B', 'body B', 'b@kvt.nl');
+$rId3 = $store2->createTicketTemplate('C', 'body C', 'c@kvt.nl');
+
+// Originele volgorde: A (sort_order=1), B (2), C (3)
+$before = $store2->getTicketTemplates();
+assertSame('Aanmaakvolgorde: A als eerste', 'A', $before[0]['name']);
+assertSame('Aanmaakvolgorde: C als laatste', 'C', $before[2]['name']);
+
+// Herorden naar C, A, B
+true === $store2->reorderTicketTemplates([$rId3, $rId1, $rId2]);
+$after = $store2->getTicketTemplates();
+assertSame('Na reorder: C is eerste', 'C', $after[0]['name']);
+assertSame('Na reorder: A is tweede', 'A', $after[1]['name']);
+assertSame('Na reorder: B is derde', 'B', $after[2]['name']);
+
+// Lege lijst retourneert false
+assertFalse('Lege ordered_ids geeft false', $store2->reorderTicketTemplates([]));
+
+// Ongeldige IDs worden genegeerd (enkel geldige tellen)
+$store2->reorderTicketTemplates([$rId3, 0, -5, $rId1]);
+$afterPartial = $store2->getTicketTemplates();
+// C en A krijgen sort_order 1 en 2; B behoudt sort_order 2 (was 3, nu 2 want niet gewijzigd)
+assertSame('Ongeldig ID 0 wordt genegeerd', 'C', $afterPartial[0]['name']);
 
 echo PHP_EOL;
 
