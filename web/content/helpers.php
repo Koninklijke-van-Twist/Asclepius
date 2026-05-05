@@ -408,7 +408,8 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
     ob_start();
     ?>
     <article class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>"
-        data-message-id="<?= (int) ($message['id'] ?? 0) ?>">
+        data-message-id="<?= (int) ($message['id'] ?? 0) ?>"
+        data-message-text="<?= h((string) json_encode((string) ($message['message_text'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
         <div class="message-meta">
             <strong><?= h((string) ($message['sender_email'] ?? '')) ?></strong>
             <span
@@ -418,7 +419,7 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
 
         <?php if (trim((string) ($message['message_text'] ?? '')) !== ''): ?>
             <div class="message-text">
-                <?= formatTicketMessageText((string) ($message['message_text'] ?? '')) ?>
+                <?= formatTicketMessageText((string) ($message['message_text'] ?? ''), (int) ($message['id'] ?? 0)) ?>
             </div>
         <?php endif; ?>
 
@@ -683,6 +684,13 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                                 <?php endforeach; ?>
                             </select>
                         </label>
+                        <?php if ($hasDueDate): ?>
+                            <label>
+                                <?= h(__('ticket.meta_due_date')) ?>
+                                <input type="date" name="due_date" value="<?= h((string) ($ticket['due_date'] ?? '')) ?>"
+                                    data-role="due-date-input">
+                            </label>
+                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
 
@@ -1562,7 +1570,7 @@ function makeTextInteractive(string $text, bool $forEmail = false): string
     return $escapedText;
 }
 
-function formatTicketMessageText(?string $messageText): string
+function formatTicketMessageText(?string $messageText, int $messageId = 0): string
 {
     $normalized = str_replace(["\r\n", "\r"], "\n", trim((string) $messageText));
     if ($normalized === '') {
@@ -1570,10 +1578,24 @@ function formatTicketMessageText(?string $messageText): string
     }
 
     $formattedLines = [];
-    foreach (explode("\n", $normalized) as $line) {
+    foreach (explode("\n", $normalized) as $lineIndex => $line) {
         $trimmedLine = trim($line);
         if ($trimmedLine === '') {
             $formattedLines[] = '';
+            continue;
+        }
+
+        if (preg_match('/^(\s*)\[( |x|X)\]\s*(.*)$/', $line, $checkboxMatch) === 1) {
+            $isChecked = strtolower((string) $checkboxMatch[2]) === 'x';
+            $checkboxText = (string) ($checkboxMatch[3] ?? '');
+            $checkboxLabel = $checkboxText !== '' ? makeTextInteractive($checkboxText) : '&nbsp;';
+            $formattedLines[] = '<label class="message-checkbox-line">'
+                . '<input type="checkbox" data-role="message-checkbox" data-message-id="' . (int) $messageId . '" data-line-index="' . (int) $lineIndex . '"'
+                . ($isChecked ? ' checked' : '')
+                . ($messageId > 0 ? '' : ' disabled')
+                . '>'
+                . '<span>' . $checkboxLabel . '</span>'
+                . '</label>';
             continue;
         }
 

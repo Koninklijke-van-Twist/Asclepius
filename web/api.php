@@ -684,6 +684,43 @@ if ($method === 'POST') {
         sendJson(200, ['success' => true, 'templates' => $store->getTicketTemplates()]);
     }
 
+    if ($action === 'update_ticket_message_checkbox') {
+        $userIsAdmin = !empty($apiClient['is_admin']);
+        if (!$userIsAdmin && !isTrustedApiRequester()) {
+            sendJson(403, ['success' => false, 'error' => __('flash.settings_admin_only')]);
+        }
+
+        $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            $sessionCookieName = session_name();
+            if ($sessionCookieName !== '' && !empty($_COOKIE[$sessionCookieName])) {
+                session_start(['read_and_close' => true]);
+            }
+        }
+        $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+        if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+            sendJson(403, ['success' => false, 'error' => 'csrf']);
+        }
+
+        $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+        $messageId = max(1, (int) ($payload['message_id'] ?? 0));
+        $lineIndex = max(0, (int) ($payload['line_index'] ?? 0));
+        $checked = !empty($payload['checked']);
+        $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+
+        $updatedMessageText = $store->updateTicketMessageCheckboxState($ticketId, $messageId, $lineIndex, $checked, true, $viewerEmail);
+        if ($updatedMessageText === null) {
+            sendJson(422, ['success' => false, 'error' => 'update_failed']);
+        }
+
+        sendJson(200, [
+            'success' => true,
+            'message_id' => $messageId,
+            'ticket_id' => $ticketId,
+            'message_text' => $updatedMessageText,
+        ]);
+    }
+
     if ($action === 'bigscreen_poll') {
         if (!($apiClient['is_admin'] ?? false) && !isTrustedApiRequester()) {
             sendJson(403, [

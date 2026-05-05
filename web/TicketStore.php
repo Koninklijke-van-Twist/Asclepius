@@ -497,7 +497,7 @@ class TicketStore
         }
     }
 
-    public function updateTicket(int $ticketId, string $status, ?string $assignedEmail, int $priority = 0): void
+    public function updateTicket(int $ticketId, string $status, ?string $assignedEmail, int $priority = 0, ?string $dueDate = null): void
     {
         $currentTicket = $this->pdo->prepare('SELECT status FROM tickets WHERE id = :id LIMIT 1');
         $currentTicket->execute([':id' => $ticketId]);
@@ -506,6 +506,7 @@ class TicketStore
 
         $updatedAt = date('c');
         $priority = max(0, min(2, $priority));
+        $normalizedDueDate = $this->normalizeDueDate($dueDate);
 
         $this->pdo->beginTransaction();
 
@@ -515,6 +516,7 @@ class TicketStore
                  SET status = :status,
                      assigned_email = :assigned_email,
                      priority = :priority,
+                     due_date = :due_date,
                      updated_at = :updated_at,
                      resolved_at = CASE
                          WHEN :status = 'afgehandeld' THEN COALESCE(NULLIF(resolved_at, ''), :updated_at)
@@ -526,6 +528,7 @@ class TicketStore
                 ':status' => $status,
                 ':assigned_email' => $assignedEmail,
                 ':priority' => $priority,
+                ':due_date' => $normalizedDueDate,
                 ':updated_at' => $updatedAt,
                 ':id' => $ticketId,
             ]);
@@ -581,6 +584,67 @@ class TicketStore
         ]);
 
         return $messageId;
+    }
+
+    public function updateTicketMessageCheckboxState(int $ticketId, int $messageId, int $lineIndex, bool $checked, bool $isAdmin, string $userEmail): ?string
+    {
+        if ($ticketId <= 0 || $messageId <= 0 || $lineIndex < 0) {
+            return null;
+        }
+
+        $ticket = $this->getTicket($ticketId, $isAdmin, $userEmail);
+        if ($ticket === null) {
+            return null;
+        }
+
+        $messageStatement = $this->pdo->prepare(
+            'SELECT message_text
+             FROM ticket_messages
+             WHERE id = :message_id
+               AND ticket_id = :ticket_id
+             LIMIT 1'
+        );
+        $messageStatement->execute([
+            ':message_id' => $messageId,
+            ':ticket_id' => $ticketId,
+        ]);
+        $messageText = $messageStatement->fetchColumn();
+        if (!is_string($messageText)) {
+            return null;
+        }
+
+        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $messageText));
+        if (!array_key_exists($lineIndex, $lines)) {
+            return null;
+        }
+
+        $marker = $checked ? 'x' : ' ';
+        $updatedLine = preg_replace('/^(\s*)\[(?: |x|X)\]/', '$1[' . $marker . ']', $lines[$lineIndex], 1);
+        if (!is_string($updatedLine) || $updatedLine === $lines[$lineIndex]) {
+            return null;
+        }
+
+        $lines[$lineIndex] = $updatedLine;
+        $updatedMessageText = implode("\n", $lines);
+
+        $updateMessageStatement = $this->pdo->prepare(
+            'UPDATE ticket_messages
+             SET message_text = :message_text
+             WHERE id = :message_id
+               AND ticket_id = :ticket_id'
+        );
+        $updateMessageStatement->execute([
+            ':message_text' => $updatedMessageText,
+            ':message_id' => $messageId,
+            ':ticket_id' => $ticketId,
+        ]);
+
+        if ($updateMessageStatement->rowCount() <= 0) {
+            return null;
+        }
+
+        $this->touchTicketUpdatedAt($ticketId);
+        return $updatedMessageText;
     }
 
     public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = []): array
@@ -1468,7 +1532,8 @@ class TicketStore
     {
         $normalizedDueDate = $this->normalizeDueDate((string) ($ticket['due_date'] ?? ''));
         $ticket['due_date'] = $normalizedDueDate;
-        if ($normalizedDueDate === null) {
+        $ticketStatus = strtolower(trim((string) ($ticket['status'] ?? '')));
+        if ($normalizedDueDate === null || $ticketStatus === 'afgehandeld') {
             return $ticket;
         }
 

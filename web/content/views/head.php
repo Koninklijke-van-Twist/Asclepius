@@ -352,6 +352,35 @@
             min-height: 180px;
         }
 
+        .template-preview-rendered {
+            margin-top: 8px;
+            min-height: 60px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #fff;
+            padding: 10px;
+            display: grid;
+            gap: 6px;
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .template-preview-line {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .template-preview-checkbox-line {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .template-preview-checkbox-line input {
+            margin-top: 2px;
+        }
+
         .template-fragment-list {
             display: grid;
             gap: 8px;
@@ -1020,6 +1049,23 @@
             font-weight: 700;
         }
 
+        .message-checkbox-line {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin: 2px 0;
+        }
+
+        .message-checkbox-line input {
+            margin-top: 2px;
+            flex: 0 0 auto;
+            cursor: pointer;
+        }
+
+        .message-checkbox-line span {
+            flex: 1 1 auto;
+        }
+
         .attachment-list {
             margin: 8px 0 0;
             padding-left: 18px;
@@ -1285,8 +1331,36 @@
             transition: background 0.12s, color 0.12s, border-color 0.12s;
         }
 
+        .emoji-picker-toggle {
+            position: absolute;
+            bottom: 8px;
+            right: 38px;
+            width: 26px;
+            height: 26px;
+            padding: 0;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.88);
+            color: var(--muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            z-index: 2;
+            transition: background 0.12s, color 0.12s, border-color 0.12s;
+            font-size: 14px;
+        }
+
         .key-picker-toggle:hover,
         .key-picker-toggle.is-active {
+            background: #fff;
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .emoji-picker-toggle:hover,
+        .emoji-picker-toggle.is-active {
             background: #fff;
             color: var(--accent);
             border-color: var(--accent);
@@ -1313,8 +1387,46 @@
             overflow-y: auto;
         }
 
+        .emoji-picker-popup {
+            position: absolute;
+            bottom: 38px;
+            right: 0;
+            z-index: 201;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(3, 13, 27, 0.18);
+            padding: 10px;
+            width: min(260px, calc(100vw - 24px));
+        }
+
         .key-picker-popup[hidden] {
             display: none !important;
+        }
+
+        .emoji-picker-popup[hidden] {
+            display: none !important;
+        }
+
+        .emoji-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .emoji-picker-item {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #f8fbff;
+            padding: 5px 0;
+            line-height: 1;
+            font-size: 17px;
+            cursor: pointer;
+        }
+
+        .emoji-picker-item:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
         }
 
         .key-picker-group {

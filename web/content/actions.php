@@ -355,9 +355,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             $newStatus = (string) $ticket['status'];
             $newAssignee = (string) ($ticket['assigned_email'] ?? '');
             $newPriority = max(0, min(2, (int) ($ticket['priority'] ?? 0)));
+            $newDueDate = normalizeDueDateInput((string) ($ticket['due_date'] ?? ''));
             $statusChanged = false;
             $assigneeChanged = false;
             $priorityChanged = false;
+            $dueDateChanged = false;
             $reopenRequested = !empty($_POST['reopen_ticket']);
 
             if ($canManageTickets) {
@@ -384,10 +386,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     $assigneeChanged = $newAssignee !== $currentAssignee;
                 }
 
-                $ticketDueDate = trim((string) ($ticket['due_date'] ?? ''));
-                if ($ticketDueDate !== '') {
-                    $newPriority = getPriorityFromDueDate($ticketDueDate);
-                    $priorityChanged = $newPriority !== (int) ($ticket['priority'] ?? 0);
+                $ticketDueDate = normalizeDueDateInput((string) ($ticket['due_date'] ?? ''));
+                if ($ticketDueDate !== null) {
+                    $requestedDueDate = normalizeDueDateInput((string) ($_POST['due_date'] ?? $ticketDueDate));
+                    if ($requestedDueDate === null) {
+                        $errors[] = __('flash.template_due_date_required');
+                    } else {
+                        $newDueDate = $requestedDueDate;
+                        $dueDateChanged = $newDueDate !== $ticketDueDate;
+                    }
+
+                    if (strtolower($newStatus) !== 'afgehandeld') {
+                        $newPriority = getPriorityFromDueDate((string) $newDueDate);
+                        $priorityChanged = $newPriority !== (int) ($ticket['priority'] ?? 0);
+                    }
                 } else {
                     $requestedPriority = (int) ($_POST['priority'] ?? $newPriority);
                     if ($requestedPriority < 0 || $requestedPriority > 2) {
@@ -409,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $statusChanged = true;
             }
 
-            if ($message === '' && $files === [] && !$statusChanged && !$assigneeChanged && !$priorityChanged) {
+            if ($message === '' && $files === [] && !$statusChanged && !$assigneeChanged && !$priorityChanged && !$dueDateChanged) {
                 $errors[] = __('flash.reply_empty');
             }
 
@@ -424,8 +436,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 throw new RuntimeException(implode(' ', $errors));
             }
 
-            if ($statusChanged || ($canManageTickets && ($assigneeChanged || $priorityChanged))) {
-                $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null, $newPriority);
+            if ($statusChanged || ($canManageTickets && ($assigneeChanged || $priorityChanged || $dueDateChanged))) {
+                $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null, $newPriority, $newDueDate);
             }
 
             if ($messageForStorage !== '' || $files !== []) {

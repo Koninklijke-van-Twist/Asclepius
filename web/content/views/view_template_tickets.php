@@ -38,6 +38,7 @@
                     <label>
                         <?= h(__('template_ticket.preview_label')) ?>
                         <textarea id="template_ticket_preview" readonly></textarea>
+                        <div id="template_ticket_preview_rendered" class="template-preview-rendered"></div>
                         <span class="hint"><?= h(__('template_ticket.preview_hint')) ?></span>
                     </label>
 
@@ -98,8 +99,22 @@
             </label>
             <label>
                 <?= h(__('template_ticket.template_body_label')) ?>
-                <textarea id="template_fragment_modal_body"
-                    placeholder="<?= h(__('template_ticket.template_body_placeholder')) ?>"></textarea>
+                <div class="textarea-wrapper">
+                    <textarea id="template_fragment_modal_body"
+                        placeholder="<?= h(__('template_ticket.template_body_placeholder')) ?>"></textarea>
+                    <button type="button" class="key-picker-toggle" title="<?= h(__('ticket.key_picker_tooltip')) ?>"
+                        aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="2" y="6" width="20" height="12" rx="2" />
+                            <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M10 14h4" />
+                        </svg>
+                    </button>
+                    <button type="button" class="emoji-picker-toggle" title="<?= h(__('ticket.emoji_picker_tooltip')) ?>"
+                        aria-label="<?= h(__('ticket.emoji_picker_tooltip')) ?>">🙂</button>
+                    <div class="key-picker-popup" hidden aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>"></div>
+                    <div class="emoji-picker-popup" hidden aria-label="<?= h(__('ticket.emoji_picker_tooltip')) ?>"></div>
+                </div>
             </label>
             <div class="button-row">
                 <button type="button" id="template_fragment_modal_save"

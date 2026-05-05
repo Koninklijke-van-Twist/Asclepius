@@ -77,6 +77,16 @@ assertSame('Eerste ticket is due-date ticket (dynamische prioriteit)', (int) $re
 assertSame('Due-date ticket krijgt afgeleide prioriteit 2', 2, (int) ($tickets[0]['priority'] ?? -1));
 assertSame('Tweede ticket is het normale ticket', (int) $resultNormal['ticket_id'], (int) ($tickets[1]['id'] ?? 0));
 
+$dueTomorrow = date('Y-m-d', strtotime('+1 day'));
+$store->updateTicket((int) $resultDue['ticket_id'], 'ingediend', 'ict@kvt.nl', 0, $dueTomorrow);
+$updatedOpenTicket = $store->getTicket((int) $resultDue['ticket_id'], true, 'ict@kvt.nl');
+assertSame('Due-date kan worden aangepast op bestaand due-date ticket', $dueTomorrow, (string) ($updatedOpenTicket['due_date'] ?? ''));
+assertSame('Open due-date ticket houdt afgeleide prioriteit', 2, (int) ($updatedOpenTicket['priority'] ?? -1));
+
+$store->updateTicket((int) $resultDue['ticket_id'], 'afgehandeld', 'ict@kvt.nl', 1, $dueTomorrow);
+$updatedClosedTicket = $store->getTicket((int) $resultDue['ticket_id'], true, 'ict@kvt.nl');
+assertSame('Afgehandeld due-date ticket behoudt opgeslagen prioriteit', 1, (int) ($updatedClosedTicket['priority'] ?? -1));
+
 
 echo PHP_EOL;
 echo "Resultaat: {$passed} geslaagd, {$failed} gefaald." . PHP_EOL;

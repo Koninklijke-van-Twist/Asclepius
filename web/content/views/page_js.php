@@ -181,7 +181,45 @@
         {
             var templateTitleInput = document.getElementById('template_ticket_title');
             var templatePreview = document.getElementById('template_ticket_preview');
+            var templatePreviewRendered = document.getElementById('template_ticket_preview_rendered');
             var selectedTemplateIdsInput = document.getElementById('selected_template_ids');
+
+            var escapeHtml = function (value)
+            {
+                return String(value || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            };
+
+            var renderTemplatePreviewLine = function (line)
+            {
+                var checkboxMatch = String(line || '').match(/^(\s*)\[( |x|X)\]\s*(.*)$/);
+                if (!checkboxMatch)
+                {
+                    return '<div class="template-preview-line">' + escapeHtml(line) + '</div>';
+                }
+
+                var isChecked = String(checkboxMatch[2] || '').toLowerCase() === 'x';
+                var checkboxText = String(checkboxMatch[3] || '');
+                return '<label class="template-preview-checkbox-line">'
+                    + '<input type="checkbox" disabled' + (isChecked ? ' checked' : '') + '>'
+                    + '<span>' + (checkboxText !== '' ? escapeHtml(checkboxText) : '&nbsp;') + '</span>'
+                    + '</label>';
+            };
+
+            var renderTemplatePreviewHtml = function (value)
+            {
+                var normalized = String(value || '').replace(/\r\n?/g, '\n');
+                if (normalized === '')
+                {
+                    return '';
+                }
+
+                return normalized.split('\n').map(renderTemplatePreviewLine).join('');
+            };
 
             var updateTemplatePreview = function ()
             {
@@ -222,9 +260,15 @@
                 {
                     var title = templateTitleInput ? String(templateTitleInput.value || '').trim() : '';
                     var body = selectedBodies.join('\n\n');
-                    templatePreview.value = title !== '' && body !== ''
+                    var previewValue = title !== '' && body !== ''
                         ? title + '\n\n' + body
                         : (title !== '' ? title : body);
+                    templatePreview.value = previewValue;
+
+                    if (templatePreviewRendered)
+                    {
+                        templatePreviewRendered.innerHTML = renderTemplatePreviewHtml(previewValue);
+                    }
                 }
             };
 
@@ -1238,6 +1282,72 @@
 
         });
 
+        document.addEventListener('change', function (event)
+        {
+            var checkbox = event.target && event.target.matches && event.target.matches('[data-role="message-checkbox"]')
+                ? event.target
+                : null;
+            if (!checkbox)
+            {
+                return;
+            }
+
+            var messageNode = checkbox.closest ? checkbox.closest('.message[data-message-id]') : null;
+            var ticketCard = checkbox.closest ? checkbox.closest('details.ticket-card[data-ticket-id]') : null;
+            if (!messageNode || !ticketCard)
+            {
+                checkbox.checked = !checkbox.checked;
+                return;
+            }
+
+            var ticketId = parseInt(ticketCard.getAttribute('data-ticket-id') || '0', 10);
+            var messageId = parseInt(messageNode.getAttribute('data-message-id') || '0', 10);
+            var lineIndex = parseInt(checkbox.getAttribute('data-line-index') || '-1', 10);
+            if (ticketId <= 0 || messageId <= 0 || lineIndex < 0)
+            {
+                checkbox.checked = !checkbox.checked;
+                return;
+            }
+
+            var previousChecked = !checkbox.checked;
+            checkbox.disabled = true;
+
+            apiFetchJson('update_ticket_message_checkbox', {
+                csrf_token: csrfToken,
+                ticket_id: ticketId,
+                message_id: messageId,
+                line_index: lineIndex,
+                checked: !!checkbox.checked,
+                viewer_email: ticketPollPayload.viewer_email || '',
+                user_is_admin: !!ticketPollPayload.user_is_admin
+            }).then(function (data)
+            {
+                if (!data || data.success !== true)
+                {
+                    checkbox.checked = previousChecked;
+                    return;
+                }
+
+                if (typeof data.message_text === 'string')
+                {
+                    try
+                    {
+                        messageNode.setAttribute('data-message-text', JSON.stringify(data.message_text));
+                    }
+                    catch (error)
+                    {
+                        // UI state already reflects the intended change.
+                    }
+                }
+            }).catch(function ()
+            {
+                checkbox.checked = previousChecked;
+            }).finally(function ()
+            {
+                checkbox.disabled = false;
+            });
+        });
+
         document.addEventListener('mouseover', function (event)
         {
             var applyButton = event.target.closest('[data-role="participants-apply-button"]');
@@ -1624,6 +1734,8 @@
             setText(card.querySelector('[data-role="message-count-badge"]'), String(ticket.message_count) + ' ' + '<?= addslashes(__('ticket.messages_count')) ?>');
             setText(card.querySelector('[data-role="meta-created-value"]'), ticket.meta_created_value);
             setText(card.querySelector('[data-role="meta-updated-value"]'), ticket.meta_updated_value);
+            setText(card.querySelector('[data-role="meta-due-date-value"]'), ticket.due_date_label);
+            setValue(card.querySelector('[data-role="due-date-input"]'), ticket.due_date);
             setValue(card.querySelector('[data-role="priority-select"]'), String(ticket.priority));
             setValue(card.querySelector('[data-role="status-select"]'), ticket.status);
             setValue(card.querySelector('[data-role="assigned-select"]'), ticket.assigned_email);
@@ -2206,7 +2318,63 @@
             });
         };
 
+        var EMOJI_PICKER_ITEMS = ['😀', '😁', '😂', '🙂', '😉', '😍', '🤔', '✅', '❌', '⚠️', '📌', '🛠️', '💻', '🔒', '📅', '📎'];
+
+        var buildEmojiPickerPopup = function (popup)
+        {
+            var html = '<div class="emoji-picker-grid">';
+            EMOJI_PICKER_ITEMS.forEach(function (emoji)
+            {
+                html += '<button type="button" class="emoji-picker-item" data-emoji-value="' + emoji + '">' + emoji + '</button>';
+            });
+            html += '</div>';
+            popup.innerHTML = html;
+        };
+
+        var initEmojiPicker = function (wrapper)
+        {
+            var toggle = wrapper.querySelector('.emoji-picker-toggle');
+            var popup = wrapper.querySelector('.emoji-picker-popup');
+            var textarea = wrapper.querySelector('textarea');
+            if (!toggle || !popup || !textarea) { return; }
+
+            buildEmojiPickerPopup(popup);
+
+            toggle.addEventListener('click', function (e)
+            {
+                e.stopPropagation();
+                var isOpen = !popup.hidden;
+                popup.hidden = isOpen;
+                toggle.classList.toggle('is-active', !isOpen);
+            });
+
+            popup.addEventListener('click', function (e)
+            {
+                var emojiBtn = e.target.closest('.emoji-picker-item');
+                if (!emojiBtn) { return; }
+
+                var emoji = emojiBtn.getAttribute('data-emoji-value') || '';
+                if (!emoji) { return; }
+
+                if (typeof textarea.setRangeText === 'function')
+                {
+                    var start = textarea.selectionStart;
+                    var end = textarea.selectionEnd;
+                    textarea.setRangeText(emoji, start, end, 'end');
+                }
+                else
+                {
+                    textarea.value += emoji;
+                }
+
+                textarea.focus();
+                popup.hidden = true;
+                toggle.classList.remove('is-active');
+            });
+        };
+
         document.querySelectorAll('.textarea-wrapper').forEach(initKeyPicker);
+        document.querySelectorAll('.textarea-wrapper').forEach(initEmojiPicker);
 
         document.addEventListener('click', function (e)
         {
@@ -2217,6 +2385,14 @@
                     p.hidden = true;
                 });
                 document.querySelectorAll('.key-picker-toggle.is-active').forEach(function (t)
+                {
+                    t.classList.remove('is-active');
+                });
+                document.querySelectorAll('.emoji-picker-popup').forEach(function (p)
+                {
+                    p.hidden = true;
+                });
+                document.querySelectorAll('.emoji-picker-toggle.is-active').forEach(function (t)
                 {
                     t.classList.remove('is-active');
                 });
