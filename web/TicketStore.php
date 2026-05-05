@@ -420,8 +420,7 @@ class TicketStore
         array $additionalParticipants = [],
         ?string $dueDate = null,
         ?string $forcedAssignee = null
-    ): array
-    {
+    ): array {
         $userEmail = strtolower(trim($userEmail));
         $priority = max(0, min(2, $priority));
         $normalizedForcedAssignee = strtolower(trim((string) $forcedAssignee));

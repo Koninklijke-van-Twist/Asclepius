@@ -17,7 +17,7 @@ echo "=== TEST: TicketStore template CRUD ===" . PHP_EOL . PHP_EOL;
 
 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 $_SERVER['SERVER_ADDR'] = '127.0.0.1';
-$_SERVER['PHP_SELF']    = '/asclepius/index.php';
+$_SERVER['PHP_SELF'] = '/asclepius/index.php';
 
 require __DIR__ . '/../web/content/constants.php';
 require __DIR__ . '/../web/TicketStore.php';
@@ -49,9 +49,18 @@ function assertSame(string $label, mixed $expected, mixed $actual): void
     }
 }
 
-function assertTrue(string $label, bool $actual): void  { assertSame($label, true, $actual); }
-function assertFalse(string $label, bool $actual): void { assertSame($label, false, $actual); }
-function assertNull(string $label, mixed $actual): void  { assertSame($label, null, $actual); }
+function assertTrue(string $label, bool $actual): void
+{
+    assertSame($label, true, $actual);
+}
+function assertFalse(string $label, bool $actual): void
+{
+    assertSame($label, false, $actual);
+}
+function assertNull(string $label, mixed $actual): void
+{
+    assertSame($label, null, $actual);
+}
 
 /**
  * Maakt een TicketStore die op een in-memory SQLite-database draait.
@@ -195,7 +204,7 @@ echo PHP_EOL;
 echo "--- 7. createTicketTemplate() trimt invoer ---" . PHP_EOL;
 
 $idTrimmed = $store->createTicketTemplate('  Spaties rondom  ', '  Tekst met spaties  ', 'trim@kvt.nl');
-$trimmed   = $store->getTicketTemplateById($idTrimmed);
+$trimmed = $store->getTicketTemplateById($idTrimmed);
 assertSame('Naam wordt getrimd bij opslaan', 'Spaties rondom', $trimmed['name']);
 assertSame('Body wordt getrimd bij opslaan', 'Tekst met spaties', $trimmed['body']);
 

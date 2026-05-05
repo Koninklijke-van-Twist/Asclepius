@@ -9,8 +9,8 @@
  * Bestanden die beginnen met 'run-' worden overgeslagen (deze runner zelf).
  */
 
-$testDir  = __DIR__;
-$phpBin   = PHP_BINARY;
+$testDir = __DIR__;
+$phpBin = PHP_BINARY;
 $testFiles = array_merge(
     glob($testDir . '/test-*.php') ?: [],
     glob($testDir . '/check_*.php') ?: []
@@ -23,7 +23,7 @@ if ($testFiles === []) {
 }
 
 $totalFailed = 0;
-$results     = [];
+$results = [];
 
 foreach ($testFiles as $file) {
     $name = basename($file);

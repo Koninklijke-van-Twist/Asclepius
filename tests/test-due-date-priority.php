@@ -15,7 +15,7 @@ echo "=== TEST: due-date helpers & prioriteitsberekening ===" . PHP_EOL . PHP_EO
 
 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 $_SERVER['SERVER_ADDR'] = '127.0.0.1';
-$_SERVER['PHP_SELF']    = '/asclepius/index.php';
+$_SERVER['PHP_SELF'] = '/asclepius/index.php';
 
 require __DIR__ . '/../web/content/constants.php';
 require __DIR__ . '/../web/content/helpers.php';
@@ -146,8 +146,8 @@ echo PHP_EOL;
 // -----------------------------------------------------------------------
 echo "--- 3. isDueDateTodayOrFuture() ---" . PHP_EOL;
 
-$today     = date('Y-m-d');
-$tomorrow  = date('Y-m-d', strtotime('+1 day'));
+$today = date('Y-m-d');
+$tomorrow = date('Y-m-d', strtotime('+1 day'));
 $yesterday = date('Y-m-d', strtotime('-1 day'));
 
 assertFalse(
@@ -201,8 +201,8 @@ assertSame(
 );
 
 // Vandaag: 1 als weekdag, 0 als weekend
-$todayWeekday     = (int) date('N'); // 1=Ma ... 7=Zo
-$expectedToday    = ($todayWeekday <= 5) ? 1 : 0;
+$todayWeekday = (int) date('N'); // 1=Ma ... 7=Zo
+$expectedToday = ($todayWeekday <= 5) ? 1 : 0;
 assertSame(
     "Vandaag ({$today}) geeft {$expectedToday} werkdag(en)",
     $expectedToday,
@@ -228,8 +228,8 @@ assertTrue(
 // Zoek de komende maandag die minstens 14 dagen weg is
 $futureMon = new DateTimeImmutable(date('Y-m-d', strtotime('next monday +2 weeks')));
 $futureFri = $futureMon->modify('+4 days');
-$countFri  = countBusinessDaysUntilDueDate($futureFri->format('Y-m-d'));
-$countMon  = countBusinessDaysUntilDueDate($futureMon->format('Y-m-d'));
+$countFri = countBusinessDaysUntilDueDate($futureFri->format('Y-m-d'));
+$countMon = countBusinessDaysUntilDueDate($futureMon->format('Y-m-d'));
 assertSame(
     "Vrijdag van die week is precies 4 meer werkdagen dan maandag van die week (vri={$countFri}, ma={$countMon})",
     4,
@@ -300,8 +300,8 @@ assertSame(
 
 // Aankomende maandag die ≥ 3 werkdagen heeft: find a Friday between 2-6 calendar days out
 // met nog ≥ 3 werkdagen → prioriteit 1. We zoeken een dag die < 7 kalender en ≥ 3 werkdagen is.
-$plus5Days       = countBusinessDaysUntilDueDate($plus5);
-$expectedPrio    = ($plus5Days < 3) ? 2 : 1;
+$plus5Days = countBusinessDaysUntilDueDate($plus5);
+$expectedPrio = ($plus5Days < 3) ? 2 : 1;
 assertSame(
     "+5 kalenderdagen: werkdagen={$plus5Days}, verwachte prioriteit={$expectedPrio}",
     $expectedPrio,

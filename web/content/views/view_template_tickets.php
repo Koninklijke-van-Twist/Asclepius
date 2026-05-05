@@ -5,7 +5,8 @@
 
         <div class="template-ticket-layout">
             <div class="template-ticket-left">
-                <form method="post" action="admin.php?view=template_tickets" class="form-grid" id="template-ticket-create-form">
+                <form method="post" action="admin.php?view=template_tickets" class="form-grid"
+                    id="template-ticket-create-form">
                     <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
                     <input type="hidden" name="form_action" value="create_template_ticket">
                     <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
@@ -24,7 +25,8 @@
 
                     <label>
                         <?= h(__('template_ticket.due_date_label')) ?>
-                        <input type="date" name="due_date" id="template_ticket_due_date" required min="<?= h(date('Y-m-d')) ?>">
+                        <input type="date" name="due_date" id="template_ticket_due_date" required
+                            min="<?= h(date('Y-m-d')) ?>">
                     </label>
 
                     <label>
@@ -48,7 +50,8 @@
             <div class="template-ticket-right">
                 <div class="template-ticket-right-header">
                     <h3><?= h(__('template_ticket.templates_heading')) ?></h3>
-                    <button type="button" class="secondary-button" id="template_fragment_new_btn"><?= h(__('template_ticket.new_template_button')) ?></button>
+                    <button type="button" class="secondary-button"
+                        id="template_fragment_new_btn"><?= h(__('template_ticket.new_template_button')) ?></button>
                 </div>
 
                 <?php if ($templateFragments === []): ?>
@@ -65,14 +68,12 @@
                         ?>
                         <label class="template-fragment-item">
                             <span class="template-drag-handle" aria-hidden="true">&#8597;</span>
-                            <input type="checkbox" class="template-fragment-checkbox"
-                                value="<?= $templateId ?>"
+                            <input type="checkbox" class="template-fragment-checkbox" value="<?= $templateId ?>"
                                 data-template-body="<?= h((string) json_encode($templateBody, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
                                 data-template-name="<?= h($templateName) ?>">
                             <span class="template-fragment-name"><?= h($templateName) ?></span>
                             <button type="button" class="secondary-button template-fragment-edit-btn"
-                                data-template-id="<?= $templateId ?>"
-                                data-template-name="<?= h($templateName) ?>"
+                                data-template-id="<?= $templateId ?>" data-template-name="<?= h($templateName) ?>"
                                 data-template-body="<?= h($templateBody) ?>"><?= h(__('template_ticket.edit_template_button')) ?></button>
                         </label>
                     <?php endforeach; ?>

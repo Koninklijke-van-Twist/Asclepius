@@ -559,7 +559,8 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 <?php if (trim((string) ($ticket['due_date'] ?? '')) !== ''): ?>
                     <div class="meta-item">
                         <span class="meta-label"><?= h(__('ticket.meta_due_date')) ?></span>
-                        <span data-role="meta-due-date-value"><?= h(formatDueDateLabel((string) ($ticket['due_date'] ?? ''))) ?></span>
+                        <span
+                            data-role="meta-due-date-value"><?= h(formatDueDateLabel((string) ($ticket['due_date'] ?? ''))) ?></span>
                     </div>
                 <?php endif; ?>
                 <?php if ($userIsAdmin && $isAdminPortal): ?>
