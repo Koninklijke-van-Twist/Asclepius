@@ -976,6 +976,10 @@
             if (templateModalDelete) { templateModalDelete.hidden = (mode !== 'edit'); }
             setTemplateModalError('');
             templateModal.hidden = false;
+            if (templateModalBody)
+            {
+                templateModalBody.dispatchEvent(new Event('input', { bubbles: true }));
+            }
             if (templateModalName) { templateModalName.focus(); }
         };
 
