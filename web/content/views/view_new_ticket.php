@@ -26,8 +26,19 @@
 
             <label>
                 <?= h(__('new_ticket.description_label')) ?>
-                <textarea name="description" placeholder="<?= h(__('new_ticket.description_placeholder')) ?>"
-                    required></textarea>
+                <div class="textarea-wrapper">
+                    <textarea name="description" placeholder="<?= h(__('new_ticket.description_placeholder')) ?>"
+                        required></textarea>
+                    <button type="button" class="key-picker-toggle" title="<?= h(__('ticket.key_picker_tooltip')) ?>"
+                        aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="2" y="6" width="20" height="12" rx="2" />
+                            <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M10 14h4" />
+                        </svg>
+                    </button>
+                    <div class="key-picker-popup" hidden aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>"></div>
+                </div>
             </label>
 
             <div class="checkbox-stack">

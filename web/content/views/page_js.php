@@ -36,6 +36,105 @@
             syncPriorityVisibility();
         }
 
+        var escapeHtml = function (value)
+        {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        };
+
+        var SHORTCUT_KEY_DEFINITIONS = <?= json_encode(getShortcutKeyDefinitions(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        var SHORTCUT_KEY_ALIAS_MAP = {};
+
+        var normalizeShortcutKeyAlias = function (value)
+        {
+            return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        };
+
+        var registerShortcutKeyAlias = function (alias, definition)
+        {
+            var rawAlias = String(alias || '').trim().toLowerCase();
+            if (rawAlias !== '')
+            {
+                SHORTCUT_KEY_ALIAS_MAP[rawAlias] = definition;
+            }
+
+            var normalizedAlias = normalizeShortcutKeyAlias(alias);
+            if (normalizedAlias !== '')
+            {
+                SHORTCUT_KEY_ALIAS_MAP[normalizedAlias] = definition;
+            }
+        };
+
+        SHORTCUT_KEY_DEFINITIONS.forEach(function (definition)
+        {
+            (definition.aliases || []).forEach(function (alias)
+            {
+                registerShortcutKeyAlias(alias, definition);
+            });
+        });
+
+        var getShortcutKeyDefinition = function (token)
+        {
+            var rawToken = String(token || '').trim().toLowerCase();
+            var normalizedToken = normalizeShortcutKeyAlias(token);
+            var definition = SHORTCUT_KEY_ALIAS_MAP[rawToken] || SHORTCUT_KEY_ALIAS_MAP[normalizedToken] || null;
+            if (definition)
+            {
+                return definition;
+            }
+
+            if (/^[a-z0-9]$/.test(normalizedToken))
+            {
+                return { label: normalizedToken.toUpperCase(), icon: null };
+            }
+
+            if (/^f([1-9]|1[0-2])$/.test(normalizedToken))
+            {
+                return { label: normalizedToken.toUpperCase(), icon: null };
+            }
+
+            return null;
+        };
+
+        var KEY_PICKER_ICONS = {
+            'windows': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 3.5L11 2v9H2v-7.5zm11 7.5V2l11-1.5V11H13zM2 13h9v9L2 20.5V13zm11 0h11v10.5L13 22v-9z"/></svg>',
+            'arrow-up': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4l6 6h-4v10h-4V10H6l6-6z"/></svg>',
+            'arrow-down': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20l-6-6h4V4h4v10h4l-6 6z"/></svg>',
+            'arrow-left': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 12l6-6v4h10v4H10v4l-6-6z"/></svg>',
+            'arrow-right': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 12l-6 6v-4H4v-4h10V6l6 6z"/></svg>'
+        };
+
+        var renderShortcutKeyTokenHtml = function (token)
+        {
+            var definition = getShortcutKeyDefinition(token);
+            if (!definition)
+            {
+                return null;
+            }
+
+            var iconHtml = KEY_PICKER_ICONS[definition.icon || ''] || '';
+            var label = String(definition.label || '').trim();
+            if (iconHtml === '' && label === '')
+            {
+                return null;
+            }
+
+            var labelHtml = label !== '' ? '<span class="shortcut-key-label">' + escapeHtml(label) + '</span>' : '';
+            return '<span class="shortcut-key">' + iconHtml + labelHtml + '</span>';
+        };
+
+        var renderShortcutMarkup = function (escapedText)
+        {
+            return String(escapedText || '').replace(/\[([^\[\]\r\n]{1,24})\]/g, function (match, token)
+            {
+                return renderShortcutKeyTokenHtml(token) || match;
+            }).replace(/(<span class="shortcut-key"(?:\s[^>]*)?>.*?<\/span>)\s*\+\s*(?=<span class="shortcut-key"(?:\s[^>]*)?>)/g, '$1<span class="shortcut-plus">+</span>');
+        };
+
         var initializeEmailChipInputs = function (scope)
         {
             (scope || document).querySelectorAll('input[data-email-chip-input="1"]').forEach(function (input)
@@ -182,60 +281,17 @@
             var templateTitleInput = document.getElementById('template_ticket_title');
             var templatePreviewRendered = document.getElementById('template_ticket_preview_rendered');
             var selectedTemplateIdsInput = document.getElementById('selected_template_ids');
+            /*
 
-            var escapeHtml = function (value)
-            {
-                return String(value || '')
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#39;');
-            };
-
-            var PREVIEW_KEY_TOKEN_LABELS = {
-                'control': 'Ctrl',
-                'alt': 'Alt',
-                'shift': 'Shift',
-                'enter': 'Enter',
-                'backspace': 'Backspace',
-                'tab': 'Tab',
-                'escape': 'Esc',
-                'delete': 'Del',
-                'home': 'Home',
-                'end': 'End',
-                'page-up': 'PgUp',
-                'page-down': 'PgDn',
-                'insert': 'Ins',
-                'caps-lock': 'Caps',
-                'print-screen': 'PrtSc',
-                'space': 'Space',
                 'arrow-up': '↑',
                 'arrow-down': '↓',
                 'arrow-left': '←',
                 'arrow-right': '→',
                 'windows': '⊞',
-                'minus': '-',
-                'equals': '=',
-                'comma': ',',
-                'period': '.',
-                'slash': '/',
-                'backslash': '\\',
-                'semicolon': ';',
-                'quote': "'",
-                'backtick': '`',
-                'lbracket': '[',
-                'rbracket': ']'
-            };
-
+            */
             var renderTemplatePreviewKeyMarkup = function (value)
             {
-                return String(value || '').replace(/\[([a-z0-9-]{1,40})\]/gi, function (match, token)
-                {
-                    var normalizedToken = String(token || '').toLowerCase();
-                    var display = PREVIEW_KEY_TOKEN_LABELS[normalizedToken] || String(token || '').toUpperCase();
-                    return '<span class="shortcut-key">' + escapeHtml(display) + '</span>';
-                });
+                return renderShortcutMarkup(value);
             };
 
             var renderTemplatePreviewLine = function (line)
@@ -2285,13 +2341,7 @@
             }
         ];
 
-        var KEY_PICKER_ICONS = {
-            'windows': '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 3.5L11 2v9H2v-7.5zm11 7.5V2l11-1.5V11H13zM2 13h9v9L2 20.5V13zm11 0h11v10.5L13 22v-9z"/></svg>',
-            'arrow-up': '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4l6 6h-4v10h-4V10H6l6-6z"/></svg>',
-            'arrow-down': '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20l-6-6h4V4h4v10h4l-6 6z"/></svg>',
-            'arrow-left': '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 12l6-6v4h10v4H10v4l-6-6z"/></svg>',
-            'arrow-right': '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 12l-6 6v-4H4v-4h10V6l6 6z"/></svg>'
-        };
+        var KEY_PICKER_BUTTON_ICONS = KEY_PICKER_ICONS;
 
         var buildKeyPickerPopup = function (popup)
         {
@@ -2304,7 +2354,10 @@
 
                 group.keys.forEach(function (key)
                 {
-                    var inner = (KEY_PICKER_ICONS[key.icon || ''] || '') + (key.label ? key.label : '');
+                    var definition = getShortcutKeyDefinition(key.token);
+                    var icon = key.icon || (definition ? definition.icon : '');
+                    var label = definition ? definition.label : (key.label || '');
+                    var inner = (KEY_PICKER_BUTTON_ICONS[icon || ''] || '') + (label ? escapeHtml(label) : '');
                     html += '<button type="button" class="key-picker-key" data-key-token="' + key.token + '">'
                         + inner + '</button>';
                 });
@@ -2320,6 +2373,57 @@
             var popup = wrapper.querySelector('.key-picker-popup');
             var textarea = wrapper.querySelector('textarea');
             if (!toggle || !popup || !textarea) { return; }
+
+            var renderer = wrapper.querySelector('.key-token-renderer');
+            if (!renderer)
+            {
+                renderer = document.createElement('div');
+                renderer.className = 'key-token-renderer';
+                renderer.setAttribute('aria-hidden', 'true');
+                wrapper.insertBefore(renderer, textarea);
+            }
+
+            var syncRendererMetrics = function ()
+            {
+                var style = window.getComputedStyle(textarea);
+                [
+                    'borderTopWidth',
+                    'borderRightWidth',
+                    'borderBottomWidth',
+                    'borderLeftWidth',
+                    'borderRadius',
+                    'font',
+                    'letterSpacing',
+                    'lineHeight',
+                    'paddingTop',
+                    'paddingRight',
+                    'paddingBottom',
+                    'paddingLeft',
+                    'textAlign',
+                    'textIndent',
+                    'textTransform'
+                ].forEach(function (property)
+                {
+                    renderer.style[property] = style[property];
+                });
+            };
+
+            var updateKeyTokenRenderer = function ()
+            {
+                syncRendererMetrics();
+                renderer.innerHTML = renderShortcutMarkup(escapeHtml(textarea.value || ''));
+                renderer.scrollTop = textarea.scrollTop;
+                renderer.scrollLeft = textarea.scrollLeft;
+            };
+
+            wrapper.classList.add('has-key-token-renderer');
+            textarea.addEventListener('input', updateKeyTokenRenderer);
+            textarea.addEventListener('scroll', function ()
+            {
+                renderer.scrollTop = textarea.scrollTop;
+                renderer.scrollLeft = textarea.scrollLeft;
+            });
+            updateKeyTokenRenderer();
 
             buildKeyPickerPopup(popup);
 
@@ -2352,6 +2456,7 @@
                     textarea.value += insertion;
                 }
 
+                updateKeyTokenRenderer();
                 textarea.focus();
                 popup.hidden = true;
                 toggle.classList.remove('is-active');

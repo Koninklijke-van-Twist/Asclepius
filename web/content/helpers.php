@@ -1307,6 +1307,94 @@ function buildParticipantChangeNote(array $addedParticipants, array $removedPart
     return implode(PHP_EOL, $lines);
 }
 
+function getShortcutKeyDefinitions(): array
+{
+    static $definitions = null;
+    if ($definitions !== null) {
+        return $definitions;
+    }
+
+    $definitions = [
+        ['label' => 'Ctrl', 'icon' => null, 'aliases' => ['ctrl', 'control', 'ctl', 'strg']],
+        ['label' => 'Alt', 'icon' => null, 'aliases' => ['alt', 'option']],
+        ['label' => 'Alt Gr', 'icon' => null, 'aliases' => ['altgr', 'altgraph']],
+        ['label' => 'Shift', 'icon' => null, 'aliases' => ['shift']],
+        ['label' => '', 'icon' => 'windows', 'aliases' => ['win', 'windows', 'meta', 'super', 'cmd', 'command']],
+        ['label' => 'Fn', 'icon' => null, 'aliases' => ['fn', 'function']],
+        ['label' => 'Delete', 'icon' => null, 'aliases' => ['delete', 'del']],
+        ['label' => 'Backspace', 'icon' => null, 'aliases' => ['backspace', 'bksp']],
+        ['label' => 'Enter', 'icon' => null, 'aliases' => ['enter', 'return']],
+        ['label' => 'Esc', 'icon' => null, 'aliases' => ['esc', 'escape']],
+        ['label' => 'Tab', 'icon' => null, 'aliases' => ['tab']],
+        ['label' => 'Space', 'icon' => null, 'aliases' => ['space', 'spacebar']],
+        ['label' => 'Caps Lock', 'icon' => null, 'aliases' => ['caps', 'capslock']],
+        ['label' => 'Insert', 'icon' => null, 'aliases' => ['ins', 'insert']],
+        ['label' => 'Home', 'icon' => null, 'aliases' => ['home']],
+        ['label' => 'End', 'icon' => null, 'aliases' => ['end']],
+        ['label' => 'Pg Up', 'icon' => null, 'aliases' => ['pageup', 'pgup']],
+        ['label' => 'Pg Down', 'icon' => null, 'aliases' => ['pagedown', 'pgdn']],
+        ['label' => 'PrtSc', 'icon' => null, 'aliases' => ['printscreen', 'prtsc', 'printscr', 'snapshot']],
+        ['label' => 'Scr Lk', 'icon' => null, 'aliases' => ['scrolllock', 'scrlk']],
+        ['label' => 'Pause', 'icon' => null, 'aliases' => ['pause', 'break']],
+        ['label' => 'Menu', 'icon' => null, 'aliases' => ['menu', 'contextmenu', 'apps']],
+        ['label' => '', 'icon' => 'arrow-up', 'aliases' => ['up', 'arrowup', 'uparrow']],
+        ['label' => '', 'icon' => 'arrow-down', 'aliases' => ['down', 'arrowdown', 'downarrow']],
+        ['label' => '', 'icon' => 'arrow-left', 'aliases' => ['left', 'arrowleft', 'leftarrow']],
+        ['label' => '', 'icon' => 'arrow-right', 'aliases' => ['right', 'arrowright', 'rightarrow']],
+        ['label' => 'Num Lk', 'icon' => null, 'aliases' => ['numlock']],
+        ['label' => 'Num /', 'icon' => null, 'aliases' => ['numdivide', 'numpaddivide']],
+        ['label' => 'Num *', 'icon' => null, 'aliases' => ['nummultiply', 'numpadmultiply']],
+        ['label' => 'Num -', 'icon' => null, 'aliases' => ['numminus', 'numpadminus']],
+        ['label' => 'Num +', 'icon' => null, 'aliases' => ['numplus', 'numpadplus']],
+        ['label' => 'Num Enter', 'icon' => null, 'aliases' => ['numenter', 'numpadenter']],
+        ['label' => 'Num .', 'icon' => null, 'aliases' => ['numdecimal', 'numpaddecimal', 'numdot']],
+        ['label' => '-', 'icon' => null, 'aliases' => ['minus', 'hyphen', 'dash', '-']],
+        ['label' => '=', 'icon' => null, 'aliases' => ['equals', 'equal', '=']],
+        ['label' => ',', 'icon' => null, 'aliases' => ['comma', ',']],
+        ['label' => '.', 'icon' => null, 'aliases' => ['period', 'dot', '.']],
+        ['label' => '/', 'icon' => null, 'aliases' => ['slash', 'forwardslash', '/']],
+        ['label' => '\\', 'icon' => null, 'aliases' => ['backslash', '\\']],
+        ['label' => ';', 'icon' => null, 'aliases' => ['semicolon', ';']],
+        ['label' => "'", 'icon' => null, 'aliases' => ['quote', 'apostrophe', "'"]],
+        ['label' => '`', 'icon' => null, 'aliases' => ['backtick', 'grave', '`']],
+        ['label' => '[', 'icon' => null, 'aliases' => ['lbracket', 'leftbracket', 'openbracket']],
+        ['label' => ']', 'icon' => null, 'aliases' => ['rbracket', 'rightbracket', 'closebracket']],
+        ['label' => '@', 'icon' => null, 'aliases' => ['at', 'atsign', '@']],
+        ['label' => '*', 'icon' => null, 'aliases' => ['asterisk', 'star', '*']],
+        ['label' => '#', 'icon' => null, 'aliases' => ['hash', 'pound', 'hashtag', '#']],
+        ['label' => '!', 'icon' => null, 'aliases' => ['exclamation', 'bang', '!']],
+        ['label' => '?', 'icon' => null, 'aliases' => ['question', '?']],
+        ['label' => '&', 'icon' => null, 'aliases' => ['ampersand', 'and', '&']],
+        ['label' => '%', 'icon' => null, 'aliases' => ['percent', '%']],
+        ['label' => '^', 'icon' => null, 'aliases' => ['caret', '^']],
+        ['label' => '+', 'icon' => null, 'aliases' => ['plus', '+']],
+        ['label' => '<', 'icon' => null, 'aliases' => ['lessthan', 'lt', '<']],
+        ['label' => '>', 'icon' => null, 'aliases' => ['greaterthan', 'gt', '>']],
+        ['label' => '~', 'icon' => null, 'aliases' => ['tilde', '~']],
+        ['label' => '|', 'icon' => null, 'aliases' => ['pipe', 'bar', '|']],
+        ['label' => '_', 'icon' => null, 'aliases' => ['underscore', '_']],
+        ['label' => '"', 'icon' => null, 'aliases' => ['doublequote', 'dquote', '"']],
+        ['label' => 'Vol +', 'icon' => null, 'aliases' => ['volumeup', 'volup']],
+        ['label' => 'Vol -', 'icon' => null, 'aliases' => ['volumedown', 'voldown']],
+        ['label' => 'Mute', 'icon' => null, 'aliases' => ['volumemute', 'mute']],
+        ['label' => 'Play/Pause', 'icon' => null, 'aliases' => ['mediaplaypause', 'playpause']],
+        ['label' => 'Next', 'icon' => null, 'aliases' => ['medianexttrack', 'nexttrack']],
+        ['label' => 'Prev', 'icon' => null, 'aliases' => ['mediaprevtrack', 'previoustrack']],
+    ];
+
+    foreach (range(1, 12) as $functionNumber) {
+        $fLabel = 'F' . $functionNumber;
+        $definitions[] = ['label' => $fLabel, 'icon' => null, 'aliases' => [strtolower($fLabel)]];
+    }
+
+    foreach (range(0, 9) as $numPadDigit) {
+        $numLabel = 'Num ' . $numPadDigit;
+        $definitions[] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['num' . $numPadDigit, 'numpad' . $numPadDigit]];
+    }
+
+    return $definitions;
+}
+
 function getShortcutKeyDefinition(string $keyToken): ?array
 {
     $normalizeAlias = static function (string $value): string {
@@ -1337,87 +1425,8 @@ function getShortcutKeyDefinition(string $keyToken): ?array
             }
         };
 
-        $definitions = [
-            ['label' => 'Ctrl', 'icon' => null, 'aliases' => ['ctrl', 'control', 'ctl', 'strg']],
-            ['label' => 'Alt', 'icon' => null, 'aliases' => ['alt', 'option']],
-            ['label' => 'Alt Gr', 'icon' => null, 'aliases' => ['altgr', 'altgraph']],
-            ['label' => 'Shift', 'icon' => null, 'aliases' => ['shift']],
-            ['label' => '', 'icon' => 'windows', 'aliases' => ['win', 'windows', 'meta', 'super', 'cmd', 'command']],
-            ['label' => 'Fn', 'icon' => null, 'aliases' => ['fn', 'function']],
-            ['label' => 'Delete', 'icon' => null, 'aliases' => ['delete', 'del']],
-            ['label' => 'Backspace', 'icon' => null, 'aliases' => ['backspace', 'bksp']],
-            ['label' => 'Enter', 'icon' => null, 'aliases' => ['enter', 'return']],
-            ['label' => 'Esc', 'icon' => null, 'aliases' => ['esc', 'escape']],
-            ['label' => 'Tab', 'icon' => null, 'aliases' => ['tab']],
-            ['label' => 'Space', 'icon' => null, 'aliases' => ['space', 'spacebar']],
-            ['label' => 'Caps Lock', 'icon' => null, 'aliases' => ['caps', 'capslock']],
-            ['label' => 'Insert', 'icon' => null, 'aliases' => ['ins', 'insert']],
-            ['label' => 'Home', 'icon' => null, 'aliases' => ['home']],
-            ['label' => 'End', 'icon' => null, 'aliases' => ['end']],
-            ['label' => 'Pg Up', 'icon' => null, 'aliases' => ['pageup', 'pgup']],
-            ['label' => 'Pg Down', 'icon' => null, 'aliases' => ['pagedown', 'pgdn']],
-            ['label' => 'PrtSc', 'icon' => null, 'aliases' => ['printscreen', 'prtsc', 'printscr', 'snapshot']],
-            ['label' => 'Scr Lk', 'icon' => null, 'aliases' => ['scrolllock', 'scrlk']],
-            ['label' => 'Pause', 'icon' => null, 'aliases' => ['pause', 'break']],
-            ['label' => 'Menu', 'icon' => null, 'aliases' => ['menu', 'contextmenu', 'apps']],
-            ['label' => '', 'icon' => 'arrow-up', 'aliases' => ['up', 'arrowup', 'uparrow']],
-            ['label' => '', 'icon' => 'arrow-down', 'aliases' => ['down', 'arrowdown', 'downarrow']],
-            ['label' => '', 'icon' => 'arrow-left', 'aliases' => ['left', 'arrowleft', 'leftarrow']],
-            ['label' => '', 'icon' => 'arrow-right', 'aliases' => ['right', 'arrowright', 'rightarrow']],
-            ['label' => 'Num Lk', 'icon' => null, 'aliases' => ['numlock']],
-            ['label' => 'Num /', 'icon' => null, 'aliases' => ['numdivide', 'numpaddivide']],
-            ['label' => 'Num *', 'icon' => null, 'aliases' => ['nummultiply', 'numpadmultiply']],
-            ['label' => 'Num -', 'icon' => null, 'aliases' => ['numminus', 'numpadminus']],
-            ['label' => 'Num +', 'icon' => null, 'aliases' => ['numplus', 'numpadplus']],
-            ['label' => 'Num Enter', 'icon' => null, 'aliases' => ['numenter', 'numpadenter']],
-            ['label' => 'Num .', 'icon' => null, 'aliases' => ['numdecimal', 'numpaddecimal', 'numdot']],
-            ['label' => '-', 'icon' => null, 'aliases' => ['minus', 'hyphen', 'dash', '-']],
-            ['label' => '=', 'icon' => null, 'aliases' => ['equals', 'equal', '=']],
-            ['label' => ',', 'icon' => null, 'aliases' => ['comma', ',']],
-            ['label' => '.', 'icon' => null, 'aliases' => ['period', 'dot', '.']],
-            ['label' => '/', 'icon' => null, 'aliases' => ['slash', 'forwardslash', '/']],
-            ['label' => '\\', 'icon' => null, 'aliases' => ['backslash', '\\']],
-            ['label' => ';', 'icon' => null, 'aliases' => ['semicolon', ';']],
-            ['label' => "'", 'icon' => null, 'aliases' => ['quote', 'apostrophe', "'"]],
-            ['label' => '`', 'icon' => null, 'aliases' => ['backtick', 'grave', '`']],
-            ['label' => '[', 'icon' => null, 'aliases' => ['lbracket', 'leftbracket', 'openbracket']],
-            ['label' => ']', 'icon' => null, 'aliases' => ['rbracket', 'rightbracket', 'closebracket']],
-            ['label' => '@', 'icon' => null, 'aliases' => ['at', 'atsign', '@']],
-            ['label' => '*', 'icon' => null, 'aliases' => ['asterisk', 'star', '*']],
-            ['label' => '#', 'icon' => null, 'aliases' => ['hash', 'pound', 'hashtag', '#']],
-            ['label' => '!', 'icon' => null, 'aliases' => ['exclamation', 'bang', '!']],
-            ['label' => '?', 'icon' => null, 'aliases' => ['question', '?']],
-            ['label' => '&', 'icon' => null, 'aliases' => ['ampersand', 'and', '&']],
-            ['label' => '%', 'icon' => null, 'aliases' => ['percent', '%']],
-            ['label' => '^', 'icon' => null, 'aliases' => ['caret', '^']],
-            ['label' => '+', 'icon' => null, 'aliases' => ['plus', '+']],
-            ['label' => '<', 'icon' => null, 'aliases' => ['lessthan', 'lt', '<']],
-            ['label' => '>', 'icon' => null, 'aliases' => ['greaterthan', 'gt', '>']],
-            ['label' => '~', 'icon' => null, 'aliases' => ['tilde', '~']],
-            ['label' => '|', 'icon' => null, 'aliases' => ['pipe', 'bar', '|']],
-            ['label' => '_', 'icon' => null, 'aliases' => ['underscore', '_']],
-            ['label' => '"', 'icon' => null, 'aliases' => ['doublequote', 'dquote', '"']],
-            ['label' => 'Vol +', 'icon' => null, 'aliases' => ['volumeup', 'volup']],
-            ['label' => 'Vol -', 'icon' => null, 'aliases' => ['volumedown', 'voldown']],
-            ['label' => 'Mute', 'icon' => null, 'aliases' => ['volumemute', 'mute']],
-            ['label' => 'Play/Pause', 'icon' => null, 'aliases' => ['mediaplaypause', 'playpause']],
-            ['label' => 'Next', 'icon' => null, 'aliases' => ['medianexttrack', 'nexttrack']],
-            ['label' => 'Prev', 'icon' => null, 'aliases' => ['mediaprevtrack', 'previoustrack']],
-        ];
-
-        foreach ($definitions as $definition) {
+        foreach (getShortcutKeyDefinitions() as $definition) {
             $register($definition);
-        }
-
-        foreach (range(1, 12) as $functionNumber) {
-            $fLabel = 'F' . $functionNumber;
-            $aliasMap[strtolower($fLabel)] = ['label' => $fLabel, 'icon' => null, 'aliases' => [strtolower($fLabel)]];
-        }
-
-        foreach (range(0, 9) as $numPadDigit) {
-            $numLabel = 'Num ' . $numPadDigit;
-            $aliasMap['num' . $numPadDigit] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['num' . $numPadDigit]];
-            $aliasMap['numpad' . $numPadDigit] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['numpad' . $numPadDigit]];
         }
     }
 
