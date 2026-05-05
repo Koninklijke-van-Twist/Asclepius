@@ -4,6 +4,7 @@ const DATABASE_FILE = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR
 const UPLOAD_DIRECTORY = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'ticket_uploads';
 const MAX_ATTACHMENT_BYTES = 20971520;
 const LONG_OPEN_NOTIFICATION_FALLBACK_DAYS = 7;
+const TEMPLATE_TICKET_CATEGORY = 'Laptop Klaarmaken';
 const TICKET_CATEGORIES = [
     'hardware bestellen',
     'software bestellen',
@@ -13,6 +14,7 @@ const TICKET_CATEGORIES = [
     'Softwareproblemen',
     'sleutels.kvt.nl web-applicatieproblemen',
     'Anders',
+    TEMPLATE_TICKET_CATEGORY,
 ];
 const TICKET_STATUSES = [
     'ingediend',
@@ -92,6 +94,7 @@ const CATEGORY_COLORS = [
     'Softwareproblemen' => '#eaa40c',
     'sleutels.kvt.nl web-applicatieproblemen' => '#b2087f',
     'Anders' => '#475569',
+    TEMPLATE_TICKET_CATEGORY => '#0f766e',
 ];
 
 if (!defined('APP_TIMEZONE')) {

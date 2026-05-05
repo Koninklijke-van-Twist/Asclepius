@@ -17,7 +17,7 @@
                     <?= h(__('new_ticket.category_label')) ?>
                     <select name="category" required>
                         <option value=""><?= h(__('new_ticket.category_option')) ?></option>
-                        <?php foreach (TICKET_CATEGORIES as $category): ?>
+                        <?php foreach (getSelectableTicketCategories() as $category): ?>
                             <option value="<?= h($category) ?>"><?= h(translateCategory($category)) ?></option>
                         <?php endforeach; ?>
                     </select>

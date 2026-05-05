@@ -6,8 +6,8 @@ $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 $_SERVER['SERVER_ADDR'] = '127.0.0.1';
 $_SERVER['PHP_SELF'] = '/asclepius/index.php';
 
-require __DIR__ . '/web/content/constants.php';
-require __DIR__ . '/web/content/helpers.php';
+require __DIR__ . '/../web/content/constants.php';
+require __DIR__ . '/../web/content/helpers.php';
 
 // Simulate auth.php with associative $ictUsers
 $ictUsers = [

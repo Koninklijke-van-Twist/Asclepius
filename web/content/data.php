@@ -133,6 +133,19 @@ $ictStats = $canManageTickets && $view === 'stats' && $store instanceof TicketSt
 $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getRequesterStats()
     : [];
+$templateFragments = $canManageTickets && $view === 'template_tickets' && $store instanceof TicketStore
+    ? $store->getTicketTemplates()
+    : [];
+$editingTemplateId = $canManageTickets && $view === 'template_tickets' ? max(0, (int) ($_GET['edit_template'] ?? 0)) : 0;
+$editingTemplateFragment = null;
+if ($editingTemplateId > 0) {
+    foreach ($templateFragments as $templateFragment) {
+        if ((int) ($templateFragment['id'] ?? 0) === $editingTemplateId) {
+            $editingTemplateFragment = $templateFragment;
+            break;
+        }
+    }
+}
 $statsOpenTickets = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getTickets(true, '', array_filter(TICKET_STATUSES, fn(string $s) => $s !== 'afgehandeld'))
     : [];

@@ -168,7 +168,7 @@ if (!in_array($assignedFilter, $validAssignedFilters, true)) {
     $assignedFilter = '';
 }
 $requestedView = trim((string) ($_GET['view'] ?? ''));
-$view = $canManageTickets && in_array($requestedView, ['settings', 'stats'], true) ? $requestedView : 'overview';
+$view = $canManageTickets && in_array($requestedView, ['settings', 'stats', 'template_tickets'], true) ? $requestedView : 'overview';
 $openTicketId = max(0, (int) ($_GET['open'] ?? 0));
 
 if ($canManageTickets) {

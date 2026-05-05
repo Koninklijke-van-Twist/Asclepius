@@ -328,6 +328,52 @@
             color: var(--accent);
         }
 
+        .danger-button {
+            background: var(--danger-soft);
+            color: var(--danger);
+        }
+
+        .template-ticket-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .template-ticket-left,
+        .template-ticket-right {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 12px;
+            background: #f8fbff;
+        }
+
+        .template-editor-form textarea,
+        #template_ticket_preview {
+            min-height: 180px;
+        }
+
+        .template-fragment-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .template-fragment-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px;
+            background: #fff;
+        }
+
+        .template-fragment-name {
+            font-weight: 700;
+            font-size: 14px;
+        }
+
         .filters-form {
             display: grid;
             gap: 12px;
@@ -1592,6 +1638,10 @@
                 flex-direction: row;
                 justify-content: space-between;
                 align-items: flex-start;
+            }
+
+            .template-ticket-layout {
+                grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
             }
         }
     </style>

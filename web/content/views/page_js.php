@@ -176,6 +176,84 @@
 
         initializeEmailChipInputs(document);
 
+        var templateTicketCreateForm = document.getElementById('template-ticket-create-form');
+        if (templateTicketCreateForm)
+        {
+            var templateTitleInput = document.getElementById('template_ticket_title');
+            var templatePreview = document.getElementById('template_ticket_preview');
+            var selectedTemplateIdsInput = document.getElementById('selected_template_ids');
+            var templateCheckboxes = Array.prototype.slice.call(document.querySelectorAll('.template-fragment-checkbox'));
+
+            var updateTemplatePreview = function ()
+            {
+                var selectedIds = [];
+                var selectedBodies = [];
+
+                templateCheckboxes.forEach(function (checkbox)
+                {
+                    if (!checkbox.checked)
+                    {
+                        return;
+                    }
+
+                    selectedIds.push(String(checkbox.value || ''));
+
+                    var templateBody = '';
+                    try
+                    {
+                        templateBody = JSON.parse(String(checkbox.getAttribute('data-template-body') || '""'));
+                    }
+                    catch (error)
+                    {
+                        templateBody = '';
+                    }
+
+                    if (String(templateBody).trim() !== '')
+                    {
+                        selectedBodies.push(String(templateBody));
+                    }
+                });
+
+                if (selectedTemplateIdsInput)
+                {
+                    selectedTemplateIdsInput.value = selectedIds.join(',');
+                }
+
+                if (templatePreview)
+                {
+                    var title = templateTitleInput ? String(templateTitleInput.value || '').trim() : '';
+                    var body = selectedBodies.join('\n');
+                    templatePreview.value = title !== '' && body !== ''
+                        ? title + '\n\n' + body
+                        : (title !== '' ? title : body);
+                }
+            };
+
+            templateCheckboxes.forEach(function (checkbox)
+            {
+                checkbox.addEventListener('change', updateTemplatePreview);
+            });
+
+            if (templateTitleInput)
+            {
+                templateTitleInput.addEventListener('input', updateTemplatePreview);
+            }
+
+            templateTicketCreateForm.addEventListener('submit', function (event)
+            {
+                updateTemplatePreview();
+
+                var hasSelection = (selectedTemplateIdsInput && selectedTemplateIdsInput.value.trim() !== '');
+                if (!hasSelection)
+                {
+                    event.preventDefault();
+                    alert('<?= addslashes(__('template_ticket.select_template_error')) ?>');
+                }
+            });
+
+            updateTemplatePreview();
+        }
+
         var parseParticipantEmails = function (value, fallbackEmail)
         {
             if (Array.isArray(value))

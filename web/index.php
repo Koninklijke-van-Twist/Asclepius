@@ -56,6 +56,8 @@ $apiUrl = 'api.php';
 
             <?php require __DIR__ . '/content/views/view_stats.php'; ?>
 
+            <?php require __DIR__ . '/content/views/view_template_tickets.php'; ?>
+
             <?php require __DIR__ . '/content/views/view_tickets.php'; ?>
         </main>
     </div>

@@ -540,6 +540,142 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             redirectToPage('admin.php', ['view' => 'settings']);
         }
 
+        if ($formAction === 'create_ticket_template') {
+            if (!$canManageTickets) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $templateName = trim((string) ($_POST['template_name'] ?? ''));
+            $templateBody = trim((string) ($_POST['template_body'] ?? ''));
+            if ($templateName === '') {
+                throw new RuntimeException(__('flash.template_name_required'));
+            }
+            if ($templateBody === '') {
+                throw new RuntimeException(__('flash.template_body_required'));
+            }
+
+            $store->createTicketTemplate($templateName, $templateBody, $userEmail);
+            pushFlash('success', __('flash.template_created'));
+            redirectToPage('admin.php', ['view' => 'template_tickets']);
+        }
+
+        if ($formAction === 'update_ticket_template') {
+            if (!$canManageTickets) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $templateId = max(1, (int) ($_POST['template_id'] ?? 0));
+            $templateName = trim((string) ($_POST['template_name'] ?? ''));
+            $templateBody = trim((string) ($_POST['template_body'] ?? ''));
+            if ($templateName === '') {
+                throw new RuntimeException(__('flash.template_name_required'));
+            }
+            if ($templateBody === '') {
+                throw new RuntimeException(__('flash.template_body_required'));
+            }
+            if (!$store->updateTicketTemplate($templateId, $templateName, $templateBody, $userEmail)) {
+                throw new RuntimeException(__('flash.template_not_found'));
+            }
+
+            pushFlash('success', __('flash.template_updated'));
+            redirectToPage('admin.php', ['view' => 'template_tickets']);
+        }
+
+        if ($formAction === 'delete_ticket_template') {
+            if (!$canManageTickets) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $templateId = max(1, (int) ($_POST['template_id'] ?? 0));
+            if (!$store->deleteTicketTemplate($templateId)) {
+                throw new RuntimeException(__('flash.template_not_found'));
+            }
+
+            pushFlash('success', __('flash.template_deleted'));
+            redirectToPage('admin.php', ['view' => 'template_tickets']);
+        }
+
+        if ($formAction === 'create_template_ticket') {
+            if (!$canManageTickets) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $title = trim((string) ($_POST['title'] ?? ''));
+            $dueDateInput = (string) ($_POST['due_date'] ?? '');
+            $dueDate = normalizeDueDateInput($dueDateInput);
+            $assignedEmailInput = strtolower(trim((string) ($_POST['assigned_email'] ?? '')));
+            $selectedTemplateIdsRaw = trim((string) ($_POST['selected_template_ids'] ?? ''));
+
+            if ($title === '') {
+                throw new RuntimeException(__('flash.ticket_title_required'));
+            }
+            if ($dueDate === null) {
+                throw new RuntimeException(__('flash.template_due_date_required'));
+            }
+            if (!isDueDateTodayOrFuture($dueDate)) {
+                throw new RuntimeException(__('flash.template_due_date_past'));
+            }
+
+            $selectedTemplateIds = array_values(array_unique(array_filter(
+                array_map(
+                    static fn(string $token): int => max(0, (int) trim($token)),
+                    preg_split('/[\s,;]+/', $selectedTemplateIdsRaw) ?: []
+                ),
+                static fn(int $templateId): bool => $templateId > 0
+            )));
+            if ($selectedTemplateIds === []) {
+                throw new RuntimeException(__('flash.template_selection_required'));
+            }
+
+            $templateBodies = [];
+            foreach ($selectedTemplateIds as $templateId) {
+                $templateRow = $store->getTicketTemplateById($templateId);
+                if (!is_array($templateRow)) {
+                    continue;
+                }
+
+                $templateBody = trim((string) ($templateRow['body'] ?? ''));
+                if ($templateBody !== '') {
+                    $templateBodies[] = $templateBody;
+                }
+            }
+
+            $description = implode("\n", $templateBodies);
+            if ($description === '') {
+                throw new RuntimeException(__('flash.template_description_required'));
+            }
+
+            $forcedAssignee = null;
+            if ($assignedEmailInput !== '') {
+                $allowedAssignees = extractIctUserEmails($ictUsers);
+                if (!in_array($assignedEmailInput, $allowedAssignees, true)) {
+                    throw new RuntimeException(__('flash.invalid_employee'));
+                }
+                $forcedAssignee = $assignedEmailInput;
+            }
+
+            $priority = getPriorityFromDueDate($dueDate);
+            $result = $store->createTicket(
+                $title,
+                TEMPLATE_TICKET_CATEGORY,
+                $userEmail,
+                $description,
+                [],
+                $priority,
+                [],
+                $dueDate,
+                $forcedAssignee
+            );
+
+            $ticketId = (int) ($result['ticket_id'] ?? 0);
+            if ($ticketId <= 0) {
+                throw new RuntimeException(__('flash.unknown_action'));
+            }
+
+            pushFlash('success', __('flash.template_ticket_created', $ticketId));
+            redirectToPage('admin.php', ['open' => $ticketId]);
+        }
+
         throw new RuntimeException(__('flash.unknown_action'));
     } catch (Throwable $exception) {
         if ($formAction === 'save_settings') {
