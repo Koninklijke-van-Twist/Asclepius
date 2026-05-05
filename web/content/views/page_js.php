@@ -281,14 +281,6 @@
             var templateTitleInput = document.getElementById('template_ticket_title');
             var templatePreviewRendered = document.getElementById('template_ticket_preview_rendered');
             var selectedTemplateIdsInput = document.getElementById('selected_template_ids');
-            /*
-
-                'arrow-up': '↑',
-                'arrow-down': '↓',
-                'arrow-left': '←',
-                'arrow-right': '→',
-                'windows': '⊞',
-            */
             var renderTemplatePreviewKeyMarkup = function (value)
             {
                 return renderShortcutMarkup(value);
