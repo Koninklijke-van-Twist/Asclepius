@@ -93,3 +93,9 @@ const CATEGORY_COLORS = [
     'sleutels.kvt.nl web-applicatieproblemen' => '#b2087f',
     'Anders' => '#475569',
 ];
+
+if (!defined('APP_TIMEZONE')) {
+    define('APP_TIMEZONE', 'Europe/Amsterdam');
+}
+
+date_default_timezone_set(APP_TIMEZONE);

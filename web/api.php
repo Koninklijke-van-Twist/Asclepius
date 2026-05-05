@@ -133,7 +133,7 @@ function getRefreshRequiredUnauthorizedReason(string $providedKey): ?string
         return null;
     }
 
-    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+    $now = new DateTimeImmutable('now', new DateTimeZone(APP_TIMEZONE));
     $currentDate = $now->format('d-m-Y');
     $previousDate = $now->modify('-1 day')->format('d-m-Y');
     $currentDateKey = buildRotatingApiKeyForDate($oid, $currentDate);
