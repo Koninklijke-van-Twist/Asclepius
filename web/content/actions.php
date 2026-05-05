@@ -384,12 +384,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     $assigneeChanged = $newAssignee !== $currentAssignee;
                 }
 
-                $requestedPriority = (int) ($_POST['priority'] ?? $newPriority);
-                if ($requestedPriority < 0 || $requestedPriority > 2) {
-                    $errors[] = __('flash.invalid_priority');
-                } else {
-                    $newPriority = $requestedPriority;
+                $ticketDueDate = trim((string) ($ticket['due_date'] ?? ''));
+                if ($ticketDueDate !== '') {
+                    $newPriority = getPriorityFromDueDate($ticketDueDate);
                     $priorityChanged = $newPriority !== (int) ($ticket['priority'] ?? 0);
+                } else {
+                    $requestedPriority = (int) ($_POST['priority'] ?? $newPriority);
+                    if ($requestedPriority < 0 || $requestedPriority > 2) {
+                        $errors[] = __('flash.invalid_priority');
+                    } else {
+                        $newPriority = $requestedPriority;
+                        $priorityChanged = $newPriority !== (int) ($ticket['priority'] ?? 0);
+                    }
                 }
             }
 

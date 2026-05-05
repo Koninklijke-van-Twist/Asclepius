@@ -13,8 +13,8 @@ const TICKET_CATEGORIES = [
     'Hardwareproblemen',
     'Softwareproblemen',
     'sleutels.kvt.nl web-applicatieproblemen',
-    'Anders',
     TEMPLATE_TICKET_CATEGORY,
+    'Anders',
 ];
 const TICKET_STATUSES = [
     'ingediend',

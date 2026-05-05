@@ -638,7 +638,6 @@ class TicketStore
 
         if ($isAdmin) {
             $sql .= " ORDER BY CASE WHEN t.status = 'afgehandeld' THEN 1 ELSE 0 END ASC,
-                            CASE WHEN t.status = 'afgehandeld' THEN NULL ELSE COALESCE(t.priority, 0) END DESC,
                             datetime(t.created_at) DESC,
                             t.id DESC";
         } else {
@@ -649,7 +648,35 @@ class TicketStore
         $statement->execute($parameters);
 
         $tickets = $statement->fetchAll(PDO::FETCH_ASSOC);
-        return array_map(fn(array $ticket): array => $this->applyDerivedPriorityForDueDate($ticket), $tickets);
+        $tickets = array_map(fn(array $ticket): array => $this->applyDerivedPriorityForDueDate($ticket), $tickets);
+
+        if ($isAdmin) {
+            usort($tickets, static function (array $left, array $right): int {
+                $leftResolved = (string) ($left['status'] ?? '') === 'afgehandeld';
+                $rightResolved = (string) ($right['status'] ?? '') === 'afgehandeld';
+                if ($leftResolved !== $rightResolved) {
+                    return $leftResolved ? 1 : -1;
+                }
+
+                if (!$leftResolved) {
+                    $leftPriority = (int) ($left['priority'] ?? 0);
+                    $rightPriority = (int) ($right['priority'] ?? 0);
+                    if ($leftPriority !== $rightPriority) {
+                        return $rightPriority <=> $leftPriority;
+                    }
+                }
+
+                $leftCreated = strtotime((string) ($left['created_at'] ?? '')) ?: 0;
+                $rightCreated = strtotime((string) ($right['created_at'] ?? '')) ?: 0;
+                if ($leftCreated !== $rightCreated) {
+                    return $rightCreated <=> $leftCreated;
+                }
+
+                return (int) ($right['id'] ?? 0) <=> (int) ($left['id'] ?? 0);
+            });
+        }
+
+        return $tickets;
     }
 
     public function getTicket(int $ticketId, bool $isAdmin, string $userEmail): ?array

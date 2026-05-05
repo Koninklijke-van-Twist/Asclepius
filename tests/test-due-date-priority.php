@@ -79,6 +79,13 @@ assertTrue(
     in_array('Anders', $selectable, true)
 );
 
+$laptopIndex = array_search(TEMPLATE_TICKET_CATEGORY, TICKET_CATEGORIES, true);
+$andersIndex = array_search('Anders', TICKET_CATEGORIES, true);
+assertTrue(
+    'Laptop Klaarmaken staat vóór Anders in categorievolgorde',
+    is_int($laptopIndex) && is_int($andersIndex) && $laptopIndex < $andersIndex
+);
+
 assertSame(
     'Aantal selecteerbare categorieën is exact 1 minder dan alle categorieën',
     count(TICKET_CATEGORIES) - 1,

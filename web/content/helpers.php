@@ -491,6 +491,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $requesterTooltip = (string) ($requesterSummary['tooltip'] ?? $requesterEmail);
     $requesterParticipants = is_array($requesterSummary['participants'] ?? null) ? $requesterSummary['participants'] : [$requesterEmail];
     $requesterExtraCount = (int) ($requesterSummary['extra_count'] ?? 0);
+    $hasDueDate = trim((string) ($ticket['due_date'] ?? '')) !== '';
     $assignableIctUsers = array_values(array_filter(
         extractIctUserEmails($ictUsers),
         static fn(string $ictUser): bool => $ictUser !== '' && $ictUser !== $requesterEmail
@@ -556,14 +557,14 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                     <span
                         data-role="meta-updated-value"><?= h(formatDateTime((string) ($ticket['updated_at'] ?? ''))) ?></span>
                 </div>
-                <?php if (trim((string) ($ticket['due_date'] ?? '')) !== ''): ?>
+                <?php if ($hasDueDate): ?>
                     <div class="meta-item">
                         <span class="meta-label"><?= h(__('ticket.meta_due_date')) ?></span>
                         <span
                             data-role="meta-due-date-value"><?= h(formatDueDateLabel((string) ($ticket['due_date'] ?? ''))) ?></span>
                     </div>
                 <?php endif; ?>
-                <?php if ($userIsAdmin && $isAdminPortal): ?>
+                <?php if ($userIsAdmin && $isAdminPortal && !$hasDueDate): ?>
                     <div class="meta-item">
                         <span class="meta-label"><?= h(__('ticket.meta_priority')) ?></span>
                         <select name="priority" form="<?= h($replyFormId) ?>" data-role="priority-select">

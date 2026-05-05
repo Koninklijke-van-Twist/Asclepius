@@ -18,7 +18,6 @@
                                 <thead>
                                     <tr>
                                         <th><?= h(__('settings.col_user')) ?></th>
-                                        <th><?= h(__('settings.col_open_tickets')) ?></th>
                                         <?php foreach (TICKET_CATEGORIES as $category): ?>
                                             <th><?= h(translateCategory($category)) ?></th>
                                         <?php endforeach; ?>
@@ -44,7 +43,6 @@
                                                     <span class="vacation-indicator" <?= $isAvailable ? 'hidden' : '' ?>>🌴</span>
                                                 </label>
                                             </td>
-                                            <td class="open-load-cell"><?= (int) ($loadByIctUser[$ictUser] ?? 0) ?></td>
                                             <?php foreach (TICKET_CATEGORIES as $category): ?>
                                                 <td class="setting-checkbox-cell">
                                                     <input type="checkbox" name="settings[<?= h($ictUser) ?>][<?= h($category) ?>]"
