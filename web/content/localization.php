@@ -100,7 +100,8 @@ const TRANSLATIONS = [
 
         // Template tickets
         'template_ticket.heading' => 'Template-ticket aanmaken',
-        'template_ticket.intro' => 'Maak een ticket op basis van template-fragmenten. De categorie wordt automatisch ingesteld op Laptop Klaarmaken.',
+        'template_ticket.intro' => 'Maak een ticket op basis van template-fragmenten en kies een template-categorie.',
+        'template_ticket.category_label' => 'Template-categorie',
         'template_ticket.assignee_label' => 'Toewijzing',
         'template_ticket.assignee_auto' => 'Auto',
         'template_ticket.due_date_label' => 'Due-date',
@@ -130,6 +131,8 @@ const TRANSLATIONS = [
         // Settings
         'settings.heading' => 'Instellingen per ICT-gebruiker',
         'settings.intro' => 'Zet per ICT-collega categorieën aan of uit en markeer medewerkers als afwezig. Nieuwe tickets worden automatisch toegewezen aan de minst belaste beschikbare collega.',
+        'settings.regular_categories_heading' => 'Reguliere ticketcategorieën',
+        'settings.template_categories_heading' => 'Template-ticketcategorieën',
         'settings.col_user' => 'ICT-gebruiker',
         'settings.col_open_tickets' => 'Open tickets',
         'settings.btn_save' => 'Instellingen opslaan',
@@ -244,6 +247,7 @@ const TRANSLATIONS = [
         'category.web_app_problemen' => 'sleutels.kvt.nl web-applicatieproblemen',
         'category.anders' => 'Anders',
         'category.laptop_klaarmaken' => 'Laptop Klaarmaken',
+        'category.telefoon_klaarmaken' => 'Telefoon Klaarmaken',
 
         // Prioriteitslabels (zonder getal-prefix; voor formatPriorityLabel)
         'priority.label.0' => 'Normaal',
@@ -386,7 +390,8 @@ const TRANSLATIONS = [
 
         // Template tickets
         'template_ticket.heading' => 'Create template ticket',
-        'template_ticket.intro' => 'Create a ticket from template fragments. Category is automatically set to Laptop Klaarmaken.',
+        'template_ticket.intro' => 'Create a ticket from template fragments and choose a template category.',
+        'template_ticket.category_label' => 'Template category',
         'template_ticket.assignee_label' => 'Assignment',
         'template_ticket.assignee_auto' => 'Auto',
         'template_ticket.due_date_label' => 'Due date',
@@ -416,6 +421,8 @@ const TRANSLATIONS = [
         // Settings
         'settings.heading' => 'Settings per ICT user',
         'settings.intro' => 'Enable or disable categories per ICT colleague and mark employees as absent. New tickets are automatically assigned to the least busy available colleague.',
+        'settings.regular_categories_heading' => 'Regular ticket categories',
+        'settings.template_categories_heading' => 'Template ticket categories',
         'settings.col_user' => 'ICT user',
         'settings.col_open_tickets' => 'Open tickets',
         'settings.btn_save' => 'Save settings',
@@ -530,6 +537,7 @@ const TRANSLATIONS = [
         'category.web_app_problemen' => 'sleutels.kvt.nl web application problems',
         'category.anders' => 'Other',
         'category.laptop_klaarmaken' => 'Prepare laptop',
+        'category.telefoon_klaarmaken' => 'Prepare phone',
 
         // Priority labels (without number prefix)
         'priority.label.0' => 'Normal',
@@ -672,7 +680,8 @@ const TRANSLATIONS = [
 
         // Template tickets
         'template_ticket.heading' => 'Template-Ticket erstellen',
-        'template_ticket.intro' => 'Erstellen Sie ein Ticket aus Template-Fragmenten. Die Kategorie wird automatisch auf Laptop Klaarmaken gesetzt.',
+        'template_ticket.intro' => 'Erstellen Sie ein Ticket aus Template-Fragmenten und wählen Sie eine Template-Kategorie.',
+        'template_ticket.category_label' => 'Template-Kategorie',
         'template_ticket.assignee_label' => 'Zuweisung',
         'template_ticket.assignee_auto' => 'Auto',
         'template_ticket.due_date_label' => 'Fälligkeitsdatum',
@@ -702,6 +711,8 @@ const TRANSLATIONS = [
         // Settings
         'settings.heading' => 'Einstellungen pro ICT-Benutzer',
         'settings.intro' => 'Aktivieren oder deaktivieren Sie Kategorien pro ICT-Kollegen und markieren Sie Mitarbeiter als abwesend. Neue Tickets werden automatisch dem am wenigsten ausgelasteten verfügbaren Kollegen zugewiesen.',
+        'settings.regular_categories_heading' => 'Reguläre Ticketkategorien',
+        'settings.template_categories_heading' => 'Template-Ticketkategorien',
         'settings.col_user' => 'ICT-Benutzer',
         'settings.col_open_tickets' => 'Offene Tickets',
         'settings.btn_save' => 'Einstellungen speichern',
@@ -816,6 +827,7 @@ const TRANSLATIONS = [
         'category.web_app_problemen' => 'sleutels.kvt.nl Web-Anwendungsprobleme',
         'category.anders' => 'Sonstiges',
         'category.laptop_klaarmaken' => 'Laptop vorbereiten',
+        'category.telefoon_klaarmaken' => 'Telefon vorbereiten',
 
         // Prioritätsbezeichnungen (ohne Zahlenpräfix)
         'priority.label.0' => 'Normal',
@@ -958,7 +970,8 @@ const TRANSLATIONS = [
 
         // Template tickets
         'template_ticket.heading' => 'Créer un ticket modèle',
-        'template_ticket.intro' => 'Créez un ticket à partir de fragments de modèle. La catégorie est automatiquement définie sur Laptop Klaarmaken.',
+        'template_ticket.intro' => 'Créez un ticket à partir de fragments de modèle et choisissez une catégorie de modèle.',
+        'template_ticket.category_label' => 'Catégorie de modèle',
         'template_ticket.assignee_label' => 'Attribution',
         'template_ticket.assignee_auto' => 'Auto',
         'template_ticket.due_date_label' => 'Date d\'échéance',
@@ -988,6 +1001,8 @@ const TRANSLATIONS = [
         // Settings
         'settings.heading' => 'Paramètres par utilisateur ICT',
         'settings.intro' => 'Activez ou désactivez des catégories par collègue ICT et marquez les employés absents. Les nouveaux tickets sont automatiquement attribués au collègue disponible le moins chargé.',
+        'settings.regular_categories_heading' => 'Catégories de tickets régulières',
+        'settings.template_categories_heading' => 'Catégories de tickets modèle',
         'settings.col_user' => 'Utilisateur ICT',
         'settings.col_open_tickets' => 'Tickets ouverts',
         'settings.btn_save' => 'Enregistrer les paramètres',
@@ -1102,6 +1117,7 @@ const TRANSLATIONS = [
         'category.web_app_problemen' => 'problèmes d\'application web sleutels.kvt.nl',
         'category.anders' => 'Autre',
         'category.laptop_klaarmaken' => 'Préparer un laptop',
+        'category.telefoon_klaarmaken' => 'Préparer un téléphone',
 
         // Libellés de priorité (sans préfixe numérique)
         'priority.label.0' => 'Normal',

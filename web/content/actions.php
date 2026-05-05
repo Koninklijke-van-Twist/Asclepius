@@ -374,10 +374,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $requestedAssignee = strtolower(trim((string) ($_POST['assigned_email'] ?? (string) ($ticket['assigned_email'] ?? ''))));
                 $currentAssignee = strtolower((string) ($ticket['assigned_email'] ?? ''));
                 $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
+                $templateTicketSelfAssignmentAllowed = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
                 $availabilityByUser = $store->getIctUserAvailability();
                 if ($requestedAssignee !== '' && !in_array($requestedAssignee, extractIctUserEmails($ictUsers), true)) {
                     $errors[] = __('flash.invalid_employee');
-                } elseif ($requestedAssignee !== '' && $requestedAssignee === $requesterEmail) {
+                } elseif ($requestedAssignee !== '' && $requestedAssignee === $requesterEmail && !$templateTicketSelfAssignmentAllowed) {
                     $errors[] = __('flash.self_assignment_not_allowed');
                 } elseif ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee]) && $requestedAssignee !== $currentAssignee) {
                     $errors[] = __('flash.employee_away');
@@ -619,6 +620,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             }
 
             $title = trim((string) ($_POST['title'] ?? ''));
+            $category = trim((string) ($_POST['category'] ?? ''));
             $dueDateInput = (string) ($_POST['due_date'] ?? '');
             $dueDate = normalizeDueDateInput($dueDateInput);
             $assignedEmailInput = strtolower(trim((string) ($_POST['assigned_email'] ?? '')));
@@ -626,6 +628,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
             if ($title === '') {
                 throw new RuntimeException(__('flash.ticket_title_required'));
+            }
+            if (!isTemplateTicketCategory($category)) {
+                throw new RuntimeException(__('flash.invalid_category'));
             }
             if ($dueDate === null) {
                 throw new RuntimeException(__('flash.template_due_date_required'));
@@ -675,7 +680,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             $priority = getPriorityFromDueDate($dueDate);
             $result = $store->createTicket(
                 $title,
-                TEMPLATE_TICKET_CATEGORY,
+                $category,
                 $userEmail,
                 $description,
                 [],

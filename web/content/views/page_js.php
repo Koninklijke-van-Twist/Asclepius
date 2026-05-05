@@ -546,8 +546,13 @@
         document.querySelectorAll('[data-settings-row]').forEach(function (row)
         {
             var availabilityCheckbox = row.querySelector('.availability-checkbox');
-            var vacationIndicator = row.querySelector('.vacation-indicator');
-            var vacationBadge = row.querySelector('.vacation-badge');
+            var settingsUser = row.getAttribute('data-settings-user') || '';
+            var relatedRows = settingsUser !== ''
+                ? Array.prototype.filter.call(document.querySelectorAll('[data-settings-row]'), function (candidateRow)
+                {
+                    return (candidateRow.getAttribute('data-settings-user') || '') === settingsUser;
+                })
+                : [row];
 
             if (!availabilityCheckbox)
             {
@@ -557,15 +562,21 @@
             var syncAvailabilityState = function ()
             {
                 var isAvailable = availabilityCheckbox.checked;
-                row.classList.toggle('is-away', !isAvailable);
-                if (vacationIndicator)
+                relatedRows.forEach(function (relatedRow)
                 {
-                    vacationIndicator.hidden = isAvailable;
-                }
-                if (vacationBadge)
-                {
-                    vacationBadge.classList.toggle('is-away', !isAvailable);
-                }
+                    var vacationIndicator = relatedRow.querySelector('.vacation-indicator');
+                    var vacationBadge = relatedRow.querySelector('.vacation-badge');
+
+                    relatedRow.classList.toggle('is-away', !isAvailable);
+                    if (vacationIndicator)
+                    {
+                        vacationIndicator.hidden = isAvailable;
+                    }
+                    if (vacationBadge)
+                    {
+                        vacationBadge.classList.toggle('is-away', !isAvailable);
+                    }
+                });
             };
 
             availabilityCheckbox.addEventListener('change', syncAvailabilityState);

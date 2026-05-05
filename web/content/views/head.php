@@ -1760,6 +1760,11 @@
             overflow-x: auto;
         }
 
+        .settings-section-heading {
+            margin: 8px 0 0;
+            font-size: 16px;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;

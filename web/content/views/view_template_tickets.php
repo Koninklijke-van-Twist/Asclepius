@@ -13,6 +13,15 @@
                     <input type="hidden" name="selected_template_ids" id="selected_template_ids" value="">
 
                     <label>
+                        <?= h(__('template_ticket.category_label')) ?>
+                        <select name="category" id="template_ticket_category" required>
+                            <?php foreach (getTemplateTicketCategories() as $category): ?>
+                                <option value="<?= h($category) ?>"><?= h(translateCategory($category)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+
+                    <label>
                         <?= h(__('template_ticket.assignee_label')) ?>
                         <select name="assigned_email" id="template_ticket_assigned_email">
                             <option value=""><?= h(__('template_ticket.assignee_auto')) ?></option>

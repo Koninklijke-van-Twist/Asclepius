@@ -44,9 +44,25 @@ function assertTrue(string $label, bool $actual): void
 $store = new TicketStore(
     ':memory:',
     sys_get_temp_dir() . '/asclepius_test_uploads',
-    ['ict@kvt.nl'],
+    ['ict@kvt.nl', 'phone@kvt.nl'],
     TICKET_CATEGORIES
 );
+
+$store->saveCategoryMatrix([
+    'ict@kvt.nl' => [
+        TEMPLATE_TICKET_CATEGORY => true,
+        'Telefoon Klaarmaken' => false,
+        'hardware bestellen' => true,
+    ],
+    'phone@kvt.nl' => [
+        TEMPLATE_TICKET_CATEGORY => false,
+        'Telefoon Klaarmaken' => true,
+        'hardware bestellen' => true,
+    ],
+], [
+    'ict@kvt.nl' => true,
+    'phone@kvt.nl' => true,
+]);
 
 $dueToday = date('Y-m-d');
 
@@ -76,6 +92,18 @@ assertTrue('Minstens 2 tickets aanwezig', count($tickets) >= 2);
 assertSame('Eerste ticket is due-date ticket (dynamische prioriteit)', (int) $resultDue['ticket_id'], (int) ($tickets[0]['id'] ?? 0));
 assertSame('Due-date ticket krijgt afgeleide prioriteit 2', 2, (int) ($tickets[0]['priority'] ?? -1));
 assertSame('Tweede ticket is het normale ticket', (int) $resultNormal['ticket_id'], (int) ($tickets[1]['id'] ?? 0));
+
+$resultPhoneTemplate = $store->createTicket(
+    'Telefoon klaarmaken',
+    'Telefoon Klaarmaken',
+    'phone@kvt.nl',
+    'Template-ticket met telefooncategorie',
+    [],
+    0,
+    [],
+    $dueToday
+);
+assertSame('Telefoon-templatecategorie gebruikt eigen categorie-instelling', 'phone@kvt.nl', (string) ($resultPhoneTemplate['assigned_email'] ?? ''));
 
 $dueTomorrow = date('Y-m-d', strtotime('+1 day'));
 $store->updateTicket((int) $resultDue['ticket_id'], 'ingediend', 'ict@kvt.nl', 0, $dueTomorrow);

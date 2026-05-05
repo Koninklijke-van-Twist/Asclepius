@@ -13,12 +13,13 @@
                     <form method="post" action="admin.php?view=settings" class="form-grid">
                         <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
                         <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                        <h3 class="settings-section-heading"><?= h(__('settings.regular_categories_heading')) ?></h3>
                         <div class="table-wrap">
                             <table>
                                 <thead>
                                     <tr>
                                         <th><?= h(__('settings.col_user')) ?></th>
-                                        <?php foreach (TICKET_CATEGORIES as $category): ?>
+                                        <?php foreach (getSelectableTicketCategories() as $category): ?>
                                             <th><?= h(translateCategory($category)) ?></th>
                                         <?php endforeach; ?>
                                     </tr>
@@ -27,7 +28,8 @@
                                     <?php foreach ($ictUsers as $ictUser):
                                         $ictUser = strtolower($ictUser);
                                         $isAvailable = !empty($availabilityByIctUser[$ictUser]); ?>
-                                        <tr class="settings-row <?= $isAvailable ? '' : 'is-away' ?>" data-settings-row>
+                                        <tr class="settings-row <?= $isAvailable ? '' : 'is-away' ?>" data-settings-row
+                                            data-settings-user="<?= h($ictUser) ?>">
                                             <td class="user-color-cell settings-user-cell"
                                                 style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
                                                 <label class="vacation-toggle">
@@ -43,7 +45,46 @@
                                                     <span class="vacation-indicator" <?= $isAvailable ? 'hidden' : '' ?>>🌴</span>
                                                 </label>
                                             </td>
-                                            <?php foreach (TICKET_CATEGORIES as $category): ?>
+                                            <?php foreach (getSelectableTicketCategories() as $category): ?>
+                                                <td class="setting-checkbox-cell">
+                                                    <input type="checkbox" name="settings[<?= h($ictUser) ?>][<?= h($category) ?>]"
+                                                        value="1" <?= !empty($settingsMatrix[$ictUser][$category]) ? 'checked' : '' ?>>
+                                                </td>
+                                            <?php endforeach; ?>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <h3 class="settings-section-heading"><?= h(__('settings.template_categories_heading')) ?></h3>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th><?= h(__('settings.col_user')) ?></th>
+                                        <?php foreach (getTemplateTicketCategories() as $category): ?>
+                                            <th><?= h(translateCategory($category)) ?></th>
+                                        <?php endforeach; ?>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($ictUsers as $ictUser):
+                                        $ictUser = strtolower($ictUser);
+                                        $isAvailable = !empty($availabilityByIctUser[$ictUser]); ?>
+                                        <tr class="settings-row <?= $isAvailable ? '' : 'is-away' ?>" data-settings-row
+                                            data-settings-user="<?= h($ictUser) ?>">
+                                            <td class="user-color-cell settings-user-cell"
+                                                style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
+                                                <label class="vacation-toggle">
+                                                    <span
+                                                        class="assignee-badge vacation-badge <?= $isAvailable ? '' : 'is-away' ?>"
+                                                        style="--assignee-color: <?= h($isAvailable ? emailToHexColor($ictUser) : '#94a3b8') ?>;">
+                                                        <?= h($ictUser) ?>
+                                                    </span>
+                                                    <span class="vacation-indicator" <?= $isAvailable ? 'hidden' : '' ?>>🌴</span>
+                                                </label>
+                                            </td>
+                                            <?php foreach (getTemplateTicketCategories() as $category): ?>
                                                 <td class="setting-checkbox-cell">
                                                     <input type="checkbox" name="settings[<?= h($ictUser) ?>][<?= h($category) ?>]"
                                                         value="1" <?= !empty($settingsMatrix[$ictUser][$category]) ? 'checked' : '' ?>>

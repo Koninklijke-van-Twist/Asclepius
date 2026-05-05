@@ -493,9 +493,10 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $requesterParticipants = is_array($requesterSummary['participants'] ?? null) ? $requesterSummary['participants'] : [$requesterEmail];
     $requesterExtraCount = (int) ($requesterSummary['extra_count'] ?? 0);
     $hasDueDate = trim((string) ($ticket['due_date'] ?? '')) !== '';
+    $canAssignToRequester = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
     $assignableIctUsers = array_values(array_filter(
         extractIctUserEmails($ictUsers),
-        static fn(string $ictUser): bool => $ictUser !== '' && $ictUser !== $requesterEmail
+        static fn(string $ictUser): bool => $ictUser !== '' && ($canAssignToRequester || $ictUser !== $requesterEmail)
     ));
 
     ob_start();
@@ -836,8 +837,18 @@ function getSelectableTicketCategories(): array
 {
     return array_values(array_filter(
         TICKET_CATEGORIES,
-        static fn(string $category): bool => $category !== TEMPLATE_TICKET_CATEGORY
+        static fn(string $category): bool => !isTemplateTicketCategory($category)
     ));
+}
+
+function getTemplateTicketCategories(): array
+{
+    return TEMPLATE_TICKET_CATEGORIES;
+}
+
+function isTemplateTicketCategory(string $category): bool
+{
+    return in_array($category, TEMPLATE_TICKET_CATEGORIES, true);
 }
 
 function getPriorityFromFlags(bool $isWorkBlocked, bool $isFullyBlocked): int
@@ -1172,6 +1183,7 @@ function translateCategory(string $dbCategory): string
         'sleutels.kvt.nl web-applicatieproblemen' => 'category.web_app_problemen',
         'Anders' => 'category.anders',
         TEMPLATE_TICKET_CATEGORY => 'category.laptop_klaarmaken',
+        'Telefoon Klaarmaken' => 'category.telefoon_klaarmaken',
     ];
 
     return isset($map[$dbCategory]) ? __($map[$dbCategory]) : $dbCategory;

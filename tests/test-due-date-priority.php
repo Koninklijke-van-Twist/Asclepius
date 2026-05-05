@@ -69,6 +69,32 @@ assertFalse(
     in_array(TEMPLATE_TICKET_CATEGORY, $selectable, true)
 );
 
+assertFalse(
+    'Template-categorie "Telefoon Klaarmaken" is NIET in de lijst',
+    in_array('Telefoon Klaarmaken', $selectable, true)
+);
+
+assertSame(
+    'Template-ticketcategorieen bevatten laptop en telefoon',
+    [TEMPLATE_TICKET_CATEGORY, 'Telefoon Klaarmaken'],
+    getTemplateTicketCategories()
+);
+
+assertTrue(
+    'Laptop Klaarmaken wordt herkend als template-ticketcategorie',
+    isTemplateTicketCategory(TEMPLATE_TICKET_CATEGORY)
+);
+
+assertTrue(
+    'Telefoon Klaarmaken wordt herkend als template-ticketcategorie',
+    isTemplateTicketCategory('Telefoon Klaarmaken')
+);
+
+assertFalse(
+    'Hardware bestellen is geen template-ticketcategorie',
+    isTemplateTicketCategory('hardware bestellen')
+);
+
 assertTrue(
     'Reguliere categorie "hardware bestellen" is WEL aanwezig',
     in_array('hardware bestellen', $selectable, true)
@@ -87,8 +113,8 @@ assertTrue(
 );
 
 assertSame(
-    'Aantal selecteerbare categorieën is exact 1 minder dan alle categorieën',
-    count(TICKET_CATEGORIES) - 1,
+    'Aantal selecteerbare categorieën is exact het aantal template-categorieën minder dan alle categorieën',
+    count(TICKET_CATEGORIES) - count(getTemplateTicketCategories()),
     count($selectable)
 );
 
