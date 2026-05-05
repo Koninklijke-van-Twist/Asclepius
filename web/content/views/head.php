@@ -380,6 +380,27 @@
             margin-top: 2px;
         }
 
+        .template-preview-rendered .shortcut-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            box-sizing: border-box;
+            height: 22px;
+            padding: 0 7px;
+            min-width: 24px;
+            border: 1px solid #b7c1d0;
+            border-bottom-width: 2px;
+            border-radius: 6px;
+            background: #fff;
+            color: #132238;
+            font-size: 0.86em;
+            font-weight: 600;
+            line-height: 1;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
         .template-fragment-list {
             display: grid;
             gap: 8px;

@@ -193,19 +193,64 @@
                     .replace(/'/g, '&#39;');
             };
 
+            var PREVIEW_KEY_TOKEN_LABELS = {
+                'control': 'Ctrl',
+                'alt': 'Alt',
+                'shift': 'Shift',
+                'enter': 'Enter',
+                'backspace': 'Backspace',
+                'tab': 'Tab',
+                'escape': 'Esc',
+                'delete': 'Del',
+                'home': 'Home',
+                'end': 'End',
+                'page-up': 'PgUp',
+                'page-down': 'PgDn',
+                'insert': 'Ins',
+                'caps-lock': 'Caps',
+                'print-screen': 'PrtSc',
+                'space': 'Space',
+                'arrow-up': '↑',
+                'arrow-down': '↓',
+                'arrow-left': '←',
+                'arrow-right': '→',
+                'windows': '⊞',
+                'minus': '-',
+                'equals': '=',
+                'comma': ',',
+                'period': '.',
+                'slash': '/',
+                'backslash': '\\',
+                'semicolon': ';',
+                'quote': "'",
+                'backtick': '`',
+                'lbracket': '[',
+                'rbracket': ']'
+            };
+
+            var renderTemplatePreviewKeyMarkup = function (value)
+            {
+                return String(value || '').replace(/\[([a-z0-9-]{1,40})\]/gi, function (match, token)
+                {
+                    var normalizedToken = String(token || '').toLowerCase();
+                    var display = PREVIEW_KEY_TOKEN_LABELS[normalizedToken] || String(token || '').toUpperCase();
+                    return '<span class="shortcut-key">' + escapeHtml(display) + '</span>';
+                });
+            };
+
             var renderTemplatePreviewLine = function (line)
             {
                 var checkboxMatch = String(line || '').match(/^(\s*)\[( |x|X)\]\s*(.*)$/);
                 if (!checkboxMatch)
                 {
-                    return '<div class="template-preview-line">' + escapeHtml(line) + '</div>';
+                    return '<div class="template-preview-line">' + renderTemplatePreviewKeyMarkup(escapeHtml(line)) + '</div>';
                 }
 
                 var isChecked = String(checkboxMatch[2] || '').toLowerCase() === 'x';
                 var checkboxText = String(checkboxMatch[3] || '');
                 return '<label class="template-preview-checkbox-line">'
                     + '<input type="checkbox" disabled' + (isChecked ? ' checked' : '') + '>'
-                    + '<span>' + (checkboxText !== '' ? escapeHtml(checkboxText) : '&nbsp;') + '</span>'
+                    + '<span>' + (checkboxText !== '' ? renderTemplatePreviewKeyMarkup(escapeHtml(checkboxText)) : '&nbsp;') + '</span>'
                     + '</label>';
             };
 
