@@ -167,6 +167,9 @@ $validAssignedFilters = array_merge(['', '__unassigned__'], extractIctUserEmails
 if (!in_array($assignedFilter, $validAssignedFilters, true)) {
     $assignedFilter = '';
 }
+$searchQuery = $canManageTickets
+    ? trim((string) (array_key_exists('search', $_GET) ? $_GET['search'] : $savedOverviewFilters['search_query']))
+    : '';
 $requestedView = trim((string) ($_GET['view'] ?? ''));
 $view = $canManageTickets && in_array($requestedView, ['settings', 'stats'], true) ? $requestedView : 'overview';
 $openTicketId = max(0, (int) ($_GET['open'] ?? 0));
@@ -178,6 +181,7 @@ if ($canManageTickets) {
         'category_filter_active' => $resetOverviewFilters ? false : $categoryFilterRequestActive,
         'category_filters' => $resetOverviewFilters ? [] : $categoryFilters,
         'assigned_filter' => $resetOverviewFilters ? '' : $assignedFilter,
+        'search_query' => $resetOverviewFilters ? '' : $searchQuery,
     ]);
 }
 
@@ -185,6 +189,7 @@ $baseQuery = buildNavigationQuery(
     $statusFilters,
     $categoryFilters,
     $assignedFilter,
+    $searchQuery,
     $view,
     $isAdminPortal,
     $statusFilterRequestActive,

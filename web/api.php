@@ -173,6 +173,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     $openTicketId = max(0, (int) ($payload['open_ticket_id'] ?? 0));
     $view = trim((string) ($payload['view'] ?? 'overview'));
     $assignedFilter = trim((string) ($payload['assigned_filter'] ?? ''));
+    $searchQuery = trim((string) ($payload['search_query'] ?? ''));
     $statusFilters = array_values(array_filter(
         array_map('trim', (array) ($payload['status_filters'] ?? [])),
         static fn(string $status): bool => $status !== ''
@@ -182,7 +183,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         static fn(string $category): bool => $category !== ''
     ));
 
-    $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters);
+    $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery);
     $ticketPollItems = [];
 
     foreach ($tickets as $ticket) {

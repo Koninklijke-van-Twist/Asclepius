@@ -112,7 +112,7 @@ function postLocalApiJson(string $path, array $payload): ?array
  */
 
 $tickets = $store instanceof TicketStore
-    ? $store->getTickets($canManageTickets, $userEmail, $effectiveStatusFilters, $assignedFilter, $effectiveCategoryFilters)
+    ? $store->getTickets($canManageTickets, $userEmail, $effectiveStatusFilters, $assignedFilter, $effectiveCategoryFilters, $searchQuery)
     : [];
 $settingsMatrix = $store instanceof TicketStore ? $store->getCategorySettings() : [];
 $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];

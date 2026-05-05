@@ -134,7 +134,7 @@ function buildRequesterSummary(array $participantEmails, string $fallbackEmail):
     ];
 }
 
-function buildNavigationQuery(array $statusFilters, array $categoryFilters, string $assignedFilter, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, bool $categoryFilterRequestActive = false, int $openTicketId = 0): array
+function buildNavigationQuery(array $statusFilters, array $categoryFilters, string $assignedFilter, string $searchQuery, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, bool $categoryFilterRequestActive = false, int $openTicketId = 0): array
 {
     $query = [];
 
@@ -156,6 +156,10 @@ function buildNavigationQuery(array $statusFilters, array $categoryFilters, stri
 
     if ($assignedFilter !== '') {
         $query['assigned'] = $assignedFilter;
+    }
+
+    if ($searchQuery !== '') {
+        $query['search'] = $searchQuery;
     }
 
     if ($isAdminPortal && $view !== 'overview') {
@@ -777,6 +781,7 @@ function normalizeSavedTicketOverviewFilters(array $prefs): array
             'category_filter_active' => false,
             'category_filters' => [],
             'assigned_filter' => '',
+            'search_query' => '',
         ];
     }
 
@@ -789,6 +794,7 @@ function normalizeSavedTicketOverviewFilters(array $prefs): array
         static fn(string $category): bool => in_array($category, TICKET_CATEGORIES, true)
     ));
     $assignedFilter = trim((string) ($savedFilters['assigned_filter'] ?? ''));
+    $searchQuery = trim((string) ($savedFilters['search_query'] ?? ''));
     $validAssignedValues = array_merge(['', '__unassigned__'], array_map('strtolower', $GLOBALS['ictUsers'] ?? []));
 
     if (!in_array($assignedFilter, $validAssignedValues, true)) {
@@ -801,6 +807,7 @@ function normalizeSavedTicketOverviewFilters(array $prefs): array
         'category_filter_active' => !empty($savedFilters['category_filter_active']),
         'category_filters' => $categoryFilters,
         'assigned_filter' => $assignedFilter,
+        'search_query' => $searchQuery,
     ];
 }
 

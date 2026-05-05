@@ -386,6 +386,25 @@
                 ticketPollPayload = {};
             }
         }
+
+        var ticketSearchInput = liveTicketSection ? liveTicketSection.querySelector('input[name="search"]') : null;
+        var ticketSearchSubmitTimer = null;
+        if (ticketSearchInput && ticketSearchInput.form)
+        {
+            ticketSearchInput.addEventListener('input', function ()
+            {
+                if (ticketSearchSubmitTimer)
+                {
+                    clearTimeout(ticketSearchSubmitTimer);
+                }
+
+                ticketSearchSubmitTimer = setTimeout(function ()
+                {
+                    ticketSearchInput.form.submit();
+                }, 300);
+            });
+        }
+
         var imagePreviewModal = document.createElement('div');
         imagePreviewModal.className = 'image-preview-modal';
 

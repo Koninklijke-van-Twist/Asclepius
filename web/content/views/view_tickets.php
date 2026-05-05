@@ -10,6 +10,7 @@
         'open_ticket_id' => $openTicketId,
         'view' => $view,
         'assigned_filter' => $assignedFilter,
+        'search_query' => $searchQuery,
         'status_filters' => $effectiveStatusFilters,
         'category_filters' => $effectiveCategoryFilters,
     ];
@@ -53,6 +54,12 @@
                 </div>
 
                 <label>
+                    <?= h(__('filter.search_label')) ?>
+                    <input type="search" name="search" value="<?= h($searchQuery) ?>"
+                        placeholder="<?= h(__('filter.search_placeholder')) ?>">
+                </label>
+
+                <label>
                     <?= h(__('filter.ict_employee')) ?>
                     <select name="assigned" onchange="this.form.submit()">
                         <option value=""><?= h(__('filter.all_assigned')) ?></option>
@@ -69,7 +76,7 @@
 
                 <div class="button-row">
                     <a class="secondary-button"
-                        href="<?= h(buildCurrentPageUrl($currentPage, ['reset_filters' => '1', 'open' => null], ['_partial', '_tickets_poll', 'reset_filters', 'status_filter_mode', 'status', 'category_filter_mode', 'category', 'assigned'])) ?>"><?= h(__('filter.reset')) ?></a>
+                        href="<?= h(buildCurrentPageUrl($currentPage, ['reset_filters' => '1', 'open' => null], ['_partial', '_tickets_poll', 'reset_filters', 'status_filter_mode', 'status', 'category_filter_mode', 'category', 'assigned', 'search'])) ?>"><?= h(__('filter.reset')) ?></a>
                 </div>
             </form>
         <?php endif; ?>

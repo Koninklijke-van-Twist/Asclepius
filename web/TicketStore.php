@@ -468,7 +468,7 @@ class TicketStore
         return $messageId;
     }
 
-    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = []): array
+    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null): array
     {
         $conditions = [];
         $parameters = [];
@@ -512,10 +512,75 @@ class TicketStore
             $conditions[] = 't.category IN (' . implode(', ', $categoryPlaceholders) . ')';
         }
 
+        if ($isAdmin) {
+            $searchQuery = trim((string) ($searchQuery ?? ''));
+            if ($searchQuery !== '') {
+                $searchTerms = preg_split('/\s+/u', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                $searchTerms = array_values(array_filter(array_map('trim', $searchTerms), static fn(string $term): bool => $term !== ''));
+
+                if ($searchTerms !== []) {
+                    $searchConditions = [];
+                    foreach ($searchTerms as $index => $term) {
+                        $placeholder = ':search_' . $index;
+                        $parameters[$placeholder] = function_exists('mb_strtolower') ? mb_strtolower($term, 'UTF-8') : strtolower($term);
+                        $searchConditions[] = "(
+                            instr(lower(CAST(t.id AS TEXT)), {$placeholder}) > 0
+                            OR instr(lower(COALESCE(t.title, '')), {$placeholder}) > 0
+                            OR instr(lower(COALESCE(t.description, '')), {$placeholder}) > 0
+                            OR instr(lower(COALESCE(t.user_email, '')), {$placeholder}) > 0
+                            OR instr(lower(COALESCE(t.assigned_email, '')), {$placeholder}) > 0
+                            OR instr(lower(COALESCE(t.status, '')), {$placeholder}) > 0
+                            OR instr(lower(COALESCE(t.category, '')), {$placeholder}) > 0
+                            OR instr(lower(COALESCE(t.created_at, '')), {$placeholder}) > 0
+                            OR instr(lower(COALESCE(t.updated_at, '')), {$placeholder}) > 0
+                            OR instr(lower(COALESCE(t.resolved_at, '')), {$placeholder}) > 0
+                            OR instr(CAST(COALESCE(t.priority, 0) AS TEXT), {$placeholder}) > 0
+                            OR EXISTS (
+                                SELECT 1
+                                FROM ticket_participants tp
+                                WHERE tp.ticket_id = t.id
+                                  AND instr(lower(COALESCE(tp.user_email, '')), {$placeholder}) > 0
+                            )
+                            OR EXISTS (
+                                SELECT 1
+                                FROM ticket_messages tm
+                                WHERE tm.ticket_id = t.id
+                                  AND (
+                                      instr(lower(COALESCE(tm.sender_email, '')), {$placeholder}) > 0
+                                      OR instr(lower(COALESCE(tm.message_text, '')), {$placeholder}) > 0
+                                  )
+                            )
+                            OR EXISTS (
+                                SELECT 1
+                                FROM ticket_attachments ta
+                                WHERE ta.ticket_id = t.id
+                                  AND (
+                                      instr(lower(COALESCE(ta.original_name, '')), {$placeholder}) > 0
+                                      OR instr(lower(COALESCE(ta.uploaded_by_email, '')), {$placeholder}) > 0
+                                  )
+                            )
+                        )";
+                    }
+
+                    $conditions[] = implode(' AND ', $searchConditions);
+                }
+            }
+        }
+
         $sql = 'SELECT t.*,
                        (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id) AS message_count,
                        (SELECT COUNT(*) FROM ticket_attachments ta WHERE ta.ticket_id = t.id) AS attachment_count
                 FROM tickets t';
+        // Optional debug: write SQL and parameters when search is active and debugging enabled
+        if (getenv('ASCLEPIUS_DEBUG_SEARCH') === '1' && array_filter(array_keys($parameters), static fn($k) => str_starts_with((string)$k, ':search_'))) {
+            $debugPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'asclepius_search_debug.log';
+            $entry = [
+                'time' => gmdate('c'),
+                'sql_fragment' => $sql,
+                'parameters' => $parameters,
+            ];
+            @file_put_contents($debugPath, json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n", FILE_APPEND | LOCK_EX);
+        }
 
         if ($conditions !== []) {
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
