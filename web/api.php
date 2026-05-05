@@ -674,6 +674,9 @@ if ($method === 'POST') {
             if (!$store->deleteTicketTemplate($id)) {
                 sendJson(404, ['success' => false, 'error' => __('flash.template_not_found')]);
             }
+        } elseif ($operation === 'reorder') {
+            $orderedIds = array_map('intval', (array) ($payload['ordered_ids'] ?? []));
+            $store->reorderTicketTemplates($orderedIds);
         } elseif ($operation !== 'list') {
             sendJson(422, ['success' => false, 'error' => 'unknown_operation']);
         }

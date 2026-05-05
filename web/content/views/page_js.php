@@ -221,7 +221,7 @@
                 if (templatePreview)
                 {
                     var title = templateTitleInput ? String(templateTitleInput.value || '').trim() : '';
-                    var body = selectedBodies.join('\n');
+                    var body = selectedBodies.join('\n\n');
                     templatePreview.value = title !== '' && body !== ''
                         ? title + '\n\n' + body
                         : (title !== '' ? title : body);
@@ -257,6 +257,8 @@
         }
 
         var initializeTemplateCheckboxSync = function () {};
+
+        initializeTemplateDragDrop(document.getElementById('template_fragment_list'));
 
         var parseParticipantEmails = function (value, fallbackEmail)
         {
@@ -894,6 +896,12 @@
                 editBtn.setAttribute('data-template-body', tpl.body || '');
                 editBtn.textContent = '<?= addslashes(__('template_ticket.edit_template_button')) ?>';
 
+                var handle = document.createElement('span');
+                handle.className = 'template-drag-handle';
+                handle.setAttribute('aria-hidden', 'true');
+                handle.innerHTML = '&#8597;';
+
+                label.appendChild(handle);
                 label.appendChild(cb);
                 label.appendChild(nameSpan);
                 label.appendChild(editBtn);
@@ -901,6 +909,92 @@
             });
 
             initializeTemplateCheckboxSync(list);
+            initializeTemplateDragDrop(list);
+        };
+
+        var templateDragSrc = null;
+
+        var initializeTemplateDragDrop = function (list)
+        {
+            if (!list) { return; }
+            list.querySelectorAll('.template-fragment-item').forEach(attachTemplateDrag);
+        };
+
+        var attachTemplateDrag = function (item)
+        {
+            item.setAttribute('draggable', 'true');
+
+            item.addEventListener('dragstart', function (e)
+            {
+                templateDragSrc = item;
+                item.classList.add('is-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            item.addEventListener('dragend', function ()
+            {
+                item.classList.remove('is-dragging');
+                var list = document.getElementById('template_fragment_list');
+                if (list)
+                {
+                    list.querySelectorAll('.template-fragment-item').forEach(function (el)
+                    {
+                        el.classList.remove('drag-over');
+                    });
+                }
+                templateDragSrc = null;
+                persistTemplateOrder();
+            });
+
+            item.addEventListener('dragover', function (e)
+            {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (!templateDragSrc || templateDragSrc === item) { return; }
+                var list = item.parentNode;
+                if (!list) { return; }
+                list.querySelectorAll('.template-fragment-item').forEach(function (el)
+                {
+                    el.classList.remove('drag-over');
+                });
+                item.classList.add('drag-over');
+                var rect = item.getBoundingClientRect();
+                var midY = rect.top + rect.height / 2;
+                if (e.clientY < midY)
+                {
+                    list.insertBefore(templateDragSrc, item);
+                }
+                else
+                {
+                    list.insertBefore(templateDragSrc, item.nextSibling);
+                }
+            });
+
+            item.addEventListener('dragleave', function ()
+            {
+                item.classList.remove('drag-over');
+            });
+
+            item.addEventListener('drop', function (e)
+            {
+                e.preventDefault();
+                item.classList.remove('drag-over');
+            });
+        };
+
+        var persistTemplateOrder = function ()
+        {
+            var list = document.getElementById('template_fragment_list');
+            if (!list) { return; }
+            var orderedIds = [];
+            list.querySelectorAll('.template-fragment-checkbox').forEach(function (cb)
+            {
+                var id = parseInt(cb.value || '0', 10);
+                if (id > 0) { orderedIds.push(id); }
+            });
+            if (orderedIds.length === 0) { return; }
+            var csrfToken = templateModalSave ? (templateModalSave.getAttribute('data-csrf') || '') : '';
+            apiFetchJson('manage_ticket_template', { operation: 'reorder', ordered_ids: orderedIds, csrf_token: csrfToken });
         };
 
         var templateApiCall = function (operation, extraPayload)

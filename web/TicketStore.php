@@ -66,9 +66,9 @@ class TicketStore
     public function getTicketTemplates(): array
     {
         $statement = $this->pdo->query(
-            'SELECT id, name, body, created_by_email, updated_by_email, created_at, updated_at
+            'SELECT id, name, body, created_by_email, updated_by_email, created_at, updated_at, sort_order
              FROM ticket_templates
-             ORDER BY lower(name) ASC, id ASC'
+             ORDER BY sort_order ASC, lower(name) ASC, id ASC'
         );
 
         return $statement->fetchAll(PDO::FETCH_ASSOC);
@@ -96,9 +96,10 @@ class TicketStore
     {
         $now = date('c');
         $authorEmail = strtolower(trim($authorEmail));
+        $nextOrder = (int) $this->pdo->query('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM ticket_templates')->fetchColumn();
         $statement = $this->pdo->prepare(
-            'INSERT INTO ticket_templates (name, body, created_by_email, updated_by_email, created_at, updated_at)
-             VALUES (:name, :body, :created_by_email, :updated_by_email, :created_at, :updated_at)'
+            'INSERT INTO ticket_templates (name, body, created_by_email, updated_by_email, created_at, updated_at, sort_order)
+             VALUES (:name, :body, :created_by_email, :updated_by_email, :created_at, :updated_at, :sort_order)'
         );
         $statement->execute([
             ':name' => trim($name),
@@ -107,6 +108,7 @@ class TicketStore
             ':updated_by_email' => $authorEmail,
             ':created_at' => $now,
             ':updated_at' => $now,
+            ':sort_order' => $nextOrder,
         ]);
 
         return (int) $this->pdo->lastInsertId();
@@ -147,6 +149,21 @@ class TicketStore
         $statement->execute([':id' => $templateId]);
 
         return $statement->rowCount() > 0;
+    }
+
+    public function reorderTicketTemplates(array $orderedIds): bool
+    {
+        $validIds = array_values(array_filter(array_map('intval', $orderedIds), static fn(int $id): bool => $id > 0));
+        if ($validIds === []) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare('UPDATE ticket_templates SET sort_order = :sort_order WHERE id = :id');
+        foreach ($validIds as $position => $id) {
+            $statement->execute([':sort_order' => $position + 1, ':id' => $id]);
+        }
+
+        return true;
     }
 
     public function saveCategoryMatrix(array $matrix, array $availability = []): void
@@ -1204,6 +1221,7 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_ticket_id ON ticket_participants(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_user_email ON ticket_participants(user_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_templates_name ON ticket_templates(name)');
+        $this->ensureColumn('ticket_templates', 'sort_order', 'INTEGER NOT NULL DEFAULT 0');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_browser_notifications_user_delivered ON browser_notifications(user_email, delivered_at, created_at)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user_email ON web_push_subscriptions(user_email)');
         $this->pdo->exec(

@@ -360,18 +360,41 @@
 
         .template-fragment-item {
             display: grid;
-            grid-template-columns: auto 1fr auto;
+            grid-template-columns: auto auto 1fr auto;
             align-items: center;
             gap: 10px;
             border: 1px solid var(--line);
             border-radius: 12px;
             padding: 10px;
             background: #fff;
+            cursor: default;
+            user-select: none;
+        }
+
+        .template-fragment-item[draggable="true"] {
+            cursor: grab;
+        }
+
+        .template-fragment-item.is-dragging {
+            opacity: 0.4;
+        }
+
+        .template-fragment-item.drag-over {
+            border-color: var(--accent);
+            background: var(--accent-soft);
         }
 
         .template-fragment-name {
             font-weight: 700;
             font-size: 14px;
+        }
+
+        .template-drag-handle {
+            color: var(--muted);
+            font-size: 18px;
+            line-height: 1;
+            cursor: grab;
+            padding: 0 2px;
         }
 
         .template-ticket-right-header {

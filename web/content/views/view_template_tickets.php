@@ -64,6 +64,7 @@
                         $templateBody = (string) ($templateFragment['body'] ?? '');
                         ?>
                         <label class="template-fragment-item">
+                            <span class="template-drag-handle" aria-hidden="true">&#8597;</span>
                             <input type="checkbox" class="template-fragment-checkbox"
                                 value="<?= $templateId ?>"
                                 data-template-body="<?= h((string) json_encode($templateBody, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
