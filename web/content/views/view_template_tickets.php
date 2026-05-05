@@ -46,80 +46,67 @@
             </div>
 
             <div class="template-ticket-right">
-                <form method="post" action="admin.php?view=template_tickets" class="form-grid template-editor-form">
-                    <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
-                    <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                <div class="template-ticket-right-header">
+                    <h3><?= h(__('template_ticket.templates_heading')) ?></h3>
+                    <button type="button" class="secondary-button" id="template_fragment_new_btn"><?= h(__('template_ticket.new_template_button')) ?></button>
+                </div>
 
-                    <?php if ($editingTemplateFragment !== null): ?>
-                        <input type="hidden" name="form_action" value="update_ticket_template">
-                        <input type="hidden" name="template_id" value="<?= (int) ($editingTemplateFragment['id'] ?? 0) ?>">
-
-                        <h3><?= h(__('template_ticket.edit_heading')) ?></h3>
-
-                        <label>
-                            <?= h(__('template_ticket.template_name_label')) ?>
-                            <input type="text" name="template_name" maxlength="120" required
-                                value="<?= h((string) ($editingTemplateFragment['name'] ?? '')) ?>">
-                        </label>
-
-                        <label>
-                            <?= h(__('template_ticket.template_body_label')) ?>
-                            <textarea name="template_body" required><?= h((string) ($editingTemplateFragment['body'] ?? '')) ?></textarea>
-                        </label>
-
-                        <div class="button-row">
-                            <button type="submit"><?= h(__('template_ticket.save_template_button')) ?></button>
-                            <button type="submit" name="form_action" value="delete_ticket_template"
-                                onclick="return confirm('<?= h(__('template_ticket.delete_confirm')) ?>');"
-                                class="danger-button"><?= h(__('template_ticket.delete_template_button')) ?></button>
-                            <a class="secondary-button" href="admin.php?view=template_tickets"><?= h(__('template_ticket.back_to_list')) ?></a>
-                        </div>
-                    <?php else: ?>
-                        <input type="hidden" name="form_action" value="create_ticket_template">
-
-                        <h3><?= h(__('template_ticket.create_template_heading')) ?></h3>
-
-                        <label>
-                            <?= h(__('template_ticket.template_name_label')) ?>
-                            <input type="text" name="template_name" maxlength="120" required
-                                placeholder="<?= h(__('template_ticket.template_name_placeholder')) ?>">
-                        </label>
-
-                        <label>
-                            <?= h(__('template_ticket.template_body_label')) ?>
-                            <textarea name="template_body" required
-                                placeholder="<?= h(__('template_ticket.template_body_placeholder')) ?>"></textarea>
-                        </label>
-
-                        <div class="button-row">
-                            <button type="submit"><?= h(__('template_ticket.create_template_button')) ?></button>
-                        </div>
-                    <?php endif; ?>
-                </form>
-
-                <h3><?= h(__('template_ticket.templates_heading')) ?></h3>
                 <?php if ($templateFragments === []): ?>
-                    <p class="hint"><?= h(__('template_ticket.empty_templates')) ?></p>
+                    <p class="hint" id="template_fragment_empty"><?= h(__('template_ticket.empty_templates')) ?></p>
                 <?php else: ?>
-                    <div class="template-fragment-list" id="template_fragment_list">
-                        <?php foreach ($templateFragments as $templateFragment):
-                            $templateId = (int) ($templateFragment['id'] ?? 0);
-                            $templateName = (string) ($templateFragment['name'] ?? '');
-                            $templateBody = (string) ($templateFragment['body'] ?? '');
-                            ?>
-                            <label class="template-fragment-item">
-                                <input type="checkbox" class="template-fragment-checkbox"
-                                    value="<?= $templateId ?>"
-                                    data-template-body="<?= h((string) json_encode($templateBody, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
-                                    data-template-name="<?= h($templateName) ?>">
-                                <span class="template-fragment-name"><?= h($templateName) ?></span>
-                                <a class="secondary-button"
-                                    href="admin.php?view=template_tickets&amp;edit_template=<?= $templateId ?>"><?= h(__('template_ticket.edit_template_button')) ?></a>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
+                    <p class="hint" id="template_fragment_empty" hidden><?= h(__('template_ticket.empty_templates')) ?></p>
                 <?php endif; ?>
+
+                <div class="template-fragment-list" id="template_fragment_list">
+                    <?php foreach ($templateFragments as $templateFragment):
+                        $templateId = (int) ($templateFragment['id'] ?? 0);
+                        $templateName = (string) ($templateFragment['name'] ?? '');
+                        $templateBody = (string) ($templateFragment['body'] ?? '');
+                        ?>
+                        <label class="template-fragment-item">
+                            <input type="checkbox" class="template-fragment-checkbox"
+                                value="<?= $templateId ?>"
+                                data-template-body="<?= h((string) json_encode($templateBody, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                data-template-name="<?= h($templateName) ?>">
+                            <span class="template-fragment-name"><?= h($templateName) ?></span>
+                            <button type="button" class="secondary-button template-fragment-edit-btn"
+                                data-template-id="<?= $templateId ?>"
+                                data-template-name="<?= h($templateName) ?>"
+                                data-template-body="<?= h($templateBody) ?>"><?= h(__('template_ticket.edit_template_button')) ?></button>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
             </div>
         </div>
     </section>
+
+    <div class="template-fragment-modal" id="template_fragment_modal" hidden>
+        <div class="template-fragment-modal-card" role="dialog" aria-modal="true"
+            aria-labelledby="template_fragment_modal_title">
+            <div class="template-fragment-modal-head">
+                <h3 id="template_fragment_modal_title"><?= h(__('template_ticket.create_template_heading')) ?></h3>
+                <button type="button" class="participant-modal-close" id="template_fragment_modal_close"
+                    aria-label="<?= h(__('template_ticket.modal_close')) ?>">&times;</button>
+            </div>
+            <div id="template_fragment_modal_error" class="flash error" hidden></div>
+            <label>
+                <?= h(__('template_ticket.template_name_label')) ?>
+                <input type="text" id="template_fragment_modal_name" maxlength="120"
+                    placeholder="<?= h(__('template_ticket.template_name_placeholder')) ?>">
+            </label>
+            <label>
+                <?= h(__('template_ticket.template_body_label')) ?>
+                <textarea id="template_fragment_modal_body"
+                    placeholder="<?= h(__('template_ticket.template_body_placeholder')) ?>"></textarea>
+            </label>
+            <div class="button-row">
+                <button type="button" id="template_fragment_modal_save"
+                    data-label-create="<?= h(__('template_ticket.create_template_button')) ?>"
+                    data-label-save="<?= h(__('template_ticket.save_template_button')) ?>"
+                    data-csrf="<?= h($csrfToken) ?>"><?= h(__('template_ticket.create_template_button')) ?></button>
+                <button type="button" id="template_fragment_modal_delete" class="danger-button" hidden
+                    data-confirm="<?= h(__('template_ticket.delete_confirm')) ?>"><?= h(__('template_ticket.delete_template_button')) ?></button>
+            </div>
+        </div>
+    </div>
 <?php endif; ?>

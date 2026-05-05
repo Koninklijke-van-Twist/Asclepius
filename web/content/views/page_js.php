@@ -182,14 +182,13 @@
             var templateTitleInput = document.getElementById('template_ticket_title');
             var templatePreview = document.getElementById('template_ticket_preview');
             var selectedTemplateIdsInput = document.getElementById('selected_template_ids');
-            var templateCheckboxes = Array.prototype.slice.call(document.querySelectorAll('.template-fragment-checkbox'));
 
             var updateTemplatePreview = function ()
             {
                 var selectedIds = [];
                 var selectedBodies = [];
 
-                templateCheckboxes.forEach(function (checkbox)
+                document.querySelectorAll('.template-fragment-checkbox').forEach(function (checkbox)
                 {
                     if (!checkbox.checked)
                     {
@@ -229,9 +228,12 @@
                 }
             };
 
-            templateCheckboxes.forEach(function (checkbox)
+            document.addEventListener('change', function (e)
             {
-                checkbox.addEventListener('change', updateTemplatePreview);
+                if (e.target && e.target.matches && e.target.matches('.template-fragment-checkbox'))
+                {
+                    updateTemplatePreview();
+                }
             });
 
             if (templateTitleInput)
@@ -253,6 +255,8 @@
 
             updateTemplatePreview();
         }
+
+        var initializeTemplateCheckboxSync = function () {};
 
         var parseParticipantEmails = function (value, fallbackEmail)
         {
@@ -798,6 +802,200 @@
                 return response.json();
             });
         };
+
+        /**
+         * Template-fragment modal
+         */
+        var templateModal         = document.getElementById('template_fragment_modal');
+        var templateModalTitle    = document.getElementById('template_fragment_modal_title');
+        var templateModalName     = document.getElementById('template_fragment_modal_name');
+        var templateModalBody     = document.getElementById('template_fragment_modal_body');
+        var templateModalSave     = document.getElementById('template_fragment_modal_save');
+        var templateModalDelete   = document.getElementById('template_fragment_modal_delete');
+        var templateModalClose    = document.getElementById('template_fragment_modal_close');
+        var templateModalError    = document.getElementById('template_fragment_modal_error');
+        var templateModalEditId   = 0;
+
+        var setTemplateModalError = function (msg)
+        {
+            if (!templateModalError) { return; }
+            templateModalError.textContent = msg || '';
+            templateModalError.hidden = !msg;
+        };
+
+        var openTemplateModal = function (mode, id, name, body)
+        {
+            if (!templateModal) { return; }
+            templateModalEditId = (mode === 'edit') ? (id || 0) : 0;
+            if (templateModalTitle)
+            {
+                templateModalTitle.textContent = (mode === 'edit')
+                    ? (templateModalSave ? (templateModalSave.getAttribute('data-label-save') || '') : '')
+                    : (templateModalSave ? (templateModalSave.getAttribute('data-label-create') || '') : '');
+            }
+            if (templateModalSave)
+            {
+                templateModalSave.textContent = (mode === 'edit')
+                    ? (templateModalSave.getAttribute('data-label-save') || '')
+                    : (templateModalSave.getAttribute('data-label-create') || '');
+            }
+            if (templateModalName) { templateModalName.value = name || ''; }
+            if (templateModalBody) { templateModalBody.value = body || ''; }
+            if (templateModalDelete) { templateModalDelete.hidden = (mode !== 'edit'); }
+            setTemplateModalError('');
+            templateModal.hidden = false;
+            if (templateModalName) { templateModalName.focus(); }
+        };
+
+        var closeTemplateModal = function ()
+        {
+            if (!templateModal) { return; }
+            templateModal.hidden = true;
+            templateModalEditId = 0;
+            setTemplateModalError('');
+        };
+
+        var rebuildTemplateList = function (templates)
+        {
+            var list = document.getElementById('template_fragment_list');
+            var empty = document.getElementById('template_fragment_empty');
+            if (!list) { return; }
+
+            list.innerHTML = '';
+            if (!templates || templates.length === 0)
+            {
+                if (empty) { empty.hidden = false; }
+                return;
+            }
+
+            if (empty) { empty.hidden = true; }
+            templates.forEach(function (tpl)
+            {
+                var label = document.createElement('label');
+                label.className = 'template-fragment-item';
+
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'template-fragment-checkbox';
+                cb.value = String(tpl.id || 0);
+                var bodyJson = JSON.stringify(tpl.body || '');
+                cb.setAttribute('data-template-body', bodyJson);
+                cb.setAttribute('data-template-name', tpl.name || '');
+
+                var nameSpan = document.createElement('span');
+                nameSpan.className = 'template-fragment-name';
+                nameSpan.textContent = tpl.name || '';
+
+                var editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'secondary-button template-fragment-edit-btn';
+                editBtn.setAttribute('data-template-id', String(tpl.id || 0));
+                editBtn.setAttribute('data-template-name', tpl.name || '');
+                editBtn.setAttribute('data-template-body', tpl.body || '');
+                editBtn.textContent = '<?= addslashes(__('template_ticket.edit_template_button')) ?>';
+
+                label.appendChild(cb);
+                label.appendChild(nameSpan);
+                label.appendChild(editBtn);
+                list.appendChild(label);
+            });
+
+            initializeTemplateCheckboxSync(list);
+        };
+
+        var templateApiCall = function (operation, extraPayload)
+        {
+            if (templateModalSave) { templateModalSave.disabled = true; }
+            setTemplateModalError('');
+
+            var csrfToken = templateModalSave ? (templateModalSave.getAttribute('data-csrf') || '') : '';
+            return apiFetchJson('manage_ticket_template', Object.assign({
+                operation: operation,
+                csrf_token: csrfToken
+            }, extraPayload || {})).then(function (data)
+            {
+                if (!data || data.success !== true)
+                {
+                    setTemplateModalError(data && data.error ? data.error : '<?= addslashes(__('flash.db_error_prefix')) ?>');
+                    return;
+                }
+
+                closeTemplateModal();
+                rebuildTemplateList(data.templates || []);
+            }).catch(function ()
+            {
+                setTemplateModalError('<?= addslashes(__('flash.db_error_prefix')) ?>');
+            }).finally(function ()
+            {
+                if (templateModalSave) { templateModalSave.disabled = false; }
+            });
+        };
+
+        if (templateModalClose)
+        {
+            templateModalClose.addEventListener('click', closeTemplateModal);
+        }
+
+        if (templateModal)
+        {
+            templateModal.addEventListener('click', function (e)
+            {
+                if (e.target === templateModal) { closeTemplateModal(); }
+            });
+            document.addEventListener('keydown', function (e)
+            {
+                if (e.key === 'Escape' && !templateModal.hidden) { closeTemplateModal(); }
+            });
+        }
+
+        var newBtn = document.getElementById('template_fragment_new_btn');
+        if (newBtn)
+        {
+            newBtn.addEventListener('click', function ()
+            {
+                openTemplateModal('create', 0, '', '');
+            });
+        }
+
+        document.addEventListener('click', function (e)
+        {
+            var editBtn = e.target && e.target.closest ? e.target.closest('.template-fragment-edit-btn') : null;
+            if (!editBtn) { return; }
+            var id   = parseInt(editBtn.getAttribute('data-template-id') || '0', 10);
+            var name = editBtn.getAttribute('data-template-name') || '';
+            var body = editBtn.getAttribute('data-template-body') || '';
+            openTemplateModal('edit', id, name, body);
+        });
+
+        if (templateModalSave)
+        {
+            templateModalSave.addEventListener('click', function ()
+            {
+                var name = templateModalName ? templateModalName.value.trim() : '';
+                var body = templateModalBody ? templateModalBody.value.trim() : '';
+                if (!name) { setTemplateModalError('<?= addslashes(__('flash.template_name_required')) ?>'); return; }
+                if (!body) { setTemplateModalError('<?= addslashes(__('flash.template_body_required')) ?>'); return; }
+
+                if (templateModalEditId > 0)
+                {
+                    templateApiCall('update', { id: templateModalEditId, name: name, body: body });
+                }
+                else
+                {
+                    templateApiCall('create', { name: name, body: body });
+                }
+            });
+        }
+
+        if (templateModalDelete)
+        {
+            templateModalDelete.addEventListener('click', function ()
+            {
+                var confirmMsg = templateModalDelete.getAttribute('data-confirm') || '';
+                if (confirmMsg && !confirm(confirmMsg)) { return; }
+                templateApiCall('delete', { id: templateModalEditId });
+            });
+        }
 
         var setParticipantFeedback = function (ticketCard, message, isError)
         {

@@ -624,6 +624,63 @@ if ($method === 'POST') {
         sendJson(200, handleManageTicketParticipantsApiAction($store, $payload, $apiClient));
     }
 
+    if ($action === 'manage_ticket_template') {
+        $userIsAdmin = !empty($apiClient['is_admin']);
+        if (!$userIsAdmin && !isTrustedApiRequester()) {
+            sendJson(403, ['success' => false, 'error' => __('flash.settings_admin_only')]);
+        }
+
+        $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+        $sessionToken = '';
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            $sessionCookieName = session_name();
+            if ($sessionCookieName !== '' && !empty($_COOKIE[$sessionCookieName])) {
+                session_start(['read_and_close' => true]);
+            }
+        }
+        $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+        if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+            sendJson(403, ['success' => false, 'error' => 'csrf']);
+        }
+
+        $operation = strtolower(trim((string) ($payload['operation'] ?? '')));
+        $authorEmail = strtolower(trim((string) ($apiClient['email'] ?? '')));
+
+        if ($operation === 'create') {
+            $name = trim((string) ($payload['name'] ?? ''));
+            $body = trim((string) ($payload['body'] ?? ''));
+            if ($name === '') {
+                sendJson(422, ['success' => false, 'error' => __('flash.template_name_required')]);
+            }
+            if ($body === '') {
+                sendJson(422, ['success' => false, 'error' => __('flash.template_body_required')]);
+            }
+            $store->createTicketTemplate($name, $body, $authorEmail);
+        } elseif ($operation === 'update') {
+            $id = max(1, (int) ($payload['id'] ?? 0));
+            $name = trim((string) ($payload['name'] ?? ''));
+            $body = trim((string) ($payload['body'] ?? ''));
+            if ($name === '') {
+                sendJson(422, ['success' => false, 'error' => __('flash.template_name_required')]);
+            }
+            if ($body === '') {
+                sendJson(422, ['success' => false, 'error' => __('flash.template_body_required')]);
+            }
+            if (!$store->updateTicketTemplate($id, $name, $body, $authorEmail)) {
+                sendJson(404, ['success' => false, 'error' => __('flash.template_not_found')]);
+            }
+        } elseif ($operation === 'delete') {
+            $id = max(1, (int) ($payload['id'] ?? 0));
+            if (!$store->deleteTicketTemplate($id)) {
+                sendJson(404, ['success' => false, 'error' => __('flash.template_not_found')]);
+            }
+        } elseif ($operation !== 'list') {
+            sendJson(422, ['success' => false, 'error' => 'unknown_operation']);
+        }
+
+        sendJson(200, ['success' => true, 'templates' => $store->getTicketTemplates()]);
+    }
+
     if ($action === 'bigscreen_poll') {
         if (!($apiClient['is_admin'] ?? false) && !isTrustedApiRequester()) {
             sendJson(403, [

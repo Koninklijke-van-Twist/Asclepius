@@ -374,6 +374,68 @@
             font-size: 14px;
         }
 
+        .template-ticket-right-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .template-ticket-right-header h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .template-fragment-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 25, 41, 0.64);
+            display: grid;
+            place-items: center;
+            padding: 16px;
+            z-index: 1700;
+        }
+
+        .template-fragment-modal[hidden] {
+            display: none !important;
+        }
+
+        .template-fragment-modal-card {
+            width: min(560px, 100%);
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            box-shadow: 0 18px 60px rgba(3, 13, 27, 0.26);
+            padding: 18px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .template-fragment-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .template-fragment-modal-head h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .template-fragment-modal-card label {
+            display: grid;
+            gap: 4px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .template-fragment-modal-card textarea {
+            min-height: 140px;
+            resize: vertical;
+        }
+
         .filters-form {
             display: grid;
             gap: 12px;
