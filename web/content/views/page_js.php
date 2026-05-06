@@ -2381,57 +2381,6 @@
             var textarea = wrapper.querySelector('textarea');
             if (!toggle || !popup || !textarea) { return; }
 
-            var renderer = wrapper.querySelector('.key-token-renderer');
-            if (!renderer)
-            {
-                renderer = document.createElement('div');
-                renderer.className = 'key-token-renderer';
-                renderer.setAttribute('aria-hidden', 'true');
-                wrapper.insertBefore(renderer, textarea);
-            }
-
-            var syncRendererMetrics = function ()
-            {
-                var style = window.getComputedStyle(textarea);
-                [
-                    'borderTopWidth',
-                    'borderRightWidth',
-                    'borderBottomWidth',
-                    'borderLeftWidth',
-                    'borderRadius',
-                    'font',
-                    'letterSpacing',
-                    'lineHeight',
-                    'paddingTop',
-                    'paddingRight',
-                    'paddingBottom',
-                    'paddingLeft',
-                    'textAlign',
-                    'textIndent',
-                    'textTransform'
-                ].forEach(function (property)
-                {
-                    renderer.style[property] = style[property];
-                });
-            };
-
-            var updateKeyTokenRenderer = function ()
-            {
-                syncRendererMetrics();
-                renderer.innerHTML = renderShortcutMarkup(escapeHtml(textarea.value || ''));
-                renderer.scrollTop = textarea.scrollTop;
-                renderer.scrollLeft = textarea.scrollLeft;
-            };
-
-            wrapper.classList.add('has-key-token-renderer');
-            textarea.addEventListener('input', updateKeyTokenRenderer);
-            textarea.addEventListener('scroll', function ()
-            {
-                renderer.scrollTop = textarea.scrollTop;
-                renderer.scrollLeft = textarea.scrollLeft;
-            });
-            updateKeyTokenRenderer();
-
             buildKeyPickerPopup(popup);
 
             toggle.addEventListener('click', function (e)
@@ -2463,7 +2412,6 @@
                     textarea.value += insertion;
                 }
 
-                updateKeyTokenRenderer();
                 textarea.focus();
                 popup.hidden = true;
                 toggle.classList.remove('is-active');

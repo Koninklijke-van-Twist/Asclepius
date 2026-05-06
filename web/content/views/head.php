@@ -70,61 +70,6 @@
             z-index: 10;
         }
 
-        .lang-current {
-            background: none;
-            border: none;
-            padding: 0;
-            cursor: pointer;
-            line-height: 0;
-            border-radius: 4px;
-            display: block;
-        }
-
-        .lang-current img {
-            width: 28px;
-            height: 20px;
-            border-radius: 3px;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-            display: block;
-        }
-
-        .lang-dropdown {
-            position: absolute;
-            top: calc(100% + 8px);
-            right: 0;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 8px 28px rgba(15, 35, 63, 0.18);
-            padding: 6px;
-            margin: 0;
-            list-style: none;
-            min-width: 150px;
-            display: grid;
-            gap: 2px;
-        }
-
-        .lang-option {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 10px;
-            border-radius: 8px;
-            text-decoration: none;
-            color: var(--text);
-            font-size: 14px;
-            font-weight: 600;
-            transition: background 0.1s;
-        }
-
-        .lang-option:hover {
-            background: var(--accent-soft);
-        }
-
-        .lang-option.is-active {
-            color: var(--accent);
-        }
-
-        .lang-option img {
             width: 22px;
             height: 15px;
             border-radius: 2px;
@@ -1333,56 +1278,6 @@
             z-index: 1;
         }
 
-        .textarea-wrapper.has-key-token-renderer textarea {
-            background: transparent;
-            color: transparent;
-            caret-color: var(--text);
-        }
-
-        .textarea-wrapper.has-key-token-renderer textarea::placeholder {
-            color: var(--muted);
-        }
-
-        .key-token-renderer {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            overflow: hidden;
-            pointer-events: none;
-            white-space: pre-wrap;
-            word-break: break-word;
-            color: var(--text);
-        }
-
-        .key-token-renderer .shortcut-key {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            box-sizing: border-box;
-            height: 22px;
-            padding: 0 7px;
-            min-width: 24px;
-            border: 1px solid #b7c1d0;
-            border-bottom-width: 2px;
-            border-radius: 6px;
-            background: #fff;
-            color: #132238;
-            font-size: 0.86em;
-            font-weight: 600;
-            line-height: 1;
-            vertical-align: middle;
-            white-space: nowrap;
-        }
-
-        .key-token-renderer .shortcut-key-icon {
-            width: 12px;
-            height: 12px;
-            display: block;
-            flex: 0 0 auto;
-        }
-
-        .key-token-renderer .shortcut-plus,
         .template-preview-rendered .shortcut-plus {
             display: inline-block;
             padding: 0 4px;
