@@ -1616,44 +1616,6 @@
         var TRANSLATION_ERROR_TOOLTIP = <?= json_encode(__('translation.error_tooltip'), JSON_UNESCAPED_UNICODE) ?>;
         var TRANSLATION_ERROR_FALLBACK = <?= json_encode(__('translation.error_fallback'), JSON_UNESCAPED_UNICODE) ?>;
 
-        var applyTranslationErrorIndicator = function (messageNode, errorCode)
-        {
-            if (!messageNode)
-            {
-                return;
-            }
-
-            messageNode.setAttribute('data-translation-status', 'error');
-            var statusIndicator = messageNode.querySelector('[data-role="translation-status"]');
-            if (!statusIndicator)
-            {
-                var messageMeta = messageNode.querySelector('.message-meta');
-                if (!messageMeta)
-                {
-                    return;
-                }
-
-                statusIndicator = document.createElement('button');
-                statusIndicator.type = 'button';
-                statusIndicator.className = 'translation-status-indicator';
-                statusIndicator.setAttribute('data-role', 'translation-status');
-                messageMeta.appendChild(statusIndicator);
-            }
-
-            statusIndicator.setAttribute('data-status', 'error');
-            statusIndicator.title = TRANSLATION_ERROR_TOOLTIP;
-            statusIndicator.setAttribute('data-error-message', errorCode ? (TRANSLATION_ERROR_FALLBACK + ' (' + String(errorCode) + ')') : TRANSLATION_ERROR_FALLBACK);
-            statusIndicator.innerHTML = '';
-
-            var errorIcon = document.createElement('svg');
-            errorIcon.className = 'translation-error-icon';
-            errorIcon.setAttribute('viewBox', '0 0 24 24');
-            errorIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-            errorIcon.setAttribute('aria-hidden', 'true');
-            errorIcon.innerHTML = '<path d="M12 3L2 21h20L12 3z" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17" r="1" fill="currentColor"/>';
-            statusIndicator.appendChild(errorIcon);
-        };
-
         var applyTranslationToCard = function (card, data)
         {
             var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
@@ -1708,12 +1670,6 @@
                 var messageNode = card.querySelector('[data-message-id="' + parseInt(msg.id, 10) + '"]');
                 if (!messageNode)
                 {
-                    return;
-                }
-
-                if (msg.translation_error)
-                {
-                    applyTranslationErrorIndicator(messageNode, msg.translation_error);
                     return;
                 }
 
@@ -1795,10 +1751,31 @@
                 }).catch(function (error)
                 {
                     card.setAttribute('data-needs-translation', '1');
-
+                    
                     card.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
                     {
-                        applyTranslationErrorIndicator(msg, String(error && error.message ? error.message : 'network_error'));
+                        msg.setAttribute('data-translation-status', 'error');
+                        var statusIndicator = msg.querySelector('[data-role="translation-status"]');
+                        if (statusIndicator)
+                        {
+                            var errorBtn = document.createElement('button');
+                            errorBtn.type = 'button';
+                            errorBtn.className = 'translation-status-indicator';
+                            errorBtn.setAttribute('data-role', 'translation-status');
+                            errorBtn.setAttribute('data-status', 'error');
+                            errorBtn.title = TRANSLATION_ERROR_TOOLTIP;
+                            errorBtn.setAttribute('data-error-message', String(error && error.message ? error.message : TRANSLATION_ERROR_FALLBACK));
+                            
+                            var errorIcon = document.createElement('svg');
+                            errorIcon.className = 'translation-error-icon';
+                            errorIcon.setAttribute('viewBox', '0 0 24 24');
+                            errorIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                            errorIcon.setAttribute('aria-hidden', 'true');
+                            errorIcon.innerHTML = '<path d="M12 3L2 21h20L12 3z" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17" r="1" fill="currentColor"/>';
+                            
+                            errorBtn.appendChild(errorIcon);
+                            statusIndicator.replaceWith(errorBtn);
+                        }
                     });
                 });
             });

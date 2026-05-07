@@ -785,7 +785,6 @@ if ($method === 'POST') {
                 'message_text' => $displayText,
                 'message_text_raw' => $rawText,
                 'message_is_translated' => !empty($message['message_is_translated']),
-                'translation_error' => (string) ($message['translation_error'] ?? ''),
             ];
         }
 
@@ -796,7 +795,6 @@ if ($method === 'POST') {
             'title' => (string) ($ticketDetail['title'] ?? ''),
             'title_raw' => $rawTitle,
             'title_is_translated' => !empty($ticketDetail['title_is_translated']),
-            'title_translation_error' => (string) ($ticketDetail['title_translation_error'] ?? ''),
             'messages' => $messages,
         ]);
     }
