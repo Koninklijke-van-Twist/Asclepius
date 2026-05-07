@@ -19,5 +19,8 @@ jobs:
           php-version: '8.2'
           extensions: pdo_sqlite, sqlite3
 
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
       - name: Run unit tests
         run: php tests/run-tests.php

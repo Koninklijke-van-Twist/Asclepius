@@ -245,6 +245,24 @@
             color: var(--muted);
         }
 
+        .translation-toggle-button {
+            border: 1px solid var(--line);
+            background: transparent;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 999px;
+            cursor: pointer;
+            line-height: 1.2;
+        }
+
+        .translation-toggle-button:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
         .button-row {
             display: flex;
             flex-wrap: wrap;

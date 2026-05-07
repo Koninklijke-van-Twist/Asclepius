@@ -1451,6 +1451,101 @@
             });
         });
 
+        var parseJsonString = function (value)
+        {
+            try
+            {
+                return JSON.parse(String(value || '""'));
+            }
+            catch (error)
+            {
+                return '';
+            }
+        };
+
+        var formatTicketMessageTextForToggle = function (text, messageId)
+        {
+            var normalized = String(text || '').replace(/\r\n?/g, '\n').trim();
+            if (normalized === '')
+            {
+                return '';
+            }
+
+            return normalized.split('\n').map(function (line, lineIndex)
+            {
+                if (line.trim() === '')
+                {
+                    return '';
+                }
+
+                var checkboxMatch = line.match(/^(\s*)\[( |x|X)\]\s*(.*)$/);
+                if (checkboxMatch)
+                {
+                    var isChecked = String(checkboxMatch[2] || '').toLowerCase() === 'x';
+                    var label = String(checkboxMatch[3] || '');
+                    return '<label class="message-checkbox-line">'
+                        + '<input type="checkbox" data-role="message-checkbox" data-message-id="' + parseInt(messageId || 0, 10) + '" data-line-index="' + lineIndex + '"' + (isChecked ? ' checked' : '') + '>'
+                        + '<span>' + (label !== '' ? renderShortcutMarkup(escapeHtml(label)) : '&nbsp;') + '</span>'
+                        + '</label>';
+                }
+
+                return renderShortcutMarkup(escapeHtml(line));
+            }).join('<br>');
+        };
+
+        document.addEventListener('click', function (event)
+        {
+            var messageToggle = event.target.closest('[data-role="message-translation-toggle"]');
+            if (messageToggle)
+            {
+                var messageNode = messageToggle.closest('.message');
+                var messageContent = messageNode ? messageNode.querySelector('[data-role="message-text-content"]') : null;
+                if (!messageContent)
+                {
+                    return;
+                }
+
+                var currentlyShowing = String(messageContent.getAttribute('data-showing') || 'translated');
+                var nextShowing = currentlyShowing === 'translated' ? 'original' : 'translated';
+                var translatedText = parseJsonString(messageContent.getAttribute('data-translated-text'));
+                var originalText = parseJsonString(messageContent.getAttribute('data-original-text'));
+                var nextText = nextShowing === 'translated' ? translatedText : originalText;
+
+                messageContent.innerHTML = formatTicketMessageTextForToggle(String(nextText || ''), parseInt(messageNode.getAttribute('data-message-id') || '0', 10));
+                messageContent.setAttribute('data-showing', nextShowing);
+                messageToggle.setAttribute('data-showing', nextShowing);
+                messageToggle.textContent = nextShowing === 'translated'
+                    ? String(messageToggle.getAttribute('data-label-original') || 'Show original')
+                    : String(messageToggle.getAttribute('data-label-translated') || 'Show translation');
+                return;
+            }
+
+            var titleToggle = event.target.closest('[data-role="title-translation-toggle"]');
+            if (!titleToggle)
+            {
+                return;
+            }
+
+            var ticketCard = titleToggle.closest('details.ticket-card');
+            var titleNode = ticketCard ? ticketCard.querySelector('[data-role="ticket-title"]') : null;
+            if (!titleNode)
+            {
+                return;
+            }
+
+            var currentlyShowingTitle = String(titleNode.getAttribute('data-showing') || 'translated');
+            var nextShowingTitle = currentlyShowingTitle === 'translated' ? 'original' : 'translated';
+            var translatedTitle = parseJsonString(titleNode.getAttribute('data-translated-text'));
+            var originalTitle = parseJsonString(titleNode.getAttribute('data-original-text'));
+            titleNode.textContent = nextShowingTitle === 'translated' ? String(translatedTitle || '') : String(originalTitle || '');
+            titleNode.setAttribute('data-showing', nextShowingTitle);
+
+            titleToggle.setAttribute('data-showing', nextShowingTitle);
+            titleToggle.textContent = nextShowingTitle === 'translated'
+                ? String(titleToggle.getAttribute('data-label-original') || 'Show original')
+                : String(titleToggle.getAttribute('data-label-translated') || 'Show translation');
+        });
+
         document.addEventListener('mouseover', function (event)
         {
             var applyButton = event.target.closest('[data-role="participants-apply-button"]');

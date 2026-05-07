@@ -75,6 +75,8 @@ const TRANSLATIONS = [
         'ticket.file_hint' => 'Per bestand maximaal 20 MB.',
         'ticket.btn_save' => 'Opslaan',
         'ticket.btn_reply' => 'Reactie plaatsen en ICT mailen',
+        'ticket.show_original' => 'Toon origineel',
+        'ticket.show_translation' => 'Toon vertaling',
 
         // New ticket form
         'new_ticket.heading' => 'Nieuw ticket maken',
@@ -365,6 +367,8 @@ const TRANSLATIONS = [
         'ticket.file_hint' => 'Maximum 20 MB per file.',
         'ticket.btn_save' => 'Save',
         'ticket.btn_reply' => 'Post reply and email ICT',
+        'ticket.show_original' => 'Show original',
+        'ticket.show_translation' => 'Show translation',
 
         // New ticket form
         'new_ticket.heading' => 'Create new ticket',
@@ -655,6 +659,8 @@ const TRANSLATIONS = [
         'ticket.file_hint' => 'Maximal 20 MB pro Datei.',
         'ticket.btn_save' => 'Speichern',
         'ticket.btn_reply' => 'Antwort senden und ICT benachrichtigen',
+        'ticket.show_original' => 'Original anzeigen',
+        'ticket.show_translation' => 'Uebersetzung anzeigen',
 
         // New ticket form
         'new_ticket.heading' => 'Neues Ticket erstellen',
@@ -945,6 +951,8 @@ const TRANSLATIONS = [
         'ticket.file_hint' => '20 Mo maximum par fichier.',
         'ticket.btn_save' => 'Enregistrer',
         'ticket.btn_reply' => 'Publier la réponse et envoyer un e-mail à l\'ICT',
+        'ticket.show_original' => 'Afficher l\'original',
+        'ticket.show_translation' => 'Afficher la traduction',
 
         // New ticket form
         'new_ticket.heading' => 'Créer un nouveau ticket',

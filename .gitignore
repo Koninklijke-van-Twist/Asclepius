@@ -10,3 +10,7 @@ web/data/
 vapid-keys/
 
 Microsoft/
+
+web/vendor/
+
+vendor/

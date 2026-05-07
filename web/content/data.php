@@ -114,6 +114,31 @@ function postLocalApiJson(string $path, array $payload): ?array
 $tickets = $store instanceof TicketStore
     ? $store->getTickets($canManageTickets, $userEmail, $effectiveStatusFilters, $assignedFilter, $effectiveCategoryFilters)
     : [];
+$currentLanguage = getCurrentLanguage();
+if ($store instanceof TicketStore) {
+    $tickets = array_map(
+        fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage),
+        $tickets
+    );
+}
+
+$ticketDetailsById = [];
+if ($store instanceof TicketStore) {
+    foreach ($tickets as $ticket) {
+        $ticketId = (int) ($ticket['id'] ?? 0);
+        if ($ticketId <= 0) {
+            continue;
+        }
+
+        $ticketDetail = $store->getTicket($ticketId, $canManageTickets, $userEmail);
+        if (!is_array($ticketDetail)) {
+            $ticketDetailsById[$ticketId] = null;
+            continue;
+        }
+
+        $ticketDetailsById[$ticketId] = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage);
+    }
+}
 $settingsMatrix = $store instanceof TicketStore ? $store->getCategorySettings() : [];
 $loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
 $availabilityByIctUser = $store instanceof TicketStore
@@ -250,6 +275,7 @@ if (isset($_GET['_tickets_poll'])) {
     $apiResponse = postLocalApiJson('api.php', [
         'action' => 'ticket_poll',
         'current_page' => $currentPage,
+        'current_language' => getCurrentLanguage(),
         'viewer_email' => $userEmail,
         'can_manage_tickets' => $canManageTickets,
         'user_is_admin' => $userIsAdmin,
@@ -275,6 +301,9 @@ if (isset($_GET['_tickets_poll'])) {
         'signature' => $ticketSnapshotSignature,
         'tickets' => array_map(function (array $ticket) use ($store, $canManageTickets, $userEmail, $currentPage, $userIsAdmin, $isAdminPortal, $ictUsers, $csrfToken, $openTicketId, $view): array {
             $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
+            if ($store instanceof TicketStore && is_array($ticketDetail)) {
+                $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, getCurrentLanguage());
+            }
 
             return buildTicketPollEntry($ticket, $ticketDetail, [
                 'currentPage' => $currentPage,

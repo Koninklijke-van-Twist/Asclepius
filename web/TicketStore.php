@@ -647,6 +647,98 @@ class TicketStore
         return $updatedMessageText;
     }
 
+    public function getTextTranslation(string $entityType, int $entityId, string $targetLanguage, string $sourceHash): ?array
+    {
+        $normalizedEntityType = trim($entityType);
+        $normalizedTargetLanguage = strtolower(trim($targetLanguage));
+        $normalizedSourceHash = trim($sourceHash);
+
+        if ($normalizedEntityType === '' || $entityId <= 0 || $normalizedTargetLanguage === '' || $normalizedSourceHash === '') {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT entity_type, entity_id, ticket_id, target_language, source_language, source_hash, translated_text, created_at, updated_at
+             FROM ticket_text_translations
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND target_language = :target_language
+               AND source_hash = :source_hash
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':target_language' => $normalizedTargetLanguage,
+            ':source_hash' => $normalizedSourceHash,
+        ]);
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) ? $row : null;
+    }
+
+    public function upsertTextTranslation(
+        string $entityType,
+        int $entityId,
+        int $ticketId,
+        string $targetLanguage,
+        string $sourceLanguage,
+        string $sourceHash,
+        string $translatedText
+    ): void {
+        $normalizedEntityType = trim($entityType);
+        $normalizedTargetLanguage = strtolower(trim($targetLanguage));
+        $normalizedSourceLanguage = strtolower(trim($sourceLanguage));
+        $normalizedSourceHash = trim($sourceHash);
+
+        if ($normalizedEntityType === '' || $entityId <= 0 || $ticketId <= 0 || $normalizedTargetLanguage === '' || $normalizedSourceHash === '') {
+            return;
+        }
+
+        $now = date('c');
+        $statement = $this->pdo->prepare(
+            'INSERT INTO ticket_text_translations (
+                entity_type,
+                entity_id,
+                ticket_id,
+                target_language,
+                source_language,
+                source_hash,
+                translated_text,
+                created_at,
+                updated_at
+            ) VALUES (
+                :entity_type,
+                :entity_id,
+                :ticket_id,
+                :target_language,
+                :source_language,
+                :source_hash,
+                :translated_text,
+                :created_at,
+                :updated_at
+            )
+            ON CONFLICT(entity_type, entity_id, target_language)
+            DO UPDATE SET
+                ticket_id = excluded.ticket_id,
+                source_language = excluded.source_language,
+                source_hash = excluded.source_hash,
+                translated_text = excluded.translated_text,
+                updated_at = excluded.updated_at'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':ticket_id' => $ticketId,
+            ':target_language' => $normalizedTargetLanguage,
+            ':source_language' => $normalizedSourceLanguage,
+            ':source_hash' => $normalizedSourceHash,
+            ':translated_text' => $translatedText,
+            ':created_at' => $now,
+            ':updated_at' => $now,
+        ]);
+    }
+
     public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = []): array
     {
         $conditions = [];
@@ -1286,6 +1378,23 @@ class TicketStore
             )'
         );
 
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_text_translations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                ticket_id INTEGER NOT NULL,
+                target_language TEXT NOT NULL,
+                source_language TEXT NOT NULL DEFAULT "",
+                source_hash TEXT NOT NULL,
+                translated_text TEXT NOT NULL DEFAULT "",
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(entity_type, entity_id, target_language),
+                FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+            )'
+        );
+
         $this->ensureColumn('tickets', 'title', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'assigned_email', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'status', 'TEXT NOT NULL DEFAULT "ingediend"');
@@ -1298,6 +1407,11 @@ class TicketStore
         $this->ensureColumn('ticket_messages', 'message_text', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('ticket_attachments', 'mime_type', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_attachments', 'file_size', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn('ticket_text_translations', 'source_language', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_text_translations', 'source_hash', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_text_translations', 'translated_text', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_text_translations', 'created_at', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_text_translations', 'updated_at', 'TEXT NOT NULL DEFAULT ""');
 
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_user_email ON tickets(user_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_assigned_email ON tickets(assigned_email)');
@@ -1311,6 +1425,7 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_ticket_id ON ticket_participants(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_user_email ON ticket_participants(user_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_templates_name ON ticket_templates(name)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_text_translations_lookup ON ticket_text_translations(entity_type, entity_id, target_language, source_hash)');
         $this->ensureColumn('ticket_templates', 'sort_order', 'INTEGER NOT NULL DEFAULT 0');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_browser_notifications_user_delivered ON browser_notifications(user_email, delivered_at, created_at)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user_email ON web_push_subscriptions(user_email)');

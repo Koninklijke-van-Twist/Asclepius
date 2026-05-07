@@ -2,6 +2,7 @@
     <?php
     $ticketPollPayload = [
         'current_page' => $currentPage,
+        'current_language' => getCurrentLanguage(),
         'viewer_email' => $userEmail,
         'can_manage_tickets' => $canManageTickets,
         'user_is_admin' => $userIsAdmin,
@@ -81,7 +82,7 @@
         <?php else: ?>
             <div class="ticket-list">
                 <?php foreach ($tickets as $ticket): ?>
-                    <?php $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null; ?>
+                    <?php $ticketDetail = $ticketDetailsById[(int) ($ticket['id'] ?? 0)] ?? null; ?>
                     <?= renderTicketCardHtml($ticket, $ticketDetail, [
                         'currentPage' => $currentPage,
                         'canManageTickets' => $canManageTickets,

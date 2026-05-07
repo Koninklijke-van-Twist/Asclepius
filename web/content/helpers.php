@@ -405,21 +405,34 @@ function buildAttachmentDirectUrl(array $attachment): string
 
 function renderTicketMessageHtml(array $message, string $currentPage): string
 {
+    $rawMessageText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
+    $displayMessageText = (string) ($message['message_text'] ?? '');
+    $messageIsTranslated = !empty($message['message_is_translated']) && $rawMessageText !== '' && $displayMessageText !== '' && $rawMessageText !== $displayMessageText;
+
     ob_start();
     ?>
     <article class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>"
         data-message-id="<?= (int) ($message['id'] ?? 0) ?>"
-        data-message-text="<?= h((string) json_encode((string) ($message['message_text'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
+        data-message-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
         <div class="message-meta">
             <strong><?= h((string) ($message['sender_email'] ?? '')) ?></strong>
             <span
                 class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? h(__('ticket.role_admin')) : h(__('ticket.role_user')) ?></span>
             <span><?= h(formatDateTime((string) ($message['created_at'] ?? ''))) ?></span>
+            <?php if ($messageIsTranslated): ?>
+                <button type="button" class="translation-toggle-button" data-role="message-translation-toggle"
+                    data-label-original="<?= h(__('ticket.show_original')) ?>"
+                    data-label-translated="<?= h(__('ticket.show_translation')) ?>"
+                    data-showing="translated"><?= h(__('ticket.show_original')) ?></button>
+            <?php endif; ?>
         </div>
 
-        <?php if (trim((string) ($message['message_text'] ?? '')) !== ''): ?>
-            <div class="message-text">
-                <?= formatTicketMessageText((string) ($message['message_text'] ?? ''), (int) ($message['id'] ?? 0)) ?>
+        <?php if (trim($displayMessageText) !== ''): ?>
+            <div class="message-text" data-role="message-text-content"
+                data-translated-text="<?= h((string) json_encode($displayMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                data-original-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                data-showing="translated">
+                <?= formatTicketMessageText($displayMessageText, (int) ($message['id'] ?? 0)) ?>
             </div>
         <?php endif; ?>
 
@@ -492,6 +505,9 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $requesterTooltip = (string) ($requesterSummary['tooltip'] ?? $requesterEmail);
     $requesterParticipants = is_array($requesterSummary['participants'] ?? null) ? $requesterSummary['participants'] : [$requesterEmail];
     $requesterExtraCount = (int) ($requesterSummary['extra_count'] ?? 0);
+    $rawTitle = (string) ($ticket['title_raw'] ?? ($ticket['title'] ?? ''));
+    $displayTitle = (string) ($ticket['title'] ?? '');
+    $titleIsTranslated = !empty($ticket['title_is_translated']) && $rawTitle !== '' && $displayTitle !== '' && $rawTitle !== $displayTitle;
     $hasDueDate = trim((string) ($ticket['due_date'] ?? '')) !== '';
     $canAssignToRequester = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
     $assignableIctUsers = array_values(array_filter(
@@ -508,7 +524,17 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 <div>
                     <p class="ticket-main-title"><strong><span
                                 data-role="ticket-number">#<?= (int) ($ticket['id'] ?? 0) ?></span> · <span
-                                data-role="ticket-title"><?= h((string) ($ticket['title'] ?? '')) ?></span></strong></p>
+                                data-role="ticket-title"
+                                data-translated-text="<?= h((string) json_encode($displayTitle, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                data-original-text="<?= h((string) json_encode($rawTitle, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                data-showing="translated"><?= h($displayTitle) ?></span></strong>
+                        <?php if ($titleIsTranslated): ?>
+                            <button type="button" class="translation-toggle-button" data-role="title-translation-toggle"
+                                data-label-original="<?= h(__('ticket.show_original')) ?>"
+                                data-label-translated="<?= h(__('ticket.show_translation')) ?>"
+                                data-showing="translated"><?= h(__('ticket.show_original')) ?></button>
+                        <?php endif; ?>
+                    </p>
                     <div class="ticket-subtitle">
                         <span data-role="requester-email" class="<?= $requesterExtraCount > 0 ? 'requester-multi' : '' ?>"
                             title="<?= h($requesterExtraCount > 0 ? $requesterTooltip : '') ?>"

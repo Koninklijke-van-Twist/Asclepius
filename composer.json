@@ -1,0 +1,8 @@
+{
+    "name": "kvt/asclepius",
+    "description": "Asclepius ticket system",
+    "type": "project",
+    "require": {
+        "translated/lara-sdk": "1.0.1"
+    }
+}

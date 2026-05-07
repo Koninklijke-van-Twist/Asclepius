@@ -7,6 +7,7 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'TicketStore.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'constants.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'localization.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'helpers.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'translation.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'mail.php';
 
 if (!isset($ictUserColors) || !is_array($ictUserColors)) {
@@ -172,6 +173,10 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     $csrfToken = (string) ($payload['csrf_token'] ?? '');
     $openTicketId = max(0, (int) ($payload['open_ticket_id'] ?? 0));
     $view = trim((string) ($payload['view'] ?? 'overview'));
+    $currentLanguage = strtolower(trim((string) ($payload['current_language'] ?? 'nl')));
+    if (!array_key_exists($currentLanguage, SUPPORTED_LANGUAGES)) {
+        $currentLanguage = 'nl';
+    }
     $assignedFilter = trim((string) ($payload['assigned_filter'] ?? ''));
     $statusFilters = array_values(array_filter(
         array_map('trim', (array) ($payload['status_filters'] ?? [])),
@@ -183,10 +188,17 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     ));
 
     $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters);
+    $tickets = array_map(
+        fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage),
+        $tickets
+    );
     $ticketPollItems = [];
 
     foreach ($tickets as $ticket) {
         $ticketDetail = $store->getTicket((int) ($ticket['id'] ?? 0), $canManageTickets, $viewerEmail);
+        if (is_array($ticketDetail)) {
+            $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage);
+        }
         $ticketPollItems[] = buildTicketPollEntry($ticket, $ticketDetail, [
             'currentPage' => $currentPage,
             'canManageTickets' => $canManageTickets,
