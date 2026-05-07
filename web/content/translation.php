@@ -154,6 +154,7 @@ function translateTicketTextForViewer(
             'source_language' => '',
             'target_language' => $targetLanguage,
             'translation_pending' => false,
+            'translation_error' => '',
         ];
     }
 
@@ -168,6 +169,7 @@ function translateTicketTextForViewer(
             'source_language' => $cachedSourceLanguage,
             'target_language' => $targetLanguage,
             'translation_pending' => false,
+            'translation_error' => '',
         ];
     }
 
@@ -178,6 +180,7 @@ function translateTicketTextForViewer(
             'source_language' => '',
             'target_language' => $targetLanguage,
             'translation_pending' => true,
+            'translation_error' => '',
         ];
     }
 
@@ -189,6 +192,7 @@ function translateTicketTextForViewer(
             'source_language' => '',
             'target_language' => $targetLanguage,
             'translation_pending' => false,
+            'translation_error' => 'translator_unavailable',
         ];
     }
 
@@ -232,14 +236,16 @@ function translateTicketTextForViewer(
             'source_language' => $detectedAppLanguage,
             'target_language' => $targetLanguage,
             'translation_pending' => false,
+            'translation_error' => '',
         ];
-    } catch (Throwable) {
+    } catch (Throwable $e) {
         return [
             'text' => $rawText,
             'is_translated' => false,
             'source_language' => '',
             'target_language' => $targetLanguage,
             'translation_pending' => false,
+            'translation_error' => 'provider_error',
         ];
      }
  }
@@ -262,6 +268,7 @@ function localizeTicketForViewer(array $ticket, TicketStore $store, string $view
     $ticket['title'] = (string) ($translation['text'] ?? $rawTitle);
     $ticket['title_is_translated'] = !empty($translation['is_translated']);
     $ticket['title_translation_pending'] = !empty($translation['translation_pending']);
+    $ticket['title_translation_error'] = (string) ($translation['translation_error'] ?? '');
 
     return $ticket;
 }
@@ -284,6 +291,7 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
     $ticketDetail['title'] = (string) ($titleTranslation['text'] ?? $rawTitle);
     $ticketDetail['title_is_translated'] = !empty($titleTranslation['is_translated']);
     $ticketDetail['title_translation_pending'] = !empty($titleTranslation['translation_pending']);
+    $ticketDetail['title_translation_error'] = (string) ($titleTranslation['translation_error'] ?? '');
 
     $messages = is_array($ticketDetail['messages'] ?? null) ? $ticketDetail['messages'] : [];
     foreach ($messages as &$message) {
@@ -303,6 +311,7 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
         $message['message_text'] = (string) ($messageTranslation['text'] ?? $rawMessageText);
         $message['message_is_translated'] = !empty($messageTranslation['is_translated']);
         $message['translation_pending'] = !empty($messageTranslation['translation_pending']);
+        $message['translation_error'] = (string) ($messageTranslation['translation_error'] ?? '');
     }
     unset($message);
 
