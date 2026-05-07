@@ -2,6 +2,11 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 
+$vendorAutoload = __DIR__ . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+if (is_file($vendorAutoload)) {
+    require_once $vendorAutoload;
+}
+
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'TicketStore.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'constants.php';
@@ -189,7 +194,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
 
     $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters);
     $tickets = array_map(
-        fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage),
+        fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage, true),
         $tickets
     );
     $ticketPollItems = [];
@@ -197,7 +202,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     foreach ($tickets as $ticket) {
         $ticketDetail = $store->getTicket((int) ($ticket['id'] ?? 0), $canManageTickets, $viewerEmail);
         if (is_array($ticketDetail)) {
-            $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage);
+            $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage, true);
         }
         $ticketPollItems[] = buildTicketPollEntry($ticket, $ticketDetail, [
             'currentPage' => $currentPage,
@@ -751,6 +756,47 @@ if ($method === 'POST') {
             ]);
         }
         sendJson(200, buildBigscreenVersionApiPayload());
+    }
+
+    if ($action === 'translate_ticket') {
+        $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+        $language = strtolower(trim((string) ($payload['language'] ?? 'nl')));
+        if (!array_key_exists($language, SUPPORTED_LANGUAGES)) {
+            $language = 'nl';
+        }
+        $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+        $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+        $isAdminPortal = !empty($payload['is_admin_portal']);
+        $canManageTickets = $isAdminPortal && $userIsAdmin;
+
+        $ticketDetail = $store->getTicket($ticketId, $canManageTickets, $viewerEmail);
+        if (!is_array($ticketDetail)) {
+            sendJson(404, ['success' => false, 'error' => 'ticket_not_found']);
+        }
+
+        $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $language, false);
+
+        $messages = [];
+        foreach (($ticketDetail['messages'] ?? []) as $message) {
+            $rawText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
+            $displayText = (string) ($message['message_text'] ?? '');
+            $messages[] = [
+                'id' => (int) ($message['id'] ?? 0),
+                'message_text' => $displayText,
+                'message_text_raw' => $rawText,
+                'message_is_translated' => !empty($message['message_is_translated']),
+            ];
+        }
+
+        $rawTitle = (string) ($ticketDetail['title_raw'] ?? ($ticketDetail['title'] ?? ''));
+        sendJson(200, [
+            'success' => true,
+            'ticket_id' => $ticketId,
+            'title' => (string) ($ticketDetail['title'] ?? ''),
+            'title_raw' => $rawTitle,
+            'title_is_translated' => !empty($ticketDetail['title_is_translated']),
+            'messages' => $messages,
+        ]);
     }
 
     $title = trim((string) ($payload['title'] ?? ''));

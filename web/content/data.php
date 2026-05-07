@@ -117,7 +117,7 @@ $tickets = $store instanceof TicketStore
 $currentLanguage = getCurrentLanguage();
 if ($store instanceof TicketStore) {
     $tickets = array_map(
-        fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage),
+        fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage, true),
         $tickets
     );
 }
@@ -136,7 +136,7 @@ if ($store instanceof TicketStore) {
             continue;
         }
 
-        $ticketDetailsById[$ticketId] = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage);
+        $ticketDetailsById[$ticketId] = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage, true);
     }
 }
 $settingsMatrix = $store instanceof TicketStore ? $store->getCategorySettings() : [];
@@ -302,7 +302,7 @@ if (isset($_GET['_tickets_poll'])) {
         'tickets' => array_map(function (array $ticket) use ($store, $canManageTickets, $userEmail, $currentPage, $userIsAdmin, $isAdminPortal, $ictUsers, $csrfToken, $openTicketId, $view): array {
             $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
             if ($store instanceof TicketStore && is_array($ticketDetail)) {
-                $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, getCurrentLanguage());
+                $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, getCurrentLanguage(), true);
             }
 
             return buildTicketPollEntry($ticket, $ticketDetail, [

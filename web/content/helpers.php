@@ -408,12 +408,14 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
     $rawMessageText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
     $displayMessageText = (string) ($message['message_text'] ?? '');
     $messageIsTranslated = !empty($message['message_is_translated']) && $rawMessageText !== '' && $displayMessageText !== '' && $rawMessageText !== $displayMessageText;
+    $translationPending = !empty($message['translation_pending']);
 
     ob_start();
     ?>
     <article class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>"
         data-message-id="<?= (int) ($message['id'] ?? 0) ?>"
-        data-message-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
+        data-message-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+        data-translation-status="<?= $translationPending ? 'pending' : 'loaded' ?>">
         <div class="message-meta">
             <strong><?= h((string) ($message['sender_email'] ?? '')) ?></strong>
             <span
@@ -424,6 +426,13 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                     data-label-original="<?= h(__('ticket.show_original')) ?>"
                     data-label-translated="<?= h(__('ticket.show_translation')) ?>"
                     data-showing="translated"><?= h(__('ticket.show_original')) ?></button>
+            <?php endif; ?>
+            <?php if ($translationPending): ?>
+                <div class="translation-status-indicator" data-role="translation-status" data-status="pending"
+                    title="<?= h(__('translation.loading_tooltip')) ?>">
+                    <span class="translation-flag-ghost" aria-hidden="true"><?= h(SUPPORTED_LANGUAGES[getCurrentLanguage()]['flag']) ?></span>
+                    <span class="translation-spinner-ring" aria-hidden="true"></span>
+                </div>
             <?php endif; ?>
         </div>
 
@@ -509,6 +518,15 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $displayTitle = (string) ($ticket['title'] ?? '');
     $titleIsTranslated = !empty($ticket['title_is_translated']) && $rawTitle !== '' && $displayTitle !== '' && $rawTitle !== $displayTitle;
     $hasDueDate = trim((string) ($ticket['due_date'] ?? '')) !== '';
+    $titleNeedsTrans = !empty($ticket['title_translation_pending']);
+    $messagesNeedTrans = false;
+    foreach (($ticketDetail['messages'] ?? []) as $msg) {
+        if (!empty($msg['translation_pending'])) {
+            $messagesNeedTrans = true;
+            break;
+        }
+    }
+    $needsTranslation = $titleNeedsTrans || $messagesNeedTrans;
     $canAssignToRequester = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
     $assignableIctUsers = array_values(array_filter(
         extractIctUserEmails($ictUsers),
@@ -518,6 +536,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     ob_start();
     ?>
     <details class="ticket-card" data-ticket-id="<?= (int) ($ticket['id'] ?? 0) ?>"
+        data-needs-translation="<?= $needsTranslation ? '1' : '0' ?>"
         style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
         <summary>
             <div class="ticket-summary">

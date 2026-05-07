@@ -20,10 +20,10 @@ $currentLang = getCurrentLanguage();
             <?php foreach (SUPPORTED_LANGUAGES as $code => $info): ?>
                 <li role="none">
                     <a role="menuitem" href="?<?= h(http_build_query(array_merge($_GET, ['lang' => $code]))) ?>"
-                        class="lang-option <?= $code === $currentLang ? 'is-active' : '' ?>">
+                        class="lang-option <?= $code === $currentLang ? 'is-active' : '' ?>"
+                        title="<?= h($info['label']) ?>">
                         <img src="data:image/svg+xml,<?= rawurlencode($flagSvgs[$code]) ?>" alt="<?= h($info['label']) ?>"
-                            width="22" height="15">
-                        <?= h($info['label']) ?>
+                            width="28" height="20">
                     </a>
                 </li>
             <?php endforeach; ?>

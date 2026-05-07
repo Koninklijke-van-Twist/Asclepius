@@ -139,7 +139,8 @@ function translateTicketTextForViewer(
     int $entityId,
     int $ticketId,
     string $rawText,
-    string $targetAppLanguage
+    string $targetAppLanguage,
+    bool $cacheOnly = false
 ): array {
     $targetLanguage = strtolower(trim($targetAppLanguage));
     if (!array_key_exists($targetLanguage, SUPPORTED_LANGUAGES)) {
@@ -152,6 +153,7 @@ function translateTicketTextForViewer(
             'is_translated' => false,
             'source_language' => '',
             'target_language' => $targetLanguage,
+            'translation_pending' => false,
         ];
     }
 
@@ -165,6 +167,17 @@ function translateTicketTextForViewer(
             'is_translated' => $cachedSourceLanguage !== '' && $cachedSourceLanguage !== $targetLanguage,
             'source_language' => $cachedSourceLanguage,
             'target_language' => $targetLanguage,
+            'translation_pending' => false,
+        ];
+    }
+
+    if ($cacheOnly) {
+        return [
+            'text' => $rawText,
+            'is_translated' => false,
+            'source_language' => '',
+            'target_language' => $targetLanguage,
+            'translation_pending' => true,
         ];
     }
 
@@ -175,6 +188,7 @@ function translateTicketTextForViewer(
             'is_translated' => false,
             'source_language' => '',
             'target_language' => $targetLanguage,
+            'translation_pending' => false,
         ];
     }
 
@@ -217,6 +231,7 @@ function translateTicketTextForViewer(
             'is_translated' => $detectedAppLanguage !== '' && $detectedAppLanguage !== $targetLanguage,
             'source_language' => $detectedAppLanguage,
             'target_language' => $targetLanguage,
+            'translation_pending' => false,
         ];
     } catch (Throwable) {
         return [
@@ -224,11 +239,12 @@ function translateTicketTextForViewer(
             'is_translated' => false,
             'source_language' => '',
             'target_language' => $targetLanguage,
+            'translation_pending' => false,
         ];
      }
  }
 
-function localizeTicketForViewer(array $ticket, TicketStore $store, string $viewerLanguage): array
+function localizeTicketForViewer(array $ticket, TicketStore $store, string $viewerLanguage, bool $cacheOnly = false): array
 {
     $ticketId = (int) ($ticket['id'] ?? 0);
     $rawTitle = (string) ($ticket['title'] ?? '');
@@ -238,17 +254,19 @@ function localizeTicketForViewer(array $ticket, TicketStore $store, string $view
         $ticketId,
         $ticketId,
         $rawTitle,
-        $viewerLanguage
+        $viewerLanguage,
+        $cacheOnly
     );
 
     $ticket['title_raw'] = $rawTitle;
     $ticket['title'] = (string) ($translation['text'] ?? $rawTitle);
     $ticket['title_is_translated'] = !empty($translation['is_translated']);
+    $ticket['title_translation_pending'] = !empty($translation['translation_pending']);
 
     return $ticket;
 }
 
-function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, string $viewerLanguage): array
+function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, string $viewerLanguage, bool $cacheOnly = false): array
 {
     $ticketId = (int) ($ticketDetail['id'] ?? 0);
     $rawTitle = (string) ($ticketDetail['title'] ?? '');
@@ -258,12 +276,14 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
         $ticketId,
         $ticketId,
         $rawTitle,
-        $viewerLanguage
+        $viewerLanguage,
+        $cacheOnly
     );
 
     $ticketDetail['title_raw'] = $rawTitle;
     $ticketDetail['title'] = (string) ($titleTranslation['text'] ?? $rawTitle);
     $ticketDetail['title_is_translated'] = !empty($titleTranslation['is_translated']);
+    $ticketDetail['title_translation_pending'] = !empty($titleTranslation['translation_pending']);
 
     $messages = is_array($ticketDetail['messages'] ?? null) ? $ticketDetail['messages'] : [];
     foreach ($messages as &$message) {
@@ -275,12 +295,14 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
             $messageId,
             $ticketId,
             $rawMessageText,
-            $viewerLanguage
+            $viewerLanguage,
+            $cacheOnly
         );
 
         $message['message_text_raw'] = $rawMessageText;
         $message['message_text'] = (string) ($messageTranslation['text'] ?? $rawMessageText);
         $message['message_is_translated'] = !empty($messageTranslation['is_translated']);
+        $message['translation_pending'] = !empty($messageTranslation['translation_pending']);
     }
     unset($message);
 

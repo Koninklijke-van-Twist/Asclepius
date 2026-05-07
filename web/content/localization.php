@@ -77,6 +77,10 @@ const TRANSLATIONS = [
         'ticket.btn_reply' => 'Reactie plaatsen en ICT mailen',
         'ticket.show_original' => 'Toon origineel',
         'ticket.show_translation' => 'Toon vertaling',
+        'translation.loading_tooltip' => 'Vertaling wordt geladen',
+        'translation.error_tooltip' => 'Vertaling mislukt. Klik voor details.',
+        'translation.error_title' => 'Vertaalfout',
+        'translation.error_fallback' => 'Er is een fout opgetreden bij het laden van de vertaling.',
 
         // New ticket form
         'new_ticket.heading' => 'Nieuw ticket maken',
@@ -369,6 +373,10 @@ const TRANSLATIONS = [
         'ticket.btn_reply' => 'Post reply and email ICT',
         'ticket.show_original' => 'Show original',
         'ticket.show_translation' => 'Show translation',
+        'translation.loading_tooltip' => 'Translation is loading',
+        'translation.error_tooltip' => 'Translation failed. Click for details.',
+        'translation.error_title' => 'Translation Error',
+        'translation.error_fallback' => 'An error occurred while loading the translation.',
 
         // New ticket form
         'new_ticket.heading' => 'Create new ticket',
@@ -661,6 +669,10 @@ const TRANSLATIONS = [
         'ticket.btn_reply' => 'Antwort senden und ICT benachrichtigen',
         'ticket.show_original' => 'Original anzeigen',
         'ticket.show_translation' => 'Uebersetzung anzeigen',
+        'translation.loading_tooltip' => 'Uebersetzung wird geladen',
+        'translation.error_tooltip' => 'Uebersetzung fehlgeschlagen. Fuer Details klicken.',
+        'translation.error_title' => 'Uebersetzungsfehler',
+        'translation.error_fallback' => 'Beim Laden der Uebersetzung ist ein Fehler aufgetreten.',
 
         // New ticket form
         'new_ticket.heading' => 'Neues Ticket erstellen',
@@ -953,6 +965,10 @@ const TRANSLATIONS = [
         'ticket.btn_reply' => 'Publier la réponse et envoyer un e-mail à l\'ICT',
         'ticket.show_original' => 'Afficher l\'original',
         'ticket.show_translation' => 'Afficher la traduction',
+        'translation.loading_tooltip' => 'La traduction est en cours de chargement',
+        'translation.error_tooltip' => 'La traduction a échoué. Cliquez pour les détails.',
+        'translation.error_title' => 'Erreur de traduction',
+        'translation.error_fallback' => 'Une erreur est survenue lors du chargement de la traduction.',
 
         // New ticket form
         'new_ticket.heading' => 'Créer un nouveau ticket',

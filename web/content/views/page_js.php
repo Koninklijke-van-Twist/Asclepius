@@ -1546,6 +1546,36 @@
                 : String(titleToggle.getAttribute('data-label-translated') || 'Show translation');
         });
 
+        document.addEventListener('click', function (event)
+        {
+            var errorBtn = event.target.closest('[data-role="translation-status"][data-status="error"]');
+            if (!errorBtn)
+            {
+                return;
+            }
+
+            var errorMessage = errorBtn.getAttribute('data-error-message') || '<?= addslashes(__('translation.error_fallback')) ?>';
+            var modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.addEventListener('click', function (e) {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+
+            var modalContent = document.createElement('div');
+            modalContent.className = 'modal-content';
+            modalContent.innerHTML = '<div class="modal-header"><h3><?= addslashes(__('translation.error_title')) ?></h3><button class="modal-close" type="button" aria-label="Close">&times;</button></div><div class="modal-body"><p>' + escapeHtml(errorMessage) + '</p></div>';
+            
+            var closeBtn = modalContent.querySelector('.modal-close');
+            closeBtn.addEventListener('click', function () {
+                modal.remove();
+            });
+
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+        });
+
         document.addEventListener('mouseover', function (event)
         {
             var applyButton = event.target.closest('[data-role="participants-apply-button"]');
@@ -1580,6 +1610,176 @@
                 modalCard.classList.remove('is-save-hover');
             }
         });
+
+        var TRANSLATION_LABEL_ORIGINAL = <?= json_encode(__('ticket.show_original'), JSON_UNESCAPED_UNICODE) ?>;
+        var TRANSLATION_LABEL_TRANSLATED = <?= json_encode(__('ticket.show_translation'), JSON_UNESCAPED_UNICODE) ?>;
+        var TRANSLATION_ERROR_TOOLTIP = <?= json_encode(__('translation.error_tooltip'), JSON_UNESCAPED_UNICODE) ?>;
+        var TRANSLATION_ERROR_FALLBACK = <?= json_encode(__('translation.error_fallback'), JSON_UNESCAPED_UNICODE) ?>;
+
+        var applyTranslationToCard = function (card, data)
+        {
+            var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
+            if (!data || !data.success || data.ticket_id !== ticketId)
+            {
+                return;
+            }
+
+            var titleNode = card.querySelector('[data-role="ticket-title"]');
+            if (titleNode)
+            {
+                var translatedTitle = String(data.title || '');
+                var rawTitle = String(data.title_raw || data.title || '');
+                titleNode.setAttribute('data-translated-text', JSON.stringify(translatedTitle));
+                titleNode.setAttribute('data-original-text', JSON.stringify(rawTitle));
+                titleNode.setAttribute('data-showing', 'translated');
+                titleNode.textContent = translatedTitle;
+
+                var existingTitleToggle = card.querySelector('[data-role="title-translation-toggle"]');
+                if (data.title_is_translated)
+                {
+                    if (!existingTitleToggle)
+                    {
+                        var titleToggleBtn = document.createElement('button');
+                        titleToggleBtn.type = 'button';
+                        titleToggleBtn.className = 'translation-toggle-button';
+                        titleToggleBtn.setAttribute('data-role', 'title-translation-toggle');
+                        titleToggleBtn.setAttribute('data-label-original', TRANSLATION_LABEL_ORIGINAL);
+                        titleToggleBtn.setAttribute('data-label-translated', TRANSLATION_LABEL_TRANSLATED);
+                        titleToggleBtn.setAttribute('data-showing', 'translated');
+                        titleToggleBtn.textContent = TRANSLATION_LABEL_ORIGINAL;
+                        var mainTitle = card.querySelector('.ticket-main-title');
+                        if (mainTitle)
+                        {
+                            mainTitle.appendChild(titleToggleBtn);
+                        }
+                    }
+                    else
+                    {
+                        existingTitleToggle.setAttribute('data-showing', 'translated');
+                        existingTitleToggle.textContent = TRANSLATION_LABEL_ORIGINAL;
+                    }
+                }
+                else if (existingTitleToggle)
+                {
+                    existingTitleToggle.remove();
+                }
+            }
+
+            (data.messages || []).forEach(function (msg)
+            {
+                var messageNode = card.querySelector('[data-message-id="' + parseInt(msg.id, 10) + '"]');
+                if (!messageNode)
+                {
+                    return;
+                }
+
+                var displayText = String(msg.message_text || '');
+                var rawText = String(msg.message_text_raw || msg.message_text || '');
+
+                var messageContent = messageNode.querySelector('[data-role="message-text-content"]');
+                if (messageContent)
+                {
+                    messageContent.setAttribute('data-translated-text', JSON.stringify(displayText));
+                    messageContent.setAttribute('data-original-text', JSON.stringify(rawText));
+                    messageContent.setAttribute('data-showing', 'translated');
+                    messageContent.innerHTML = formatTicketMessageTextForToggle(displayText, msg.id);
+                }
+
+                messageNode.setAttribute('data-translation-status', 'loaded');
+                
+                var statusIndicator = messageNode.querySelector('[data-role="translation-status"]');
+                if (statusIndicator)
+                {
+                    statusIndicator.remove();
+                }
+
+                var existingMsgToggle = messageNode.querySelector('[data-role="message-translation-toggle"]');
+                if (msg.message_is_translated)
+                {
+                    if (!existingMsgToggle)
+                    {
+                        var msgToggleBtn = document.createElement('button');
+                        msgToggleBtn.type = 'button';
+                        msgToggleBtn.className = 'translation-toggle-button';
+                        msgToggleBtn.setAttribute('data-role', 'message-translation-toggle');
+                        msgToggleBtn.setAttribute('data-label-original', TRANSLATION_LABEL_ORIGINAL);
+                        msgToggleBtn.setAttribute('data-label-translated', TRANSLATION_LABEL_TRANSLATED);
+                        msgToggleBtn.setAttribute('data-showing', 'translated');
+                        msgToggleBtn.textContent = TRANSLATION_LABEL_ORIGINAL;
+                        var messageMeta = messageNode.querySelector('.message-meta');
+                        if (messageMeta)
+                        {
+                            messageMeta.appendChild(msgToggleBtn);
+                        }
+                    }
+                    else
+                    {
+                        existingMsgToggle.setAttribute('data-showing', 'translated');
+                        existingMsgToggle.textContent = TRANSLATION_LABEL_ORIGINAL;
+                    }
+                }
+                else if (existingMsgToggle)
+                {
+                    existingMsgToggle.remove();
+                }
+            });
+        };
+
+        var triggerLazyTranslations = function (container)
+        {
+            var pendingCards = (container || document).querySelectorAll('[data-needs-translation="1"]');
+            pendingCards.forEach(function (card)
+            {
+                var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
+                if (!ticketId)
+                {
+                    return;
+                }
+
+                card.setAttribute('data-needs-translation', 'loading');
+
+                apiFetchJson('translate_ticket', {
+                    ticket_id: ticketId,
+                    language: ticketPollPayload.current_language || 'nl',
+                    viewer_email: ticketPollPayload.viewer_email || '',
+                    user_is_admin: !!ticketPollPayload.user_is_admin,
+                    is_admin_portal: !!ticketPollPayload.is_admin_portal,
+                }).then(function (data)
+                {
+                    card.setAttribute('data-needs-translation', '0');
+                    applyTranslationToCard(card, data);
+                }).catch(function (error)
+                {
+                    card.setAttribute('data-needs-translation', '1');
+                    
+                    card.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
+                    {
+                        msg.setAttribute('data-translation-status', 'error');
+                        var statusIndicator = msg.querySelector('[data-role="translation-status"]');
+                        if (statusIndicator)
+                        {
+                            var errorBtn = document.createElement('button');
+                            errorBtn.type = 'button';
+                            errorBtn.className = 'translation-status-indicator';
+                            errorBtn.setAttribute('data-role', 'translation-status');
+                            errorBtn.setAttribute('data-status', 'error');
+                            errorBtn.title = TRANSLATION_ERROR_TOOLTIP;
+                            errorBtn.setAttribute('data-error-message', String(error && error.message ? error.message : TRANSLATION_ERROR_FALLBACK));
+                            
+                            var errorIcon = document.createElement('svg');
+                            errorIcon.className = 'translation-error-icon';
+                            errorIcon.setAttribute('viewBox', '0 0 24 24');
+                            errorIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                            errorIcon.setAttribute('aria-hidden', 'true');
+                            errorIcon.innerHTML = '<path d="M12 3L2 21h20L12 3z" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17" r="1" fill="currentColor"/>';
+                            
+                            errorBtn.appendChild(errorIcon);
+                            statusIndicator.replaceWith(errorBtn);
+                        }
+                    });
+                });
+            });
+        };
 
         var postWebPushSubscription = function (action, subscription)
         {
@@ -2004,6 +2204,7 @@
                 {
                     thread.appendChild(messageNode);
                     messagesWrap.hidden = false;
+                    card.setAttribute('data-needs-translation', '1');
                 }
             });
         };
@@ -2099,6 +2300,8 @@
                     empty_html: data.empty_html || ''
                 });
             }
+
+            triggerLazyTranslations(list);
         };
 
         var pollLiveTicketSection = function ()
@@ -2136,6 +2339,9 @@
         {
             var intervalMs = parseInt(liveTicketSection.getAttribute('data-ticket-poll-interval') || '15000', 10);
             liveTicketPollTimer = window.setInterval(pollLiveTicketSection, Math.max(intervalMs, 5000));
+            window.setTimeout(function () {
+                triggerLazyTranslations(liveTicketSection);
+            }, 200);
         }
 
         if (browserNotificationPollUrl)
