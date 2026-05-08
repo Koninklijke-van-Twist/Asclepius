@@ -12,6 +12,8 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'TicketStore.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'constants.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'localization.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'helpers.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'TranslationProvider.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'LaraTranslationProvider.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'translation.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'mail.php';
 
@@ -786,6 +788,7 @@ if ($method === 'POST') {
                 'message_text_raw' => $rawText,
                 'message_is_translated' => !empty($message['message_is_translated']),
                 'translation_error' => (string) ($message['translation_error'] ?? ''),
+                'translation_error_detail' => (string) ($message['translation_error_detail'] ?? ''),
             ];
         }
 
@@ -797,6 +800,7 @@ if ($method === 'POST') {
             'title_raw' => $rawTitle,
             'title_is_translated' => !empty($ticketDetail['title_is_translated']),
             'title_translation_error' => (string) ($ticketDetail['title_translation_error'] ?? ''),
+            'title_translation_error_detail' => (string) ($ticketDetail['title_translation_error_detail'] ?? ''),
             'messages' => $messages,
         ]);
     }

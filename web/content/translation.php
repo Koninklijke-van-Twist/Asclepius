@@ -1,91 +1,31 @@
 <?php
 
 /**
- * Constants
- */
-
-const LARA_LOCALE_BY_APP_LANGUAGE = [
-    'nl' => 'nl-NL',
-    'en' => 'en-US',
-    'de' => 'de-DE',
-    'fr' => 'fr-FR',
-];
-
-const KEYBOARD_SHORTCUT_TOKEN_PATTERN = '/(\[[A-Za-z0-9_-]{1,24}\])/';
-
-/**
  * Variables
  */
 
-/** @var array<string, mixed>|null $__laraTranslatorCache */
-$__laraTranslatorCache = null;
+/** @var array{initialized: bool, provider: TranslationProvider|null}|null $__translationProviderCache */
+$__translationProviderCache = null;
 
 /**
- * Functions
+ * Functies
  */
 
-function mapAppLanguageToLaraLocale(string $appLanguage): string
+function createTranslationProvider(): ?TranslationProvider
 {
-    $normalized = strtolower(trim($appLanguage));
-    return LARA_LOCALE_BY_APP_LANGUAGE[$normalized] ?? LARA_LOCALE_BY_APP_LANGUAGE['nl'];
-}
-
-function mapLaraLanguageToAppLanguage(string $languageCode): string
-{
-    $normalized = strtolower(trim($languageCode));
-    if ($normalized === '') {
-        return '';
+    global $__translationProviderCache;
+    if (is_array($__translationProviderCache)) {
+        return $__translationProviderCache['provider'] ?? null;
     }
 
-    $base = preg_split('/[-_]/', $normalized)[0] ?? $normalized;
-    $base = strtolower(trim((string) $base));
-
-    if (array_key_exists($base, SUPPORTED_LANGUAGES)) {
-        return $base;
-    }
-
-    return 'nl';
-}
-
-function buildKeyboardAwareTranslationPayload(string $rawText): string|array
-{
-    if (!class_exists('Lara\\TextBlock')) {
-        return $rawText;
-    }
-
-    $segments = preg_split(KEYBOARD_SHORTCUT_TOKEN_PATTERN, $rawText, -1, PREG_SPLIT_DELIM_CAPTURE);
-    if (!is_array($segments) || $segments === []) {
-        return $rawText;
-    }
-
-    $blocks = [];
-    foreach ($segments as $segment) {
-        if ($segment === '') {
-            continue;
-        }
-
-        $isToken = preg_match('/^\[[A-Za-z0-9_-]{1,24}\]$/', $segment) === 1;
-        $blocks[] = new \Lara\TextBlock($segment, !$isToken);
-    }
-
-    return $blocks !== [] ? $blocks : $rawText;
-}
-
-function createLaraTranslatorClient(): ?object
-{
-    global $__laraTranslatorCache;
-    if (is_array($__laraTranslatorCache)) {
-        return $__laraTranslatorCache['client'] ?? null;
-    }
-
-    $__laraTranslatorCache = ['client' => null];
+    $__translationProviderCache = ['initialized' => true, 'provider' => null];
 
     if (!class_exists('Lara\\Translator') || !class_exists('Lara\\LaraCredentials')) {
         return null;
     }
 
     global $laraTranslate;
-    $accessKeyId = trim((string) ($laraTranslate['ID'] ?? ''));
+    $accessKeyId    = trim((string) ($laraTranslate['ID'] ?? ''));
     $accessKeySecret = trim((string) ($laraTranslate['Secret'] ?? ''));
     if ($accessKeyId === '' || $accessKeySecret === '') {
         return null;
@@ -93,44 +33,13 @@ function createLaraTranslatorClient(): ?object
 
     try {
         $credentials = new \Lara\LaraCredentials($accessKeyId, $accessKeySecret);
-        $client = new \Lara\Translator($credentials);
-        $__laraTranslatorCache['client'] = $client;
-        return $client;
+        $client      = new \Lara\Translator($credentials);
+        $provider    = new LaraTranslationProvider($client);
+        $__translationProviderCache['provider'] = $provider;
+        return $provider;
     } catch (Throwable) {
         return null;
     }
-}
-
-function normalizeTranslatedText(mixed $translation): string
-{
-    if (is_string($translation)) {
-        return $translation;
-    }
-
-    if (!is_array($translation)) {
-        return '';
-    }
-
-    $parts = [];
-    foreach ($translation as $part) {
-        if (is_string($part)) {
-            $parts[] = $part;
-            continue;
-        }
-
-        if (is_object($part)) {
-            if (method_exists($part, 'getText')) {
-                $parts[] = (string) $part->getText();
-                continue;
-            }
-
-            if (method_exists($part, '__toString')) {
-                $parts[] = (string) $part;
-            }
-        }
-    }
-
-    return implode('', $parts);
 }
 
 function translateTicketTextForViewer(
@@ -161,7 +70,7 @@ function translateTicketTextForViewer(
     $sourceHash = hash('sha256', $rawText);
     $cached = $store->getTextTranslation($entityType, $entityId, $targetLanguage, $sourceHash);
     if (is_array($cached)) {
-        $cachedSourceLanguage = mapLaraLanguageToAppLanguage((string) ($cached['source_language'] ?? ''));
+        $cachedSourceLanguage = (string) ($cached['source_language'] ?? '');
         $cachedText = (string) ($cached['translated_text'] ?? $rawText);
         return [
             'text' => $cachedText,
@@ -184,8 +93,8 @@ function translateTicketTextForViewer(
         ];
     }
 
-    $translator = createLaraTranslatorClient();
-    if ($translator === null) {
+    $provider = createTranslationProvider();
+    if ($provider === null) {
         return [
             'text' => $rawText,
             'is_translated' => false,
@@ -197,20 +106,10 @@ function translateTicketTextForViewer(
     }
 
     try {
-        $payload = buildKeyboardAwareTranslationPayload($rawText);
-        $result = $translator->translate(
-            $payload,
-            null,
-            mapAppLanguageToLaraLocale($targetLanguage)
-        );
+        $result = $provider->translateText($rawText, $targetLanguage);
 
-        $detectedAppLanguage = method_exists($result, 'getSourceLanguage')
-            ? mapLaraLanguageToAppLanguage((string) $result->getSourceLanguage())
-            : '';
-
-        $translatedText = method_exists($result, 'getTranslation')
-            ? normalizeTranslatedText($result->getTranslation())
-            : '';
+        $detectedAppLanguage = (string) ($result['source_language'] ?? '');
+        $translatedText      = (string) ($result['translated_text'] ?? '');
 
         if ($detectedAppLanguage !== '' && $detectedAppLanguage === $targetLanguage) {
             $translatedText = $rawText;
@@ -237,8 +136,11 @@ function translateTicketTextForViewer(
             'target_language' => $targetLanguage,
             'translation_pending' => false,
             'translation_error' => '',
+            'translation_error_detail' => '',
         ];
     } catch (Throwable $e) {
+        $detail = get_class($e) . '[' . $e->getCode() . ']: ' . $e->getMessage()
+            . ' in ' . basename($e->getFile()) . ':' . $e->getLine();
         return [
             'text' => $rawText,
             'is_translated' => false,
@@ -246,9 +148,10 @@ function translateTicketTextForViewer(
             'target_language' => $targetLanguage,
             'translation_pending' => false,
             'translation_error' => 'provider_error',
+            'translation_error_detail' => $detail,
         ];
-     }
- }
+    }
+}
 
 function localizeTicketForViewer(array $ticket, TicketStore $store, string $viewerLanguage, bool $cacheOnly = false): array
 {
@@ -292,6 +195,7 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
     $ticketDetail['title_is_translated'] = !empty($titleTranslation['is_translated']);
     $ticketDetail['title_translation_pending'] = !empty($titleTranslation['translation_pending']);
     $ticketDetail['title_translation_error'] = (string) ($titleTranslation['translation_error'] ?? '');
+    $ticketDetail['title_translation_error_detail'] = (string) ($titleTranslation['translation_error_detail'] ?? '');
 
     $messages = is_array($ticketDetail['messages'] ?? null) ? $ticketDetail['messages'] : [];
     foreach ($messages as &$message) {
@@ -312,6 +216,7 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
         $message['message_is_translated'] = !empty($messageTranslation['is_translated']);
         $message['translation_pending'] = !empty($messageTranslation['translation_pending']);
         $message['translation_error'] = (string) ($messageTranslation['translation_error'] ?? '');
+        $message['translation_error_detail'] = (string) ($messageTranslation['translation_error_detail'] ?? '');
     }
     unset($message);
 

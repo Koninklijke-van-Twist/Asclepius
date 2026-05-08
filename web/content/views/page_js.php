@@ -1713,6 +1713,7 @@
 
                 if (msg.translation_error)
                 {
+                    console.warn('[translation] Error for message #' + msg.id + ' in ticket #' + ticketId + ':', msg.translation_error, msg.translation_error_detail || '');
                     applyTranslationErrorIndicator(messageNode, msg.translation_error);
                     return;
                 }
@@ -1782,18 +1783,23 @@
 
                 card.setAttribute('data-needs-translation', 'loading');
 
-                apiFetchJson('translate_ticket', {
+                var translateParams = {
                     ticket_id: ticketId,
                     language: ticketPollPayload.current_language || 'nl',
                     viewer_email: ticketPollPayload.viewer_email || '',
                     user_is_admin: !!ticketPollPayload.user_is_admin,
                     is_admin_portal: !!ticketPollPayload.is_admin_portal,
-                }).then(function (data)
+                };
+                console.log('[translation] Requesting ticket #' + ticketId, translateParams);
+
+                apiFetchJson('translate_ticket', translateParams).then(function (data)
                 {
+                    console.log('[translation] Response for ticket #' + ticketId, data);
                     card.setAttribute('data-needs-translation', '0');
                     applyTranslationToCard(card, data);
                 }).catch(function (error)
                 {
+                    console.error('[translation] Fetch error for ticket #' + ticketId, error);
                     card.setAttribute('data-needs-translation', '1');
 
                     card.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
