@@ -283,6 +283,7 @@
         }
 
         input[type="text"],
+        input[type="search"],
         select,
         textarea {
             width: 100%;

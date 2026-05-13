@@ -185,6 +185,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         $currentLanguage = 'nl';
     }
     $assignedFilter = trim((string) ($payload['assigned_filter'] ?? ''));
+    $searchQuery = trim((string) ($payload['search_query'] ?? ''));
     $statusFilters = array_values(array_filter(
         array_map('trim', (array) ($payload['status_filters'] ?? [])),
         static fn(string $status): bool => $status !== ''
@@ -194,7 +195,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         static fn(string $category): bool => $category !== ''
     ));
 
-    $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters);
+    $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery);
     $tickets = array_map(
         fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage, true),
         $tickets

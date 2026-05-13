@@ -86,12 +86,29 @@ $resultNormal = $store->createTicket(
     []
 );
 
+$resultUnicode = $store->createTicket(
+    'CAFÉ storing',
+    'hardware bestellen',
+    'user3@kvt.nl',
+    'Unicode zoektest',
+    [],
+    0,
+    []
+);
+
 $tickets = $store->getTickets(true, 'ict@kvt.nl');
 
 assertTrue('Minstens 2 tickets aanwezig', count($tickets) >= 2);
 assertSame('Eerste ticket is due-date ticket (dynamische prioriteit)', (int) $resultDue['ticket_id'], (int) ($tickets[0]['id'] ?? 0));
 assertSame('Due-date ticket krijgt afgeleide prioriteit 2', 2, (int) ($tickets[0]['priority'] ?? -1));
 assertSame('Tweede ticket is het normale ticket', (int) $resultNormal['ticket_id'], (int) ($tickets[1]['id'] ?? 0));
+
+$searchResults = $store->getTickets(true, 'ict@kvt.nl', [], null, [], 'café');
+$searchIds = array_map(static fn(array $ticket): int => (int) ($ticket['id'] ?? 0), $searchResults);
+assertTrue(
+    'Zoekterm met accent matcht hoofdletters in ticketdata',
+    in_array((int) $resultUnicode['ticket_id'], $searchIds, true)
+);
 
 $resultPhoneTemplate = $store->createTicket(
     'Telefoon klaarmaken',

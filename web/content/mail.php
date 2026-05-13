@@ -2,11 +2,16 @@
 
 function encodeMailHeader(string $value): string
 {
-    if (function_exists('mb_encode_mimeheader')) {
-        return mb_encode_mimeheader($value, 'UTF-8', 'B', "\r\n");
+    if ($value === '') {
+        return '';
     }
 
-    return $value;
+    // Keep ASCII headers readable; encode only when non-ASCII appears.
+    if (!preg_match('/[^\x20-\x7E]/', $value)) {
+        return $value;
+    }
+
+    return '=?UTF-8?B?' . base64_encode($value) . '?=';
 }
 
 function formatMailAddress(string $name, string $email): string
@@ -272,7 +277,7 @@ function extractDesktopNotificationBody(string $message): string
         if ($trimmed === '') {
             continue;
         }
-        return function_exists('mb_substr') ? mb_substr($trimmed, 0, 220) : substr($trimmed, 0, 220);
+        return substr($trimmed, 0, 220);
     }
 
     return '';
