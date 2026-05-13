@@ -793,32 +793,32 @@ class TicketStore
                     $searchConditions = [];
                     foreach ($searchTerms as $index => $term) {
                         $placeholder = ':search_' . $index;
-                        $parameters[$placeholder] = function_exists('mb_strtolower') ? mb_strtolower($term, 'UTF-8') : strtolower($term);
+                        $parameters[$placeholder] = self::unicodeLower($term);
                         $searchConditions[] = "(
-                            instr(lower(CAST(t.id AS TEXT)), {$placeholder}) > 0
-                            OR instr(lower(COALESCE(t.title, '')), {$placeholder}) > 0
-                            OR instr(lower(COALESCE(t.description, '')), {$placeholder}) > 0
-                            OR instr(lower(COALESCE(t.user_email, '')), {$placeholder}) > 0
-                            OR instr(lower(COALESCE(t.assigned_email, '')), {$placeholder}) > 0
-                            OR instr(lower(COALESCE(t.status, '')), {$placeholder}) > 0
-                            OR instr(lower(COALESCE(t.category, '')), {$placeholder}) > 0
-                            OR instr(lower(COALESCE(t.created_at, '')), {$placeholder}) > 0
-                            OR instr(lower(COALESCE(t.updated_at, '')), {$placeholder}) > 0
-                            OR instr(lower(COALESCE(t.resolved_at, '')), {$placeholder}) > 0
+                            instr(mb_lower(CAST(t.id AS TEXT)), {$placeholder}) > 0
+                            OR instr(mb_lower(COALESCE(t.title, '')), {$placeholder}) > 0
+                            OR instr(mb_lower(COALESCE(t.description, '')), {$placeholder}) > 0
+                            OR instr(mb_lower(COALESCE(t.user_email, '')), {$placeholder}) > 0
+                            OR instr(mb_lower(COALESCE(t.assigned_email, '')), {$placeholder}) > 0
+                            OR instr(mb_lower(COALESCE(t.status, '')), {$placeholder}) > 0
+                            OR instr(mb_lower(COALESCE(t.category, '')), {$placeholder}) > 0
+                            OR instr(mb_lower(COALESCE(t.created_at, '')), {$placeholder}) > 0
+                            OR instr(mb_lower(COALESCE(t.updated_at, '')), {$placeholder}) > 0
+                            OR instr(mb_lower(COALESCE(t.resolved_at, '')), {$placeholder}) > 0
                             OR instr(CAST(COALESCE(t.priority, 0) AS TEXT), {$placeholder}) > 0
                             OR EXISTS (
                                 SELECT 1
                                 FROM ticket_participants tp
                                 WHERE tp.ticket_id = t.id
-                                  AND instr(lower(COALESCE(tp.user_email, '')), {$placeholder}) > 0
+                                  AND instr(mb_lower(COALESCE(tp.user_email, '')), {$placeholder}) > 0
                             )
                             OR EXISTS (
                                 SELECT 1
                                 FROM ticket_messages tm
                                 WHERE tm.ticket_id = t.id
                                   AND (
-                                      instr(lower(COALESCE(tm.sender_email, '')), {$placeholder}) > 0
-                                      OR instr(lower(COALESCE(tm.message_text, '')), {$placeholder}) > 0
+                                      instr(mb_lower(COALESCE(tm.sender_email, '')), {$placeholder}) > 0
+                                      OR instr(mb_lower(COALESCE(tm.message_text, '')), {$placeholder}) > 0
                                   )
                             )
                             OR EXISTS (
@@ -826,8 +826,8 @@ class TicketStore
                                 FROM ticket_attachments ta
                                 WHERE ta.ticket_id = t.id
                                   AND (
-                                      instr(lower(COALESCE(ta.original_name, '')), {$placeholder}) > 0
-                                      OR instr(lower(COALESCE(ta.uploaded_by_email, '')), {$placeholder}) > 0
+                                      instr(mb_lower(COALESCE(ta.original_name, '')), {$placeholder}) > 0
+                                      OR instr(mb_lower(COALESCE(ta.uploaded_by_email, '')), {$placeholder}) > 0
                                   )
                             )
                         )";
@@ -842,16 +842,6 @@ class TicketStore
                        (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id) AS message_count,
                        (SELECT COUNT(*) FROM ticket_attachments ta WHERE ta.ticket_id = t.id) AS attachment_count
                 FROM tickets t';
-        // Optional debug: write SQL and parameters when search is active and debugging enabled
-        if (getenv('ASCLEPIUS_DEBUG_SEARCH') === '1' && array_filter(array_keys($parameters), static fn($k) => str_starts_with((string)$k, ':search_'))) {
-            $debugPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'asclepius_search_debug.log';
-            $entry = [
-                'time' => gmdate('c'),
-                'sql_fragment' => $sql,
-                'parameters' => $parameters,
-            ];
-            @file_put_contents($debugPath, json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n", FILE_APPEND | LOCK_EX);
-        }
 
         if ($conditions !== []) {
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
@@ -864,6 +854,8 @@ class TicketStore
         } else {
             $sql .= ' ORDER BY datetime(t.updated_at) DESC, datetime(t.created_at) DESC, t.id DESC';
         }
+
+        $this->writeSearchDebugLog($sql, $parameters);
 
         $statement = $this->pdo->prepare($sql);
         $statement->execute($parameters);
@@ -1308,7 +1300,105 @@ class TicketStore
         $this->pdo = new PDO('sqlite:' . $this->databasePath);
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        $sqliteCreateFunctionMethod = 'sqlite' . 'CreateFunction';
+        $registerSqliteFunction = [$this->pdo, $sqliteCreateFunctionMethod];
+        try {
+            call_user_func($registerSqliteFunction, 'mb_lower', static fn($value): string => self::unicodeLower((string) $value), 1);
+        } catch (Throwable $exception) {
+            throw new RuntimeException('De SQLite-driver ondersteunt geen custom functies (sqliteCreateFunction ontbreekt).', 0, $exception);
+        }
         $this->pdo->exec('PRAGMA foreign_keys = ON');
+    }
+
+    private static function unicodeLower(string $value): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        static $map = [
+            'À' => 'à', 'Á' => 'á', 'Â' => 'â', 'Ã' => 'ã', 'Ä' => 'ä', 'Å' => 'å',
+            'Æ' => 'æ', 'Ç' => 'ç', 'È' => 'è', 'É' => 'é', 'Ê' => 'ê', 'Ë' => 'ë',
+            'Ì' => 'ì', 'Í' => 'í', 'Î' => 'î', 'Ï' => 'ï', 'Ð' => 'ð', 'Ñ' => 'ñ',
+            'Ò' => 'ò', 'Ó' => 'ó', 'Ô' => 'ô', 'Õ' => 'õ', 'Ö' => 'ö', 'Ø' => 'ø',
+            'Ù' => 'ù', 'Ú' => 'ú', 'Û' => 'û', 'Ü' => 'ü', 'Ý' => 'ý', 'Þ' => 'þ',
+            'Ā' => 'ā', 'Ă' => 'ă', 'Ą' => 'ą', 'Ć' => 'ć', 'Ĉ' => 'ĉ', 'Ċ' => 'ċ',
+            'Č' => 'č', 'Ď' => 'ď', 'Đ' => 'đ', 'Ē' => 'ē', 'Ĕ' => 'ĕ', 'Ė' => 'ė',
+            'Ę' => 'ę', 'Ě' => 'ě', 'Ĝ' => 'ĝ', 'Ğ' => 'ğ', 'Ġ' => 'ġ', 'Ģ' => 'ģ',
+            'Ĥ' => 'ĥ', 'Ħ' => 'ħ', 'Ĩ' => 'ĩ', 'Ī' => 'ī', 'Ĭ' => 'ĭ', 'Į' => 'į',
+            'İ' => 'i', 'Ĳ' => 'ĳ', 'Ĵ' => 'ĵ', 'Ķ' => 'ķ', 'Ĺ' => 'ĺ', 'Ļ' => 'ļ',
+            'Ľ' => 'ľ', 'Ŀ' => 'ŀ', 'Ł' => 'ł', 'Ń' => 'ń', 'Ņ' => 'ņ', 'Ň' => 'ň',
+            'Ŋ' => 'ŋ', 'Ō' => 'ō', 'Ŏ' => 'ŏ', 'Ő' => 'ő', 'Œ' => 'œ', 'Ŕ' => 'ŕ',
+            'Ŗ' => 'ŗ', 'Ř' => 'ř', 'Ś' => 'ś', 'Ŝ' => 'ŝ', 'Ş' => 'ş', 'Š' => 'š',
+            'Ţ' => 'ţ', 'Ť' => 'ť', 'Ŧ' => 'ŧ', 'Ũ' => 'ũ', 'Ū' => 'ū', 'Ŭ' => 'ŭ',
+            'Ů' => 'ů', 'Ű' => 'ű', 'Ų' => 'ų', 'Ŵ' => 'ŵ', 'Ŷ' => 'ŷ', 'Ÿ' => 'ÿ',
+            'Ź' => 'ź', 'Ż' => 'ż', 'Ž' => 'ž', 'ẞ' => 'ß',
+        ];
+
+        return strtolower(strtr($value, $map));
+    }
+
+    private function writeSearchDebugLog(string $sql, array $parameters): void
+    {
+        if (getenv('ASCLEPIUS_DEBUG_SEARCH') !== '1') {
+            return;
+        }
+
+        $hasSearchParameters = (bool) array_filter(
+            array_keys($parameters),
+            static fn($key): bool => str_starts_with((string) $key, ':search_')
+        );
+
+        if (!$hasSearchParameters) {
+            return;
+        }
+
+        $debugPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'asclepius_search_debug.log';
+        $maxDebugFileSize = 1024 * 1024;
+        clearstatcache(true, $debugPath);
+        if (is_file($debugPath)) {
+            $size = filesize($debugPath);
+            if ($size !== false && $size >= $maxDebugFileSize) {
+                return;
+            }
+        }
+
+        $entry = [
+            'time' => gmdate('c'),
+            'sql_fragment' => $sql,
+            'parameters' => $this->redactSearchDebugParameters($parameters),
+        ];
+        $encoded = json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        if ($encoded === false) {
+            return;
+        }
+
+        @file_put_contents($debugPath, $encoded . "\n", FILE_APPEND | LOCK_EX);
+    }
+
+    private function redactSearchDebugParameters(array $parameters): array
+    {
+        $redacted = [];
+        foreach ($parameters as $key => $value) {
+            if (is_string($value)) {
+                $redacted[$key] = '[redacted:string;len=' . strlen($value) . ';sha256=' . substr(hash('sha256', $value), 0, 12) . ']';
+                continue;
+            }
+
+            if (is_array($value)) {
+                $redacted[$key] = '[redacted:array;count=' . count($value) . ']';
+                continue;
+            }
+
+            if (is_object($value)) {
+                $redacted[$key] = '[redacted:object:' . get_debug_type($value) . ']';
+                continue;
+            }
+
+            $redacted[$key] = $value;
+        }
+
+        return $redacted;
     }
 
     private function initialize(): void
