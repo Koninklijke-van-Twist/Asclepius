@@ -409,20 +409,43 @@ function buildAttachmentDirectUrl(array $attachment): string
 
 function renderTicketMessageHtml(array $message, string $currentPage): string
 {
+    $rawMessageText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
+    $displayMessageText = (string) ($message['message_text'] ?? '');
+    $messageIsTranslated = !empty($message['message_is_translated']) && $rawMessageText !== '' && $displayMessageText !== '' && $rawMessageText !== $displayMessageText;
+    $translationPending = !empty($message['translation_pending']);
+
     ob_start();
     ?>
     <article class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>"
-        data-message-id="<?= (int) ($message['id'] ?? 0) ?>">
+        data-message-id="<?= (int) ($message['id'] ?? 0) ?>"
+        data-message-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+        data-translation-status="<?= $translationPending ? 'pending' : 'loaded' ?>">
         <div class="message-meta">
             <strong><?= h((string) ($message['sender_email'] ?? '')) ?></strong>
             <span
                 class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? h(__('ticket.role_admin')) : h(__('ticket.role_user')) ?></span>
             <span><?= h(formatDateTime((string) ($message['created_at'] ?? ''))) ?></span>
+            <?php if ($messageIsTranslated): ?>
+                <button type="button" class="translation-toggle-button" data-role="message-translation-toggle"
+                    data-label-original="<?= h(__('ticket.show_original')) ?>"
+                    data-label-translated="<?= h(__('ticket.show_translation')) ?>"
+                    data-showing="translated"><?= h(__('ticket.show_original')) ?></button>
+            <?php endif; ?>
+            <?php if ($translationPending): ?>
+                <div class="translation-status-indicator" data-role="translation-status" data-status="pending"
+                    title="<?= h(__('translation.loading_tooltip')) ?>">
+                    <span class="translation-flag-ghost" aria-hidden="true"><?= h(SUPPORTED_LANGUAGES[getCurrentLanguage()]['flag']) ?></span>
+                    <span class="translation-spinner-ring" aria-hidden="true"></span>
+                </div>
+            <?php endif; ?>
         </div>
 
-        <?php if (trim((string) ($message['message_text'] ?? '')) !== ''): ?>
-            <div class="message-text">
-                <?= formatTicketMessageText((string) ($message['message_text'] ?? '')) ?>
+        <?php if (trim($displayMessageText) !== ''): ?>
+            <div class="message-text" data-role="message-text-content"
+                data-translated-text="<?= h((string) json_encode($displayMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                data-original-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                data-showing="translated">
+                <?= formatTicketMessageText($displayMessageText, (int) ($message['id'] ?? 0)) ?>
             </div>
         <?php endif; ?>
 
@@ -495,21 +518,46 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $requesterTooltip = (string) ($requesterSummary['tooltip'] ?? $requesterEmail);
     $requesterParticipants = is_array($requesterSummary['participants'] ?? null) ? $requesterSummary['participants'] : [$requesterEmail];
     $requesterExtraCount = (int) ($requesterSummary['extra_count'] ?? 0);
+    $rawTitle = (string) ($ticket['title_raw'] ?? ($ticket['title'] ?? ''));
+    $displayTitle = (string) ($ticket['title'] ?? '');
+    $titleIsTranslated = !empty($ticket['title_is_translated']) && $rawTitle !== '' && $displayTitle !== '' && $rawTitle !== $displayTitle;
+    $hasDueDate = trim((string) ($ticket['due_date'] ?? '')) !== '';
+    $titleNeedsTrans = !empty($ticket['title_translation_pending']);
+    $messagesNeedTrans = false;
+    foreach (($ticketDetail['messages'] ?? []) as $msg) {
+        if (!empty($msg['translation_pending'])) {
+            $messagesNeedTrans = true;
+            break;
+        }
+    }
+    $needsTranslation = $titleNeedsTrans || $messagesNeedTrans;
+    $canAssignToRequester = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
     $assignableIctUsers = array_values(array_filter(
         extractIctUserEmails($ictUsers),
-        static fn(string $ictUser): bool => $ictUser !== '' && $ictUser !== $requesterEmail
+        static fn(string $ictUser): bool => $ictUser !== '' && ($canAssignToRequester || $ictUser !== $requesterEmail)
     ));
 
     ob_start();
     ?>
     <details class="ticket-card" data-ticket-id="<?= (int) ($ticket['id'] ?? 0) ?>"
+        data-needs-translation="<?= $needsTranslation ? '1' : '0' ?>"
         style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
         <summary>
             <div class="ticket-summary">
                 <div>
                     <p class="ticket-main-title"><strong><span
                                 data-role="ticket-number">#<?= (int) ($ticket['id'] ?? 0) ?></span> · <span
-                                data-role="ticket-title"><?= h((string) ($ticket['title'] ?? '')) ?></span></strong></p>
+                                data-role="ticket-title"
+                                data-translated-text="<?= h((string) json_encode($displayTitle, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                data-original-text="<?= h((string) json_encode($rawTitle, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                data-showing="translated"><?= h($displayTitle) ?></span></strong>
+                        <?php if ($titleIsTranslated): ?>
+                            <button type="button" class="translation-toggle-button" data-role="title-translation-toggle"
+                                data-label-original="<?= h(__('ticket.show_original')) ?>"
+                                data-label-translated="<?= h(__('ticket.show_translation')) ?>"
+                                data-showing="translated"><?= h(__('ticket.show_original')) ?></button>
+                        <?php endif; ?>
+                    </p>
                     <div class="ticket-subtitle">
                         <span data-role="requester-email" class="<?= $requesterExtraCount > 0 ? 'requester-multi' : '' ?>"
                             title="<?= h($requesterExtraCount > 0 ? $requesterTooltip : '') ?>"
@@ -560,7 +608,14 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                     <span
                         data-role="meta-updated-value"><?= h(formatDateTime((string) ($ticket['updated_at'] ?? ''))) ?></span>
                 </div>
-                <?php if ($userIsAdmin && $isAdminPortal): ?>
+                <?php if ($hasDueDate): ?>
+                    <div class="meta-item">
+                        <span class="meta-label"><?= h(__('ticket.meta_due_date')) ?></span>
+                        <span
+                            data-role="meta-due-date-value"><?= h(formatDueDateLabel((string) ($ticket['due_date'] ?? ''))) ?></span>
+                    </div>
+                <?php endif; ?>
+                <?php if ($userIsAdmin && $isAdminPortal && !$hasDueDate): ?>
                     <div class="meta-item">
                         <span class="meta-label"><?= h(__('ticket.meta_priority')) ?></span>
                         <select name="priority" form="<?= h($replyFormId) ?>" data-role="priority-select">
@@ -679,6 +734,13 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                                 <?php endforeach; ?>
                             </select>
                         </label>
+                        <?php if ($hasDueDate): ?>
+                            <label>
+                                <?= h(__('ticket.meta_due_date')) ?>
+                                <input type="date" name="due_date" value="<?= h((string) ($ticket['due_date'] ?? '')) ?>"
+                                    data-role="due-date-input">
+                            </label>
+                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
 
@@ -747,6 +809,8 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
         'category_label' => translateCategory((string) ($ticket['category'] ?? '')),
         'created_at_label' => formatDateTime((string) ($ticket['created_at'] ?? '')),
         'updated_at_label' => formatDateTime((string) ($ticket['updated_at'] ?? '')),
+        'due_date' => (string) ($ticket['due_date'] ?? ''),
+        'due_date_label' => formatDueDateLabel((string) ($ticket['due_date'] ?? '')),
         'status' => (string) ($ticket['status'] ?? ''),
         'status_label' => translateStatus((string) ($ticket['status'] ?? '')),
         'status_color' => getStatusColor((string) ($ticket['status'] ?? '')),
@@ -821,6 +885,24 @@ function isCategoryFilterSelected(string $category, array $categoryFilters, bool
     return !$categoryFilterRequestActive || in_array($category, $categoryFilters, true);
 }
 
+function getSelectableTicketCategories(): array
+{
+    return array_values(array_filter(
+        TICKET_CATEGORIES,
+        static fn(string $category): bool => !isTemplateTicketCategory($category)
+    ));
+}
+
+function getTemplateTicketCategories(): array
+{
+    return TEMPLATE_TICKET_CATEGORIES;
+}
+
+function isTemplateTicketCategory(string $category): bool
+{
+    return in_array($category, TEMPLATE_TICKET_CATEGORIES, true);
+}
+
 function getPriorityFromFlags(bool $isWorkBlocked, bool $isFullyBlocked): int
 {
     if ($isWorkBlocked && $isFullyBlocked) {
@@ -832,6 +914,110 @@ function getPriorityFromFlags(bool $isWorkBlocked, bool $isFullyBlocked): int
     }
 
     return 0;
+}
+
+function normalizeDueDateInput(string $input): ?string
+{
+    $value = trim($input);
+    if ($value === '') {
+        return null;
+    }
+
+    $datePart = substr($value, 0, 10);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $datePart) !== 1) {
+        return null;
+    }
+
+    return $datePart;
+}
+
+function isDueDateTodayOrFuture(string $dueDate): bool
+{
+    $normalized = normalizeDueDateInput($dueDate);
+    if ($normalized === null) {
+        return false;
+    }
+
+    try {
+        $timezone = new DateTimeZone(date_default_timezone_get());
+        $today = new DateTimeImmutable('today', $timezone);
+        $due = DateTimeImmutable::createFromFormat('!Y-m-d', $normalized, $timezone);
+        return $due instanceof DateTimeImmutable && $due >= $today;
+    } catch (Throwable) {
+        return false;
+    }
+}
+
+function countBusinessDaysUntilDueDate(string $dueDate): int
+{
+    $normalized = normalizeDueDateInput($dueDate);
+    if ($normalized === null) {
+        return 0;
+    }
+
+    try {
+        $timezone = new DateTimeZone(date_default_timezone_get());
+        $today = new DateTimeImmutable('today', $timezone);
+        $due = DateTimeImmutable::createFromFormat('!Y-m-d', $normalized, $timezone);
+        if (!$due instanceof DateTimeImmutable || $due < $today) {
+            return 0;
+        }
+
+        $businessDays = 0;
+        $cursor = $today;
+        while ($cursor <= $due) {
+            $weekday = (int) $cursor->format('N');
+            if ($weekday <= 5) {
+                $businessDays++;
+            }
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        return $businessDays;
+    } catch (Throwable) {
+        return 0;
+    }
+}
+
+function getPriorityFromDueDate(string $dueDate): int
+{
+    $normalized = normalizeDueDateInput($dueDate);
+    if ($normalized === null) {
+        return 0;
+    }
+
+    try {
+        $timezone = new DateTimeZone(date_default_timezone_get());
+        $today = new DateTimeImmutable('today', $timezone);
+        $due = DateTimeImmutable::createFromFormat('!Y-m-d', $normalized, $timezone);
+        if (!$due instanceof DateTimeImmutable) {
+            return 0;
+        }
+
+        $calendarDaysRemaining = (int) $today->diff($due)->format('%r%a');
+        if ($calendarDaysRemaining < 7) {
+            return countBusinessDaysUntilDueDate($normalized) < 3 ? 2 : 1;
+        }
+    } catch (Throwable) {
+        return 0;
+    }
+
+    return 0;
+}
+
+function formatDueDateLabel(?string $dueDate): string
+{
+    $normalized = normalizeDueDateInput((string) $dueDate);
+    if ($normalized === null) {
+        return '';
+    }
+
+    try {
+        $date = new DateTimeImmutable($normalized);
+        return $date->format('d-m-Y');
+    } catch (Throwable) {
+        return $normalized;
+    }
 }
 
 function formatPriorityLabel($priority): string
@@ -1048,6 +1234,8 @@ function translateCategory(string $dbCategory): string
         'Softwareproblemen' => 'category.softwareproblemen',
         'sleutels.kvt.nl web-applicatieproblemen' => 'category.web_app_problemen',
         'Anders' => 'category.anders',
+        TEMPLATE_TICKET_CATEGORY => 'category.laptop_klaarmaken',
+        'Telefoon Klaarmaken' => 'category.telefoon_klaarmaken',
     ];
 
     return isset($map[$dbCategory]) ? __($map[$dbCategory]) : $dbCategory;
@@ -1183,6 +1371,94 @@ function buildParticipantChangeNote(array $addedParticipants, array $removedPart
     return implode(PHP_EOL, $lines);
 }
 
+function getShortcutKeyDefinitions(): array
+{
+    static $definitions = null;
+    if ($definitions !== null) {
+        return $definitions;
+    }
+
+    $definitions = [
+        ['label' => 'Ctrl', 'icon' => null, 'aliases' => ['ctrl', 'control', 'ctl', 'strg']],
+        ['label' => 'Alt', 'icon' => null, 'aliases' => ['alt', 'option']],
+        ['label' => 'Alt Gr', 'icon' => null, 'aliases' => ['altgr', 'altgraph']],
+        ['label' => 'Shift', 'icon' => null, 'aliases' => ['shift']],
+        ['label' => '', 'icon' => 'windows', 'aliases' => ['win', 'windows', 'meta', 'super', 'cmd', 'command']],
+        ['label' => 'Fn', 'icon' => null, 'aliases' => ['fn', 'function']],
+        ['label' => 'Delete', 'icon' => null, 'aliases' => ['delete', 'del']],
+        ['label' => 'Backspace', 'icon' => null, 'aliases' => ['backspace', 'bksp']],
+        ['label' => 'Enter', 'icon' => null, 'aliases' => ['enter', 'return']],
+        ['label' => 'Esc', 'icon' => null, 'aliases' => ['esc', 'escape']],
+        ['label' => 'Tab', 'icon' => null, 'aliases' => ['tab']],
+        ['label' => 'Space', 'icon' => null, 'aliases' => ['space', 'spacebar']],
+        ['label' => 'Caps Lock', 'icon' => null, 'aliases' => ['caps', 'capslock']],
+        ['label' => 'Insert', 'icon' => null, 'aliases' => ['ins', 'insert']],
+        ['label' => 'Home', 'icon' => null, 'aliases' => ['home']],
+        ['label' => 'End', 'icon' => null, 'aliases' => ['end']],
+        ['label' => 'Pg Up', 'icon' => null, 'aliases' => ['pageup', 'pgup']],
+        ['label' => 'Pg Down', 'icon' => null, 'aliases' => ['pagedown', 'pgdn']],
+        ['label' => 'PrtSc', 'icon' => null, 'aliases' => ['printscreen', 'prtsc', 'printscr', 'snapshot']],
+        ['label' => 'Scr Lk', 'icon' => null, 'aliases' => ['scrolllock', 'scrlk']],
+        ['label' => 'Pause', 'icon' => null, 'aliases' => ['pause', 'break']],
+        ['label' => 'Menu', 'icon' => null, 'aliases' => ['menu', 'contextmenu', 'apps']],
+        ['label' => '', 'icon' => 'arrow-up', 'aliases' => ['up', 'arrowup', 'uparrow']],
+        ['label' => '', 'icon' => 'arrow-down', 'aliases' => ['down', 'arrowdown', 'downarrow']],
+        ['label' => '', 'icon' => 'arrow-left', 'aliases' => ['left', 'arrowleft', 'leftarrow']],
+        ['label' => '', 'icon' => 'arrow-right', 'aliases' => ['right', 'arrowright', 'rightarrow']],
+        ['label' => 'Num Lk', 'icon' => null, 'aliases' => ['numlock']],
+        ['label' => 'Num /', 'icon' => null, 'aliases' => ['numdivide', 'numpaddivide']],
+        ['label' => 'Num *', 'icon' => null, 'aliases' => ['nummultiply', 'numpadmultiply']],
+        ['label' => 'Num -', 'icon' => null, 'aliases' => ['numminus', 'numpadminus']],
+        ['label' => 'Num +', 'icon' => null, 'aliases' => ['numplus', 'numpadplus']],
+        ['label' => 'Num Enter', 'icon' => null, 'aliases' => ['numenter', 'numpadenter']],
+        ['label' => 'Num .', 'icon' => null, 'aliases' => ['numdecimal', 'numpaddecimal', 'numdot']],
+        ['label' => '-', 'icon' => null, 'aliases' => ['minus', 'hyphen', 'dash', '-']],
+        ['label' => '=', 'icon' => null, 'aliases' => ['equals', 'equal', '=']],
+        ['label' => ',', 'icon' => null, 'aliases' => ['comma', ',']],
+        ['label' => '.', 'icon' => null, 'aliases' => ['period', 'dot', '.']],
+        ['label' => '/', 'icon' => null, 'aliases' => ['slash', 'forwardslash', '/']],
+        ['label' => '\\', 'icon' => null, 'aliases' => ['backslash', '\\']],
+        ['label' => ';', 'icon' => null, 'aliases' => ['semicolon', ';']],
+        ['label' => "'", 'icon' => null, 'aliases' => ['quote', 'apostrophe', "'"]],
+        ['label' => '`', 'icon' => null, 'aliases' => ['backtick', 'grave', '`']],
+        ['label' => '[', 'icon' => null, 'aliases' => ['lbracket', 'leftbracket', 'openbracket']],
+        ['label' => ']', 'icon' => null, 'aliases' => ['rbracket', 'rightbracket', 'closebracket']],
+        ['label' => '@', 'icon' => null, 'aliases' => ['at', 'atsign', '@']],
+        ['label' => '*', 'icon' => null, 'aliases' => ['asterisk', 'star', '*']],
+        ['label' => '#', 'icon' => null, 'aliases' => ['hash', 'pound', 'hashtag', '#']],
+        ['label' => '!', 'icon' => null, 'aliases' => ['exclamation', 'bang', '!']],
+        ['label' => '?', 'icon' => null, 'aliases' => ['question', '?']],
+        ['label' => '&', 'icon' => null, 'aliases' => ['ampersand', 'and', '&']],
+        ['label' => '%', 'icon' => null, 'aliases' => ['percent', '%']],
+        ['label' => '^', 'icon' => null, 'aliases' => ['caret', '^']],
+        ['label' => '+', 'icon' => null, 'aliases' => ['plus', '+']],
+        ['label' => '<', 'icon' => null, 'aliases' => ['lessthan', 'lt', '<']],
+        ['label' => '>', 'icon' => null, 'aliases' => ['greaterthan', 'gt', '>']],
+        ['label' => '~', 'icon' => null, 'aliases' => ['tilde', '~']],
+        ['label' => '|', 'icon' => null, 'aliases' => ['pipe', 'bar', '|']],
+        ['label' => '_', 'icon' => null, 'aliases' => ['underscore', '_']],
+        ['label' => '"', 'icon' => null, 'aliases' => ['doublequote', 'dquote', '"']],
+        ['label' => 'Vol +', 'icon' => null, 'aliases' => ['volumeup', 'volup']],
+        ['label' => 'Vol -', 'icon' => null, 'aliases' => ['volumedown', 'voldown']],
+        ['label' => 'Mute', 'icon' => null, 'aliases' => ['volumemute', 'mute']],
+        ['label' => 'Play/Pause', 'icon' => null, 'aliases' => ['mediaplaypause', 'playpause']],
+        ['label' => 'Next', 'icon' => null, 'aliases' => ['medianexttrack', 'nexttrack']],
+        ['label' => 'Prev', 'icon' => null, 'aliases' => ['mediaprevtrack', 'previoustrack']],
+    ];
+
+    foreach (range(1, 12) as $functionNumber) {
+        $fLabel = 'F' . $functionNumber;
+        $definitions[] = ['label' => $fLabel, 'icon' => null, 'aliases' => [strtolower($fLabel)]];
+    }
+
+    foreach (range(0, 9) as $numPadDigit) {
+        $numLabel = 'Num ' . $numPadDigit;
+        $definitions[] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['num' . $numPadDigit, 'numpad' . $numPadDigit]];
+    }
+
+    return $definitions;
+}
+
 function getShortcutKeyDefinition(string $keyToken): ?array
 {
     $normalizeAlias = static function (string $value): string {
@@ -1213,87 +1489,8 @@ function getShortcutKeyDefinition(string $keyToken): ?array
             }
         };
 
-        $definitions = [
-            ['label' => 'Ctrl', 'icon' => null, 'aliases' => ['ctrl', 'control', 'ctl', 'strg']],
-            ['label' => 'Alt', 'icon' => null, 'aliases' => ['alt', 'option']],
-            ['label' => 'Alt Gr', 'icon' => null, 'aliases' => ['altgr', 'altgraph']],
-            ['label' => 'Shift', 'icon' => null, 'aliases' => ['shift']],
-            ['label' => '', 'icon' => 'windows', 'aliases' => ['win', 'windows', 'meta', 'super', 'cmd', 'command']],
-            ['label' => 'Fn', 'icon' => null, 'aliases' => ['fn', 'function']],
-            ['label' => 'Delete', 'icon' => null, 'aliases' => ['delete', 'del']],
-            ['label' => 'Backspace', 'icon' => null, 'aliases' => ['backspace', 'bksp']],
-            ['label' => 'Enter', 'icon' => null, 'aliases' => ['enter', 'return']],
-            ['label' => 'Esc', 'icon' => null, 'aliases' => ['esc', 'escape']],
-            ['label' => 'Tab', 'icon' => null, 'aliases' => ['tab']],
-            ['label' => 'Space', 'icon' => null, 'aliases' => ['space', 'spacebar']],
-            ['label' => 'Caps Lock', 'icon' => null, 'aliases' => ['caps', 'capslock']],
-            ['label' => 'Insert', 'icon' => null, 'aliases' => ['ins', 'insert']],
-            ['label' => 'Home', 'icon' => null, 'aliases' => ['home']],
-            ['label' => 'End', 'icon' => null, 'aliases' => ['end']],
-            ['label' => 'Pg Up', 'icon' => null, 'aliases' => ['pageup', 'pgup']],
-            ['label' => 'Pg Down', 'icon' => null, 'aliases' => ['pagedown', 'pgdn']],
-            ['label' => 'PrtSc', 'icon' => null, 'aliases' => ['printscreen', 'prtsc', 'printscr', 'snapshot']],
-            ['label' => 'Scr Lk', 'icon' => null, 'aliases' => ['scrolllock', 'scrlk']],
-            ['label' => 'Pause', 'icon' => null, 'aliases' => ['pause', 'break']],
-            ['label' => 'Menu', 'icon' => null, 'aliases' => ['menu', 'contextmenu', 'apps']],
-            ['label' => '', 'icon' => 'arrow-up', 'aliases' => ['up', 'arrowup', 'uparrow']],
-            ['label' => '', 'icon' => 'arrow-down', 'aliases' => ['down', 'arrowdown', 'downarrow']],
-            ['label' => '', 'icon' => 'arrow-left', 'aliases' => ['left', 'arrowleft', 'leftarrow']],
-            ['label' => '', 'icon' => 'arrow-right', 'aliases' => ['right', 'arrowright', 'rightarrow']],
-            ['label' => 'Num Lk', 'icon' => null, 'aliases' => ['numlock']],
-            ['label' => 'Num /', 'icon' => null, 'aliases' => ['numdivide', 'numpaddivide']],
-            ['label' => 'Num *', 'icon' => null, 'aliases' => ['nummultiply', 'numpadmultiply']],
-            ['label' => 'Num -', 'icon' => null, 'aliases' => ['numminus', 'numpadminus']],
-            ['label' => 'Num +', 'icon' => null, 'aliases' => ['numplus', 'numpadplus']],
-            ['label' => 'Num Enter', 'icon' => null, 'aliases' => ['numenter', 'numpadenter']],
-            ['label' => 'Num .', 'icon' => null, 'aliases' => ['numdecimal', 'numpaddecimal', 'numdot']],
-            ['label' => '-', 'icon' => null, 'aliases' => ['minus', 'hyphen', 'dash', '-']],
-            ['label' => '=', 'icon' => null, 'aliases' => ['equals', 'equal', '=']],
-            ['label' => ',', 'icon' => null, 'aliases' => ['comma', ',']],
-            ['label' => '.', 'icon' => null, 'aliases' => ['period', 'dot', '.']],
-            ['label' => '/', 'icon' => null, 'aliases' => ['slash', 'forwardslash', '/']],
-            ['label' => '\\', 'icon' => null, 'aliases' => ['backslash', '\\']],
-            ['label' => ';', 'icon' => null, 'aliases' => ['semicolon', ';']],
-            ['label' => "'", 'icon' => null, 'aliases' => ['quote', 'apostrophe', "'"]],
-            ['label' => '`', 'icon' => null, 'aliases' => ['backtick', 'grave', '`']],
-            ['label' => '[', 'icon' => null, 'aliases' => ['lbracket', 'leftbracket', 'openbracket']],
-            ['label' => ']', 'icon' => null, 'aliases' => ['rbracket', 'rightbracket', 'closebracket']],
-            ['label' => '@', 'icon' => null, 'aliases' => ['at', 'atsign', '@']],
-            ['label' => '*', 'icon' => null, 'aliases' => ['asterisk', 'star', '*']],
-            ['label' => '#', 'icon' => null, 'aliases' => ['hash', 'pound', 'hashtag', '#']],
-            ['label' => '!', 'icon' => null, 'aliases' => ['exclamation', 'bang', '!']],
-            ['label' => '?', 'icon' => null, 'aliases' => ['question', '?']],
-            ['label' => '&', 'icon' => null, 'aliases' => ['ampersand', 'and', '&']],
-            ['label' => '%', 'icon' => null, 'aliases' => ['percent', '%']],
-            ['label' => '^', 'icon' => null, 'aliases' => ['caret', '^']],
-            ['label' => '+', 'icon' => null, 'aliases' => ['plus', '+']],
-            ['label' => '<', 'icon' => null, 'aliases' => ['lessthan', 'lt', '<']],
-            ['label' => '>', 'icon' => null, 'aliases' => ['greaterthan', 'gt', '>']],
-            ['label' => '~', 'icon' => null, 'aliases' => ['tilde', '~']],
-            ['label' => '|', 'icon' => null, 'aliases' => ['pipe', 'bar', '|']],
-            ['label' => '_', 'icon' => null, 'aliases' => ['underscore', '_']],
-            ['label' => '"', 'icon' => null, 'aliases' => ['doublequote', 'dquote', '"']],
-            ['label' => 'Vol +', 'icon' => null, 'aliases' => ['volumeup', 'volup']],
-            ['label' => 'Vol -', 'icon' => null, 'aliases' => ['volumedown', 'voldown']],
-            ['label' => 'Mute', 'icon' => null, 'aliases' => ['volumemute', 'mute']],
-            ['label' => 'Play/Pause', 'icon' => null, 'aliases' => ['mediaplaypause', 'playpause']],
-            ['label' => 'Next', 'icon' => null, 'aliases' => ['medianexttrack', 'nexttrack']],
-            ['label' => 'Prev', 'icon' => null, 'aliases' => ['mediaprevtrack', 'previoustrack']],
-        ];
-
-        foreach ($definitions as $definition) {
+        foreach (getShortcutKeyDefinitions() as $definition) {
             $register($definition);
-        }
-
-        foreach (range(1, 12) as $functionNumber) {
-            $fLabel = 'F' . $functionNumber;
-            $aliasMap[strtolower($fLabel)] = ['label' => $fLabel, 'icon' => null, 'aliases' => [strtolower($fLabel)]];
-        }
-
-        foreach (range(0, 9) as $numPadDigit) {
-            $numLabel = 'Num ' . $numPadDigit;
-            $aliasMap['num' . $numPadDigit] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['num' . $numPadDigit]];
-            $aliasMap['numpad' . $numPadDigit] = ['label' => $numLabel, 'icon' => null, 'aliases' => ['numpad' . $numPadDigit]];
         }
     }
 
@@ -1446,7 +1643,7 @@ function makeTextInteractive(string $text, bool $forEmail = false): string
     return $escapedText;
 }
 
-function formatTicketMessageText(?string $messageText): string
+function formatTicketMessageText(?string $messageText, int $messageId = 0): string
 {
     $normalized = str_replace(["\r\n", "\r"], "\n", trim((string) $messageText));
     if ($normalized === '') {
@@ -1454,10 +1651,24 @@ function formatTicketMessageText(?string $messageText): string
     }
 
     $formattedLines = [];
-    foreach (explode("\n", $normalized) as $line) {
+    foreach (explode("\n", $normalized) as $lineIndex => $line) {
         $trimmedLine = trim($line);
         if ($trimmedLine === '') {
             $formattedLines[] = '';
+            continue;
+        }
+
+        if (preg_match('/^(\s*)\[( |x|X)\]\s*(.*)$/', $line, $checkboxMatch) === 1) {
+            $isChecked = strtolower((string) $checkboxMatch[2]) === 'x';
+            $checkboxText = (string) ($checkboxMatch[3] ?? '');
+            $checkboxLabel = $checkboxText !== '' ? makeTextInteractive($checkboxText) : '&nbsp;';
+            $formattedLines[] = '<label class="message-checkbox-line">'
+                . '<input type="checkbox" data-role="message-checkbox" data-message-id="' . (int) $messageId . '" data-line-index="' . (int) $lineIndex . '"'
+                . ($isChecked ? ' checked' : '')
+                . ($messageId > 0 ? '' : ' disabled')
+                . '>'
+                . '<span>' . $checkboxLabel . '</span>'
+                . '</label>';
             continue;
         }
 

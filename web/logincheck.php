@@ -24,7 +24,7 @@ if (!is_trusted_requester()) {
     if (
         DEBUG_EVERYONE_IS_ADMIN ||
         array_any($ictUsers, function ($email) {
-            return $email == $_SESSION['user']['email'];
+            return strtolower((string) $email) === strtolower((string) ($_SESSION['user']['email'] ?? ''));
         })
     ) {
         $_SESSION['user']['admin'] = true;

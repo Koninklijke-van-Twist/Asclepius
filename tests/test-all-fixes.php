@@ -6,8 +6,8 @@ $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 $_SERVER['SERVER_ADDR'] = '127.0.0.1';
 $_SERVER['PHP_SELF'] = '/asclepius/index.php';
 
-require __DIR__ . '/web/content/constants.php';
-require __DIR__ . '/web/content/helpers.php';
+require __DIR__ . '/../web/content/constants.php';
+require __DIR__ . '/../web/content/helpers.php';
 
 // Simulate auth.php with associative $ictUsers
 $ictUsers = [
@@ -25,7 +25,8 @@ var_dump($ictUsers);
 $extracted = extractIctUserEmails($ictUsers);
 echo "  extractIctUserEmails() result: " . implode(', ', $extracted) . PHP_EOL;
 echo "  Is it flat? " . (array_keys($extracted) === range(0, count($extracted) - 1) ? 'YES ✓' : 'NO ✗') . PHP_EOL;
-echo "  Are values emails? " . (all(function($v) { return filter_var($v, FILTER_VALIDATE_EMAIL); }, $extracted) ? 'YES ✓' : 'NO ✗') . PHP_EOL;
+echo "  Are values emails? " . (all(function ($v) {
+    return filter_var($v, FILTER_VALIDATE_EMAIL); }, $extracted) ? 'YES ✓' : 'NO ✗') . PHP_EOL;
 echo PHP_EOL;
 
 // Test normalizeIctUsersConfig
@@ -56,7 +57,8 @@ $normalizedIctUsers = $isAssociative ? array_keys($assocArray) : array_values($a
 $result = array_values(array_unique(array_map('strtolower', $normalizedIctUsers)));
 echo "  Input (associative): " . implode(', ', array_keys($ictUsers)) . " => [colors]" . PHP_EOL;
 echo "  Constructor will store: " . implode(', ', $result) . PHP_EOL;
-echo "  Are stored values emails? " . (all(function($v) { return filter_var($v, FILTER_VALIDATE_EMAIL); }, $result) ? 'YES ✓' : 'NO ✗') . PHP_EOL;
+echo "  Are stored values emails? " . (all(function ($v) {
+    return filter_var($v, FILTER_VALIDATE_EMAIL); }, $result) ? 'YES ✓' : 'NO ✗') . PHP_EOL;
 echo PHP_EOL;
 
 // Test all critical patterns
@@ -66,13 +68,15 @@ $allPassed = true;
 // Pattern 1: in_array with extracted emails
 $pattern1 = in_array('tfalken@kvt.nl', extractIctUserEmails($ictUsers));
 echo "  in_array('tfalken@kvt.nl', extractIctUserEmails(...)): " . ($pattern1 ? 'YES ✓' : 'NO ✗') . PHP_EOL;
-if (!$pattern1) $allPassed = false;
+if (!$pattern1)
+    $allPassed = false;
 
 // Pattern 2: array_merge with extracted emails
 $merged = array_merge(['', '__unassigned__'], extractIctUserEmails($ictUsers));
 $merged_has_emails = count(array_filter($merged, fn($v) => filter_var($v, FILTER_VALIDATE_EMAIL))) >= 3;
 echo "  array_merge with extractIctUserEmails: " . ($merged_has_emails ? 'YES ✓' : 'NO ✗') . PHP_EOL;
-if (!$merged_has_emails) $allPassed = false;
+if (!$merged_has_emails)
+    $allPassed = false;
 
 // Pattern 3: foreach loop
 echo "  foreach (\$ictUsers as \$user): " . PHP_EOL;
@@ -81,9 +85,11 @@ foreach (extractIctUserEmails($ictUsers) as $user) {
     $emails[] = $user;
 }
 echo "    Got: " . implode(', ', $emails) . PHP_EOL;
-$all_are_emails = all(function($v) { return filter_var($v, FILTER_VALIDATE_EMAIL); }, $emails);
+$all_are_emails = all(function ($v) {
+    return filter_var($v, FILTER_VALIDATE_EMAIL); }, $emails);
 echo "    All are valid emails? " . ($all_are_emails ? 'YES ✓' : 'NO ✗') . PHP_EOL;
-if (!$all_are_emails) $allPassed = false;
+if (!$all_are_emails)
+    $allPassed = false;
 
 echo PHP_EOL;
 echo "=== FINAL RESULT ===" . PHP_EOL;
@@ -93,7 +99,8 @@ echo PHP_EOL;
 /**
  * Helper function
  */
-function all(callable $predicate, array $array): bool {
+function all(callable $predicate, array $array): bool
+{
     foreach ($array as $item) {
         if (!$predicate($item)) {
             return false;

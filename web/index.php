@@ -4,6 +4,9 @@ require_once __DIR__ . '/content/bootstrap.php';
 require_once __DIR__ . '/content/constants.php';
 require_once __DIR__ . '/content/localization.php';
 require_once __DIR__ . '/content/helpers.php';
+require_once __DIR__ . '/content/TranslationProvider.php';
+require_once __DIR__ . '/content/LaraTranslationProvider.php';
+require_once __DIR__ . '/content/translation.php';
 require_once __DIR__ . '/content/mail.php';
 require_once __DIR__ . '/content/variables.php';
 require_once __DIR__ . '/content/actions.php';
@@ -55,6 +58,8 @@ $apiUrl = 'api.php';
             <?php require __DIR__ . '/content/views/view_settings.php'; ?>
 
             <?php require __DIR__ . '/content/views/view_stats.php'; ?>
+
+            <?php require __DIR__ . '/content/views/view_template_tickets.php'; ?>
 
             <?php require __DIR__ . '/content/views/view_tickets.php'; ?>
         </main>

@@ -14,19 +14,16 @@ $currentLang = getCurrentLanguage();
         <button class="lang-current" aria-haspopup="true" aria-expanded="false" id="lang-btn"
             title="<?= h(SUPPORTED_LANGUAGES[$currentLang]['label']) ?>">
             <img src="data:image/svg+xml,<?= rawurlencode($flagSvgs[$currentLang]) ?>"
-                 alt="<?= h(SUPPORTED_LANGUAGES[$currentLang]['label']) ?>"
-                 width="28" height="20">
+                alt="<?= h(SUPPORTED_LANGUAGES[$currentLang]['label']) ?>" width="28" height="20">
         </button>
         <ul class="lang-dropdown" role="menu" aria-labelledby="lang-btn" hidden>
             <?php foreach (SUPPORTED_LANGUAGES as $code => $info): ?>
                 <li role="none">
-                    <a role="menuitem"
-                        href="?<?= h(http_build_query(array_merge($_GET, ['lang' => $code]))) ?>"
-                        class="lang-option <?= $code === $currentLang ? 'is-active' : '' ?>">
-                        <img src="data:image/svg+xml,<?= rawurlencode($flagSvgs[$code]) ?>"
-                             alt="<?= h($info['label']) ?>"
-                             width="22" height="15">
-                        <?= h($info['label']) ?>
+                    <a role="menuitem" href="?<?= h(http_build_query(array_merge($_GET, ['lang' => $code]))) ?>"
+                        class="lang-option <?= $code === $currentLang ? 'is-active' : '' ?>"
+                        title="<?= h($info['label']) ?>">
+                        <img src="data:image/svg+xml,<?= rawurlencode($flagSvgs[$code]) ?>" alt="<?= h($info['label']) ?>"
+                            width="28" height="20">
                     </a>
                 </li>
             <?php endforeach; ?>
@@ -57,29 +54,36 @@ $currentLang = getCurrentLanguage();
                 href="admin.php?view=settings"><?= h(__('nav.settings')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'stats' ? 'active' : '' ?>"
                 href="admin.php?view=stats"><?= h(__('nav.ict_stats')) ?></a>
+            <a class="nav-link <?= $isAdminPortal && $view === 'template_tickets' ? 'active' : '' ?>"
+                href="admin.php?view=template_tickets"><?= h(__('nav.template_tickets')) ?></a>
         <?php endif; ?>
     </div>
 </header>
 <script>
-(function () {
-    var btn = document.getElementById('lang-btn');
-    var dropdown = btn ? btn.nextElementSibling : null;
-    if (!btn || !dropdown) { return; }
-    btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var open = !dropdown.hidden;
-        dropdown.hidden = open;
-        btn.setAttribute('aria-expanded', String(!open));
-    });
-    document.addEventListener('click', function () {
-        dropdown.hidden = true;
-        btn.setAttribute('aria-expanded', 'false');
-    });
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') {
+    (function ()
+    {
+        var btn = document.getElementById('lang-btn');
+        var dropdown = btn ? btn.nextElementSibling : null;
+        if (!btn || !dropdown) { return; }
+        btn.addEventListener('click', function (e)
+        {
+            e.stopPropagation();
+            var open = !dropdown.hidden;
+            dropdown.hidden = open;
+            btn.setAttribute('aria-expanded', String(!open));
+        });
+        document.addEventListener('click', function ()
+        {
             dropdown.hidden = true;
             btn.setAttribute('aria-expanded', 'false');
-        }
-    });
-}());
+        });
+        document.addEventListener('keydown', function (e)
+        {
+            if (e.key === 'Escape')
+            {
+                dropdown.hidden = true;
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }());
 </script>

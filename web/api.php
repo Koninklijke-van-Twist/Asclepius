@@ -2,11 +2,19 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 
+$vendorAutoload = __DIR__ . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+if (is_file($vendorAutoload)) {
+    require_once $vendorAutoload;
+}
+
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'TicketStore.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'constants.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'localization.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'helpers.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'TranslationProvider.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'LaraTranslationProvider.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'translation.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'mail.php';
 
 if (!isset($ictUserColors) || !is_array($ictUserColors)) {
@@ -172,6 +180,10 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     $csrfToken = (string) ($payload['csrf_token'] ?? '');
     $openTicketId = max(0, (int) ($payload['open_ticket_id'] ?? 0));
     $view = trim((string) ($payload['view'] ?? 'overview'));
+    $currentLanguage = strtolower(trim((string) ($payload['current_language'] ?? 'nl')));
+    if (!array_key_exists($currentLanguage, SUPPORTED_LANGUAGES)) {
+        $currentLanguage = 'nl';
+    }
     $assignedFilter = trim((string) ($payload['assigned_filter'] ?? ''));
     $searchQuery = trim((string) ($payload['search_query'] ?? ''));
     $statusFilters = array_values(array_filter(
@@ -184,10 +196,17 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     ));
 
     $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery);
+    $tickets = array_map(
+        fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage, true),
+        $tickets
+    );
     $ticketPollItems = [];
 
     foreach ($tickets as $ticket) {
         $ticketDetail = $store->getTicket((int) ($ticket['id'] ?? 0), $canManageTickets, $viewerEmail);
+        if (is_array($ticketDetail)) {
+            $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage, true);
+        }
         $ticketPollItems[] = buildTicketPollEntry($ticket, $ticketDetail, [
             'currentPage' => $currentPage,
             'canManageTickets' => $canManageTickets,
@@ -625,6 +644,103 @@ if ($method === 'POST') {
         sendJson(200, handleManageTicketParticipantsApiAction($store, $payload, $apiClient));
     }
 
+    if ($action === 'manage_ticket_template') {
+        $userIsAdmin = !empty($apiClient['is_admin']);
+        if (!$userIsAdmin && !isTrustedApiRequester()) {
+            sendJson(403, ['success' => false, 'error' => __('flash.settings_admin_only')]);
+        }
+
+        $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+        $sessionToken = '';
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            $sessionCookieName = session_name();
+            if ($sessionCookieName !== '' && !empty($_COOKIE[$sessionCookieName])) {
+                session_start(['read_and_close' => true]);
+            }
+        }
+        $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+        if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+            sendJson(403, ['success' => false, 'error' => 'csrf']);
+        }
+
+        $operation = strtolower(trim((string) ($payload['operation'] ?? '')));
+        $authorEmail = strtolower(trim((string) ($apiClient['email'] ?? '')));
+
+        if ($operation === 'create') {
+            $name = trim((string) ($payload['name'] ?? ''));
+            $body = trim((string) ($payload['body'] ?? ''));
+            if ($name === '') {
+                sendJson(422, ['success' => false, 'error' => __('flash.template_name_required')]);
+            }
+            if ($body === '') {
+                sendJson(422, ['success' => false, 'error' => __('flash.template_body_required')]);
+            }
+            $store->createTicketTemplate($name, $body, $authorEmail);
+        } elseif ($operation === 'update') {
+            $id = max(1, (int) ($payload['id'] ?? 0));
+            $name = trim((string) ($payload['name'] ?? ''));
+            $body = trim((string) ($payload['body'] ?? ''));
+            if ($name === '') {
+                sendJson(422, ['success' => false, 'error' => __('flash.template_name_required')]);
+            }
+            if ($body === '') {
+                sendJson(422, ['success' => false, 'error' => __('flash.template_body_required')]);
+            }
+            if (!$store->updateTicketTemplate($id, $name, $body, $authorEmail)) {
+                sendJson(404, ['success' => false, 'error' => __('flash.template_not_found')]);
+            }
+        } elseif ($operation === 'delete') {
+            $id = max(1, (int) ($payload['id'] ?? 0));
+            if (!$store->deleteTicketTemplate($id)) {
+                sendJson(404, ['success' => false, 'error' => __('flash.template_not_found')]);
+            }
+        } elseif ($operation === 'reorder') {
+            $orderedIds = array_map('intval', (array) ($payload['ordered_ids'] ?? []));
+            $store->reorderTicketTemplates($orderedIds);
+        } elseif ($operation !== 'list') {
+            sendJson(422, ['success' => false, 'error' => 'unknown_operation']);
+        }
+
+        sendJson(200, ['success' => true, 'templates' => $store->getTicketTemplates()]);
+    }
+
+    if ($action === 'update_ticket_message_checkbox') {
+        $userIsAdmin = !empty($apiClient['is_admin']);
+        if (!$userIsAdmin && !isTrustedApiRequester()) {
+            sendJson(403, ['success' => false, 'error' => __('flash.settings_admin_only')]);
+        }
+
+        $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            $sessionCookieName = session_name();
+            if ($sessionCookieName !== '' && !empty($_COOKIE[$sessionCookieName])) {
+                session_start(['read_and_close' => true]);
+            }
+        }
+        $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+        if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+            sendJson(403, ['success' => false, 'error' => 'csrf']);
+        }
+
+        $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+        $messageId = max(1, (int) ($payload['message_id'] ?? 0));
+        $lineIndex = max(0, (int) ($payload['line_index'] ?? 0));
+        $checked = !empty($payload['checked']);
+        $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+
+        $updatedMessageText = $store->updateTicketMessageCheckboxState($ticketId, $messageId, $lineIndex, $checked, true, $viewerEmail);
+        if ($updatedMessageText === null) {
+            sendJson(422, ['success' => false, 'error' => 'update_failed']);
+        }
+
+        sendJson(200, [
+            'success' => true,
+            'message_id' => $messageId,
+            'ticket_id' => $ticketId,
+            'message_text' => $updatedMessageText,
+        ]);
+    }
+
     if ($action === 'bigscreen_poll') {
         if (!($apiClient['is_admin'] ?? false) && !isTrustedApiRequester()) {
             sendJson(403, [
@@ -643,6 +759,51 @@ if ($method === 'POST') {
             ]);
         }
         sendJson(200, buildBigscreenVersionApiPayload());
+    }
+
+    if ($action === 'translate_ticket') {
+        $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+        $language = strtolower(trim((string) ($payload['language'] ?? 'nl')));
+        if (!array_key_exists($language, SUPPORTED_LANGUAGES)) {
+            $language = 'nl';
+        }
+        $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+        $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+        $isAdminPortal = !empty($payload['is_admin_portal']);
+        $canManageTickets = $isAdminPortal && $userIsAdmin;
+
+        $ticketDetail = $store->getTicket($ticketId, $canManageTickets, $viewerEmail);
+        if (!is_array($ticketDetail)) {
+            sendJson(404, ['success' => false, 'error' => 'ticket_not_found']);
+        }
+
+        $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $language, false);
+
+        $messages = [];
+        foreach (($ticketDetail['messages'] ?? []) as $message) {
+            $rawText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
+            $displayText = (string) ($message['message_text'] ?? '');
+            $messages[] = [
+                'id' => (int) ($message['id'] ?? 0),
+                'message_text' => $displayText,
+                'message_text_raw' => $rawText,
+                'message_is_translated' => !empty($message['message_is_translated']),
+                'translation_error' => (string) ($message['translation_error'] ?? ''),
+                'translation_error_detail' => (string) ($message['translation_error_detail'] ?? ''),
+            ];
+        }
+
+        $rawTitle = (string) ($ticketDetail['title_raw'] ?? ($ticketDetail['title'] ?? ''));
+        sendJson(200, [
+            'success' => true,
+            'ticket_id' => $ticketId,
+            'title' => (string) ($ticketDetail['title'] ?? ''),
+            'title_raw' => $rawTitle,
+            'title_is_translated' => !empty($ticketDetail['title_is_translated']),
+            'title_translation_error' => (string) ($ticketDetail['title_translation_error'] ?? ''),
+            'title_translation_error_detail' => (string) ($ticketDetail['title_translation_error_detail'] ?? ''),
+            'messages' => $messages,
+        ]);
     }
 
     $title = trim((string) ($payload['title'] ?? ''));

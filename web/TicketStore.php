@@ -63,6 +63,109 @@ class TicketStore
         return $availability;
     }
 
+    public function getTicketTemplates(): array
+    {
+        $statement = $this->pdo->query(
+            'SELECT id, name, body, created_by_email, updated_by_email, created_at, updated_at, sort_order
+             FROM ticket_templates
+             ORDER BY sort_order ASC, lower(name) ASC, id ASC'
+        );
+
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getTicketTemplateById(int $templateId): ?array
+    {
+        if ($templateId <= 0) {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT id, name, body, created_by_email, updated_by_email, created_at, updated_at
+             FROM ticket_templates
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $statement->execute([':id' => $templateId]);
+
+        $template = $statement->fetch(PDO::FETCH_ASSOC);
+        return is_array($template) ? $template : null;
+    }
+
+    public function createTicketTemplate(string $name, string $body, string $authorEmail): int
+    {
+        $now = date('c');
+        $authorEmail = strtolower(trim($authorEmail));
+        $nextOrder = (int) $this->pdo->query('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM ticket_templates')->fetchColumn();
+        $statement = $this->pdo->prepare(
+            'INSERT INTO ticket_templates (name, body, created_by_email, updated_by_email, created_at, updated_at, sort_order)
+             VALUES (:name, :body, :created_by_email, :updated_by_email, :created_at, :updated_at, :sort_order)'
+        );
+        $statement->execute([
+            ':name' => trim($name),
+            ':body' => trim($body),
+            ':created_by_email' => $authorEmail,
+            ':updated_by_email' => $authorEmail,
+            ':created_at' => $now,
+            ':updated_at' => $now,
+            ':sort_order' => $nextOrder,
+        ]);
+
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    public function updateTicketTemplate(int $templateId, string $name, string $body, string $authorEmail): bool
+    {
+        if ($templateId <= 0) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'UPDATE ticket_templates
+             SET name = :name,
+                 body = :body,
+                 updated_by_email = :updated_by_email,
+                 updated_at = :updated_at
+             WHERE id = :id'
+        );
+        $statement->execute([
+            ':id' => $templateId,
+            ':name' => trim($name),
+            ':body' => trim($body),
+            ':updated_by_email' => strtolower(trim($authorEmail)),
+            ':updated_at' => date('c'),
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function deleteTicketTemplate(int $templateId): bool
+    {
+        if ($templateId <= 0) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare('DELETE FROM ticket_templates WHERE id = :id');
+        $statement->execute([':id' => $templateId]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function reorderTicketTemplates(array $orderedIds): bool
+    {
+        $validIds = array_values(array_filter(array_map('intval', $orderedIds), static fn(int $id): bool => $id > 0));
+        if ($validIds === []) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare('UPDATE ticket_templates SET sort_order = :sort_order WHERE id = :id');
+        foreach ($validIds as $position => $id) {
+            $statement->execute([':sort_order' => $position + 1, ':id' => $id]);
+        }
+
+        return true;
+    }
+
     public function saveCategoryMatrix(array $matrix, array $availability = []): void
     {
         $insertStatement = $this->pdo->prepare(
@@ -307,19 +410,30 @@ class TicketStore
         return $this->pickAssignee($category, $excludeEmail);
     }
 
-    public function createTicket(string $title, string $category, string $userEmail, string $description, array $files = [], int $priority = 0, array $additionalParticipants = []): array
-    {
+    public function createTicket(
+        string $title,
+        string $category,
+        string $userEmail,
+        string $description,
+        array $files = [],
+        int $priority = 0,
+        array $additionalParticipants = [],
+        ?string $dueDate = null,
+        ?string $forcedAssignee = null
+    ): array {
         $userEmail = strtolower(trim($userEmail));
         $priority = max(0, min(2, $priority));
-        $assignee = $this->pickAssignee($category);
+        $normalizedForcedAssignee = strtolower(trim((string) $forcedAssignee));
+        $assignee = $normalizedForcedAssignee !== '' ? $normalizedForcedAssignee : $this->pickAssignee($category);
         $now = date('c');
+        $normalizedDueDate = $this->normalizeDueDate($dueDate);
 
         $this->pdo->beginTransaction();
 
         try {
             $ticketStatement = $this->pdo->prepare(
-                'INSERT INTO tickets (title, category, user_email, assigned_email, status, description, priority, created_at, updated_at)
-                 VALUES (:title, :category, :user_email, :assigned_email, :status, :description, :priority, :created_at, :updated_at)'
+                'INSERT INTO tickets (title, category, user_email, assigned_email, status, description, priority, due_date, created_at, updated_at)
+                 VALUES (:title, :category, :user_email, :assigned_email, :status, :description, :priority, :due_date, :created_at, :updated_at)'
             );
             $ticketStatement->execute([
                 ':title' => $title,
@@ -329,6 +443,7 @@ class TicketStore
                 ':status' => 'ingediend',
                 ':description' => $description,
                 ':priority' => $priority,
+                ':due_date' => $normalizedDueDate,
                 ':created_at' => $now,
                 ':updated_at' => $now,
             ]);
@@ -382,7 +497,7 @@ class TicketStore
         }
     }
 
-    public function updateTicket(int $ticketId, string $status, ?string $assignedEmail, int $priority = 0): void
+    public function updateTicket(int $ticketId, string $status, ?string $assignedEmail, int $priority = 0, ?string $dueDate = null): void
     {
         $currentTicket = $this->pdo->prepare('SELECT status FROM tickets WHERE id = :id LIMIT 1');
         $currentTicket->execute([':id' => $ticketId]);
@@ -391,6 +506,7 @@ class TicketStore
 
         $updatedAt = date('c');
         $priority = max(0, min(2, $priority));
+        $normalizedDueDate = $this->normalizeDueDate($dueDate);
 
         $this->pdo->beginTransaction();
 
@@ -400,6 +516,7 @@ class TicketStore
                  SET status = :status,
                      assigned_email = :assigned_email,
                      priority = :priority,
+                     due_date = :due_date,
                      updated_at = :updated_at,
                      resolved_at = CASE
                          WHEN :status = 'afgehandeld' THEN COALESCE(NULLIF(resolved_at, ''), :updated_at)
@@ -411,6 +528,7 @@ class TicketStore
                 ':status' => $status,
                 ':assigned_email' => $assignedEmail,
                 ':priority' => $priority,
+                ':due_date' => $normalizedDueDate,
                 ':updated_at' => $updatedAt,
                 ':id' => $ticketId,
             ]);
@@ -466,6 +584,159 @@ class TicketStore
         ]);
 
         return $messageId;
+    }
+
+    public function updateTicketMessageCheckboxState(int $ticketId, int $messageId, int $lineIndex, bool $checked, bool $isAdmin, string $userEmail): ?string
+    {
+        if ($ticketId <= 0 || $messageId <= 0 || $lineIndex < 0) {
+            return null;
+        }
+
+        $ticket = $this->getTicket($ticketId, $isAdmin, $userEmail);
+        if ($ticket === null) {
+            return null;
+        }
+
+        $messageStatement = $this->pdo->prepare(
+            'SELECT message_text
+             FROM ticket_messages
+             WHERE id = :message_id
+               AND ticket_id = :ticket_id
+             LIMIT 1'
+        );
+        $messageStatement->execute([
+            ':message_id' => $messageId,
+            ':ticket_id' => $ticketId,
+        ]);
+        $messageText = $messageStatement->fetchColumn();
+        if (!is_string($messageText)) {
+            return null;
+        }
+
+        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $messageText));
+        if (!array_key_exists($lineIndex, $lines)) {
+            return null;
+        }
+
+        $marker = $checked ? 'x' : ' ';
+        $updatedLine = preg_replace('/^(\s*)\[(?: |x|X)\]/', '$1[' . $marker . ']', $lines[$lineIndex], 1);
+        if (!is_string($updatedLine) || $updatedLine === $lines[$lineIndex]) {
+            return null;
+        }
+
+        $lines[$lineIndex] = $updatedLine;
+        $updatedMessageText = implode("\n", $lines);
+
+        $updateMessageStatement = $this->pdo->prepare(
+            'UPDATE ticket_messages
+             SET message_text = :message_text
+             WHERE id = :message_id
+               AND ticket_id = :ticket_id'
+        );
+        $updateMessageStatement->execute([
+            ':message_text' => $updatedMessageText,
+            ':message_id' => $messageId,
+            ':ticket_id' => $ticketId,
+        ]);
+
+        if ($updateMessageStatement->rowCount() <= 0) {
+            return null;
+        }
+
+        $this->touchTicketUpdatedAt($ticketId);
+        return $updatedMessageText;
+    }
+
+    public function getTextTranslation(string $entityType, int $entityId, string $targetLanguage, string $sourceHash): ?array
+    {
+        $normalizedEntityType = trim($entityType);
+        $normalizedTargetLanguage = strtolower(trim($targetLanguage));
+        $normalizedSourceHash = trim($sourceHash);
+
+        if ($normalizedEntityType === '' || $entityId <= 0 || $normalizedTargetLanguage === '' || $normalizedSourceHash === '') {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT entity_type, entity_id, ticket_id, target_language, source_language, source_hash, translated_text, created_at, updated_at
+             FROM ticket_text_translations
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND target_language = :target_language
+               AND source_hash = :source_hash
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':target_language' => $normalizedTargetLanguage,
+            ':source_hash' => $normalizedSourceHash,
+        ]);
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) ? $row : null;
+    }
+
+    public function upsertTextTranslation(
+        string $entityType,
+        int $entityId,
+        int $ticketId,
+        string $targetLanguage,
+        string $sourceLanguage,
+        string $sourceHash,
+        string $translatedText
+    ): void {
+        $normalizedEntityType = trim($entityType);
+        $normalizedTargetLanguage = strtolower(trim($targetLanguage));
+        $normalizedSourceLanguage = strtolower(trim($sourceLanguage));
+        $normalizedSourceHash = trim($sourceHash);
+
+        if ($normalizedEntityType === '' || $entityId <= 0 || $ticketId <= 0 || $normalizedTargetLanguage === '' || $normalizedSourceHash === '') {
+            return;
+        }
+
+        $now = date('c');
+        $statement = $this->pdo->prepare(
+            'INSERT INTO ticket_text_translations (
+                entity_type,
+                entity_id,
+                ticket_id,
+                target_language,
+                source_language,
+                source_hash,
+                translated_text,
+                created_at,
+                updated_at
+            ) VALUES (
+                :entity_type,
+                :entity_id,
+                :ticket_id,
+                :target_language,
+                :source_language,
+                :source_hash,
+                :translated_text,
+                :created_at,
+                :updated_at
+            )
+            ON CONFLICT(entity_type, entity_id, target_language)
+            DO UPDATE SET
+                ticket_id = excluded.ticket_id,
+                source_language = excluded.source_language,
+                source_hash = excluded.source_hash,
+                translated_text = excluded.translated_text,
+                updated_at = excluded.updated_at'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':ticket_id' => $ticketId,
+            ':target_language' => $normalizedTargetLanguage,
+            ':source_language' => $normalizedSourceLanguage,
+            ':source_hash' => $normalizedSourceHash,
+            ':translated_text' => $translatedText,
+            ':created_at' => $now,
+            ':updated_at' => $now,
+        ]);
     }
 
     public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null): array
@@ -588,7 +859,6 @@ class TicketStore
 
         if ($isAdmin) {
             $sql .= " ORDER BY CASE WHEN t.status = 'afgehandeld' THEN 1 ELSE 0 END ASC,
-                            CASE WHEN t.status = 'afgehandeld' THEN NULL ELSE COALESCE(t.priority, 0) END DESC,
                             datetime(t.created_at) DESC,
                             t.id DESC";
         } else {
@@ -598,7 +868,36 @@ class TicketStore
         $statement = $this->pdo->prepare($sql);
         $statement->execute($parameters);
 
-        return $statement->fetchAll(PDO::FETCH_ASSOC);
+        $tickets = $statement->fetchAll(PDO::FETCH_ASSOC);
+        $tickets = array_map(fn(array $ticket): array => $this->applyDerivedPriorityForDueDate($ticket), $tickets);
+
+        if ($isAdmin) {
+            usort($tickets, static function (array $left, array $right): int {
+                $leftResolved = (string) ($left['status'] ?? '') === 'afgehandeld';
+                $rightResolved = (string) ($right['status'] ?? '') === 'afgehandeld';
+                if ($leftResolved !== $rightResolved) {
+                    return $leftResolved ? 1 : -1;
+                }
+
+                if (!$leftResolved) {
+                    $leftPriority = (int) ($left['priority'] ?? 0);
+                    $rightPriority = (int) ($right['priority'] ?? 0);
+                    if ($leftPriority !== $rightPriority) {
+                        return $rightPriority <=> $leftPriority;
+                    }
+                }
+
+                $leftCreated = strtotime((string) ($left['created_at'] ?? '')) ?: 0;
+                $rightCreated = strtotime((string) ($right['created_at'] ?? '')) ?: 0;
+                if ($leftCreated !== $rightCreated) {
+                    return $rightCreated <=> $leftCreated;
+                }
+
+                return (int) ($right['id'] ?? 0) <=> (int) ($left['id'] ?? 0);
+            });
+        }
+
+        return $tickets;
     }
 
     public function getTicket(int $ticketId, bool $isAdmin, string $userEmail): ?array
@@ -623,6 +922,8 @@ class TicketStore
         if ($ticket === false) {
             return null;
         }
+
+        $ticket = $this->applyDerivedPriorityForDueDate($ticket);
 
         $ticket['participant_emails'] = $this->getTicketParticipants((int) $ticket['id']);
         $ticket['messages'] = $this->getMessagesForTicket((int) $ticket['id']);
@@ -1130,6 +1431,35 @@ class TicketStore
             )'
         );
 
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                body TEXT NOT NULL,
+                created_by_email TEXT NOT NULL,
+                updated_by_email TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )'
+        );
+
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_text_translations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                ticket_id INTEGER NOT NULL,
+                target_language TEXT NOT NULL,
+                source_language TEXT NOT NULL DEFAULT "",
+                source_hash TEXT NOT NULL,
+                translated_text TEXT NOT NULL DEFAULT "",
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(entity_type, entity_id, target_language),
+                FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+            )'
+        );
+
         $this->ensureColumn('tickets', 'title', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'assigned_email', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'status', 'TEXT NOT NULL DEFAULT "ingediend"');
@@ -1138,20 +1468,30 @@ class TicketStore
         $this->ensureColumn('tickets', 'created_at', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'updated_at', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'resolved_at', 'TEXT DEFAULT NULL');
+        $this->ensureColumn('tickets', 'due_date', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_messages', 'message_text', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('ticket_attachments', 'mime_type', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_attachments', 'file_size', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn('ticket_text_translations', 'source_language', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_text_translations', 'source_hash', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_text_translations', 'translated_text', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_text_translations', 'created_at', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_text_translations', 'updated_at', 'TEXT NOT NULL DEFAULT ""');
 
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_user_email ON tickets(user_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_assigned_email ON tickets(assigned_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_due_date ON tickets(due_date)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_id ON ticket_status_transitions(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_status ON ticket_status_transitions(ticket_id, status)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_ticket_id ON ticket_participants(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_user_email ON ticket_participants(user_email)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_templates_name ON ticket_templates(name)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_text_translations_lookup ON ticket_text_translations(entity_type, entity_id, target_language, source_hash)');
+        $this->ensureColumn('ticket_templates', 'sort_order', 'INTEGER NOT NULL DEFAULT 0');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_browser_notifications_user_delivered ON browser_notifications(user_email, delivered_at, created_at)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user_email ON web_push_subscriptions(user_email)');
         $this->pdo->exec(
@@ -1351,6 +1691,79 @@ class TicketStore
         }
 
         return null;
+    }
+
+    private function normalizeDueDate(?string $dueDate): ?string
+    {
+        $rawValue = trim((string) $dueDate);
+        if ($rawValue === '') {
+            return null;
+        }
+
+        $datePart = substr($rawValue, 0, 10);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $datePart) !== 1) {
+            return null;
+        }
+
+        return $datePart;
+    }
+
+    private function applyDerivedPriorityForDueDate(array $ticket): array
+    {
+        $normalizedDueDate = $this->normalizeDueDate((string) ($ticket['due_date'] ?? ''));
+        $ticket['due_date'] = $normalizedDueDate;
+        $ticketStatus = strtolower(trim((string) ($ticket['status'] ?? '')));
+        if ($normalizedDueDate === null || $ticketStatus === 'afgehandeld') {
+            return $ticket;
+        }
+
+        $ticket['priority'] = $this->derivePriorityFromDueDate($normalizedDueDate);
+        return $ticket;
+    }
+
+    private function derivePriorityFromDueDate(string $dueDate): int
+    {
+        try {
+            $timezone = new DateTimeZone(date_default_timezone_get());
+            $today = new DateTimeImmutable('today', $timezone);
+            $due = DateTimeImmutable::createFromFormat('!Y-m-d', $dueDate, $timezone);
+            if (!$due instanceof DateTimeImmutable) {
+                return 0;
+            }
+
+            $calendarDaysRemaining = (int) $today->diff($due)->format('%r%a');
+            if ($calendarDaysRemaining < 7) {
+                $businessDaysRemaining = $this->countBusinessDaysBetween($today, $due);
+                if ($businessDaysRemaining < 3) {
+                    return 2;
+                }
+
+                return 1;
+            }
+        } catch (Throwable) {
+            return 0;
+        }
+
+        return 0;
+    }
+
+    private function countBusinessDaysBetween(DateTimeImmutable $startDate, DateTimeImmutable $endDate): int
+    {
+        if ($endDate < $startDate) {
+            return 0;
+        }
+
+        $dayCount = 0;
+        $cursor = $startDate;
+        while ($cursor <= $endDate) {
+            $dayOfWeek = (int) $cursor->format('N');
+            if ($dayOfWeek <= 5) {
+                $dayCount++;
+            }
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        return $dayCount;
     }
 
     private function ensureColumn(string $tableName, string $columnName, string $definition): void

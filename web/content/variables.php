@@ -171,7 +171,7 @@ $searchQuery = $canManageTickets
     ? trim((string) (array_key_exists('search', $_GET) ? $_GET['search'] : $savedOverviewFilters['search_query']))
     : '';
 $requestedView = trim((string) ($_GET['view'] ?? ''));
-$view = $canManageTickets && in_array($requestedView, ['settings', 'stats'], true) ? $requestedView : 'overview';
+$view = $canManageTickets && in_array($requestedView, ['settings', 'stats', 'template_tickets'], true) ? $requestedView : 'overview';
 $openTicketId = max(0, (int) ($_GET['open'] ?? 0));
 
 if ($canManageTickets) {

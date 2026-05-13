@@ -36,6 +36,105 @@
             syncPriorityVisibility();
         }
 
+        var escapeHtml = function (value)
+        {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        };
+
+        var SHORTCUT_KEY_DEFINITIONS = <?= json_encode(getShortcutKeyDefinitions(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        var SHORTCUT_KEY_ALIAS_MAP = {};
+
+        var normalizeShortcutKeyAlias = function (value)
+        {
+            return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        };
+
+        var registerShortcutKeyAlias = function (alias, definition)
+        {
+            var rawAlias = String(alias || '').trim().toLowerCase();
+            if (rawAlias !== '')
+            {
+                SHORTCUT_KEY_ALIAS_MAP[rawAlias] = definition;
+            }
+
+            var normalizedAlias = normalizeShortcutKeyAlias(alias);
+            if (normalizedAlias !== '')
+            {
+                SHORTCUT_KEY_ALIAS_MAP[normalizedAlias] = definition;
+            }
+        };
+
+        SHORTCUT_KEY_DEFINITIONS.forEach(function (definition)
+        {
+            (definition.aliases || []).forEach(function (alias)
+            {
+                registerShortcutKeyAlias(alias, definition);
+            });
+        });
+
+        var getShortcutKeyDefinition = function (token)
+        {
+            var rawToken = String(token || '').trim().toLowerCase();
+            var normalizedToken = normalizeShortcutKeyAlias(token);
+            var definition = SHORTCUT_KEY_ALIAS_MAP[rawToken] || SHORTCUT_KEY_ALIAS_MAP[normalizedToken] || null;
+            if (definition)
+            {
+                return definition;
+            }
+
+            if (/^[a-z0-9]$/.test(normalizedToken))
+            {
+                return { label: normalizedToken.toUpperCase(), icon: null };
+            }
+
+            if (/^f([1-9]|1[0-2])$/.test(normalizedToken))
+            {
+                return { label: normalizedToken.toUpperCase(), icon: null };
+            }
+
+            return null;
+        };
+
+        var KEY_PICKER_ICONS = {
+            'windows': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 3.5L11 2v9H2v-7.5zm11 7.5V2l11-1.5V11H13zM2 13h9v9L2 20.5V13zm11 0h11v10.5L13 22v-9z"/></svg>',
+            'arrow-up': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4l6 6h-4v10h-4V10H6l6-6z"/></svg>',
+            'arrow-down': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20l-6-6h4V4h4v10h4l-6 6z"/></svg>',
+            'arrow-left': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 12l6-6v4h10v4H10v4l-6-6z"/></svg>',
+            'arrow-right': '<svg class="shortcut-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 12l-6 6v-4H4v-4h10V6l6 6z"/></svg>'
+        };
+
+        var renderShortcutKeyTokenHtml = function (token)
+        {
+            var definition = getShortcutKeyDefinition(token);
+            if (!definition)
+            {
+                return null;
+            }
+
+            var iconHtml = KEY_PICKER_ICONS[definition.icon || ''] || '';
+            var label = String(definition.label || '').trim();
+            if (iconHtml === '' && label === '')
+            {
+                return null;
+            }
+
+            var labelHtml = label !== '' ? '<span class="shortcut-key-label">' + escapeHtml(label) + '</span>' : '';
+            return '<span class="shortcut-key">' + iconHtml + labelHtml + '</span>';
+        };
+
+        var renderShortcutMarkup = function (escapedText)
+        {
+            return String(escapedText || '').replace(/\[([^\[\]\r\n]{1,24})\]/g, function (match, token)
+            {
+                return renderShortcutKeyTokenHtml(token) || match;
+            }).replace(/(<span class="shortcut-key"(?:\s[^>]*)?>.*?<\/span>)\s*\+\s*(?=<span class="shortcut-key"(?:\s[^>]*)?>)/g, '$1<span class="shortcut-plus">+</span>');
+        };
+
         var initializeEmailChipInputs = function (scope)
         {
             (scope || document).querySelectorAll('input[data-email-chip-input="1"]').forEach(function (input)
@@ -175,6 +274,121 @@
         };
 
         initializeEmailChipInputs(document);
+
+        var templateTicketCreateForm = document.getElementById('template-ticket-create-form');
+        if (templateTicketCreateForm)
+        {
+            var templateTitleInput = document.getElementById('template_ticket_title');
+            var templatePreviewRendered = document.getElementById('template_ticket_preview_rendered');
+            var selectedTemplateIdsInput = document.getElementById('selected_template_ids');
+            var renderTemplatePreviewKeyMarkup = function (value)
+            {
+                return renderShortcutMarkup(value);
+            };
+
+            var renderTemplatePreviewLine = function (line)
+            {
+                var checkboxMatch = String(line || '').match(/^(\s*)\[( |x|X)\]\s*(.*)$/);
+                if (!checkboxMatch)
+                {
+                    return '<div class="template-preview-line">' + renderTemplatePreviewKeyMarkup(escapeHtml(line)) + '</div>';
+                }
+
+                var isChecked = String(checkboxMatch[2] || '').toLowerCase() === 'x';
+                var checkboxText = String(checkboxMatch[3] || '');
+                return '<label class="template-preview-checkbox-line">'
+                    + '<input type="checkbox" disabled' + (isChecked ? ' checked' : '') + '>'
+                    + '<span>' + (checkboxText !== '' ? renderTemplatePreviewKeyMarkup(escapeHtml(checkboxText)) : '&nbsp;') + '</span>'
+                    + '</label>';
+            };
+
+            var renderTemplatePreviewHtml = function (value)
+            {
+                var normalized = String(value || '').replace(/\r\n?/g, '\n');
+                if (normalized === '')
+                {
+                    return '';
+                }
+
+                return normalized.split('\n').map(renderTemplatePreviewLine).join('');
+            };
+
+            var updateTemplatePreview = function ()
+            {
+                var selectedIds = [];
+                var selectedBodies = [];
+
+                document.querySelectorAll('.template-fragment-checkbox').forEach(function (checkbox)
+                {
+                    if (!checkbox.checked)
+                    {
+                        return;
+                    }
+
+                    selectedIds.push(String(checkbox.value || ''));
+
+                    var templateBody = '';
+                    try
+                    {
+                        templateBody = JSON.parse(String(checkbox.getAttribute('data-template-body') || '""'));
+                    }
+                    catch (error)
+                    {
+                        templateBody = '';
+                    }
+
+                    if (String(templateBody).trim() !== '')
+                    {
+                        selectedBodies.push(String(templateBody));
+                    }
+                });
+
+                if (selectedTemplateIdsInput)
+                {
+                    selectedTemplateIdsInput.value = selectedIds.join(',');
+                }
+
+                var title = templateTitleInput ? String(templateTitleInput.value || '').trim() : '';
+                var body = selectedBodies.join('\n\n');
+                var previewValue = title !== '' && body !== ''
+                    ? title + '\n\n' + body
+                    : (title !== '' ? title : body);
+
+                if (templatePreviewRendered)
+                {
+                    templatePreviewRendered.innerHTML = renderTemplatePreviewHtml(previewValue);
+                }
+            };
+
+            document.addEventListener('change', function (e)
+            {
+                if (e.target && e.target.matches && e.target.matches('.template-fragment-checkbox'))
+                {
+                    updateTemplatePreview();
+                }
+            });
+
+            if (templateTitleInput)
+            {
+                templateTitleInput.addEventListener('input', updateTemplatePreview);
+            }
+
+            templateTicketCreateForm.addEventListener('submit', function (event)
+            {
+                updateTemplatePreview();
+
+                var hasSelection = (selectedTemplateIdsInput && selectedTemplateIdsInput.value.trim() !== '');
+                if (!hasSelection)
+                {
+                    event.preventDefault();
+                    alert('<?= addslashes(__('template_ticket.select_template_error')) ?>');
+                }
+            });
+
+            updateTemplatePreview();
+        }
+
+        var initializeTemplateCheckboxSync = function () { };
 
         var parseParticipantEmails = function (value, fallbackEmail)
         {
@@ -332,8 +546,13 @@
         document.querySelectorAll('[data-settings-row]').forEach(function (row)
         {
             var availabilityCheckbox = row.querySelector('.availability-checkbox');
-            var vacationIndicator = row.querySelector('.vacation-indicator');
-            var vacationBadge = row.querySelector('.vacation-badge');
+            var settingsUser = row.getAttribute('data-settings-user') || '';
+            var relatedRows = settingsUser !== ''
+                ? Array.prototype.filter.call(document.querySelectorAll('[data-settings-row]'), function (candidateRow)
+                {
+                    return (candidateRow.getAttribute('data-settings-user') || '') === settingsUser;
+                })
+                : [row];
 
             if (!availabilityCheckbox)
             {
@@ -343,15 +562,21 @@
             var syncAvailabilityState = function ()
             {
                 var isAvailable = availabilityCheckbox.checked;
-                row.classList.toggle('is-away', !isAvailable);
-                if (vacationIndicator)
+                relatedRows.forEach(function (relatedRow)
                 {
-                    vacationIndicator.hidden = isAvailable;
-                }
-                if (vacationBadge)
-                {
-                    vacationBadge.classList.toggle('is-away', !isAvailable);
-                }
+                    var vacationIndicator = relatedRow.querySelector('.vacation-indicator');
+                    var vacationBadge = relatedRow.querySelector('.vacation-badge');
+
+                    relatedRow.classList.toggle('is-away', !isAvailable);
+                    if (vacationIndicator)
+                    {
+                        vacationIndicator.hidden = isAvailable;
+                    }
+                    if (vacationBadge)
+                    {
+                        vacationBadge.classList.toggle('is-away', !isAvailable);
+                    }
+                });
             };
 
             availabilityCheckbox.addEventListener('change', syncAvailabilityState);
@@ -740,6 +965,298 @@
             });
         };
 
+        /**
+         * Template-fragment modal
+         */
+        var templateModal = document.getElementById('template_fragment_modal');
+        var templateModalTitle = document.getElementById('template_fragment_modal_title');
+        var templateModalName = document.getElementById('template_fragment_modal_name');
+        var templateModalBody = document.getElementById('template_fragment_modal_body');
+        var templateModalSave = document.getElementById('template_fragment_modal_save');
+        var templateModalDelete = document.getElementById('template_fragment_modal_delete');
+        var templateModalClose = document.getElementById('template_fragment_modal_close');
+        var templateModalError = document.getElementById('template_fragment_modal_error');
+        var templateModalEditId = 0;
+
+        var setTemplateModalError = function (msg)
+        {
+            if (!templateModalError) { return; }
+            templateModalError.textContent = msg || '';
+            templateModalError.hidden = !msg;
+        };
+
+        var openTemplateModal = function (mode, id, name, body)
+        {
+            if (!templateModal) { return; }
+            templateModalEditId = (mode === 'edit') ? (id || 0) : 0;
+            if (templateModalTitle)
+            {
+                templateModalTitle.textContent = (mode === 'edit')
+                    ? (templateModalSave ? (templateModalSave.getAttribute('data-label-save') || '') : '')
+                    : (templateModalSave ? (templateModalSave.getAttribute('data-label-create') || '') : '');
+            }
+            if (templateModalSave)
+            {
+                templateModalSave.textContent = (mode === 'edit')
+                    ? (templateModalSave.getAttribute('data-label-save') || '')
+                    : (templateModalSave.getAttribute('data-label-create') || '');
+            }
+            if (templateModalName) { templateModalName.value = name || ''; }
+            if (templateModalBody) { templateModalBody.value = body || ''; }
+            if (templateModalDelete) { templateModalDelete.hidden = (mode !== 'edit'); }
+            setTemplateModalError('');
+            templateModal.hidden = false;
+            if (templateModalBody)
+            {
+                templateModalBody.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (templateModalName) { templateModalName.focus(); }
+        };
+
+        var closeTemplateModal = function ()
+        {
+            if (!templateModal) { return; }
+            templateModal.hidden = true;
+            templateModalEditId = 0;
+            setTemplateModalError('');
+        };
+
+        var rebuildTemplateList = function (templates)
+        {
+            var list = document.getElementById('template_fragment_list');
+            var empty = document.getElementById('template_fragment_empty');
+            if (!list) { return; }
+
+            list.innerHTML = '';
+            if (!templates || templates.length === 0)
+            {
+                if (empty) { empty.hidden = false; }
+                return;
+            }
+
+            if (empty) { empty.hidden = true; }
+            templates.forEach(function (tpl)
+            {
+                var label = document.createElement('label');
+                label.className = 'template-fragment-item';
+
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'template-fragment-checkbox';
+                cb.value = String(tpl.id || 0);
+                var bodyJson = JSON.stringify(tpl.body || '');
+                cb.setAttribute('data-template-body', bodyJson);
+                cb.setAttribute('data-template-name', tpl.name || '');
+
+                var nameSpan = document.createElement('span');
+                nameSpan.className = 'template-fragment-name';
+                nameSpan.textContent = tpl.name || '';
+
+                var editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'secondary-button template-fragment-edit-btn';
+                editBtn.setAttribute('data-template-id', String(tpl.id || 0));
+                editBtn.setAttribute('data-template-name', tpl.name || '');
+                editBtn.setAttribute('data-template-body', tpl.body || '');
+                editBtn.textContent = '<?= addslashes(__('template_ticket.edit_template_button')) ?>';
+
+                var handle = document.createElement('span');
+                handle.className = 'template-drag-handle';
+                handle.setAttribute('aria-hidden', 'true');
+                handle.innerHTML = '&#8597;';
+
+                label.appendChild(handle);
+                label.appendChild(cb);
+                label.appendChild(nameSpan);
+                label.appendChild(editBtn);
+                list.appendChild(label);
+            });
+
+            initializeTemplateCheckboxSync(list);
+            initializeTemplateDragDrop(list);
+        };
+
+        var templateDragSrc = null;
+
+        var initializeTemplateDragDrop = function (list)
+        {
+            if (!list) { return; }
+            list.querySelectorAll('.template-fragment-item').forEach(attachTemplateDrag);
+        };
+
+        var attachTemplateDrag = function (item)
+        {
+            item.setAttribute('draggable', 'true');
+
+            item.addEventListener('dragstart', function (e)
+            {
+                templateDragSrc = item;
+                item.classList.add('is-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            item.addEventListener('dragend', function ()
+            {
+                item.classList.remove('is-dragging');
+                var list = document.getElementById('template_fragment_list');
+                if (list)
+                {
+                    list.querySelectorAll('.template-fragment-item').forEach(function (el)
+                    {
+                        el.classList.remove('drag-over');
+                    });
+                }
+                templateDragSrc = null;
+                persistTemplateOrder();
+            });
+
+            item.addEventListener('dragover', function (e)
+            {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (!templateDragSrc || templateDragSrc === item) { return; }
+                var list = item.parentNode;
+                if (!list) { return; }
+                list.querySelectorAll('.template-fragment-item').forEach(function (el)
+                {
+                    el.classList.remove('drag-over');
+                });
+                item.classList.add('drag-over');
+                var rect = item.getBoundingClientRect();
+                var midY = rect.top + rect.height / 2;
+                if (e.clientY < midY)
+                {
+                    list.insertBefore(templateDragSrc, item);
+                }
+                else
+                {
+                    list.insertBefore(templateDragSrc, item.nextSibling);
+                }
+            });
+
+            item.addEventListener('dragleave', function ()
+            {
+                item.classList.remove('drag-over');
+            });
+
+            item.addEventListener('drop', function (e)
+            {
+                e.preventDefault();
+                item.classList.remove('drag-over');
+            });
+        };
+
+        initializeTemplateDragDrop(document.getElementById('template_fragment_list'));
+
+        var persistTemplateOrder = function ()
+        {
+            var list = document.getElementById('template_fragment_list');
+            if (!list) { return; }
+            var orderedIds = [];
+            list.querySelectorAll('.template-fragment-checkbox').forEach(function (cb)
+            {
+                var id = parseInt(cb.value || '0', 10);
+                if (id > 0) { orderedIds.push(id); }
+            });
+            if (orderedIds.length === 0) { return; }
+            var csrfToken = templateModalSave ? (templateModalSave.getAttribute('data-csrf') || '') : '';
+            apiFetchJson('manage_ticket_template', { operation: 'reorder', ordered_ids: orderedIds, csrf_token: csrfToken });
+        };
+
+        var templateApiCall = function (operation, extraPayload)
+        {
+            if (templateModalSave) { templateModalSave.disabled = true; }
+            setTemplateModalError('');
+
+            var csrfToken = templateModalSave ? (templateModalSave.getAttribute('data-csrf') || '') : '';
+            return apiFetchJson('manage_ticket_template', Object.assign({
+                operation: operation,
+                csrf_token: csrfToken
+            }, extraPayload || {})).then(function (data)
+            {
+                if (!data || data.success !== true)
+                {
+                    setTemplateModalError(data && data.error ? data.error : '<?= addslashes(__('flash.db_error_prefix')) ?>');
+                    return;
+                }
+
+                closeTemplateModal();
+                rebuildTemplateList(data.templates || []);
+            }).catch(function ()
+            {
+                setTemplateModalError('<?= addslashes(__('flash.db_error_prefix')) ?>');
+            }).finally(function ()
+            {
+                if (templateModalSave) { templateModalSave.disabled = false; }
+            });
+        };
+
+        if (templateModalClose)
+        {
+            templateModalClose.addEventListener('click', closeTemplateModal);
+        }
+
+        if (templateModal)
+        {
+            templateModal.addEventListener('click', function (e)
+            {
+                if (e.target === templateModal) { closeTemplateModal(); }
+            });
+            document.addEventListener('keydown', function (e)
+            {
+                if (e.key === 'Escape' && !templateModal.hidden) { closeTemplateModal(); }
+            });
+        }
+
+        var newBtn = document.getElementById('template_fragment_new_btn');
+        if (newBtn)
+        {
+            newBtn.addEventListener('click', function ()
+            {
+                openTemplateModal('create', 0, '', '');
+            });
+        }
+
+        document.addEventListener('click', function (e)
+        {
+            var editBtn = e.target && e.target.closest ? e.target.closest('.template-fragment-edit-btn') : null;
+            if (!editBtn) { return; }
+            var id = parseInt(editBtn.getAttribute('data-template-id') || '0', 10);
+            var name = editBtn.getAttribute('data-template-name') || '';
+            var body = editBtn.getAttribute('data-template-body') || '';
+            openTemplateModal('edit', id, name, body);
+        });
+
+        if (templateModalSave)
+        {
+            templateModalSave.addEventListener('click', function ()
+            {
+                var name = templateModalName ? templateModalName.value.trim() : '';
+                var body = templateModalBody ? templateModalBody.value.trim() : '';
+                if (!name) { setTemplateModalError('<?= addslashes(__('flash.template_name_required')) ?>'); return; }
+                if (!body) { setTemplateModalError('<?= addslashes(__('flash.template_body_required')) ?>'); return; }
+
+                if (templateModalEditId > 0)
+                {
+                    templateApiCall('update', { id: templateModalEditId, name: name, body: body });
+                }
+                else
+                {
+                    templateApiCall('create', { name: name, body: body });
+                }
+            });
+        }
+
+        if (templateModalDelete)
+        {
+            templateModalDelete.addEventListener('click', function ()
+            {
+                var confirmMsg = templateModalDelete.getAttribute('data-confirm') || '';
+                if (confirmMsg && !confirm(confirmMsg)) { return; }
+                templateApiCall('delete', { id: templateModalEditId });
+            });
+        }
+
         var setParticipantFeedback = function (ticketCard, message, isError)
         {
             if (!ticketCard)
@@ -887,6 +1404,197 @@
 
         });
 
+        document.addEventListener('change', function (event)
+        {
+            var checkbox = event.target && event.target.matches && event.target.matches('[data-role="message-checkbox"]')
+                ? event.target
+                : null;
+            if (!checkbox)
+            {
+                return;
+            }
+
+            var messageNode = checkbox.closest ? checkbox.closest('.message[data-message-id]') : null;
+            var ticketCard = checkbox.closest ? checkbox.closest('details.ticket-card[data-ticket-id]') : null;
+            if (!messageNode || !ticketCard)
+            {
+                checkbox.checked = !checkbox.checked;
+                return;
+            }
+
+            var ticketId = parseInt(ticketCard.getAttribute('data-ticket-id') || '0', 10);
+            var messageId = parseInt(messageNode.getAttribute('data-message-id') || '0', 10);
+            var lineIndex = parseInt(checkbox.getAttribute('data-line-index') || '-1', 10);
+            if (ticketId <= 0 || messageId <= 0 || lineIndex < 0)
+            {
+                checkbox.checked = !checkbox.checked;
+                return;
+            }
+
+            var previousChecked = !checkbox.checked;
+            checkbox.disabled = true;
+
+            apiFetchJson('update_ticket_message_checkbox', {
+                csrf_token: csrfToken,
+                ticket_id: ticketId,
+                message_id: messageId,
+                line_index: lineIndex,
+                checked: !!checkbox.checked,
+                viewer_email: ticketPollPayload.viewer_email || '',
+                user_is_admin: !!ticketPollPayload.user_is_admin
+            }).then(function (data)
+            {
+                if (!data || data.success !== true)
+                {
+                    checkbox.checked = previousChecked;
+                    return;
+                }
+
+                if (typeof data.message_text === 'string')
+                {
+                    try
+                    {
+                        messageNode.setAttribute('data-message-text', JSON.stringify(data.message_text));
+                    }
+                    catch (error)
+                    {
+                        // UI state already reflects the intended change.
+                    }
+                }
+            }).catch(function ()
+            {
+                checkbox.checked = previousChecked;
+            }).finally(function ()
+            {
+                checkbox.disabled = false;
+            });
+        });
+
+        var parseJsonString = function (value)
+        {
+            try
+            {
+                return JSON.parse(String(value || '""'));
+            }
+            catch (error)
+            {
+                return '';
+            }
+        };
+
+        var formatTicketMessageTextForToggle = function (text, messageId)
+        {
+            var normalized = String(text || '').replace(/\r\n?/g, '\n').trim();
+            if (normalized === '')
+            {
+                return '';
+            }
+
+            return normalized.split('\n').map(function (line, lineIndex)
+            {
+                if (line.trim() === '')
+                {
+                    return '';
+                }
+
+                var checkboxMatch = line.match(/^(\s*)\[( |x|X)\]\s*(.*)$/);
+                if (checkboxMatch)
+                {
+                    var isChecked = String(checkboxMatch[2] || '').toLowerCase() === 'x';
+                    var label = String(checkboxMatch[3] || '');
+                    return '<label class="message-checkbox-line">'
+                        + '<input type="checkbox" data-role="message-checkbox" data-message-id="' + parseInt(messageId || 0, 10) + '" data-line-index="' + lineIndex + '"' + (isChecked ? ' checked' : '') + '>'
+                        + '<span>' + (label !== '' ? renderShortcutMarkup(escapeHtml(label)) : '&nbsp;') + '</span>'
+                        + '</label>';
+                }
+
+                return renderShortcutMarkup(escapeHtml(line));
+            }).join('<br>');
+        };
+
+        document.addEventListener('click', function (event)
+        {
+            var messageToggle = event.target.closest('[data-role="message-translation-toggle"]');
+            if (messageToggle)
+            {
+                var messageNode = messageToggle.closest('.message');
+                var messageContent = messageNode ? messageNode.querySelector('[data-role="message-text-content"]') : null;
+                if (!messageContent)
+                {
+                    return;
+                }
+
+                var currentlyShowing = String(messageContent.getAttribute('data-showing') || 'translated');
+                var nextShowing = currentlyShowing === 'translated' ? 'original' : 'translated';
+                var translatedText = parseJsonString(messageContent.getAttribute('data-translated-text'));
+                var originalText = parseJsonString(messageContent.getAttribute('data-original-text'));
+                var nextText = nextShowing === 'translated' ? translatedText : originalText;
+
+                messageContent.innerHTML = formatTicketMessageTextForToggle(String(nextText || ''), parseInt(messageNode.getAttribute('data-message-id') || '0', 10));
+                messageContent.setAttribute('data-showing', nextShowing);
+                messageToggle.setAttribute('data-showing', nextShowing);
+                messageToggle.textContent = nextShowing === 'translated'
+                    ? String(messageToggle.getAttribute('data-label-original') || 'Show original')
+                    : String(messageToggle.getAttribute('data-label-translated') || 'Show translation');
+                return;
+            }
+
+            var titleToggle = event.target.closest('[data-role="title-translation-toggle"]');
+            if (!titleToggle)
+            {
+                return;
+            }
+
+            var ticketCard = titleToggle.closest('details.ticket-card');
+            var titleNode = ticketCard ? ticketCard.querySelector('[data-role="ticket-title"]') : null;
+            if (!titleNode)
+            {
+                return;
+            }
+
+            var currentlyShowingTitle = String(titleNode.getAttribute('data-showing') || 'translated');
+            var nextShowingTitle = currentlyShowingTitle === 'translated' ? 'original' : 'translated';
+            var translatedTitle = parseJsonString(titleNode.getAttribute('data-translated-text'));
+            var originalTitle = parseJsonString(titleNode.getAttribute('data-original-text'));
+            titleNode.textContent = nextShowingTitle === 'translated' ? String(translatedTitle || '') : String(originalTitle || '');
+            titleNode.setAttribute('data-showing', nextShowingTitle);
+
+            titleToggle.setAttribute('data-showing', nextShowingTitle);
+            titleToggle.textContent = nextShowingTitle === 'translated'
+                ? String(titleToggle.getAttribute('data-label-original') || 'Show original')
+                : String(titleToggle.getAttribute('data-label-translated') || 'Show translation');
+        });
+
+        document.addEventListener('click', function (event)
+        {
+            var errorBtn = event.target.closest('[data-role="translation-status"][data-status="error"]');
+            if (!errorBtn)
+            {
+                return;
+            }
+
+            var errorMessage = errorBtn.getAttribute('data-error-message') || '<?= addslashes(__('translation.error_fallback')) ?>';
+            var modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.addEventListener('click', function (e) {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+
+            var modalContent = document.createElement('div');
+            modalContent.className = 'modal-content';
+            modalContent.innerHTML = '<div class="modal-header"><h3><?= addslashes(__('translation.error_title')) ?></h3><button class="modal-close" type="button" aria-label="Close">&times;</button></div><div class="modal-body"><p>' + escapeHtml(errorMessage) + '</p></div>';
+            
+            var closeBtn = modalContent.querySelector('.modal-close');
+            closeBtn.addEventListener('click', function () {
+                modal.remove();
+            });
+
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+        });
+
         document.addEventListener('mouseover', function (event)
         {
             var applyButton = event.target.closest('[data-role="participants-apply-button"]');
@@ -921,6 +1629,205 @@
                 modalCard.classList.remove('is-save-hover');
             }
         });
+
+        var TRANSLATION_LABEL_ORIGINAL = <?= json_encode(__('ticket.show_original'), JSON_UNESCAPED_UNICODE) ?>;
+        var TRANSLATION_LABEL_TRANSLATED = <?= json_encode(__('ticket.show_translation'), JSON_UNESCAPED_UNICODE) ?>;
+        var TRANSLATION_ERROR_TOOLTIP = <?= json_encode(__('translation.error_tooltip'), JSON_UNESCAPED_UNICODE) ?>;
+        var TRANSLATION_ERROR_FALLBACK = <?= json_encode(__('translation.error_fallback'), JSON_UNESCAPED_UNICODE) ?>;
+
+        var applyTranslationErrorIndicator = function (messageNode, errorCode)
+        {
+            if (!messageNode)
+            {
+                return;
+            }
+
+            messageNode.setAttribute('data-translation-status', 'error');
+            var statusIndicator = messageNode.querySelector('[data-role="translation-status"]');
+            if (!statusIndicator)
+            {
+                var messageMeta = messageNode.querySelector('.message-meta');
+                if (!messageMeta)
+                {
+                    return;
+                }
+
+                statusIndicator = document.createElement('button');
+                statusIndicator.type = 'button';
+                statusIndicator.className = 'translation-status-indicator';
+                statusIndicator.setAttribute('data-role', 'translation-status');
+                messageMeta.appendChild(statusIndicator);
+            }
+
+            statusIndicator.setAttribute('data-status', 'error');
+            statusIndicator.title = TRANSLATION_ERROR_TOOLTIP;
+            statusIndicator.setAttribute('data-error-message', errorCode ? (TRANSLATION_ERROR_FALLBACK + ' (' + String(errorCode) + ')') : TRANSLATION_ERROR_FALLBACK);
+            statusIndicator.innerHTML = '';
+
+            var errorIcon = document.createElement('svg');
+            errorIcon.className = 'translation-error-icon';
+            errorIcon.setAttribute('viewBox', '0 0 24 24');
+            errorIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            errorIcon.setAttribute('aria-hidden', 'true');
+            errorIcon.innerHTML = '<path d="M12 3L2 21h20L12 3z" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17" r="1" fill="currentColor"/>';
+            statusIndicator.appendChild(errorIcon);
+        };
+
+        var applyTranslationToCard = function (card, data)
+        {
+            var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
+            if (!data || !data.success || data.ticket_id !== ticketId)
+            {
+                return;
+            }
+
+            var titleNode = card.querySelector('[data-role="ticket-title"]');
+            if (titleNode)
+            {
+                var translatedTitle = String(data.title || '');
+                var rawTitle = String(data.title_raw || data.title || '');
+                titleNode.setAttribute('data-translated-text', JSON.stringify(translatedTitle));
+                titleNode.setAttribute('data-original-text', JSON.stringify(rawTitle));
+                titleNode.setAttribute('data-showing', 'translated');
+                titleNode.textContent = translatedTitle;
+
+                var existingTitleToggle = card.querySelector('[data-role="title-translation-toggle"]');
+                if (data.title_is_translated)
+                {
+                    if (!existingTitleToggle)
+                    {
+                        var titleToggleBtn = document.createElement('button');
+                        titleToggleBtn.type = 'button';
+                        titleToggleBtn.className = 'translation-toggle-button';
+                        titleToggleBtn.setAttribute('data-role', 'title-translation-toggle');
+                        titleToggleBtn.setAttribute('data-label-original', TRANSLATION_LABEL_ORIGINAL);
+                        titleToggleBtn.setAttribute('data-label-translated', TRANSLATION_LABEL_TRANSLATED);
+                        titleToggleBtn.setAttribute('data-showing', 'translated');
+                        titleToggleBtn.textContent = TRANSLATION_LABEL_ORIGINAL;
+                        var mainTitle = card.querySelector('.ticket-main-title');
+                        if (mainTitle)
+                        {
+                            mainTitle.appendChild(titleToggleBtn);
+                        }
+                    }
+                    else
+                    {
+                        existingTitleToggle.setAttribute('data-showing', 'translated');
+                        existingTitleToggle.textContent = TRANSLATION_LABEL_ORIGINAL;
+                    }
+                }
+                else if (existingTitleToggle)
+                {
+                    existingTitleToggle.remove();
+                }
+            }
+
+            (data.messages || []).forEach(function (msg)
+            {
+                var messageNode = card.querySelector('[data-message-id="' + parseInt(msg.id, 10) + '"]');
+                if (!messageNode)
+                {
+                    return;
+                }
+
+                if (msg.translation_error)
+                {
+                    console.warn('[translation] Error for message #' + msg.id + ' in ticket #' + ticketId + ':', msg.translation_error, msg.translation_error_detail || '');
+                    applyTranslationErrorIndicator(messageNode, msg.translation_error);
+                    return;
+                }
+
+                var displayText = String(msg.message_text || '');
+                var rawText = String(msg.message_text_raw || msg.message_text || '');
+
+                var messageContent = messageNode.querySelector('[data-role="message-text-content"]');
+                if (messageContent)
+                {
+                    messageContent.setAttribute('data-translated-text', JSON.stringify(displayText));
+                    messageContent.setAttribute('data-original-text', JSON.stringify(rawText));
+                    messageContent.setAttribute('data-showing', 'translated');
+                    messageContent.innerHTML = formatTicketMessageTextForToggle(displayText, msg.id);
+                }
+
+                messageNode.setAttribute('data-translation-status', 'loaded');
+                
+                var statusIndicator = messageNode.querySelector('[data-role="translation-status"]');
+                if (statusIndicator)
+                {
+                    statusIndicator.remove();
+                }
+
+                var existingMsgToggle = messageNode.querySelector('[data-role="message-translation-toggle"]');
+                if (msg.message_is_translated)
+                {
+                    if (!existingMsgToggle)
+                    {
+                        var msgToggleBtn = document.createElement('button');
+                        msgToggleBtn.type = 'button';
+                        msgToggleBtn.className = 'translation-toggle-button';
+                        msgToggleBtn.setAttribute('data-role', 'message-translation-toggle');
+                        msgToggleBtn.setAttribute('data-label-original', TRANSLATION_LABEL_ORIGINAL);
+                        msgToggleBtn.setAttribute('data-label-translated', TRANSLATION_LABEL_TRANSLATED);
+                        msgToggleBtn.setAttribute('data-showing', 'translated');
+                        msgToggleBtn.textContent = TRANSLATION_LABEL_ORIGINAL;
+                        var messageMeta = messageNode.querySelector('.message-meta');
+                        if (messageMeta)
+                        {
+                            messageMeta.appendChild(msgToggleBtn);
+                        }
+                    }
+                    else
+                    {
+                        existingMsgToggle.setAttribute('data-showing', 'translated');
+                        existingMsgToggle.textContent = TRANSLATION_LABEL_ORIGINAL;
+                    }
+                }
+                else if (existingMsgToggle)
+                {
+                    existingMsgToggle.remove();
+                }
+            });
+        };
+
+        var triggerLazyTranslations = function (container)
+        {
+            var pendingCards = (container || document).querySelectorAll('[data-needs-translation="1"]');
+            pendingCards.forEach(function (card)
+            {
+                var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
+                if (!ticketId)
+                {
+                    return;
+                }
+
+                card.setAttribute('data-needs-translation', 'loading');
+
+                var translateParams = {
+                    ticket_id: ticketId,
+                    language: ticketPollPayload.current_language || 'nl',
+                    viewer_email: ticketPollPayload.viewer_email || '',
+                    user_is_admin: !!ticketPollPayload.user_is_admin,
+                    is_admin_portal: !!ticketPollPayload.is_admin_portal,
+                };
+                console.log('[translation] Requesting ticket #' + ticketId, translateParams);
+
+                apiFetchJson('translate_ticket', translateParams).then(function (data)
+                {
+                    console.log('[translation] Response for ticket #' + ticketId, data);
+                    card.setAttribute('data-needs-translation', '0');
+                    applyTranslationToCard(card, data);
+                }).catch(function (error)
+                {
+                    console.error('[translation] Fetch error for ticket #' + ticketId, error);
+                    card.setAttribute('data-needs-translation', '1');
+
+                    card.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
+                    {
+                        applyTranslationErrorIndicator(msg, String(error && error.message ? error.message : 'network_error'));
+                    });
+                });
+            });
+        };
 
         var postWebPushSubscription = function (action, subscription)
         {
@@ -1273,6 +2180,8 @@
             setText(card.querySelector('[data-role="message-count-badge"]'), String(ticket.message_count) + ' ' + '<?= addslashes(__('ticket.messages_count')) ?>');
             setText(card.querySelector('[data-role="meta-created-value"]'), ticket.meta_created_value);
             setText(card.querySelector('[data-role="meta-updated-value"]'), ticket.meta_updated_value);
+            setText(card.querySelector('[data-role="meta-due-date-value"]'), ticket.due_date_label);
+            setValue(card.querySelector('[data-role="due-date-input"]'), ticket.due_date);
             setValue(card.querySelector('[data-role="priority-select"]'), String(ticket.priority));
             setValue(card.querySelector('[data-role="status-select"]'), ticket.status);
             setValue(card.querySelector('[data-role="assigned-select"]'), ticket.assigned_email);
@@ -1343,6 +2252,7 @@
                 {
                     thread.appendChild(messageNode);
                     messagesWrap.hidden = false;
+                    card.setAttribute('data-needs-translation', '1');
                 }
             });
         };
@@ -1438,6 +2348,8 @@
                     empty_html: data.empty_html || ''
                 });
             }
+
+            triggerLazyTranslations(list);
         };
 
         var pollLiveTicketSection = function ()
@@ -1475,6 +2387,9 @@
         {
             var intervalMs = parseInt(liveTicketSection.getAttribute('data-ticket-poll-interval') || '15000', 10);
             liveTicketPollTimer = window.setInterval(pollLiveTicketSection, Math.max(intervalMs, 5000));
+            window.setTimeout(function () {
+                triggerLazyTranslations(liveTicketSection);
+            }, 200);
         }
 
         if (browserNotificationPollUrl)
@@ -1700,43 +2615,44 @@
             {
                 label: 'Modifiers',
                 keys: [
-                    { token: 'ctrl',    label: 'Ctrl' },
-                    { token: 'alt',     label: 'Alt' },
-                    { token: 'shift',   label: 'Shift' },
-                    { token: 'win',     label: '',  icon: 'windows' },
-                    { token: 'altgr',   label: 'Alt Gr' },
-                    { token: 'fn',      label: 'Fn' }
+                    { token: 'ctrl', label: 'Ctrl' },
+                    { token: 'alt', label: 'Alt' },
+                    { token: 'shift', label: 'Shift' },
+                    { token: 'win', label: '', icon: 'windows' },
+                    { token: 'altgr', label: 'Alt Gr' },
+                    { token: 'fn', label: 'Fn' }
                 ]
             },
             {
                 label: 'Navigatie',
                 keys: [
-                    { token: 'esc',      label: 'Esc' },
-                    { token: 'tab',      label: 'Tab' },
-                    { token: 'caps',     label: 'Caps Lock' },
-                    { token: 'enter',    label: 'Enter' },
-                    { token: 'space',    label: 'Space' },
-                    { token: 'backspace',label: 'Backspace' },
-                    { token: 'delete',   label: 'Delete' },
-                    { token: 'ins',      label: 'Insert' },
-                    { token: 'home',     label: 'Home' },
-                    { token: 'end',      label: 'End' },
-                    { token: 'pageup',   label: 'Page Up' },
+                    { token: 'esc', label: 'Esc' },
+                    { token: 'tab', label: 'Tab' },
+                    { token: 'caps', label: 'Caps Lock' },
+                    { token: 'enter', label: 'Enter' },
+                    { token: 'space', label: 'Space' },
+                    { token: 'backspace', label: 'Backspace' },
+                    { token: 'delete', label: 'Delete' },
+                    { token: 'ins', label: 'Insert' },
+                    { token: 'home', label: 'Home' },
+                    { token: 'end', label: 'End' },
+                    { token: 'pageup', label: 'Page Up' },
                     { token: 'pagedown', label: 'Page Down' }
                 ]
             },
             {
                 label: 'Pijltjes',
                 keys: [
-                    { token: 'up',    label: '', icon: 'arrow-up' },
-                    { token: 'down',  label: '', icon: 'arrow-down' },
-                    { token: 'left',  label: '', icon: 'arrow-left' },
+                    { token: 'up', label: '', icon: 'arrow-up' },
+                    { token: 'down', label: '', icon: 'arrow-down' },
+                    { token: 'left', label: '', icon: 'arrow-left' },
                     { token: 'right', label: '', icon: 'arrow-right' }
                 ]
             },
             {
                 label: 'Functietoetsen',
-                keys: (function () {
+                keys: (function ()
+                {
                     var rows = [];
                     for (var i = 1; i <= 12; i++) { rows.push({ token: 'f' + i, label: 'F' + i }); }
                     return rows;
@@ -1745,49 +2661,43 @@
             {
                 label: 'Systeem',
                 keys: [
-                    { token: 'prtsc',      label: 'PrtSc' },
+                    { token: 'prtsc', label: 'PrtSc' },
                     { token: 'scrolllock', label: 'Scroll Lock' },
-                    { token: 'pause',      label: 'Pause' },
-                    { token: 'menu',       label: 'Menu' },
-                    { token: 'numlock',    label: 'Num Lock' }
+                    { token: 'pause', label: 'Pause' },
+                    { token: 'menu', label: 'Menu' },
+                    { token: 'numlock', label: 'Num Lock' }
                 ]
             },
             {
                 label: 'Media',
                 keys: [
-                    { token: 'volup',        label: 'Vol +' },
-                    { token: 'voldown',      label: 'Vol -' },
-                    { token: 'mute',         label: 'Mute' },
-                    { token: 'playpause',    label: 'Play/Pause' },
-                    { token: 'nexttrack',    label: 'Next' },
-                    { token: 'previoustrack',label: 'Prev' }
+                    { token: 'volup', label: 'Vol +' },
+                    { token: 'voldown', label: 'Vol -' },
+                    { token: 'mute', label: 'Mute' },
+                    { token: 'playpause', label: 'Play/Pause' },
+                    { token: 'nexttrack', label: 'Next' },
+                    { token: 'previoustrack', label: 'Prev' }
                 ]
             },
             {
                 label: 'Symbolen',
                 keys: [
-                    { token: 'minus',       label: '-' },
-                    { token: 'equals',      label: '=' },
-                    { token: 'comma',       label: ',' },
-                    { token: 'period',      label: '.' },
-                    { token: 'slash',       label: '/' },
-                    { token: 'backslash',   label: '\\' },
-                    { token: 'semicolon',   label: ';' },
-                    { token: 'quote',       label: "'" },
-                    { token: 'backtick',    label: '`' },
-                    { token: 'lbracket',    label: '[' },
-                    { token: 'rbracket',    label: ']' }
+                    { token: 'minus', label: '-' },
+                    { token: 'equals', label: '=' },
+                    { token: 'comma', label: ',' },
+                    { token: 'period', label: '.' },
+                    { token: 'slash', label: '/' },
+                    { token: 'backslash', label: '\\' },
+                    { token: 'semicolon', label: ';' },
+                    { token: 'quote', label: "'" },
+                    { token: 'backtick', label: '`' },
+                    { token: 'lbracket', label: '[' },
+                    { token: 'rbracket', label: ']' }
                 ]
             }
         ];
 
-        var KEY_PICKER_ICONS = {
-            'windows': '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 3.5L11 2v9H2v-7.5zm11 7.5V2l11-1.5V11H13zM2 13h9v9L2 20.5V13zm11 0h11v10.5L13 22v-9z"/></svg>',
-            'arrow-up':    '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4l6 6h-4v10h-4V10H6l6-6z"/></svg>',
-            'arrow-down':  '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20l-6-6h4V4h4v10h4l-6 6z"/></svg>',
-            'arrow-left':  '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 12l6-6v4h10v4H10v4l-6-6z"/></svg>',
-            'arrow-right': '<svg class="key-picker-key-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 12l-6 6v-4H4v-4h10V6l6 6z"/></svg>'
-        };
+        var KEY_PICKER_BUTTON_ICONS = KEY_PICKER_ICONS;
 
         var buildKeyPickerPopup = function (popup)
         {
@@ -1800,7 +2710,10 @@
 
                 group.keys.forEach(function (key)
                 {
-                    var inner = (KEY_PICKER_ICONS[key.icon || ''] || '') + (key.label ? key.label : '');
+                    var definition = getShortcutKeyDefinition(key.token);
+                    var icon = key.icon || (definition ? definition.icon : '');
+                    var label = definition ? definition.label : (key.label || '');
+                    var inner = (KEY_PICKER_BUTTON_ICONS[icon || ''] || '') + (label ? escapeHtml(label) : '');
                     html += '<button type="button" class="key-picker-key" data-key-token="' + key.token + '">'
                         + inner + '</button>';
                 });
@@ -1813,7 +2726,7 @@
         var initKeyPicker = function (wrapper)
         {
             var toggle = wrapper.querySelector('.key-picker-toggle');
-            var popup  = wrapper.querySelector('.key-picker-popup');
+            var popup = wrapper.querySelector('.key-picker-popup');
             var textarea = wrapper.querySelector('textarea');
             if (!toggle || !popup || !textarea) { return; }
 
@@ -1840,7 +2753,7 @@
                 if (typeof textarea.setRangeText === 'function')
                 {
                     var start = textarea.selectionStart;
-                    var end   = textarea.selectionEnd;
+                    var end = textarea.selectionEnd;
                     textarea.setRangeText(insertion, start, end, 'end');
                 }
                 else

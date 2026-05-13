@@ -11,6 +11,11 @@ ob_start();
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'TicketStore.php';
 
+$vendorAutoloadPath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+if (is_file($vendorAutoloadPath)) {
+    require_once $vendorAutoloadPath;
+}
+
 // Houd auth.php configuratief: normaliseer ict-gebruikers vroeg voor logincheck.
 if (!isset($ictUserColors) || !is_array($ictUserColors)) {
     $ictUserColors = [];
