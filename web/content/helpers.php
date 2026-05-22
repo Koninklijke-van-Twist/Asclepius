@@ -577,16 +577,16 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         <span class="status-pill" data-role="status-pill"
                             style="--ticket-color: <?= h($ticketColor) ?>;"><?= h(translateStatus((string) ($ticket['status'] ?? ''))) ?></span>
                     <?php endif; ?>
+                    <span class="assignee-badge" data-role="assignee-badge"
+                        style="--assignee-color: <?= h(emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'))) ?>;">
+                        <?= h($assignedLabel) ?>
+                    </span>
                     <?php if ($userIsAdmin && $isAdminPortal): ?>
                         <span class="status-pill" data-role="priority-pill"
                             style="--ticket-color: <?= h(getPriorityColor((int) ($ticket['priority'] ?? 0))) ?>;"><?= h(__('ticket.meta_priority')) ?>
                             <?= (int) ($ticket['priority'] ?? 0) ?> ·
                             <?= h(formatPriorityLabel((int) ($ticket['priority'] ?? 0))) ?></span>
                     <?php endif; ?>
-                    <span class="assignee-badge" data-role="assignee-badge"
-                        style="--assignee-color: <?= h(emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'))) ?>;">
-                        <?= h($assignedLabel) ?>
-                    </span>
                     <?php if ($isAdminPortal): ?>
                         <span class="count-badge" data-role="time-open-badge"><?= h(__('ticket.time_open')) ?>:
                             <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
