@@ -1576,8 +1576,10 @@
             var errorMessage = errorBtn.getAttribute('data-error-message') || '<?= addslashes(__('translation.error_fallback')) ?>';
             var modal = document.createElement('div');
             modal.className = 'modal-overlay';
-            modal.addEventListener('click', function (e) {
-                if (e.target === modal) {
+            modal.addEventListener('click', function (e)
+            {
+                if (e.target === modal)
+                {
                     modal.remove();
                 }
             });
@@ -1585,9 +1587,10 @@
             var modalContent = document.createElement('div');
             modalContent.className = 'modal-content';
             modalContent.innerHTML = '<div class="modal-header"><h3><?= addslashes(__('translation.error_title')) ?></h3><button class="modal-close" type="button" aria-label="Close">&times;</button></div><div class="modal-body"><p>' + escapeHtml(errorMessage) + '</p></div>';
-            
+
             var closeBtn = modalContent.querySelector('.modal-close');
-            closeBtn.addEventListener('click', function () {
+            closeBtn.addEventListener('click', function ()
+            {
                 modal.remove();
             });
 
@@ -1750,7 +1753,7 @@
                 }
 
                 messageNode.setAttribute('data-translation-status', 'loaded');
-                
+
                 var statusIndicator = messageNode.querySelector('[data-role="translation-status"]');
                 if (statusIndicator)
                 {
@@ -2177,7 +2180,6 @@
             applyParticipantSummaryToCard(card, ticket.participant_emails, ticket.requester_label, ticket.requester_tooltip, ticket.user_email);
             setText(card.querySelector('[data-role="ticket-category"]'), ticket.category_label);
             setText(card.querySelector('[data-role="ticket-created"]'), ticket.created_at_label);
-            setText(card.querySelector('[data-role="message-count-badge"]'), String(ticket.message_count) + ' ' + '<?= addslashes(__('ticket.messages_count')) ?>');
             setText(card.querySelector('[data-role="meta-created-value"]'), ticket.meta_created_value);
             setText(card.querySelector('[data-role="meta-updated-value"]'), ticket.meta_updated_value);
             setText(card.querySelector('[data-role="meta-due-date-value"]'), ticket.due_date_label);
@@ -2210,7 +2212,7 @@
             var timeOpenBadge = card.querySelector('[data-role="time-open-badge"]');
             if (timeOpenBadge)
             {
-                setText(timeOpenBadge, '<?= addslashes(__('ticket.time_open')) ?> ' + ticket.time_open_label);
+                setText(timeOpenBadge, '<?= addslashes(__('ticket.time_open')) ?>: ' + ticket.time_open_label);
             }
 
             var reopenWrap = card.querySelector('[data-role="reopen-wrap"]');
@@ -2387,7 +2389,8 @@
         {
             var intervalMs = parseInt(liveTicketSection.getAttribute('data-ticket-poll-interval') || '15000', 10);
             liveTicketPollTimer = window.setInterval(pollLiveTicketSection, Math.max(intervalMs, 5000));
-            window.setTimeout(function () {
+            window.setTimeout(function ()
+            {
                 triggerLazyTranslations(liveTicketSection);
             }, 200);
         }

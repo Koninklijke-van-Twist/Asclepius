@@ -434,7 +434,8 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
             <?php if ($translationPending): ?>
                 <div class="translation-status-indicator" data-role="translation-status" data-status="pending"
                     title="<?= h(__('translation.loading_tooltip')) ?>">
-                    <span class="translation-flag-ghost" aria-hidden="true"><?= h(SUPPORTED_LANGUAGES[getCurrentLanguage()]['flag']) ?></span>
+                    <span class="translation-flag-ghost"
+                        aria-hidden="true"><?= h(SUPPORTED_LANGUAGES[getCurrentLanguage()]['flag']) ?></span>
                     <span class="translation-spinner-ring" aria-hidden="true"></span>
                 </div>
             <?php endif; ?>
@@ -540,8 +541,8 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     ob_start();
     ?>
     <details class="ticket-card" data-ticket-id="<?= (int) ($ticket['id'] ?? 0) ?>"
-        data-needs-translation="<?= $needsTranslation ? '1' : '0' ?>"
-        style="--ticket-color: <?= h($ticketColor) ?>;" <?= $shouldOpen ? 'open' : '' ?>>
+        data-needs-translation="<?= $needsTranslation ? '1' : '0' ?>" style="--ticket-color: <?= h($ticketColor) ?>;"
+        <?= $shouldOpen ? 'open' : '' ?>>
         <summary>
             <div class="ticket-summary">
                 <div>
@@ -586,10 +587,8 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         style="--assignee-color: <?= h(emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'))) ?>;">
                         <?= h($assignedLabel) ?>
                     </span>
-                    <span class="count-badge" data-role="message-count-badge"><?= (int) ($ticket['message_count'] ?? 0) ?>
-                        <?= h(__('ticket.messages_count')) ?></span>
                     <?php if ($isAdminPortal): ?>
-                        <span class="count-badge" data-role="time-open-badge"><?= h(__('ticket.time_open')) ?>
+                        <span class="count-badge" data-role="time-open-badge"><?= h(__('ticket.time_open')) ?>:
                             <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
                     <?php endif; ?>
                 </div>
