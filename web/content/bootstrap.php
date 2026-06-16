@@ -2,7 +2,18 @@
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
-ini_set('session.use_trans_sid', '0');
+
+$appSessionConfigPaths = [
+    __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'login' . DIRECTORY_SEPARATOR . 'session_config.php',
+    __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'login' . DIRECTORY_SEPARATOR . 'session_config.php',
+];
+foreach ($appSessionConfigPaths as $appSessionConfigPath) {
+    if (is_file($appSessionConfigPath)) {
+        require_once $appSessionConfigPath;
+        configure_app_session();
+        break;
+    }
+}
 
 // Start output buffering vroeg zodat PHP-notices of whitespace de response niet corrumperen
 // (met name belangrijk voor binaire downloads via ?download=)
