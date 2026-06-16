@@ -273,7 +273,74 @@
             });
         };
 
+        var accumulatedFileMap = new WeakMap();
+
+        var syncAccumulatedFileInput = function (input, files)
+        {
+            var dataTransfer = new DataTransfer();
+            files.forEach(function (file)
+            {
+                dataTransfer.items.add(file);
+            });
+            input.files = dataTransfer.files;
+
+            var summary = input.parentElement ? input.parentElement.querySelector('[data-selected-files-summary]') : null;
+            if (!summary)
+            {
+                return;
+            }
+
+            if (!files.length)
+            {
+                summary.hidden = true;
+                summary.textContent = '';
+                return;
+            }
+
+            summary.hidden = false;
+            summary.textContent = files.map(function (file)
+            {
+                return file.name;
+            }).join(', ');
+        };
+
+        var initializeAccumulatingFileInputs = function (scope)
+        {
+            (scope || document).querySelectorAll('input[type="file"][data-accumulate-files="1"]').forEach(function (input)
+            {
+                if (input.dataset.accumulateFilesReady === '1')
+                {
+                    return;
+                }
+
+                input.dataset.accumulateFilesReady = '1';
+                accumulatedFileMap.set(input, []);
+
+                input.addEventListener('change', function ()
+                {
+                    var collected = accumulatedFileMap.get(input) || [];
+                    Array.from(input.files || []).forEach(function (file)
+                    {
+                        var isDuplicate = collected.some(function (existing)
+                        {
+                            return existing.name === file.name
+                                && existing.size === file.size
+                                && existing.lastModified === file.lastModified;
+                        });
+                        if (!isDuplicate)
+                        {
+                            collected.push(file);
+                        }
+                    });
+
+                    accumulatedFileMap.set(input, collected);
+                    syncAccumulatedFileInput(input, collected);
+                });
+            });
+        };
+
         initializeEmailChipInputs(document);
+        initializeAccumulatingFileInputs(document);
 
         var templateTicketCreateForm = document.getElementById('template-ticket-create-form');
         if (templateTicketCreateForm)
@@ -597,6 +664,9 @@
         var webPushVapidPublicKey = document.body ? (document.body.getAttribute('data-webpush-vapid-public-key') || '') : '';
         var webPushServiceWorkerUrl = document.body ? (document.body.getAttribute('data-webpush-sw-url') || '') : '';
         var csrfToken = document.body ? (document.body.getAttribute('data-csrf-token') || '') : '';
+        var sessionKeepaliveUrl = document.body ? (document.body.getAttribute('data-session-keepalive-url') || 'session_keepalive.php') : 'session_keepalive.php';
+        var sessionKeepaliveTimer = null;
+        var sessionKeepaliveInFlight = false;
         var webPushSyncInFlight = false;
         var sessionExpiredHandled = false;
         var sessionExpiredCountdownTimer = null;
@@ -893,6 +963,12 @@
                 browserNotificationPollTimer = null;
             }
 
+            if (sessionKeepaliveTimer !== null)
+            {
+                window.clearInterval(sessionKeepaliveTimer);
+                sessionKeepaliveTimer = null;
+            }
+
             if (sessionExpiredModal)
             {
                 sessionExpiredModal.classList.add('is-open');
@@ -916,6 +992,59 @@
         };
 
         window.asclepiusHandleSessionExpired = handleSessionExpired;
+
+        var refreshSessionKeepalive = function ()
+        {
+            if (!sessionKeepaliveUrl || sessionKeepaliveInFlight || document.hidden || sessionExpiredHandled)
+            {
+                return;
+            }
+
+            sessionKeepaliveInFlight = true;
+            fetch(sessionKeepaliveUrl, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'fetch'
+                }
+            }).then(function (response)
+            {
+                if (response.status === 401)
+                {
+                    handleSessionExpired();
+                    return null;
+                }
+
+                if (!response.ok)
+                {
+                    return null;
+                }
+
+                return response.json();
+            }).then(function (data)
+            {
+                if (!data || !data.ok)
+                {
+                    return;
+                }
+
+                if (data.api_key && data.api_key !== apiKey)
+                {
+                    apiKey = data.api_key;
+                    if (document.body)
+                    {
+                        document.body.setAttribute('data-api-key', apiKey);
+                    }
+                }
+            }).catch(function ()
+            {
+                // Volgende keepalive-poging kan alsnog slagen.
+            }).finally(function ()
+            {
+                sessionKeepaliveInFlight = false;
+            });
+        };
 
         var apiFetchJson = function (action, payload)
         {
@@ -2332,6 +2461,7 @@
                     hydrateTicketThumbnails(card);
                 }
                 initializeEmailChipInputs(card);
+                initializeAccumulatingFileInputs(card);
                 previousCard = card;
             });
 
@@ -2409,6 +2539,20 @@
                     requestBrowserNotificationPermission();
                     syncWebPushSubscription();
                     pollBrowserNotifications();
+                }
+            });
+        }
+
+        if (sessionKeepaliveUrl)
+        {
+            var sessionKeepaliveIntervalMs = parseInt((document.body && document.body.getAttribute('data-session-keepalive-interval')) || '300000', 10);
+            window.setTimeout(refreshSessionKeepalive, 30000);
+            sessionKeepaliveTimer = window.setInterval(refreshSessionKeepalive, Math.max(sessionKeepaliveIntervalMs, 60000));
+            document.addEventListener('visibilitychange', function ()
+            {
+                if (!document.hidden)
+                {
+                    refreshSessionKeepalive();
                 }
             });
         }

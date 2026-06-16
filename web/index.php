@@ -32,7 +32,8 @@ $apiUrl = 'api.php';
     data-browser-notification-open-template="<?= h($browserNotificationOpenUrlTemplate) ?>"
     data-browser-notification-poll-interval="15000" data-webpush-subscribe-url="<?= h($webPushSubscriptionUrl) ?>"
     data-webpush-vapid-public-key="<?= h(WEB_PUSH_VAPID_PUBLIC_KEY) ?>"
-    data-webpush-sw-url="<?= h($webPushServiceWorkerUrl) ?>" data-csrf-token="<?= h($csrfToken) ?>">
+    data-webpush-sw-url="<?= h($webPushServiceWorkerUrl) ?>" data-csrf-token="<?= h($csrfToken) ?>"
+    data-session-keepalive-url="session_keepalive.php" data-session-keepalive-interval="300000">
     <div class="page">
         <?php require __DIR__ . '/content/views/header.php'; ?>
 

@@ -774,7 +774,8 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
 
                 <label>
                     <?= h(__('ticket.add_attachments')) ?>
-                    <input type="file" name="reply_attachments[]" multiple>
+                    <input type="file" name="reply_attachments[]" multiple data-accumulate-files="1">
+                    <span class="hint" data-selected-files-summary hidden></span>
                     <span class="hint"><?= h(__('ticket.file_hint')) ?></span>
                 </label>
 
