@@ -304,6 +304,35 @@
             }).join(', ');
         };
 
+        var addFilesToAccumulatingInput = function (fileInput, newFiles)
+        {
+            var collected = accumulatedFileMap.get(fileInput) || [];
+            var added = 0;
+
+            newFiles.forEach(function (file)
+            {
+                var isDuplicate = collected.some(function (existing)
+                {
+                    return existing.name === file.name
+                        && existing.size === file.size
+                        && existing.lastModified === file.lastModified;
+                });
+                if (!isDuplicate)
+                {
+                    collected.push(file);
+                    added++;
+                }
+            });
+
+            if (added > 0)
+            {
+                accumulatedFileMap.set(fileInput, collected);
+                syncAccumulatedFileInput(fileInput, collected);
+            }
+
+            return added;
+        };
+
         var initializeAccumulatingFileInputs = function (scope)
         {
             (scope || document).querySelectorAll('input[type="file"][data-accumulate-files="1"]').forEach(function (input)
@@ -318,29 +347,76 @@
 
                 input.addEventListener('change', function ()
                 {
-                    var collected = accumulatedFileMap.get(input) || [];
-                    Array.from(input.files || []).forEach(function (file)
-                    {
-                        var isDuplicate = collected.some(function (existing)
-                        {
-                            return existing.name === file.name
-                                && existing.size === file.size
-                                && existing.lastModified === file.lastModified;
-                        });
-                        if (!isDuplicate)
-                        {
-                            collected.push(file);
-                        }
-                    });
-
-                    accumulatedFileMap.set(input, collected);
-                    syncAccumulatedFileInput(input, collected);
+                    addFilesToAccumulatingInput(input, Array.from(input.files || []));
                 });
             });
         };
 
         initializeEmailChipInputs(document);
         initializeAccumulatingFileInputs(document);
+
+        document.addEventListener('paste', function (event)
+        {
+            var items = event.clipboardData ? Array.from(event.clipboardData.items) : [];
+            var imageItems = items.filter(function (item)
+            {
+                return item.kind === 'file' && item.type.indexOf('image/') === 0;
+            });
+            if (!imageItems.length)
+            {
+                return;
+            }
+
+            var target = event.target;
+            if (!(target instanceof HTMLElement))
+            {
+                return;
+            }
+
+            var form = target.closest('form');
+            if (!form)
+            {
+                return;
+            }
+
+            var fileInput = form.querySelector('input[type="file"][data-accumulate-files="1"]');
+            if (!fileInput)
+            {
+                return;
+            }
+
+            var pad = function (n) { return String(n).padStart(2, '0'); };
+            var pasteIndex = 0;
+            var namedFiles = imageItems.map(function (item)
+            {
+                var file = item.getAsFile();
+                if (!file)
+                {
+                    return null;
+                }
+
+                var ext = (file.type.split('/')[1] || 'png').split(';')[0].split('+')[0];
+                var now = new Date();
+                var timestamp = now.getFullYear()
+                    + '-' + pad(now.getMonth() + 1)
+                    + '-' + pad(now.getDate())
+                    + '_' + pad(now.getHours())
+                    + '-' + pad(now.getMinutes())
+                    + '-' + pad(now.getSeconds());
+                var suffix = pasteIndex > 0 ? '-' + (pasteIndex + 1) : '';
+                pasteIndex++;
+                return new File([file], 'screenshot-' + timestamp + suffix + '.' + ext, {
+                    type: file.type,
+                    lastModified: file.lastModified || Date.now()
+                });
+            }).filter(Boolean);
+
+            var added = addFilesToAccumulatingInput(fileInput, namedFiles);
+            if (added > 0)
+            {
+                fileInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
 
         var templateTicketCreateForm = document.getElementById('template-ticket-create-form');
         if (templateTicketCreateForm)
