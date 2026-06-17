@@ -124,24 +124,37 @@ if ($store instanceof TicketStore) {
 
 $ticketDetailsById = [];
 if ($store instanceof TicketStore) {
+    $ticketIds = array_values(array_filter(array_map(
+        static fn(array $ticket): int => (int) ($ticket['id'] ?? 0),
+        $tickets
+    ), static fn(int $ticketId): bool => $ticketId > 0));
+    $participantsByTicketId = $store->getTicketParticipantsBatch($ticketIds);
+    $messageTicketIds = $openTicketId > 0 ? [$openTicketId] : [];
+    $messagesByTicketId = $messageTicketIds !== [] ? $store->getTicketMessagesBatch($messageTicketIds) : [];
+
     foreach ($tickets as $ticket) {
         $ticketId = (int) ($ticket['id'] ?? 0);
         if ($ticketId <= 0) {
             continue;
         }
 
-        $ticketDetail = $store->getTicket($ticketId, $canManageTickets, $userEmail);
-        if (!is_array($ticketDetail)) {
-            $ticketDetailsById[$ticketId] = null;
-            continue;
-        }
+        $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
+        $participantEmails = $participantsByTicketId[$ticketId] ?? ($requesterEmail !== '' ? [$requesterEmail] : []);
+        $includeMessages = $openTicketId > 0 && $ticketId === $openTicketId;
+        $ticketDetail = buildTicketDetailArray(
+            $ticket,
+            $participantEmails,
+            $includeMessages ? ($messagesByTicketId[$ticketId] ?? []) : []
+        );
 
         $ticketDetailsById[$ticketId] = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage, true);
     }
 }
-$settingsMatrix = $store instanceof TicketStore ? $store->getCategorySettings() : [];
-$loadByIctUser = $store instanceof TicketStore ? $store->getIctUserLoads() : [];
-$availabilityByIctUser = $store instanceof TicketStore
+$settingsMatrix = $canManageTickets && $view === 'settings' && $store instanceof TicketStore
+    ? $store->getCategorySettings()
+    : [];
+$loadByIctUser = [];
+$availabilityByIctUser = $canManageTickets && in_array($view, ['settings', 'stats'], true) && $store instanceof TicketStore
     ? $store->getIctUserAvailability()
     : array_fill_keys(extractIctUserEmails($ictUsers), true);
 $overallStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
@@ -296,26 +309,22 @@ if (isset($_GET['_tickets_poll'])) {
     }
 
     header('Content-Type: application/json; charset=utf-8');
+    $pollContext = [
+        'currentPage' => $currentPage,
+        'canManageTickets' => $canManageTickets,
+        'userIsAdmin' => $userIsAdmin,
+        'isAdminPortal' => $isAdminPortal,
+        'ictUsers' => $ictUsers,
+        'csrfToken' => $csrfToken,
+        'openTicketId' => $openTicketId,
+        'view' => $view,
+    ];
     echo json_encode([
         'success' => true,
         'signature' => $ticketSnapshotSignature,
-        'tickets' => array_map(function (array $ticket) use ($store, $canManageTickets, $userEmail, $currentPage, $userIsAdmin, $isAdminPortal, $ictUsers, $csrfToken, $openTicketId, $view): array {
-            $ticketDetail = $store instanceof TicketStore ? $store->getTicket((int) $ticket['id'], $canManageTickets, $userEmail) : null;
-            if ($store instanceof TicketStore && is_array($ticketDetail)) {
-                $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, getCurrentLanguage(), true);
-            }
-
-            return buildTicketPollEntry($ticket, $ticketDetail, [
-                'currentPage' => $currentPage,
-                'canManageTickets' => $canManageTickets,
-                'userIsAdmin' => $userIsAdmin,
-                'isAdminPortal' => $isAdminPortal,
-                'ictUsers' => $ictUsers,
-                'csrfToken' => $csrfToken,
-                'openTicketId' => $openTicketId,
-                'view' => $view,
-            ]);
-        }, $tickets),
+        'tickets' => $store instanceof TicketStore
+            ? buildTicketPollItemsFromTickets($store, $tickets, $pollContext, getCurrentLanguage())
+            : [],
         'is_empty' => $tickets === [],
         'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : h(__('tickets.empty_user'))) . '</div>',
     ], JSON_UNESCAPED_UNICODE);

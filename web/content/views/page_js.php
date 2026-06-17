@@ -2586,6 +2586,11 @@
                 return;
             }
 
+            if (data.unchanged)
+            {
+                return;
+            }
+
             var currentSignature = liveTicketSection.getAttribute('data-ticket-signature') || '';
             if (data.signature && data.signature === currentSignature)
             {
@@ -2594,6 +2599,10 @@
 
             var list = syncEmptyState(data);
             liveTicketSection.setAttribute('data-ticket-signature', data.signature || '');
+            if (data.signature)
+            {
+                ticketPollPayload.last_signature = data.signature;
+            }
             if (!list)
             {
                 return;
@@ -2668,11 +2677,12 @@
             apiFetchJson('ticket_poll', ticketPollPayload)
                 .then(function (data)
                 {
-                    var currentSignature = liveTicketSection.getAttribute('data-ticket-signature') || '';
-                    if (data && data.signature && data.signature !== currentSignature)
+                    if (!data || data.unchanged)
                     {
-                        refreshLiveTicketSection();
+                        return;
                     }
+
+                    applyIncrementalTicketUpdate(data);
                 })
                 .catch(function (error)
                 {
@@ -2688,6 +2698,98 @@
                     }
                 });
         };
+
+        var appendThreadMessagesToCard = function (card, messages)
+        {
+            var messagesWrap = card.querySelector('[data-role="messages-wrap"]');
+            var thread = card.querySelector('[data-role="thread"]');
+            if (!messagesWrap || !thread)
+            {
+                return;
+            }
+
+            var loadingHint = thread.querySelector('[data-role="thread-loading-hint"]');
+            if (loadingHint)
+            {
+                loadingHint.hidden = true;
+            }
+
+            (messages || []).forEach(function (message)
+            {
+                var template = document.createElement('template');
+                template.innerHTML = (message.html || '').trim();
+                var messageNode = template.content.firstElementChild;
+                if (messageNode)
+                {
+                    thread.appendChild(messageNode);
+                }
+            });
+
+            messagesWrap.hidden = false;
+            thread.removeAttribute('data-lazy-messages');
+            messagesWrap.removeAttribute('data-lazy-messages');
+            card.dataset.threadLoaded = '1';
+
+            if (typeof hydrateTicketThumbnails === 'function')
+            {
+                hydrateTicketThumbnails(card);
+            }
+
+            if (typeof triggerLazyTranslations === 'function')
+            {
+                triggerLazyTranslations(card);
+            }
+        };
+
+        var loadLazyTicketThread = function (card)
+        {
+            if (!card || card.dataset.threadLoaded === '1' || card.dataset.threadLoading === '1')
+            {
+                return;
+            }
+
+            if (!card.querySelector('[data-role="messages-wrap"][data-lazy-messages="1"]'))
+            {
+                return;
+            }
+
+            card.dataset.threadLoading = '1';
+            var loadingHint = card.querySelector('[data-role="thread-loading-hint"]');
+            if (loadingHint)
+            {
+                loadingHint.hidden = false;
+            }
+
+            var threadPayload = Object.assign({}, ticketPollPayload, {
+                ticket_id: parseInt(card.getAttribute('data-ticket-id') || '0', 10)
+            });
+
+            apiFetchJson('ticket_thread', threadPayload)
+                .then(function (data)
+                {
+                    if (!data || !data.success)
+                    {
+                        return;
+                    }
+
+                    appendThreadMessagesToCard(card, data.messages || []);
+                })
+                .finally(function ()
+                {
+                    card.dataset.threadLoading = '0';
+                });
+        };
+
+        document.addEventListener('toggle', function (event)
+        {
+            var card = event.target;
+            if (!(card instanceof HTMLDetailsElement) || !card.classList.contains('ticket-card') || !card.open)
+            {
+                return;
+            }
+
+            loadLazyTicketThread(card);
+        }, true);
 
         if (liveTicketSection)
         {

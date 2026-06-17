@@ -10,6 +10,8 @@ class TicketStore
 
     private const REQUESTER_RESPONSE_STATUS = 'afwachtende op gebruiker';
 
+    private const TICKET_LIST_COLUMNS = 't.id, t.title, t.category, t.user_email, t.assigned_email, t.status, t.priority, t.created_at, t.updated_at, t.due_date, t.resolved_at';
+
     private PDO $pdo;
     private string $databasePath;
     private string $uploadRoot;
@@ -838,10 +840,20 @@ class TicketStore
             }
         }
 
-        $sql = 'SELECT t.*,
-                       (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id) AS message_count,
-                       (SELECT COUNT(*) FROM ticket_attachments ta WHERE ta.ticket_id = t.id) AS attachment_count
-                FROM tickets t';
+        $sql = 'SELECT ' . self::TICKET_LIST_COLUMNS . ',
+                       COALESCE(message_counts.message_count, 0) AS message_count,
+                       COALESCE(attachment_counts.attachment_count, 0) AS attachment_count
+                FROM tickets t
+                LEFT JOIN (
+                    SELECT ticket_id, COUNT(*) AS message_count
+                    FROM ticket_messages
+                    GROUP BY ticket_id
+                ) message_counts ON message_counts.ticket_id = t.id
+                LEFT JOIN (
+                    SELECT ticket_id, COUNT(*) AS attachment_count
+                    FROM ticket_attachments
+                    GROUP BY ticket_id
+                ) attachment_counts ON attachment_counts.ticket_id = t.id';
 
         if ($conditions !== []) {
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
@@ -921,6 +933,101 @@ class TicketStore
         $ticket['messages'] = $this->getMessagesForTicket((int) $ticket['id']);
 
         return $ticket;
+    }
+
+    /**
+     * @param list<int> $ticketIds
+     * @return array<int, list<string>>
+     */
+    public function getTicketParticipantsBatch(array $ticketIds): array
+    {
+        $ticketIds = $this->normalizeTicketIds($ticketIds);
+        if ($ticketIds === []) {
+            return [];
+        }
+
+        [$inClause, $parameters] = $this->buildInClause('ticket_id', $ticketIds);
+        $statement = $this->pdo->prepare(
+            'SELECT ticket_id, user_email
+             FROM ticket_participants
+             WHERE ticket_id IN (' . $inClause . ')
+             ORDER BY ticket_id ASC, datetime(created_at) ASC, id ASC'
+        );
+        $statement->execute($parameters);
+
+        $participantsByTicket = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $ticketId = (int) ($row['ticket_id'] ?? 0);
+            $email = strtolower(trim((string) ($row['user_email'] ?? '')));
+            if ($ticketId <= 0 || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+
+            $participantsByTicket[$ticketId][$email] = $email;
+        }
+
+        $normalized = [];
+        foreach ($participantsByTicket as $ticketId => $participants) {
+            $normalized[$ticketId] = array_values($participants);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<int> $ticketIds
+     * @return array<int, list<array<string, mixed>>>
+     */
+    public function getTicketMessagesBatch(array $ticketIds): array
+    {
+        $ticketIds = $this->normalizeTicketIds($ticketIds);
+        if ($ticketIds === []) {
+            return [];
+        }
+
+        [$inClause, $parameters] = $this->buildInClause('ticket_id', $ticketIds);
+
+        $messageStatement = $this->pdo->prepare(
+            'SELECT *
+             FROM ticket_messages
+             WHERE ticket_id IN (' . $inClause . ')
+             ORDER BY ticket_id ASC, datetime(created_at) ASC, id ASC'
+        );
+        $messageStatement->execute($parameters);
+        $messages = $messageStatement->fetchAll(PDO::FETCH_ASSOC);
+
+        $attachmentStatement = $this->pdo->prepare(
+            'SELECT *
+             FROM ticket_attachments
+             WHERE ticket_id IN (' . $inClause . ')
+             ORDER BY ticket_id ASC, datetime(created_at) ASC, id ASC'
+        );
+        $attachmentStatement->execute($parameters);
+
+        $attachmentsByTicketAndMessage = [];
+        foreach ($attachmentStatement->fetchAll(PDO::FETCH_ASSOC) as $attachment) {
+            $ticketId = (int) ($attachment['ticket_id'] ?? 0);
+            $messageId = (int) ($attachment['message_id'] ?? 0);
+            if ($ticketId <= 0) {
+                continue;
+            }
+
+            $attachmentsByTicketAndMessage[$ticketId][$messageId][] = $attachment;
+        }
+
+        $messagesByTicket = [];
+        foreach ($messages as $message) {
+            $ticketId = (int) ($message['ticket_id'] ?? 0);
+            $messageId = (int) ($message['id'] ?? 0);
+            if ($ticketId <= 0) {
+                continue;
+            }
+
+            $message['attachments'] = $attachmentsByTicketAndMessage[$ticketId][$messageId] ?? [];
+            $messagesByTicket[$ticketId][] = $message;
+        }
+
+        return $messagesByTicket;
     }
 
     public function getTicketParticipants(int $ticketId): array
@@ -1308,6 +1415,65 @@ class TicketStore
             throw new RuntimeException('De SQLite-driver ondersteunt geen custom functies (sqliteCreateFunction ontbreekt).', 0, $exception);
         }
         $this->pdo->exec('PRAGMA foreign_keys = ON');
+        $this->pdo->exec('PRAGMA journal_mode = WAL');
+        $this->pdo->exec('PRAGMA synchronous = NORMAL');
+        $this->pdo->exec('PRAGMA temp_store = MEMORY');
+        $this->pdo->exec('PRAGMA cache_size = -64000');
+    }
+
+    /**
+     * @param list<int> $ticketIds
+     * @return list<int>
+     */
+    private function normalizeTicketIds(array $ticketIds): array
+    {
+        $normalized = [];
+        foreach ($ticketIds as $ticketId) {
+            $ticketId = (int) $ticketId;
+            if ($ticketId > 0) {
+                $normalized[$ticketId] = $ticketId;
+            }
+        }
+
+        return array_values($normalized);
+    }
+
+    /**
+     * @param list<int> $values
+     * @return array{0: string, 1: array<string, int>}
+     */
+    private function buildInClause(string $prefix, array $values): array
+    {
+        $placeholders = [];
+        $parameters = [];
+        foreach (array_values($values) as $index => $value) {
+            $placeholder = ':' . $prefix . '_' . $index;
+            $placeholders[] = $placeholder;
+            $parameters[$placeholder] = (int) $value;
+        }
+
+        return [implode(', ', $placeholders), $parameters];
+    }
+
+    private function getAppMeta(string $key): ?string
+    {
+        $statement = $this->pdo->prepare('SELECT value FROM app_meta WHERE key = :key LIMIT 1');
+        $statement->execute([':key' => $key]);
+        $value = $statement->fetchColumn();
+
+        return $value === false ? null : (string) $value;
+    }
+
+    private function setAppMeta(string $key, string $value): void
+    {
+        $statement = $this->pdo->prepare(
+            'INSERT INTO app_meta (key, value) VALUES (:key, :value)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+        );
+        $statement->execute([
+            ':key' => $key,
+            ':value' => $value,
+        ]);
     }
 
     private static function unicodeLower(string $value): string
@@ -1573,6 +1739,8 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_due_date ON tickets(due_date)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_updated_at ON tickets(updated_at)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_status_created_at ON tickets(status, created_at)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_id ON ticket_status_transitions(ticket_id)');
@@ -1592,9 +1760,28 @@ class TicketStore
         );
 
         $this->seedStatusTransitionHistory();
-        $this->seedTicketParticipants();
+        $this->seedTicketParticipantsIfNeeded();
 
-        $this->syncIctUsers();
+        $this->syncIctUsersIfNeeded();
+    }
+
+    private function seedTicketParticipantsIfNeeded(): void
+    {
+        $missingCount = (int) $this->pdo->query(
+            'SELECT COUNT(*)
+             FROM tickets t
+             WHERE NOT EXISTS (
+                 SELECT 1
+                 FROM ticket_participants tp
+                 WHERE tp.ticket_id = t.id
+             )'
+        )->fetchColumn();
+
+        if ($missingCount <= 0) {
+            return;
+        }
+
+        $this->seedTicketParticipants();
     }
 
     private function seedTicketParticipants(): void
@@ -1868,6 +2055,25 @@ class TicketStore
         }
 
         $this->pdo->exec('ALTER TABLE ' . $tableName . ' ADD COLUMN ' . $columnName . ' ' . $definition);
+    }
+
+    private function syncIctUsersIfNeeded(): void
+    {
+        if ($this->ictUsers === []) {
+            return;
+        }
+
+        $configHash = sha1(json_encode([
+            'users' => $this->ictUsers,
+            'categories' => $this->categories,
+        ], JSON_UNESCAPED_UNICODE) ?: '');
+
+        if ($this->getAppMeta('ict_users_sync_hash') === $configHash) {
+            return;
+        }
+
+        $this->syncIctUsers();
+        $this->setAppMeta('ict_users_sync_hash', $configHash);
     }
 
     private function syncIctUsers(): void

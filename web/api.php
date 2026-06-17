@@ -194,35 +194,37 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         array_map('trim', (array) ($payload['category_filters'] ?? [])),
         static fn(string $category): bool => $category !== ''
     ));
+    $lastSignature = trim((string) ($payload['last_signature'] ?? ''));
 
     $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery);
+    $signature = buildTicketSnapshotSignature($tickets);
+    if ($lastSignature !== '' && hash_equals($lastSignature, $signature)) {
+        return [
+            'success' => true,
+            'signature' => $signature,
+            'unchanged' => true,
+        ];
+    }
+
     $tickets = array_map(
         fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage, true),
         $tickets
     );
-    $ticketPollItems = [];
-
-    foreach ($tickets as $ticket) {
-        $ticketDetail = $store->getTicket((int) ($ticket['id'] ?? 0), $canManageTickets, $viewerEmail);
-        if (is_array($ticketDetail)) {
-            $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage, true);
-        }
-        $ticketPollItems[] = buildTicketPollEntry($ticket, $ticketDetail, [
-            'currentPage' => $currentPage,
-            'canManageTickets' => $canManageTickets,
-            'userIsAdmin' => $userIsAdmin,
-            'isAdminPortal' => $isAdminPortal,
-            'ictUsers' => $GLOBALS['ictUsers'] ?? [],
-            'csrfToken' => $csrfToken,
-            'openTicketId' => $openTicketId,
-            'view' => $view,
-        ]);
-    }
+    $pollContext = [
+        'currentPage' => $currentPage,
+        'canManageTickets' => $canManageTickets,
+        'userIsAdmin' => $userIsAdmin,
+        'isAdminPortal' => $isAdminPortal,
+        'ictUsers' => $GLOBALS['ictUsers'] ?? [],
+        'csrfToken' => $csrfToken,
+        'openTicketId' => $openTicketId,
+        'view' => $view,
+    ];
 
     return [
         'success' => true,
-        'signature' => buildTicketSnapshotSignature($tickets),
-        'tickets' => $ticketPollItems,
+        'signature' => $signature,
+        'tickets' => buildTicketPollItemsFromTickets($store, $tickets, $pollContext, $currentLanguage),
         'is_empty' => $tickets === [],
         'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : h(__('tickets.empty_user'))) . '</div>',
     ];
@@ -630,6 +632,39 @@ if ($method === 'POST') {
 
     if ($action === 'ticket_poll') {
         sendJson(200, buildTicketPollApiPayload($store, $payload, $apiClient));
+    }
+
+    if ($action === 'ticket_thread') {
+        $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+        $currentPage = normalizeReturnPage((string) ($payload['current_page'] ?? 'index.php'));
+        $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+        $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+        $isAdminPortal = !empty($payload['is_admin_portal']);
+        $canManageTickets = $isAdminPortal && $userIsAdmin;
+        $currentLanguage = strtolower(trim((string) ($payload['current_language'] ?? 'nl')));
+        if (!array_key_exists($currentLanguage, SUPPORTED_LANGUAGES)) {
+            $currentLanguage = 'nl';
+        }
+
+        $ticketDetail = $store->getTicket($ticketId, $canManageTickets, $viewerEmail);
+        if (!is_array($ticketDetail)) {
+            sendJson(404, ['success' => false, 'error' => 'ticket_not_found']);
+        }
+
+        $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage, true);
+        $messages = array_map(
+            static fn(array $message): array => [
+                'id' => (int) ($message['id'] ?? 0),
+                'html' => renderTicketMessageHtml($message, $currentPage),
+            ],
+            $ticketDetail['messages'] ?? []
+        );
+
+        sendJson(200, [
+            'success' => true,
+            'ticket_id' => $ticketId,
+            'messages' => $messages,
+        ]);
     }
 
     if ($action === 'browser_notifications_poll') {

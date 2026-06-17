@@ -1,5 +1,15 @@
 <?php if (!$isAdminPortal || ($isAdminPortal && $view === 'overview')): ?>
     <?php
+    $ticketCardBaseContext = [
+        'currentPage' => $currentPage,
+        'canManageTickets' => $canManageTickets,
+        'userIsAdmin' => $userIsAdmin,
+        'isAdminPortal' => $isAdminPortal,
+        'ictUsers' => $ictUsers,
+        'csrfToken' => $csrfToken,
+        'openTicketId' => $openTicketId,
+        'view' => $view,
+    ];
     $ticketPollPayload = [
         'current_page' => $currentPage,
         'current_language' => getCurrentLanguage(),
@@ -14,6 +24,7 @@
         'search_query' => $searchQuery,
         'status_filters' => $effectiveStatusFilters,
         'category_filters' => $effectiveCategoryFilters,
+        'last_signature' => $ticketSnapshotSignature,
     ];
     ?>
     <section class="panel" data-live-ticket-section data-ticket-signature="<?= h($ticketSnapshotSignature) ?>"
@@ -90,16 +101,7 @@
             <div class="ticket-list">
                 <?php foreach ($tickets as $ticket): ?>
                     <?php $ticketDetail = $ticketDetailsById[(int) ($ticket['id'] ?? 0)] ?? null; ?>
-                    <?= renderTicketCardHtml($ticket, $ticketDetail, [
-                        'currentPage' => $currentPage,
-                        'canManageTickets' => $canManageTickets,
-                        'userIsAdmin' => $userIsAdmin,
-                        'isAdminPortal' => $isAdminPortal,
-                        'ictUsers' => $ictUsers,
-                        'csrfToken' => $csrfToken,
-                        'openTicketId' => $openTicketId,
-                        'view' => $view,
-                    ]) ?>
+                    <?= renderTicketCardHtml($ticket, $ticketDetail, buildTicketCardRenderContext($ticketCardBaseContext, $ticket, $openTicketId)) ?>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>

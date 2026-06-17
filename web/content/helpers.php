@@ -209,6 +209,71 @@ function buildTicketSnapshotSignature(array $tickets): string
     return sha1(json_encode($snapshot, JSON_UNESCAPED_UNICODE) ?: '[]');
 }
 
+function buildTicketDetailArray(array $ticket, ?array $participantEmails, array $messages = []): array
+{
+    $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
+    $participants = is_array($participantEmails) && $participantEmails !== []
+        ? array_values($participantEmails)
+        : ($requesterEmail !== '' ? [$requesterEmail] : []);
+
+    return array_merge($ticket, [
+        'participant_emails' => $participants,
+        'messages' => $messages,
+    ]);
+}
+
+function buildTicketCardRenderContext(array $baseContext, array $ticket, int $openTicketId): array
+{
+    $ticketId = (int) ($ticket['id'] ?? 0);
+    $includeMessages = $openTicketId > 0 && $ticketId === $openTicketId;
+
+    return array_merge($baseContext, [
+        'includeMessages' => $includeMessages,
+        'lazyMessages' => !$includeMessages,
+    ]);
+}
+
+function buildTicketPollItemsFromTickets(TicketStore $store, array $tickets, array $context, string $viewerLanguage): array
+{
+    if ($tickets === []) {
+        return [];
+    }
+
+    $ticketIds = array_values(array_filter(array_map(
+        static fn(array $ticket): int => (int) ($ticket['id'] ?? 0),
+        $tickets
+    ), static fn(int $ticketId): bool => $ticketId > 0));
+
+    $participantsByTicketId = $store->getTicketParticipantsBatch($ticketIds);
+    $messagesByTicketId = $store->getTicketMessagesBatch($ticketIds);
+    $openTicketId = (int) ($context['openTicketId'] ?? 0);
+    $pollItems = [];
+
+    foreach ($tickets as $ticket) {
+        $ticketId = (int) ($ticket['id'] ?? 0);
+        if ($ticketId <= 0) {
+            continue;
+        }
+
+        $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
+        $participantEmails = $participantsByTicketId[$ticketId] ?? ($requesterEmail !== '' ? [$requesterEmail] : []);
+        $ticketDetail = buildTicketDetailArray(
+            $ticket,
+            $participantEmails,
+            $messagesByTicketId[$ticketId] ?? []
+        );
+        $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $viewerLanguage, true);
+
+        $pollItems[] = buildTicketPollEntry(
+            $ticket,
+            $ticketDetail,
+            buildTicketCardRenderContext($context, $ticket, $openTicketId)
+        );
+    }
+
+    return $pollItems;
+}
+
 function isImageAttachment(array $attachment): bool
 {
     $mimeType = strtolower(trim((string) ($attachment['mime_type'] ?? '')));
@@ -506,6 +571,8 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $csrfToken = (string) ($context['csrfToken'] ?? '');
     $openTicketId = (int) ($context['openTicketId'] ?? 0);
     $view = (string) ($context['view'] ?? 'overview');
+    $includeMessages = !array_key_exists('includeMessages', $context) || !empty($context['includeMessages']);
+    $lazyMessages = !empty($context['lazyMessages']);
     $ticketColor = getStatusColor((string) ($ticket['status'] ?? ''));
     $shouldOpen = $openTicketId > 0 && (int) ($ticket['id'] ?? 0) === $openTicketId;
     $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
@@ -525,10 +592,12 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $hasDueDate = trim((string) ($ticket['due_date'] ?? '')) !== '';
     $titleNeedsTrans = !empty($ticket['title_translation_pending']);
     $messagesNeedTrans = false;
-    foreach (($ticketDetail['messages'] ?? []) as $msg) {
-        if (!empty($msg['translation_pending'])) {
-            $messagesNeedTrans = true;
-            break;
+    if ($includeMessages) {
+        foreach (($ticketDetail['messages'] ?? []) as $msg) {
+            if (!empty($msg['translation_pending'])) {
+                $messagesNeedTrans = true;
+                break;
+            }
         }
     }
     $needsTranslation = $titleNeedsTrans || $messagesNeedTrans;
@@ -638,12 +707,21 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 <?php endif; ?>
             </div>
 
-            <div data-role="messages-wrap" <?= $ticketDetail !== null && !empty($ticketDetail['messages']) ? '' : 'hidden' ?>>
+            <?php
+            $messagesWrapHidden = $includeMessages
+                ? (($ticketDetail['messages'] ?? []) === [])
+                : !$lazyMessages;
+            ?>
+            <div data-role="messages-wrap"<?= $messagesWrapHidden ? ' hidden' : '' ?><?= $lazyMessages ? ' data-lazy-messages="1"' : '' ?>>
                 <h3><?= h(__('ticket.messages_heading')) ?></h3>
                 <div class="thread" data-role="thread">
-                    <?php foreach (($ticketDetail['messages'] ?? []) as $message): ?>
-                        <?= renderTicketMessageHtml($message, $currentPage) ?>
-                    <?php endforeach; ?>
+                    <?php if ($includeMessages): ?>
+                        <?php foreach (($ticketDetail['messages'] ?? []) as $message): ?>
+                            <?= renderTicketMessageHtml($message, $currentPage) ?>
+                        <?php endforeach; ?>
+                    <?php elseif ($lazyMessages): ?>
+                        <p class="hint" data-role="thread-loading-hint" hidden><?= h(__('ticket.thread_loading')) ?></p>
+                    <?php endif; ?>
                 </div>
             </div>
 
