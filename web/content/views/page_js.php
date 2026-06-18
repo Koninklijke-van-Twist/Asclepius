@@ -2819,7 +2819,7 @@
             }
 
             var existingCards = {};
-            list.querySelectorAll('[data-ticket-id]').forEach(function (card)
+            list.querySelectorAll('details.ticket-card[data-ticket-id]').forEach(function (card)
             {
                 existingCards[card.getAttribute('data-ticket-id')] = card;
             });
@@ -2837,7 +2837,7 @@
                 {
                     var template = document.createElement('template');
                     template.innerHTML = (ticket.card_html || '').trim();
-                    card = template.content.firstElementChild;
+                    card = template.content.querySelector('details.ticket-card[data-ticket-id]');
                     if (!card)
                     {
                         return;
