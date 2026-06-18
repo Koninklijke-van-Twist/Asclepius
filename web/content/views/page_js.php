@@ -879,6 +879,73 @@
                 return;
             }
 
+            var openCategoryButton = event.target.closest('[data-role="change-category-open"]');
+            if (openCategoryButton)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+                var categoryCard = openCategoryButton.closest('details.ticket-card');
+                var categoryModal = categoryCard ? categoryCard.querySelector('[data-role="ticket-category-modal"]') : null;
+                if (categoryModal)
+                {
+                    var categorySelect = categoryModal.querySelector('[data-role="change-category-select"]');
+                    var reassignCheckbox = categoryModal.querySelector('[data-role="change-category-reassign"]');
+                    var currentCategory = openCategoryButton.getAttribute('data-current-category') || '';
+                    if (categorySelect && currentCategory !== '')
+                    {
+                        categorySelect.value = currentCategory;
+                    }
+                    if (reassignCheckbox)
+                    {
+                        reassignCheckbox.checked = false;
+                    }
+                    setCategoryFeedback(categoryCard, '', false);
+                    categoryModal.hidden = false;
+                    categoryModal.classList.add('is-open');
+                    document.documentElement.style.overflow = 'hidden';
+                }
+                return;
+            }
+
+            var closeCategoryButton = event.target.closest('[data-role="change-category-close"], [data-role="change-category-cancel"]');
+            if (closeCategoryButton)
+            {
+                event.preventDefault();
+                closeCategoryModal(closeCategoryButton.closest('details.ticket-card'));
+                return;
+            }
+
+            if (event.target.matches('[data-role="ticket-category-modal"]'))
+            {
+                event.preventDefault();
+                closeCategoryModal(event.target.closest('details.ticket-card'));
+                return;
+            }
+
+            var saveCategoryButton = event.target.closest('[data-role="change-category-save"]');
+            if (saveCategoryButton)
+            {
+                event.preventDefault();
+                var saveCard = saveCategoryButton.closest('details.ticket-card');
+                var saveModal = saveCard ? saveCard.querySelector('[data-role="ticket-category-modal"]') : null;
+                if (!saveCard || !saveModal)
+                {
+                    return;
+                }
+
+                var selectedCategory = saveModal.querySelector('[data-role="change-category-select"]');
+                var reassignInput = saveModal.querySelector('[data-role="change-category-reassign"]');
+                saveCategoryButton.disabled = true;
+                syncCategoryChangeViaApi(saveCard, {
+                    category: selectedCategory ? selectedCategory.value : '',
+                    reassign: !!(reassignInput && reassignInput.checked)
+                }).finally(function ()
+                {
+                    saveCategoryButton.disabled = false;
+                });
+                return;
+            }
+
             if (event.target.matches('[data-role="ticket-participants-modal"]'))
             {
                 event.preventDefault();
@@ -965,7 +1032,7 @@
         {
             if (event.key === 'Escape')
             {
-                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open').forEach(function (modal)
+                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open').forEach(function (modal)
                 {
                     modal.hidden = true;
                     modal.classList.remove('is-open');
@@ -1576,6 +1643,149 @@
             feedbackNode.textContent = String(message || '');
             feedbackNode.classList.toggle('is-error', !!isError);
             feedbackNode.classList.toggle('is-success', !isError && String(message || '') !== '');
+        };
+
+        var setCategoryFeedback = function (ticketCard, message, isError)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var feedbackNode = ticketCard.querySelector('[data-role="change-category-feedback"]');
+            if (!feedbackNode)
+            {
+                return;
+            }
+
+            feedbackNode.textContent = String(message || '');
+            feedbackNode.classList.toggle('is-error', !!isError);
+            feedbackNode.classList.toggle('is-success', !isError && String(message || '') !== '');
+        };
+
+        var closeCategoryModal = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var modal = ticketCard.querySelector('[data-role="ticket-category-modal"]');
+            if (!modal)
+            {
+                return;
+            }
+
+            modal.hidden = true;
+            modal.classList.remove('is-open');
+            document.documentElement.style.overflow = '';
+        };
+
+        var appendCategoryChangeMessage = function (ticketCard, messageHtml, messageId)
+        {
+            if (!ticketCard || !messageHtml)
+            {
+                return;
+            }
+
+            var messagesWrap = ticketCard.querySelector('[data-role="messages-wrap"]');
+            var thread = ticketCard.querySelector('[data-role="thread"]');
+            if (!messagesWrap || !thread)
+            {
+                return;
+            }
+
+            if (messageId)
+            {
+                var existingMessage = thread.querySelector('[data-message-id="' + String(messageId) + '"]');
+                if (existingMessage)
+                {
+                    messagesWrap.hidden = false;
+                    return;
+                }
+            }
+
+            var loadingHint = thread.querySelector('[data-role="thread-loading-hint"]');
+            if (loadingHint)
+            {
+                loadingHint.hidden = true;
+            }
+
+            var template = document.createElement('template');
+            template.innerHTML = messageHtml.trim();
+            var messageNode = template.content.firstElementChild;
+            if (messageNode)
+            {
+                thread.appendChild(messageNode);
+            }
+
+            messagesWrap.hidden = false;
+            ticketCard.dataset.threadLoaded = '1';
+        };
+
+        var applyCategoryChangeToCard = function (ticketCard, data)
+        {
+            if (!ticketCard || !data)
+            {
+                return;
+            }
+
+            setText(ticketCard.querySelector('[data-role="ticket-category"]'), data.category_label || '');
+            setText(ticketCard.querySelector('[data-role="meta-category-value"]'), data.category_label || '');
+
+            var openCategoryButton = ticketCard.querySelector('[data-role="change-category-open"]');
+            if (openCategoryButton && data.category)
+            {
+                openCategoryButton.setAttribute('data-current-category', data.category);
+            }
+
+            var categorySelect = ticketCard.querySelector('[data-role="change-category-select"]');
+            if (categorySelect && data.category)
+            {
+                categorySelect.value = data.category;
+            }
+
+            setValue(ticketCard.querySelector('[data-role="assigned-select"]'), data.assigned_email || '');
+
+            var assigneeBadge = ticketCard.querySelector('[data-role="assignee-badge"]');
+            if (assigneeBadge)
+            {
+                setText(assigneeBadge, data.assigned_label || '');
+                assigneeBadge.style.setProperty('--assignee-color', data.assigned_color || '');
+            }
+
+            appendCategoryChangeMessage(ticketCard, data.message_html || '', data.message_id || 0);
+        };
+
+        var syncCategoryChangeViaApi = function (ticketCard, payload)
+        {
+            if (!ticketCard)
+            {
+                return Promise.resolve();
+            }
+
+            setCategoryFeedback(ticketCard, '', false);
+            return apiFetchJson('change_ticket_category', Object.assign({
+                ticket_id: Number(ticketCard.getAttribute('data-ticket-id') || 0),
+                current_page: ticketPollPayload.current_page || 'admin.php',
+                viewer_email: ticketPollPayload.viewer_email || '',
+                user_is_admin: !!ticketPollPayload.user_is_admin
+            }, payload || {})).then(function (data)
+            {
+                if (!data || data.success !== true)
+                {
+                    setCategoryFeedback(ticketCard, data && data.error ? data.error : '<?= addslashes(__('flash.db_error_prefix')) ?>', true);
+                    return data || null;
+                }
+
+                applyCategoryChangeToCard(ticketCard, data);
+                closeCategoryModal(ticketCard);
+                return data;
+            }).catch(function ()
+            {
+                setCategoryFeedback(ticketCard, '<?= addslashes(__('flash.db_error_prefix')) ?>', true);
+                return null;
+            });
         };
 
         var syncParticipantsViaApi = function (ticketCard, operation, payload)
@@ -2368,7 +2578,7 @@
 
         var ticketSectionHasActiveInput = function (section)
         {
-            if (section.querySelector('[data-role="ticket-participants-modal"].is-open'))
+            if (section.querySelector('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open'))
             {
                 return true;
             }

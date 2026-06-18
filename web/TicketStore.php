@@ -499,6 +499,74 @@ class TicketStore
         }
     }
 
+    public function changeTicketCategory(int $ticketId, string $category, bool $reassign = false): array
+    {
+        $category = trim($category);
+        if ($ticketId <= 0) {
+            throw new RuntimeException('Ticket niet gevonden.');
+        }
+        if (!in_array($category, $this->categories, true)) {
+            throw new RuntimeException('Ongeldige categorie.');
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT category, assigned_email
+             FROM tickets
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $statement->execute([':id' => $ticketId]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            throw new RuntimeException('Ticket niet gevonden.');
+        }
+
+        $oldCategory = (string) ($row['category'] ?? '');
+        $currentAssignee = strtolower(trim((string) ($row['assigned_email'] ?? '')));
+        $newAssignee = $currentAssignee !== '' ? $currentAssignee : null;
+        $assigneeChanged = false;
+
+        if ($reassign) {
+            $pickedAssignee = $this->pickAssignee($category);
+            $pickedAssignee = $pickedAssignee !== null ? strtolower(trim($pickedAssignee)) : null;
+            $newAssignee = $pickedAssignee;
+            $assigneeChanged = $pickedAssignee !== $currentAssignee;
+        }
+
+        if ($oldCategory === $category && !$assigneeChanged) {
+            return [
+                'changed' => false,
+                'old_category' => $oldCategory,
+                'new_category' => $category,
+                'assigned_email' => $currentAssignee,
+                'assignee_changed' => false,
+            ];
+        }
+
+        $updatedAt = date('c');
+        $updateStatement = $this->pdo->prepare(
+            'UPDATE tickets
+             SET category = :category,
+                 assigned_email = :assigned_email,
+                 updated_at = :updated_at
+             WHERE id = :id'
+        );
+        $updateStatement->execute([
+            ':category' => $category,
+            ':assigned_email' => $newAssignee,
+            ':updated_at' => $updatedAt,
+            ':id' => $ticketId,
+        ]);
+
+        return [
+            'changed' => true,
+            'old_category' => $oldCategory,
+            'new_category' => $category,
+            'assigned_email' => (string) ($newAssignee ?? ''),
+            'assignee_changed' => $assigneeChanged,
+        ];
+    }
+
     public function updateTicket(int $ticketId, string $status, ?string $assignedEmail, int $priority = 0, ?string $dueDate = null): void
     {
         $currentTicket = $this->pdo->prepare('SELECT status FROM tickets WHERE id = :id LIMIT 1');

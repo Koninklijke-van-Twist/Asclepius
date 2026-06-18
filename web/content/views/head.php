@@ -1689,7 +1689,8 @@
             cursor: pointer;
         }
 
-        .meta-item .secondary-button[data-role="manage-participants-open"] {
+        .meta-item .secondary-button[data-role="manage-participants-open"],
+        .meta-item .secondary-button[data-role="change-category-open"] {
             width: 100%;
         }
 
@@ -1809,16 +1810,19 @@
             gap: 8px;
         }
 
-        [data-role="manage-participants-feedback"] {
+        [data-role="manage-participants-feedback"],
+        [data-role="change-category-feedback"] {
             min-height: 18px;
             margin: 0;
         }
 
-        [data-role="manage-participants-feedback"].is-error {
+        [data-role="manage-participants-feedback"].is-error,
+        [data-role="change-category-feedback"].is-error {
             color: var(--danger);
         }
 
-        [data-role="manage-participants-feedback"].is-success {
+        [data-role="manage-participants-feedback"].is-success,
+        [data-role="change-category-feedback"].is-success {
             color: var(--success);
         }
 

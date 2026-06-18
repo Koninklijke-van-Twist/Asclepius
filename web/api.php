@@ -468,6 +468,133 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
     ];
 }
 
+function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    if (!$userIsAdmin && !isTrustedApiRequester()) {
+        return [
+            'success' => false,
+            'error' => __('flash.settings_admin_only'),
+        ];
+    }
+
+    $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+    $category = trim((string) ($payload['category'] ?? ''));
+    $reassign = !empty($payload['reassign']);
+    $currentPage = normalizeReturnPage((string) ($payload['current_page'] ?? 'admin.php'));
+
+    if (!in_array($category, TICKET_CATEGORIES, true)) {
+        return [
+            'success' => false,
+            'error' => __('flash.invalid_category'),
+        ];
+    }
+
+    $ticket = $store->getTicket($ticketId, true, $viewerEmail);
+    if ($ticket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+        ];
+    }
+
+    try {
+        $changeResult = $store->changeTicketCategory($ticketId, $category, $reassign);
+    } catch (Throwable $exception) {
+        return [
+            'success' => false,
+            'error' => $exception->getMessage(),
+        ];
+    }
+
+    if (empty($changeResult['changed'])) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_category_unchanged'),
+        ];
+    }
+
+    $actorEmail = $viewerEmail;
+    if (!filter_var($actorEmail, FILTER_VALIDATE_EMAIL)) {
+        $actorEmail = strtolower(trim((string) ($ticket['assigned_email'] ?? $ticket['user_email'] ?? '')));
+    }
+    if (!filter_var($actorEmail, FILTER_VALIDATE_EMAIL)) {
+        $actorEmail = 'ict@kvt.nl';
+    }
+
+    $categoryChangeNote = buildCategoryChangeNote(
+        (string) ($changeResult['old_category'] ?? ''),
+        (string) ($changeResult['new_category'] ?? ''),
+        !empty($changeResult['assignee_changed']),
+        (string) ($changeResult['assigned_email'] ?? '')
+    );
+    $messageId = $store->addMessage($ticketId, $actorEmail, 'admin', $categoryChangeNote);
+
+    $updatedTicket = $store->getTicket($ticketId, true, $actorEmail);
+    if ($updatedTicket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+        ];
+    }
+
+    $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
+        ? $updatedTicket['participant_emails']
+        : [(string) ($updatedTicket['user_email'] ?? '')];
+    $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
+    sendTicketNotification(
+        $store,
+        $GLOBALS['ictUsers'] ?? [],
+        $requesterRecipients,
+        __mail('email.subject_update', $reqLang, $ticketId),
+        buildNotificationBody($updatedTicket, 'email.intro_update', $categoryChangeNote, false, $reqLang, __mail('email.intro_update_no_status', $reqLang)),
+        $actorEmail,
+        (string) ($updatedTicket['category'] ?? ''),
+        $ticketId,
+        $actorEmail
+    );
+
+    if (!empty($changeResult['assignee_changed']) && trim((string) ($changeResult['assigned_email'] ?? '')) !== '') {
+        $assigneeEmail = strtolower(trim((string) $changeResult['assigned_email']));
+        $assigneeLang = getUserMailLang($assigneeEmail);
+        sendTicketNotification(
+            $store,
+            $GLOBALS['ictUsers'] ?? [],
+            [$assigneeEmail],
+            __mail('email.subject_assigned', $assigneeLang, $ticketId),
+            buildNotificationBody($updatedTicket, 'email.intro_assigned', $categoryChangeNote, true, $assigneeLang),
+            $actorEmail,
+            (string) ($updatedTicket['category'] ?? ''),
+            $ticketId,
+            $actorEmail
+        );
+    }
+
+    $assignedEmail = strtolower(trim((string) ($updatedTicket['assigned_email'] ?? '')));
+    $messageForRender = [
+        'id' => $messageId,
+        'sender_email' => $actorEmail,
+        'sender_role' => 'admin',
+        'message_text' => $categoryChangeNote,
+        'message_text_raw' => $categoryChangeNote,
+        'attachments' => [],
+    ];
+
+    return [
+        'success' => true,
+        'message' => __('flash.ticket_category_changed'),
+        'ticket_id' => $ticketId,
+        'category' => (string) ($updatedTicket['category'] ?? ''),
+        'category_label' => translateCategory((string) ($updatedTicket['category'] ?? '')),
+        'assigned_email' => $assignedEmail,
+        'assigned_label' => $assignedEmail !== '' ? $assignedEmail : __('ticket.unassigned'),
+        'assigned_color' => emailToHexColor($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'),
+        'message_id' => $messageId,
+        'message_html' => renderTicketMessageHtml($messageForRender, $currentPage),
+    ];
+}
+
 function buildBigscreenPollApiPayload(TicketStore $store): array
 {
     $allTicketsForPoll = $store->getTickets(true, '');
@@ -677,6 +804,10 @@ if ($method === 'POST') {
 
     if ($action === 'manage_ticket_participants') {
         sendJson(200, handleManageTicketParticipantsApiAction($store, $payload, $apiClient));
+    }
+
+    if ($action === 'change_ticket_category') {
+        sendJson(200, handleChangeTicketCategoryApiAction($store, $payload, $apiClient));
     }
 
     if ($action === 'manage_ticket_template') {

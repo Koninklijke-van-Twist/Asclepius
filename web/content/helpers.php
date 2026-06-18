@@ -704,6 +704,14 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                             <?= h(__('ticket.manage_participants_button')) ?>
                         </button>
                     </div>
+                    <div class="meta-item">
+                        <span class="meta-label"><?= h(__('ticket.meta_category')) ?></span>
+                        <span data-role="meta-category-value"><?= h(translateCategory((string) ($ticket['category'] ?? ''))) ?></span>
+                        <button type="button" class="secondary-button" data-role="change-category-open"
+                            data-current-category="<?= h((string) ($ticket['category'] ?? '')) ?>">
+                            <?= h(__('ticket.change_category_button')) ?>
+                        </button>
+                    </div>
                 <?php endif; ?>
             </div>
 
@@ -777,6 +785,43 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                                     data-role="participants-apply-button"><?= h(__('ticket.participants_save_button')) ?></button>
                             </div>
                         </form>
+                    </div>
+                </div>
+
+                <div class="ticket-participants-modal" data-role="ticket-category-modal" hidden>
+                    <div class="ticket-participants-modal-card">
+                        <div class="ticket-participants-modal-head">
+                            <h3><?= h(__('ticket.change_category_heading')) ?></h3>
+                            <button type="button" class="participant-modal-close" data-role="change-category-close"
+                                aria-label="<?= h(__('ticket.preview_close')) ?>">&times;</button>
+                        </div>
+
+                        <p class="hint" data-role="change-category-feedback"></p>
+
+                        <label>
+                            <?= h(__('ticket.change_category_label')) ?>
+                            <select data-role="change-category-select">
+                                <?php foreach (TICKET_CATEGORIES as $categoryOption): ?>
+                                    <option value="<?= h($categoryOption) ?>" <?= (string) ($ticket['category'] ?? '') === $categoryOption ? 'selected' : '' ?>>
+                                        <?= h(translateCategory($categoryOption)) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+
+                        <label class="checkbox-line">
+                            <input type="checkbox" data-role="change-category-reassign" value="1">
+                            <span><?= h(__('ticket.change_category_reassign')) ?></span>
+                        </label>
+
+                        <div class="button-row">
+                            <button type="button" class="secondary-button" data-role="change-category-cancel">
+                                <?= h(__('ticket.change_category_cancel')) ?>
+                            </button>
+                            <button type="button" data-role="change-category-save">
+                                <?= h(__('ticket.change_category_save')) ?>
+                            </button>
+                        </div>
                     </div>
                 </div>
             <?php endif; ?>
@@ -1411,6 +1456,21 @@ function hslToHex(int $hue, int $saturation, int $lightness): string
     $b = (int) round(($b1 + $match) * 255);
 
     return sprintf('#%02x%02x%02x', $r, $g, $b);
+}
+
+function buildCategoryChangeNote(string $oldCategory, string $newCategory, bool $assigneeChanged, string $assignedEmail): string
+{
+    $lines = [
+        __('ticket.category_note_changed', translateCategory($oldCategory), translateCategory($newCategory)),
+    ];
+
+    if ($assigneeChanged) {
+        $lines[] = $assignedEmail !== ''
+            ? __('ticket.category_note_reassigned', $assignedEmail)
+            : __('ticket.category_note_unassigned');
+    }
+
+    return implode(PHP_EOL, $lines);
 }
 
 function buildStatusChangeNote(string $status, string $changedByEmail): string
