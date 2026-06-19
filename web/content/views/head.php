@@ -40,6 +40,64 @@
             color: var(--text);
         }
 
+        body.has-update-notify {
+            padding-top: 56px;
+        }
+
+        .update-notify-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10000;
+            height: 56px;
+            overflow: hidden;
+        }
+
+        .update-notify-strip {
+            position: absolute;
+            inset: 0;
+            background-image: repeating-linear-gradient(-45deg,
+                    #f7c600 0px,
+                    #f7c600 24px,
+                    #111 24px,
+                    #111 48px);
+            background-size: 68px 68px;
+            animation: update-notify-scroll 1.2s linear infinite;
+        }
+
+        @keyframes update-notify-scroll {
+            from {
+                background-position: 0 0;
+            }
+
+            to {
+                background-position: 68px 0;
+            }
+        }
+
+        .update-notify-content {
+            position: relative;
+            z-index: 1;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 12px;
+        }
+
+        .update-notify-box {
+            background: #b42318;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 14px;
+            line-height: 1.35;
+            text-align: center;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+        }
+
         a {
             color: var(--accent);
         }

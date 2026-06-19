@@ -26,6 +26,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
 
+    env:
+      FTP_HOST: ${{ secrets.FTP_HOST }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -49,44 +55,61 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lftp
 
-      - name: Debug env
-        run: |
-          echo "Host: $FTP_HOST"
-          echo "User: $FTP_USERNAME"
-          # echo "Pass: $FTP_PASSWORD"  # liever niet loggen 😉
-          echo "Remote dir: $FTP_REMOTE_DIR"
-        env:
-          FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
-
       - name: Write version file
         run: echo "${{ github.sha }}" > ./web/version
 
-      # Stap 1: alles op de server opruimen behalve .htaccess, .htpasswd, *.json, auth.php
-      - name: Deploy web/ to FTP (with delete & excludes)
-        env:
-          FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+      - name: Upload update.notify (pre-update warning)
         run: |
+          : > ./update.notify
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
           set cmd:fail-exit true
-          set net:max-retries 1
+          set net:max-retries 2
           set net:timeout 20
           set ftp:ssl-allow false
           set ftp:passive-mode yes
-
           cd "$FTP_REMOTE_DIR"
+          put ./update.notify -o update.notify
+          bye
+          EOF
 
+      - name: Wait 5 minutes for open sessions to show warning
+        run: sleep 300
+
+      - name: Upload maintenance index.php and admin.php
+        run: |
+          mkdir -p ./deploy-maintenance
+          cp ./.github/deploy/maintenance.php ./deploy-maintenance/index.php
+          cp ./.github/deploy/maintenance.php ./deploy-maintenance/admin.php
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
+          set cmd:fail-exit true
+          set net:max-retries 2
+          set net:timeout 20
+          set ftp:ssl-allow false
+          set ftp:passive-mode yes
+          cd "$FTP_REMOTE_DIR"
+          mirror -R \
+            --exclude-glob .htaccess \
+            --exclude-glob cache/** \
+            --exclude-glob data/** \
+            --exclude-glob auth.php \
+            ./deploy-maintenance .
+          bye
+          EOF
+
+      - name: Deploy web/ to FTP (with delete & excludes)
+        run: |
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
+          set cmd:fail-exit true
+          set net:max-retries 2
+          set net:timeout 20
+          set ftp:ssl-allow false
+          set ftp:passive-mode yes
+          cd "$FTP_REMOTE_DIR"
           mirror -R --delete \
             --exclude-glob .htaccess \
             --exclude-glob cache/** \
             --exclude-glob data/** \
             --exclude-glob auth.php \
             ./web .
-
           bye
           EOF
