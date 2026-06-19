@@ -1,3 +1,11 @@
+id: 2026-06-19-user-display-names
+date: 2026-06-19
+title: Noms à la place des adresses e-mail
+author: Tim Falken
+
+Lorsque c'est possible, vous voyez maintenant le vrai nom d'un utilisateur au lieu de son adresse e-mail — par exemple pour les demandeurs, les responsables, les messages et les statistiques. Survolez pour voir l'adresse e-mail. Les noms connus sont mis en cache localement pour garder l'aperçu rapide.
+
+---
 id: 2026-06-19-changelog-tab
 date: 2026-06-19
 title: Onglet Changelog

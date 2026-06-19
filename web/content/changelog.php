@@ -98,6 +98,20 @@ function loadChangelogEntries(string $lang): array
     return array_values($entries);
 }
 
+function hasUnreadChangelogEntries(string $lang, string $email): bool
+{
+    $readLookup = array_fill_keys(loadChangelogReadIds($email), true);
+
+    foreach (loadChangelogEntries($lang) as $entry) {
+        $entryId = (string) ($entry['id'] ?? '');
+        if ($entryId !== '' && !isset($readLookup[$entryId])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function loadChangelogReadIds(string $email): array
 {
     $saved = loadUserPrefs($email)['changelog_read_ids'] ?? [];

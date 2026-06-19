@@ -1,3 +1,11 @@
+id: 2026-06-19-user-display-names
+date: 2026-06-19
+title: Names instead of email addresses
+author: Tim Falken
+
+Where possible, you now see a user's real name instead of their email address — for example on requesters, assignees, messages, and statistics. Hover to see the email address. Known names are cached locally so the overview stays fast.
+
+---
 id: 2026-06-19-changelog-tab
 date: 2026-06-19
 title: Changelog tab

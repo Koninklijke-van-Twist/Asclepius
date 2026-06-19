@@ -165,7 +165,7 @@
                 var titleEl = document.getElementById('bs-title');
                 var assigneeEl = document.getElementById('bs-assignee');
 
-                headline.textContent = BS.newTicketFrom.replace('%s', ticket.user_email);
+                headline.textContent = BS.newTicketFrom.replace('%s', ticket.user_label || ticket.user_email);
                 titleEl.textContent = ticket.title;
 
                 assigneeEl.innerHTML = '';
@@ -174,7 +174,7 @@
                     var pill = document.createElement('span');
                     pill.className = 'bs-assignee-pill';
                     pill.style.background = ticket.assigned_color || '#0b65c2';
-                    pill.textContent = BS.assignedTo.replace('%s', ticket.assigned_email);
+                    pill.textContent = BS.assignedTo.replace('%s', ticket.assigned_label || ticket.assigned_email);
                     assigneeEl.appendChild(pill);
                 } else
                 {
@@ -252,7 +252,7 @@
                         rows += '<tr>'
                             + '<td class="user-color-cell" style="--assignee-color:' + esc(r.user_color) + ';">'
                             + '<span class="assignee-badge' + badge + '" style="--assignee-color:' + esc(color) + ';">'
-                            + esc(r.user_email) + palm + '</span></td>'
+                            + esc(r.user_label || r.user_email) + palm + '</span></td>'
                             + '<td>' + r.handled_count + '</td>'
                             + '<td>' + esc(r.average_open) + '</td>'
                             + '<td>' + esc(r.max_open) + '</td>'
@@ -275,7 +275,7 @@
                         data.requester_stats.forEach(function (r)
                         {
                             rrows += '<tr>'
-                                + '<td>' + esc(r.user_email) + '</td>'
+                                + '<td>' + esc(r.user_label || r.user_email) + '</td>'
                                 + '<td>' + esc(r.average_wait) + '</td>'
                                 + '<td>' + esc(r.max_wait) + '</td>'
                                 + '<td>' + esc(r.average_response) + '</td>'
@@ -299,12 +299,13 @@
                         var sitems = '';
                         data.open_tickets.forEach(function (t)
                         {
-                            var assigned = t.assigned_email || BS.notAssigned;
+                            var assigned = t.assigned_label || t.assigned_email || BS.notAssigned;
+                            var requesterLabel = t.user_label || t.user_email;
                             var statusLabel = t.status_label || t.status;
                             sitems += '<div class="stats-ticket-item" style="--ticket-color:' + esc(t.status_color) + ';">'
                                 + '<div class="sti-body">'
                                 + '<span class="sti-title">#' + t.id + ' ' + esc(t.title) + '</span>'
-                                + '<span class="sti-meta">' + esc(statusLabel) + ' · ' + esc(t.user_email) + '</span>'
+                                + '<span class="sti-meta">' + esc(statusLabel) + ' · ' + esc(requesterLabel) + '</span>'
                                 + '<span class="sti-meta">' + esc(assigned) + '</span>'
                                 + '</div>'
                                 + '<span class="sti-prio sti-prio-' + t.priority + '">' + t.priority + '</span>'

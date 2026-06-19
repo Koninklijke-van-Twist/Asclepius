@@ -47,7 +47,7 @@
                                         <span
                                             class="assignee-badge <?= empty($availabilityByIctUser[$statsUserEmail]) ? 'vacation-badge is-away' : '' ?>"
                                             style="--assignee-color: <?= h(!empty($availabilityByIctUser[$statsUserEmail]) ? emailToHexColor($statsUserEmail) : '#94a3b8') ?>;">
-                                            <?= h($statsUserEmail) ?>
+                                            <?= renderUserDisplayLabel($statsUserEmail) ?>
                                             <?= empty($availabilityByIctUser[$statsUserEmail]) ? ' 🌴' : '' ?>
                                         </span>
                                     </td>
@@ -81,7 +81,7 @@
                                 <tbody id="stats-requester-tbody">
                                     <?php foreach ($requesterStats as $statsRow): ?>
                                         <tr>
-                                            <td><?= h((string) $statsRow['user_email']) ?></td>
+                                            <td><?= renderUserDisplayLabel((string) $statsRow['user_email']) ?></td>
                                             <td><?= h(formatDurationSeconds($statsRow['average_wait_seconds'] ?? null)) ?>
                                             </td>
                                             <td><?= h(formatDurationSeconds($statsRow['max_wait_seconds'] ?? null)) ?>
@@ -112,9 +112,9 @@
                                         <span class="sti-title">#<?= (int) $sideTicket['id'] ?>
                                             <?= h((string) $sideTicket['title']) ?></span>
                                         <span class="sti-meta"><?= h(translateStatus((string) $sideTicket['status'])) ?> &middot;
-                                            <?= h((string) $sideTicket['user_email']) ?></span>
+                                            <?= renderUserDisplayLabel((string) $sideTicket['user_email']) ?></span>
                                         <span
-                                            class="sti-meta"><?= h((string) (($sideTicket['assigned_email'] ?? '') !== '' ? $sideTicket['assigned_email'] : __('stats.no_assigned'))) ?></span>
+                                            class="sti-meta"><?= ($sideTicket['assigned_email'] ?? '') !== '' ? renderUserDisplayLabel((string) $sideTicket['assigned_email']) : h(__('stats.no_assigned')) ?></span>
                                     </div>
                                     <span class="sti-prio sti-prio-<?= $sidePrio ?>"><?= $sidePrio ?></span>
                                 </div>

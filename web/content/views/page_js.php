@@ -46,6 +46,26 @@
                 .replace(/'/g, '&#39;');
         };
 
+        var userDisplayNames = {};
+        try
+        {
+            userDisplayNames = JSON.parse(document.body.getAttribute('data-user-display-names') || '{}') || {};
+        } catch (parseError)
+        {
+            userDisplayNames = {};
+        }
+
+        var resolveUserDisplayName = function (email)
+        {
+            var normalized = String(email || '').trim().toLowerCase();
+            if (!normalized)
+            {
+                return '';
+            }
+
+            return userDisplayNames[normalized] || normalized;
+        };
+
         var SHORTCUT_KEY_DEFINITIONS = <?= json_encode(getShortcutKeyDefinitions(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
         var SHORTCUT_KEY_ALIAS_MAP = {};
 
@@ -855,8 +875,13 @@
 
                 var chipLabel = document.createElement('span');
                 chipLabel.className = 'participant-chip-label';
-                chipLabel.textContent = email;
+                var displayName = resolveUserDisplayName(email);
+                chipLabel.textContent = displayName;
                 chip.appendChild(chipLabel);
+                if (displayName !== email)
+                {
+                    chip.title = email;
+                }
 
                 var chipRemoveLabel = document.createElement('span');
                 chipRemoveLabel.className = 'participant-chip-remove-text';
@@ -894,7 +919,7 @@
             if (requesterElement)
             {
                 requesterElement.textContent = label;
-                requesterElement.title = emails.length > 1 ? tooltip : '';
+                requesterElement.title = tooltip || (emails.length === 1 && label !== emails[0] ? emails[0] : (emails.length > 1 ? tooltip : ''));
                 requesterElement.setAttribute('data-user-emails', JSON.stringify(emails));
                 requesterElement.setAttribute('data-ticket-users-trigger', emails.length > 1 ? '1' : '0');
                 requesterElement.classList.toggle('requester-multi', emails.length > 1);
@@ -1101,6 +1126,27 @@
                 }, 2200);
             };
 
+            var syncChangelogNavPulse = function ()
+            {
+                var navLink = document.querySelector('[data-changelog-nav-link]');
+                if (!navLink)
+                {
+                    return;
+                }
+
+                var hasUnread = false;
+                if (changelogUnreadList)
+                {
+                    hasUnread = changelogUnreadList.querySelectorAll('[data-changelog-entry][data-changelog-read="0"]').length > 0;
+                }
+                else
+                {
+                    hasUnread = navLink.classList.contains('has-unread-changelog');
+                }
+
+                navLink.classList.toggle('has-unread-changelog', hasUnread);
+            };
+
             var syncChangelogEmptyState = function ()
             {
                 if (!changelogUnreadList)
@@ -1139,6 +1185,7 @@
                 }
 
                 syncChangelogEmptyState();
+                syncChangelogNavPulse();
             };
 
             var changelogViewerEmail = changelogSection.getAttribute('data-viewer-email') || '';
@@ -1248,6 +1295,7 @@
             }
 
             syncChangelogEmptyState();
+            syncChangelogNavPulse();
         }
 
         var sessionKeepaliveTimer = null;

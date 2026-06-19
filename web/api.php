@@ -624,7 +624,7 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
         'category' => (string) ($updatedTicket['category'] ?? ''),
         'category_label' => translateCategory((string) ($updatedTicket['category'] ?? '')),
         'assigned_email' => $assignedEmail,
-        'assigned_label' => $assignedEmail !== '' ? $assignedEmail : __('ticket.unassigned'),
+        'assigned_label' => $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : __('ticket.unassigned'),
         'assigned_color' => emailToHexColor($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'),
         'message_id' => $messageId,
         'message_html' => renderTicketMessageHtml($messageForRender, $currentPage),
@@ -633,7 +633,11 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
 
 function buildBigscreenPollApiPayload(TicketStore $store): array
 {
+    global $ictUsers;
+
     $allTicketsForPoll = $store->getTickets(true, '');
+    warmUserDirectoryForBigscreenPoll($allTicketsForPoll, is_array($ictUsers ?? null) ? $ictUsers : []);
+
     $pollMaxId = 0;
     $pollLatest = null;
     $pollSnapshot = [];
@@ -655,16 +659,7 @@ function buildBigscreenPollApiPayload(TicketStore $store): array
         ];
 
         if ((string) ($ticket['status'] ?? '') !== 'afgehandeld') {
-            $pollOpenTickets[] = [
-                'id' => $ticketId,
-                'title' => (string) ($ticket['title'] ?? ''),
-                'status' => (string) ($ticket['status'] ?? ''),
-                'status_label' => translateStatus((string) ($ticket['status'] ?? '')),
-                'status_color' => getStatusColor((string) ($ticket['status'] ?? '')),
-                'user_email' => (string) ($ticket['user_email'] ?? ''),
-                'assigned_email' => (string) ($ticket['assigned_email'] ?? ''),
-                'priority' => (int) ($ticket['priority'] ?? 0),
-            ];
+            $pollOpenTickets[] = mapBigscreenOpenTicketRow($ticket);
         }
     }
 
@@ -673,28 +668,15 @@ function buildBigscreenPollApiPayload(TicketStore $store): array
     $pollRequesterStats = $store->getRequesterStats();
     $pollAvailability = $store->getIctUserAvailability();
 
-    $pollIctStatsMapped = array_map(function (array $row) use ($pollAvailability): array {
-        $email = strtolower((string) ($row['user_email'] ?? ''));
-        return [
-            'user_email' => $email,
-            'user_color' => emailToHexColor($email),
-            'available' => !empty($pollAvailability[$email]),
-            'handled_count' => (int) ($row['handled_count'] ?? 0),
-            'average_open' => formatDurationSeconds($row['average_open_seconds'] ?? null),
-            'max_open' => formatDurationSeconds($row['max_open_seconds'] ?? null),
-            'open_count' => (int) ($row['open_count'] ?? 0),
-            'waiting_order_count' => (int) ($row['waiting_order_count'] ?? 0),
-        ];
-    }, $pollIctStats);
+    $pollIctStatsMapped = array_map(
+        static fn(array $row): array => mapBigscreenIctStatRow($row, $pollAvailability),
+        $pollIctStats
+    );
 
-    $pollRequesterStatsMapped = array_map(function (array $row): array {
-        return [
-            'user_email' => (string) ($row['user_email'] ?? ''),
-            'average_wait' => formatDurationSeconds($row['average_wait_seconds'] ?? null),
-            'max_wait' => formatDurationSeconds($row['max_wait_seconds'] ?? null),
-            'average_response' => formatDurationSeconds($row['average_response_seconds'] ?? null),
-        ];
-    }, $pollRequesterStats);
+    $pollRequesterStatsMapped = array_map(
+        static fn(array $row): array => mapBigscreenRequesterStatRow($row),
+        $pollRequesterStats
+    );
 
     return [
         'success' => true,
@@ -708,6 +690,7 @@ function buildBigscreenPollApiPayload(TicketStore $store): array
             'id' => $pollMaxId,
             'title' => (string) ($pollLatest['title'] ?? ''),
             'user_email' => (string) ($pollLatest['user_email'] ?? ''),
+            'user_label' => formatUserDisplayName((string) ($pollLatest['user_email'] ?? '')),
             'assigned_email' => (string) ($pollLatest['assigned_email'] ?? ''),
             'assigned_color' => emailToHexColor((string) ($pollLatest['assigned_email'] ?? '')),
             'priority' => (int) ($pollLatest['priority'] ?? 0),

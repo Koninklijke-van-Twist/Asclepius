@@ -210,6 +210,34 @@
             color: var(--accent);
         }
 
+        .nav-link.changelog-nav-link.has-unread-changelog {
+            animation: changelog-nav-pulse 1.8s ease-in-out infinite;
+        }
+
+        .nav-link.changelog-nav-link.has-unread-changelog.active {
+            animation: changelog-nav-pulse-active 1.8s ease-in-out infinite;
+        }
+
+        @keyframes changelog-nav-pulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(147, 197, 253, 0);
+            }
+
+            50% {
+                box-shadow: 0 0 0 4px rgba(147, 197, 253, 0.55);
+            }
+        }
+
+        @keyframes changelog-nav-pulse-active {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(11, 101, 194, 0);
+            }
+
+            50% {
+                box-shadow: 0 0 0 4px rgba(11, 101, 194, 0.35);
+            }
+        }
+
         .flash-stack {
             margin: 16px 0;
             display: grid;

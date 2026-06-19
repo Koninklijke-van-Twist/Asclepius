@@ -40,7 +40,7 @@
                                                     <span
                                                         class="assignee-badge vacation-badge <?= $isAvailable ? '' : 'is-away' ?>"
                                                         style="--assignee-color: <?= h($isAvailable ? emailToHexColor($ictUser) : '#94a3b8') ?>;">
-                                                        <?= h($ictUser) ?>
+                                                        <?= renderUserDisplayLabel($ictUser) ?>
                                                     </span>
                                                     <span class="vacation-indicator" <?= $isAvailable ? 'hidden' : '' ?>>🌴</span>
                                                 </label>
@@ -79,7 +79,7 @@
                                                     <span
                                                         class="assignee-badge vacation-badge <?= $isAvailable ? '' : 'is-away' ?>"
                                                         style="--assignee-color: <?= h($isAvailable ? emailToHexColor($ictUser) : '#94a3b8') ?>;">
-                                                        <?= h($ictUser) ?>
+                                                        <?= renderUserDisplayLabel($ictUser) ?>
                                                     </span>
                                                     <span class="vacation-indicator" <?= $isAvailable ? 'hidden' : '' ?>>🌴</span>
                                                 </label>

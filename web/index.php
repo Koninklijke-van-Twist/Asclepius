@@ -28,6 +28,7 @@ $apiUrl = 'api.php';
 
 
 <body<?= $isBigscreen ? ' style="overflow:hidden;"' : '' ?> data-api-url="<?= h($apiUrl) ?>"
+    data-user-display-names="<?= h((string) json_encode(getUserDisplayNameMap(), JSON_UNESCAPED_UNICODE)) ?>"
     data-api-key="<?= h((string) ($apiClientKey ?? '')) ?>"
     data-browser-notification-poll-url="<?= h($browserNotificationPollUrl) ?>"
     data-browser-notification-open-template="<?= h($browserNotificationOpenUrlTemplate) ?>"

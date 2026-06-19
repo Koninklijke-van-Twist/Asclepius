@@ -1,3 +1,11 @@
+id: 2026-06-19-user-display-names
+date: 2026-06-19
+title: Namen in plaats van e-mailadressen
+author: Tim Falken
+
+Waar mogelijk zie je nu de echte naam van een gebruiker in plaats van het e-mailadres — bijvoorbeeld bij aanvragers, behandelaars, berichten en statistieken. Hover met de muis om het e-mailadres te zien. Bekende namen worden lokaal onthouden zodat het overzicht snel blijft.
+
+---
 id: 2026-06-19-changelog-tab
 date: 2026-06-19
 title: Changelog-tab

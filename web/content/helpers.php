@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'user_directory.php';
+
 function h(?string $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
@@ -124,11 +126,19 @@ function buildRequesterSummary(array $participantEmails, string $fallbackEmail):
 
     $firstEmail = (string) ($participants[0] ?? '');
     $extraCount = max(0, count($participants) - 1);
-    $label = $firstEmail . ($extraCount > 0 ? ' +' . $extraCount : '');
+    $firstDisplay = formatUserDisplayName($firstEmail);
+    $label = $firstDisplay . ($extraCount > 0 ? ' +' . $extraCount : '');
+    $displayNames = array_map(
+        static fn(string $email): string => formatUserDisplayName($email),
+        array_filter($participants, static fn(string $email): bool => $email !== '')
+    );
+    $tooltip = $extraCount > 0
+        ? implode("\n", $displayNames)
+        : ($firstDisplay !== $firstEmail && $firstEmail !== '' ? $firstEmail : '');
 
     return [
         'label' => $label,
-        'tooltip' => implode("\n", array_filter($participants, static fn(string $email): bool => $email !== '')),
+        'tooltip' => $tooltip,
         'participants' => $participants,
         'extra_count' => $extraCount,
     ];
@@ -246,6 +256,12 @@ function buildTicketPollItemsFromTickets(TicketStore $store, array $tickets, arr
 
     $participantsByTicketId = $store->getTicketParticipantsBatch($ticketIds);
     $messagesByTicketId = $store->getTicketMessagesBatch($ticketIds);
+    warmUserDirectoryForContext(collectEmailsForUserDirectoryWarmup(
+        $tickets,
+        $participantsByTicketId,
+        is_array($context['ictUsers'] ?? null) ? $context['ictUsers'] : [],
+        $messagesByTicketId
+    ));
     $openTicketId = (int) ($context['openTicketId'] ?? 0);
     $pollItems = [];
 
@@ -572,7 +588,8 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
         data-message-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
         data-translation-status="<?= $translationPending ? 'pending' : 'loaded' ?>">
         <div class="message-meta">
-            <strong><?= h((string) ($message['sender_email'] ?? '')) ?></strong>
+            <?php $senderEmail = (string) ($message['sender_email'] ?? ''); ?>
+            <strong title="<?= h(formatUserDisplayName($senderEmail) !== strtolower(trim($senderEmail)) ? $senderEmail : '') ?>"><?= h(formatUserDisplayName($senderEmail)) ?></strong>
             <span
                 class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? h(__('ticket.role_admin')) : h(__('ticket.role_user')) ?></span>
             <span><?= h(formatDateTime((string) ($message['created_at'] ?? ''))) ?></span>
@@ -664,7 +681,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
     $replyFormId = 'reply-form-' . (int) ($ticket['id'] ?? 0);
     $assignedEmail = (string) ($ticket['assigned_email'] ?? '');
-    $assignedLabel = $assignedEmail !== '' ? $assignedEmail : __('ticket.unassigned');
+    $assignedLabel = $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : __('ticket.unassigned');
     $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
     $participantEmails = is_array($ticketDetail['participant_emails'] ?? null) ? $ticketDetail['participant_emails'] : [$requesterEmail];
     $requesterSummary = buildRequesterSummary($participantEmails, $requesterEmail);
@@ -716,7 +733,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                     </p>
                     <div class="ticket-subtitle">
                         <span data-role="requester-email" class="<?= $requesterExtraCount > 0 ? 'requester-multi' : '' ?>"
-                            title="<?= h($requesterExtraCount > 0 ? $requesterTooltip : '') ?>"
+                            title="<?= h($requesterExtraCount > 0 ? $requesterTooltip : ($requesterLabel !== $requesterEmail && $requesterEmail !== '' ? $requesterEmail : '')) ?>"
                             data-ticket-users-trigger="<?= $requesterExtraCount > 0 ? '1' : '0' ?>"
                             data-user-emails="<?= h((string) json_encode($requesterParticipants, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
                             <?= h($requesterLabel) ?>
@@ -733,7 +750,8 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                             style="--ticket-color: <?= h($ticketColor) ?>;"><?= h(translateStatus((string) ($ticket['status'] ?? ''))) ?></span>
                     <?php endif; ?>
                     <span class="assignee-badge" data-role="assignee-badge"
-                        style="--assignee-color: <?= h(emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'))) ?>;">
+                        style="--assignee-color: <?= h(emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'))) ?>;"
+                        title="<?= h($assignedEmail !== '' && $assignedLabel !== $assignedEmail ? $assignedEmail : '') ?>">
                         <?= h($assignedLabel) ?>
                     </span>
                     <?php if ($userIsAdmin && $isAdminPortal): ?>
@@ -823,7 +841,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 <p class="ticket-users-popover-title"><?= h(__('ticket.participants_title')) ?></p>
                 <ul class="ticket-users-popover-list" data-role="ticket-users-popover-list">
                     <?php foreach ($requesterParticipants as $participantEmail): ?>
-                        <li><?= h($participantEmail) ?></li>
+                        <li><?= renderUserDisplayLabel($participantEmail) ?></li>
                     <?php endforeach; ?>
                 </ul>
             </div>
@@ -845,8 +863,9 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                                 <button type="button" class="participant-chip-form" data-role="participant-remove-toggle"
                                     data-participant-email="<?= h($participantEmail) ?>">
                                     <span
-                                        class="participant-chip<?= $participantEmail === $requesterEmail ? ' is-requester' : '' ?>">
-                                        <span class="participant-chip-label"><?= h($participantEmail) ?></span>
+                                        class="participant-chip<?= $participantEmail === $requesterEmail ? ' is-requester' : '' ?>"
+                                        title="<?= h(formatUserDisplayName($participantEmail) !== $participantEmail ? $participantEmail : '') ?>">
+                                        <span class="participant-chip-label"><?= h(formatUserDisplayName($participantEmail)) ?></span>
                                         <span class="participant-chip-remove-text"><?= h(__('ticket.participant_remove')) ?></span>
                                     </span>
                                 </button>
@@ -937,7 +956,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                                 <?php foreach ($assignableIctUsers as $ictUser):
                                     $ictUser = strtolower($ictUser); ?>
                                     <option value="<?= h($ictUser) ?>" <?= strtolower((string) ($ticket['assigned_email'] ?? '')) === $ictUser ? 'selected' : '' ?>>
-                                        <?= h($ictUser) ?>
+                                        <?= h(formatUserDisplayName($ictUser)) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -1027,7 +1046,7 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
         'priority_label' => formatPriorityLabel((int) ($ticket['priority'] ?? 0)),
         'priority_color' => getPriorityColor((int) ($ticket['priority'] ?? 0)),
         'assigned_email' => $assignedEmail,
-        'assigned_label' => $assignedEmail !== '' ? $assignedEmail : __('ticket.unassigned'),
+        'assigned_label' => $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : __('ticket.unassigned'),
         'assigned_color' => emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl')),
         'message_count' => (int) ($ticket['message_count'] ?? 0),
         'time_open_label' => formatDurationSeconds($ticketOpenDuration),

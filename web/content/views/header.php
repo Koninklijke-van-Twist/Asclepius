@@ -45,7 +45,7 @@ $currentLang = getCurrentLanguage();
         </div>
     </div>
     <div class="hero-actions" <?= $isBigscreen ? ' hidden' : '' ?>>
-        <span class="user-chip"><?= h($userEmail) ?><?= $userIsAdmin ? h(__('header.admin_suffix')) : '' ?></span>
+        <span class="user-chip" title="<?= h($userEmail) ?>"><?= h(formatUserDisplayName($userEmail)) ?><?= $userIsAdmin ? h(__('header.admin_suffix')) : '' ?></span>
         <a class="nav-link <?= !$isAdminPortal ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
         <?php if ($userIsAdmin): ?>
             <a class="nav-link <?= $isAdminPortal && $view === 'overview' ? 'active' : '' ?>"
@@ -58,8 +58,8 @@ $currentLang = getCurrentLanguage();
                 href="admin.php?view=template_tickets"><?= h(__('nav.template_tickets')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'email_prefs' ? 'active' : '' ?>"
                 href="admin.php?view=email_prefs"><?= h(__('nav.email_preferences')) ?></a>
-            <a class="nav-link <?= $isAdminPortal && $view === 'changelog' ? 'active' : '' ?>"
-                href="admin.php?view=changelog"><?= h(__('nav.changelog')) ?></a>
+            <a class="nav-link changelog-nav-link<?= !empty($changelogHasUnread) ? ' has-unread-changelog' : '' ?><?= $isAdminPortal && $view === 'changelog' ? ' active' : '' ?>"
+                href="admin.php?view=changelog" data-changelog-nav-link><?= h(__('nav.changelog')) ?></a>
         <?php endif; ?>
     </div>
 </header>

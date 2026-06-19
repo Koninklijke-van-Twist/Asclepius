@@ -1,3 +1,11 @@
+id: 2026-06-19-user-display-names
+date: 2026-06-19
+title: Namen statt E-Mail-Adressen
+author: Tim Falken
+
+Wo möglich sehen Sie jetzt den echten Namen eines Benutzers statt der E-Mail-Adresse — z. B. bei Antragstellern, Bearbeitern, Nachrichten und Statistiken. Mit der Maus darüberfahren, um die E-Mail-Adresse zu sehen. Bekannte Namen werden lokal gespeichert, damit die Übersicht schnell bleibt.
+
+---
 id: 2026-06-19-changelog-tab
 date: 2026-06-19
 title: Changelog-Tab

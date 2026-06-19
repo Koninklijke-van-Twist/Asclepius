@@ -184,6 +184,9 @@ $changelogEntries = $canManageTickets && $view === 'changelog'
 $changelogReadIds = $canManageTickets
     ? loadChangelogReadIds($userEmail)
     : [];
+$changelogHasUnread = $canManageTickets
+    ? hasUnreadChangelogEntries(getCurrentLanguage(), $userEmail)
+    : false;
 $editingTemplateFragment = null;
 if ($editingTemplateId > 0) {
     foreach ($templateFragments as $templateFragment) {
@@ -196,6 +199,29 @@ if ($editingTemplateId > 0) {
 $statsOpenTickets = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getTickets(true, '', array_filter(TICKET_STATUSES, fn(string $s) => $s !== 'afgehandeld'))
     : [];
+
+$directoryWarmupEmails = collectEmailsForUserDirectoryWarmup(
+    $tickets,
+    $participantsByTicketId ?? [],
+    $ictUsers,
+    $messagesByTicketId ?? []
+);
+$directoryWarmupEmails[] = $userEmail;
+foreach ($ictUsers as $ictUserEmail) {
+    $directoryWarmupEmails[] = (string) $ictUserEmail;
+}
+foreach ($ictStats as $statsRow) {
+    $directoryWarmupEmails[] = (string) ($statsRow['user_email'] ?? '');
+}
+foreach ($requesterStats as $statsRow) {
+    $directoryWarmupEmails[] = (string) ($statsRow['user_email'] ?? '');
+}
+foreach ($statsOpenTickets as $sideTicket) {
+    $directoryWarmupEmails[] = (string) ($sideTicket['user_email'] ?? '');
+    $directoryWarmupEmails[] = (string) ($sideTicket['assigned_email'] ?? '');
+}
+warmUserDirectoryForContext($directoryWarmupEmails);
+
 $ticketSnapshotSignature = buildTicketSnapshotSignature($tickets);
 
 if (isset($_GET['_webpush_subscription'])) {
@@ -372,6 +398,8 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_version'])
 
 if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     $allTicketsForPoll = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
+    warmUserDirectoryForBigscreenPoll($allTicketsForPoll, $ictUsers);
+
     $pollMaxId = 0;
     $pollLatest = null;
     $pollSnapshot = [];
@@ -390,16 +418,7 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
             'message_count' => (int) ($t['message_count'] ?? 0),
         ];
         if ((string) ($t['status'] ?? '') !== 'afgehandeld') {
-            $pollOpenTickets[] = [
-                'id' => $tid,
-                'title' => (string) ($t['title'] ?? ''),
-                'status' => (string) ($t['status'] ?? ''),
-                'status_label' => translateStatus((string) ($t['status'] ?? '')),
-                'status_color' => getStatusColor((string) ($t['status'] ?? '')),
-                'user_email' => (string) ($t['user_email'] ?? ''),
-                'assigned_email' => (string) ($t['assigned_email'] ?? ''),
-                'priority' => (int) ($t['priority'] ?? 0),
-            ];
+            $pollOpenTickets[] = mapBigscreenOpenTicketRow($t);
         }
     }
     $pollOverallStats = $store instanceof TicketStore ? $store->getOverallStats() : [];
@@ -407,28 +426,14 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     $pollRequesterStats = $store instanceof TicketStore ? $store->getRequesterStats() : [];
     $pollAvailability = $store instanceof TicketStore ? $store->getIctUserAvailability() : [];
 
-    $pollIctStatsMapped = array_map(function (array $r) use ($pollAvailability): array {
-        $email = strtolower((string) ($r['user_email'] ?? ''));
-        return [
-            'user_email' => $email,
-            'user_color' => emailToHexColor($email),
-            'available' => !empty($pollAvailability[$email]),
-            'handled_count' => (int) ($r['handled_count'] ?? 0),
-            'average_open' => formatDurationSeconds($r['average_open_seconds'] ?? null),
-            'max_open' => formatDurationSeconds($r['max_open_seconds'] ?? null),
-            'open_count' => (int) ($r['open_count'] ?? 0),
-            'waiting_order_count' => (int) ($r['waiting_order_count'] ?? 0),
-        ];
-    }, $pollIctStats);
-
-    $pollRequesterStatsMapped = array_map(function (array $r): array {
-        return [
-            'user_email' => (string) ($r['user_email'] ?? ''),
-            'average_wait' => formatDurationSeconds($r['average_wait_seconds'] ?? null),
-            'max_wait' => formatDurationSeconds($r['max_wait_seconds'] ?? null),
-            'average_response' => formatDurationSeconds($r['average_response_seconds'] ?? null),
-        ];
-    }, $pollRequesterStats);
+    $pollIctStatsMapped = array_map(
+        static fn(array $row): array => mapBigscreenIctStatRow($row, $pollAvailability),
+        $pollIctStats
+    );
+    $pollRequesterStatsMapped = array_map(
+        static fn(array $row): array => mapBigscreenRequesterStatRow($row),
+        $pollRequesterStats
+    );
 
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
@@ -442,6 +447,7 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
             'id' => $pollMaxId,
             'title' => (string) ($pollLatest['title'] ?? ''),
             'user_email' => (string) ($pollLatest['user_email'] ?? ''),
+            'user_label' => formatUserDisplayName((string) ($pollLatest['user_email'] ?? '')),
             'assigned_email' => (string) ($pollLatest['assigned_email'] ?? ''),
             'assigned_color' => emailToHexColor((string) ($pollLatest['assigned_email'] ?? '')),
             'priority' => (int) ($pollLatest['priority'] ?? 0),
