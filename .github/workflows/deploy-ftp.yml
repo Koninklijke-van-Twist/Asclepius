@@ -69,8 +69,6 @@ jobs:
           set net:timeout 20
           set ftp:ssl-allow false
           set ftp:passive-mode yes
-          set file:mode 644
-          set dir:mode 755
           cd "$FTP_REMOTE_DIR"
           put ./update.notify -o update.notify
           chmod 644 update.notify
@@ -85,14 +83,13 @@ jobs:
           mkdir -p ./deploy-maintenance
           cp ./.github/deploy/maintenance.php ./deploy-maintenance/index.php
           cp ./.github/deploy/maintenance.php ./deploy-maintenance/admin.php
+          chmod 644 ./deploy-maintenance/index.php ./deploy-maintenance/admin.php
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
           set cmd:fail-exit true
           set net:max-retries 2
           set net:timeout 20
           set ftp:ssl-allow false
           set ftp:passive-mode yes
-          set file:mode 644
-          set dir:mode 755
           cd "$FTP_REMOTE_DIR"
           mirror -R \
             --exclude-glob .htaccess \
@@ -100,19 +97,22 @@ jobs:
             --exclude-glob data/** \
             --exclude-glob auth.php \
             ./deploy-maintenance .
+          chmod 644 index.php
+          chmod 644 admin.php
           bye
           EOF
 
       - name: Deploy web/ to FTP (with delete & excludes)
         run: |
+          umask 022
+          find ./web -type d -exec chmod 755 {} +
+          find ./web -type f -exec chmod 644 {} +
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
           set cmd:fail-exit true
           set net:max-retries 2
           set net:timeout 20
           set ftp:ssl-allow false
           set ftp:passive-mode yes
-          set file:mode 644
-          set dir:mode 755
           cd "$FTP_REMOTE_DIR"
           mirror -R --delete \
             --exclude-glob .htaccess \
