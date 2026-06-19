@@ -56,6 +56,10 @@ $currentLang = getCurrentLanguage();
                 href="admin.php?view=stats"><?= h(__('nav.ict_stats')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'template_tickets' ? 'active' : '' ?>"
                 href="admin.php?view=template_tickets"><?= h(__('nav.template_tickets')) ?></a>
+            <a class="nav-link <?= $isAdminPortal && $view === 'email_prefs' ? 'active' : '' ?>"
+                href="admin.php?view=email_prefs"><?= h(__('nav.email_preferences')) ?></a>
+            <a class="nav-link <?= $isAdminPortal && $view === 'changelog' ? 'active' : '' ?>"
+                href="admin.php?view=changelog"><?= h(__('nav.changelog')) ?></a>
         <?php endif; ?>
     </div>
 </header>

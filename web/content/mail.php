@@ -555,6 +555,67 @@ function sendSingleWebPush(array $subscription, string $title, string $body, str
     ];
 }
 
+function getDefaultAdminEmailPreferences(): array
+{
+    $defaults = [];
+    foreach (ADMIN_EMAIL_NOTIFICATION_TYPES as $type) {
+        $defaults[$type] = true;
+    }
+
+    return $defaults;
+}
+
+function loadAdminEmailPreferences(string $email): array
+{
+    $saved = loadUserPrefs($email)['admin_email_preferences'] ?? [];
+    if (!is_array($saved)) {
+        return getDefaultAdminEmailPreferences();
+    }
+
+    $merged = getDefaultAdminEmailPreferences();
+    foreach ($merged as $type => $defaultEnabled) {
+        if (array_key_exists($type, $saved)) {
+            $merged[$type] = !empty($saved[$type]);
+        }
+    }
+
+    return $merged;
+}
+
+function saveAdminEmailPreference(string $email, string $type, bool $enabled): void
+{
+    if (!in_array($type, ADMIN_EMAIL_NOTIFICATION_TYPES, true)) {
+        return;
+    }
+
+    $preferences = loadAdminEmailPreferences($email);
+    $preferences[$type] = $enabled;
+    saveUserPref($email, 'admin_email_preferences', $preferences);
+}
+
+function filterAdminEmailRecipients(array $ictUsers, array $recipients, ?string $notificationType): array
+{
+    if ($notificationType === null || !in_array($notificationType, ADMIN_EMAIL_NOTIFICATION_TYPES, true)) {
+        return $recipients;
+    }
+
+    $ictLookup = array_fill_keys(extractIctUserEmails($ictUsers), true);
+    $filtered = [];
+
+    foreach ($recipients as $recipient) {
+        $email = strtolower(trim((string) $recipient));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            continue;
+        }
+
+        if (!isset($ictLookup[$email]) || !empty(loadAdminEmailPreferences($email)[$notificationType])) {
+            $filtered[$email] = $email;
+        }
+    }
+
+    return array_values($filtered);
+}
+
 function sendWebPushNotifications(
     ?TicketStore $store,
     array $ictUsers,
@@ -608,10 +669,12 @@ function sendTicketNotification(
     ?string $excludeEmail = null,
     ?string $ticketCategory = null,
     ?int $ticketId = null,
+    ?string $adminNotificationType = null,
     ?string $browserActorEmail = null
 ): void {
     $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $ticketCategory);
     $routedRecipients = $routing['recipients'] ?? $recipients;
+    $emailRecipients = filterAdminEmailRecipients($ictUsers, $routedRecipients, $adminNotificationType);
     $note = ($routing['note'] ?? '');
 
     $finalMessage = $message;
@@ -631,7 +694,7 @@ function sendTicketNotification(
             : $plain;
     }
 
-    sendTicketEmail($routedRecipients, $subject, $finalMessage, $excludeEmail);
+    sendTicketEmail($emailRecipients, $subject, $finalMessage, $excludeEmail);
 
     if (!$store instanceof TicketStore || $ticketId === null || $ticketId <= 0) {
         return;

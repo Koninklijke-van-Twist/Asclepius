@@ -29,6 +29,7 @@ const TICKET_STATUSES = [
     'in behandeling',
     'afwachtende op gebruiker',
     'afwachtende op bestelling',
+    'afwachtende op derde partij',
     'afgehandeld',
 ];
 const STATUS_COLORS = [
@@ -36,7 +37,14 @@ const STATUS_COLORS = [
     'in behandeling' => '#d97706',
     'afwachtende op gebruiker' => '#7c3aed',
     'afwachtende op bestelling' => '#b45309',
+    'afwachtende op derde partij' => '#0d9488',
     'afgehandeld' => '#15803d',
+];
+const ADMIN_EMAIL_NOTIFICATION_TYPES = [
+    'new_ticket',
+    'assigned',
+    'user_reply',
+    'escalation',
 ];
 const PRIORITY_LABELS = [
     0 => 'Normaal',

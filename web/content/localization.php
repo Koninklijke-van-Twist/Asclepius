@@ -24,6 +24,18 @@ const TRANSLATIONS = [
         'nav.settings' => 'Instellingen',
         'nav.ict_stats' => 'ICT-stats',
         'nav.template_tickets' => 'Template tickets',
+        'nav.email_preferences' => 'E-mailvoorkeuren',
+        'nav.changelog' => 'Changelog',
+
+        'changelog.heading' => 'Changelog',
+        'changelog.intro' => 'Ongelezen updates staan hieronder ingeklapt. Open een item om het te lezen; na een refresh verdwijnt het uit deze lijst.',
+        'changelog.mark_all_read' => 'Alles als gelezen markeren',
+        'changelog.show_read' => 'Eerdere updates tonen',
+        'changelog.hide_read' => 'Eerdere updates verbergen',
+        'changelog.no_unread' => 'Je bent helemaal bij. Er zijn geen ongelezen updates.',
+        'changelog.author' => 'Door: %s',
+        'changelog.saved' => 'Als gelezen gemarkeerd',
+        'changelog.save_failed' => 'Opslaan mislukt',
 
         // Ticket list
         'tickets.heading_admin' => 'ICT ticketoverzicht',
@@ -86,6 +98,18 @@ const TRANSLATIONS = [
         'ticket.preview_file' => 'Bestand voorvertonen',
         'ticket.preview_close' => 'Voorvertoning sluiten',
         'ticket.file_hint' => 'Per bestand maximaal 20 MB.',
+        'ticket.draft_attachment_remove' => 'Verwijderen',
+        'ticket.draft_attachment_insert' => 'In bericht plaatsen',
+        'ticket.draft_attachment_in_message' => 'In bericht',
+
+        'email_prefs.heading' => 'E-mailvoorkeuren',
+        'email_prefs.intro' => 'Kies voor welke gebeurtenissen je als ICT-beheerder een e-mail wilt ontvangen. Wijzigingen worden direct opgeslagen.',
+        'email_prefs.type_new_ticket' => 'Nieuw ticket (niet toegewezen of aan jou toegewezen)',
+        'email_prefs.type_assigned' => 'Ticket aan jou toegewezen',
+        'email_prefs.type_user_reply' => 'Reactie van gebruiker',
+        'email_prefs.type_escalation' => 'Escalatie (lang open ticket)',
+        'email_prefs.saved' => 'Voorkeur opgeslagen',
+        'email_prefs.save_failed' => 'Opslaan mislukt',
         'ticket.btn_save' => 'Opslaan',
         'ticket.btn_reply' => 'Reactie plaatsen en ICT mailen',
         'ticket.show_original' => 'Toon origineel',
@@ -256,6 +280,7 @@ const TRANSLATIONS = [
         'status.in_behandeling' => 'in behandeling',
         'status.afwachtende_op_gebruiker' => 'afwachtende op gebruiker',
         'status.afwachtende_op_bestelling' => 'afwachtende op bestelling',
+        'status.afwachtende_op_derde_partij' => 'afwachtende op derde partij',
         'status.afgehandeld' => 'afgehandeld',
 
         // Categorieweergavelabels (DB-sleutel → vertaalde weergave)
@@ -335,6 +360,18 @@ const TRANSLATIONS = [
         'nav.settings' => 'Settings',
         'nav.ict_stats' => 'ICT stats',
         'nav.template_tickets' => 'Template tickets',
+        'nav.email_preferences' => 'Email preferences',
+        'nav.changelog' => 'Changelog',
+
+        'changelog.heading' => 'Changelog',
+        'changelog.intro' => 'Unread updates are collapsed below. Open an item to read it; after a refresh it will leave this list.',
+        'changelog.mark_all_read' => 'Mark all as read',
+        'changelog.show_read' => 'Show earlier updates',
+        'changelog.hide_read' => 'Hide earlier updates',
+        'changelog.no_unread' => 'You\'re all caught up. There are no unread updates.',
+        'changelog.author' => 'By: %s',
+        'changelog.saved' => 'Marked as read',
+        'changelog.save_failed' => 'Save failed',
 
         // Ticket list
         'tickets.heading_admin' => 'ICT ticket overview',
@@ -397,6 +434,18 @@ const TRANSLATIONS = [
         'ticket.preview_file' => 'Preview file',
         'ticket.preview_close' => 'Close preview',
         'ticket.file_hint' => 'Maximum 20 MB per file.',
+        'ticket.draft_attachment_remove' => 'Remove',
+        'ticket.draft_attachment_insert' => 'Insert in message',
+        'ticket.draft_attachment_in_message' => 'In message',
+
+        'email_prefs.heading' => 'Email preferences',
+        'email_prefs.intro' => 'Choose which events you want to receive email for as an ICT admin. Changes are saved immediately.',
+        'email_prefs.type_new_ticket' => 'New ticket (unassigned or assigned to you)',
+        'email_prefs.type_assigned' => 'Ticket assigned to you',
+        'email_prefs.type_user_reply' => 'User reply',
+        'email_prefs.type_escalation' => 'Escalation (long-open ticket)',
+        'email_prefs.saved' => 'Preference saved',
+        'email_prefs.save_failed' => 'Save failed',
         'ticket.btn_save' => 'Save',
         'ticket.btn_reply' => 'Post reply and email ICT',
         'ticket.show_original' => 'Show original',
@@ -567,6 +616,7 @@ const TRANSLATIONS = [
         'status.in_behandeling' => 'in progress',
         'status.afwachtende_op_gebruiker' => 'awaiting user',
         'status.afwachtende_op_bestelling' => 'awaiting order',
+        'status.afwachtende_op_derde_partij' => 'awaiting third party',
         'status.afgehandeld' => 'resolved',
 
         // Category display labels
@@ -646,6 +696,18 @@ const TRANSLATIONS = [
         'nav.settings' => 'Einstellungen',
         'nav.ict_stats' => 'ICT-Statistiken',
         'nav.template_tickets' => 'Template-Tickets',
+        'nav.email_preferences' => 'E-Mail-Einstellungen',
+        'nav.changelog' => 'Changelog',
+
+        'changelog.heading' => 'Changelog',
+        'changelog.intro' => 'Ungelesene Einträge sind unten eingeklappt. Zum Lesen aufklappen; nach einem Refresh verschwinden sie aus dieser Liste.',
+        'changelog.mark_all_read' => 'Alle als gelesen markieren',
+        'changelog.show_read' => 'Frühere Updates anzeigen',
+        'changelog.hide_read' => 'Frühere Updates ausblenden',
+        'changelog.no_unread' => 'Alles gelesen. Es gibt keine ungelesenen Updates.',
+        'changelog.author' => 'Von: %s',
+        'changelog.saved' => 'Als gelesen markiert',
+        'changelog.save_failed' => 'Speichern fehlgeschlagen',
 
         // Ticket list
         'tickets.heading_admin' => 'ICT-Ticketübersicht',
@@ -708,6 +770,18 @@ const TRANSLATIONS = [
         'ticket.preview_file' => 'Datei anzeigen',
         'ticket.preview_close' => 'Vorschau schließen',
         'ticket.file_hint' => 'Maximal 20 MB pro Datei.',
+        'ticket.draft_attachment_remove' => 'Entfernen',
+        'ticket.draft_attachment_insert' => 'In Nachricht einfügen',
+        'ticket.draft_attachment_in_message' => 'In Nachricht',
+
+        'email_prefs.heading' => 'E-Mail-Einstellungen',
+        'email_prefs.intro' => 'Wählen Sie, bei welchen Ereignissen Sie als ICT-Administrator eine E-Mail erhalten möchten. Änderungen werden sofort gespeichert.',
+        'email_prefs.type_new_ticket' => 'Neues Ticket (nicht zugewiesen oder Ihnen zugewiesen)',
+        'email_prefs.type_assigned' => 'Ticket Ihnen zugewiesen',
+        'email_prefs.type_user_reply' => 'Nutzerantwort',
+        'email_prefs.type_escalation' => 'Eskalation (lange offenes Ticket)',
+        'email_prefs.saved' => 'Einstellung gespeichert',
+        'email_prefs.save_failed' => 'Speichern fehlgeschlagen',
         'ticket.btn_save' => 'Speichern',
         'ticket.btn_reply' => 'Antwort senden und ICT benachrichtigen',
         'ticket.show_original' => 'Original anzeigen',
@@ -878,6 +952,7 @@ const TRANSLATIONS = [
         'status.in_behandeling' => 'in Bearbeitung',
         'status.afwachtende_op_gebruiker' => 'wartet auf Benutzer',
         'status.afwachtende_op_bestelling' => 'wartet auf Bestellung',
+        'status.afwachtende_op_derde_partij' => 'wartet auf Dritte Partei',
         'status.afgehandeld' => 'erledigt',
 
         // Kategorieanzeigebezeichnungen
@@ -957,6 +1032,18 @@ const TRANSLATIONS = [
         'nav.settings' => 'Paramètres',
         'nav.ict_stats' => 'Statistiques ICT',
         'nav.template_tickets' => 'Tickets modèle',
+        'nav.email_preferences' => 'Préférences e-mail',
+        'nav.changelog' => 'Changelog',
+
+        'changelog.heading' => 'Changelog',
+        'changelog.intro' => 'Les mises à jour non lues sont repliées ci-dessous. Ouvrez un élément pour le lire ; après un rafraîchissement il disparaîtra de cette liste.',
+        'changelog.mark_all_read' => 'Tout marquer comme lu',
+        'changelog.show_read' => 'Afficher les mises à jour précédentes',
+        'changelog.hide_read' => 'Masquer les mises à jour précédentes',
+        'changelog.no_unread' => 'Vous êtes à jour. Aucune mise à jour non lue.',
+        'changelog.author' => 'Par : %s',
+        'changelog.saved' => 'Marqué comme lu',
+        'changelog.save_failed' => 'Échec de l\'enregistrement',
 
         // Ticket list
         'tickets.heading_admin' => 'Vue d\'ensemble des tickets ICT',
@@ -1019,6 +1106,18 @@ const TRANSLATIONS = [
         'ticket.preview_file' => 'Afficher l\'aperçu du fichier',
         'ticket.preview_close' => 'Fermer l\'aperçu',
         'ticket.file_hint' => '20 Mo maximum par fichier.',
+        'ticket.draft_attachment_remove' => 'Supprimer',
+        'ticket.draft_attachment_insert' => 'Insérer dans le message',
+        'ticket.draft_attachment_in_message' => 'Dans le message',
+
+        'email_prefs.heading' => 'Préférences e-mail',
+        'email_prefs.intro' => 'Choisissez pour quels événements vous souhaitez recevoir un e-mail en tant qu\'administrateur ICT. Les modifications sont enregistrées immédiatement.',
+        'email_prefs.type_new_ticket' => 'Nouveau ticket (non assigné ou assigné à vous)',
+        'email_prefs.type_assigned' => 'Ticket assigné à vous',
+        'email_prefs.type_user_reply' => 'Réponse de l\'utilisateur',
+        'email_prefs.type_escalation' => 'Escalade (ticket ouvert longtemps)',
+        'email_prefs.saved' => 'Préférence enregistrée',
+        'email_prefs.save_failed' => 'Échec de l\'enregistrement',
         'ticket.btn_save' => 'Enregistrer',
         'ticket.btn_reply' => 'Publier la réponse et envoyer un e-mail à l\'ICT',
         'ticket.show_original' => 'Afficher l\'original',
@@ -1189,6 +1288,7 @@ const TRANSLATIONS = [
         'status.in_behandeling' => 'en cours',
         'status.afwachtende_op_gebruiker' => 'en attente de l\'utilisateur',
         'status.afwachtende_op_bestelling' => 'en attente de commande',
+        'status.afwachtende_op_derde_partij' => 'en attente de tiers',
         'status.afgehandeld' => 'résolu',
 
         // Libellés d'affichage des catégories

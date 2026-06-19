@@ -169,6 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     $requesterEmail,
                     (string) ($ticket['category'] ?? $category),
                     $ticketId,
+                    'new_ticket',
                     $userEmail
                 );
 
@@ -187,6 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     null,
                     (string) ($ticket['category'] ?? $category),
                     $ticketId,
+                    null,
                     $userEmail
                 );
             }
@@ -252,6 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                         $userEmail,
                         (string) ($updatedTicket['category'] ?? ''),
                         $ticketId,
+                        null,
                         $userEmail
                     );
                     $participantChangeNotifiedViaUpdate = true;
@@ -272,6 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                         $userEmail,
                         (string) ($updatedTicket['category'] ?? ''),
                         $ticketId,
+                        null,
                         $userEmail
                     );
                 }
@@ -331,6 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                         $userEmail,
                         (string) ($updatedTicket['category'] ?? ''),
                         $ticketId,
+                        null,
                         $userEmail
                     );
                 }
@@ -464,6 +469,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                             $userEmail,
                             (string) ($updatedTicket['category'] ?? ''),
                             $ticketId,
+                            null,
                             $userEmail
                         );
                     }
@@ -479,6 +485,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                             $userEmail,
                             (string) ($updatedTicket['category'] ?? ''),
                             $ticketId,
+                            'assigned',
                             $userEmail
                         );
                     }
@@ -494,6 +501,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                         $userEmail,
                         (string) ($updatedTicket['category'] ?? ''),
                         $ticketId,
+                        'user_reply',
                         $userEmail
                     );
 
@@ -509,6 +517,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                             null,
                             (string) ($updatedTicket['category'] ?? ''),
                             $ticketId,
+                            'escalation',
                             $userEmail
                         );
                     }

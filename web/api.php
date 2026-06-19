@@ -16,11 +16,43 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . '
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'LaraTranslationProvider.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'translation.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'mail.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'changelog.php';
 
 if (!isset($ictUserColors) || !is_array($ictUserColors)) {
     $ictUserColors = [];
 }
 normalizeIctUsersConfig($ictUsers, $ictUserColors);
+
+function ensureApiSessionStarted(): void
+{
+    static $done = false;
+    if ($done || session_status() === PHP_SESSION_ACTIVE) {
+        $done = true;
+
+        return;
+    }
+
+    $appSessionConfigPaths = [
+        __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'login' . DIRECTORY_SEPARATOR . 'session_config.php',
+        __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'login' . DIRECTORY_SEPARATOR . 'session_config.php',
+    ];
+    foreach ($appSessionConfigPaths as $appSessionConfigPath) {
+        if (!is_file($appSessionConfigPath)) {
+            continue;
+        }
+
+        require_once $appSessionConfigPath;
+        configure_app_session();
+        break;
+    }
+
+    $sessionCookieName = session_name();
+    if ($sessionCookieName !== '' && !empty($_COOKIE[$sessionCookieName])) {
+        session_start(['read_and_close' => true]);
+    }
+
+    $done = true;
+}
 
 /**
  * Functions
@@ -425,6 +457,7 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
             $actorEmail,
             (string) ($updatedTicket['category'] ?? ''),
             $ticketId,
+            null,
             $actorEmail
         );
         $participantChangeNotifiedViaUpdate = true;
@@ -445,6 +478,7 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
             $actorEmail,
             (string) ($updatedTicket['category'] ?? ''),
             $ticketId,
+            null,
             $actorEmail
         );
     }
@@ -552,6 +586,7 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
         $actorEmail,
         (string) ($updatedTicket['category'] ?? ''),
         $ticketId,
+        null,
         $actorEmail
     );
 
@@ -567,6 +602,7 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
             $actorEmail,
             (string) ($updatedTicket['category'] ?? ''),
             $ticketId,
+            'assigned',
             $actorEmail
         );
     }
@@ -676,6 +712,146 @@ function buildBigscreenPollApiPayload(TicketStore $store): array
             'assigned_color' => emailToHexColor((string) ($pollLatest['assigned_email'] ?? '')),
             'priority' => (int) ($pollLatest['priority'] ?? 0),
         ] : null,
+    ];
+}
+
+function handleSaveAdminEmailPreferencesApiAction(array $payload, ?array $apiClient): array
+{
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    if (!$userIsAdmin) {
+        return [
+            'success' => false,
+            'error' => __('flash.settings_admin_only'),
+        ];
+    }
+
+    ensureApiSessionStarted();
+    $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+    $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+    if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+        return [
+            'success' => false,
+            'error' => 'csrf',
+        ];
+    }
+
+    $notificationType = trim((string) ($payload['notification_type'] ?? ''));
+    if (!in_array($notificationType, ADMIN_EMAIL_NOTIFICATION_TYPES, true)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_notification_type',
+        ];
+    }
+
+    $userEmail = strtolower(trim((string) (
+        $apiClient['email'] ?? ($payload['viewer_email'] ?? ($_SESSION['user']['email'] ?? ''))
+    )));
+    if ($userEmail === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_user',
+        ];
+    }
+
+    saveAdminEmailPreference($userEmail, $notificationType, !empty($payload['enabled']));
+
+    return [
+        'success' => true,
+        'preferences' => loadAdminEmailPreferences($userEmail),
+    ];
+}
+
+function resolveChangelogApiActor(array $payload, ?array $apiClient): array
+{
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    if (!$userIsAdmin) {
+        return [
+            'success' => false,
+            'error' => __('flash.settings_admin_only'),
+        ];
+    }
+
+    ensureApiSessionStarted();
+    $userEmail = strtolower(trim((string) (
+        $apiClient['email'] ?? ($payload['viewer_email'] ?? ($_SESSION['user']['email'] ?? ''))
+    )));
+    if ($userEmail === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_user',
+        ];
+    }
+
+    return [
+        'success' => true,
+        'email' => $userEmail,
+    ];
+}
+
+function verifyChangelogApiCsrf(array $payload): ?array
+{
+    ensureApiSessionStarted();
+
+    $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+    $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+    if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+        return [
+            'success' => false,
+            'error' => 'csrf',
+        ];
+    }
+
+    return null;
+}
+
+function handleMarkChangelogReadApiAction(array $payload, ?array $apiClient): array
+{
+    $actor = resolveChangelogApiActor($payload, $apiClient);
+    if (empty($actor['success'])) {
+        return $actor;
+    }
+
+    $csrfError = verifyChangelogApiCsrf($payload);
+    if ($csrfError !== null) {
+        return $csrfError;
+    }
+
+    $userEmail = (string) ($actor['email'] ?? '');
+    $entryId = trim((string) ($payload['entry_id'] ?? ''));
+    if ($entryId === '') {
+        return [
+            'success' => false,
+            'error' => 'invalid_entry_id',
+        ];
+    }
+
+    return [
+        'success' => true,
+        'read_ids' => markChangelogEntryRead($userEmail, $entryId),
+    ];
+}
+
+function handleMarkAllChangelogsReadApiAction(array $payload, ?array $apiClient): array
+{
+    $actor = resolveChangelogApiActor($payload, $apiClient);
+    if (empty($actor['success'])) {
+        return $actor;
+    }
+
+    $csrfError = verifyChangelogApiCsrf($payload);
+    if ($csrfError !== null) {
+        return $csrfError;
+    }
+
+    $userEmail = (string) ($actor['email'] ?? '');
+    $entryIds = $payload['entry_ids'] ?? [];
+    if (!is_array($entryIds)) {
+        $entryIds = [];
+    }
+
+    return [
+        'success' => true,
+        'read_ids' => markAllChangelogEntriesRead($userEmail, $entryIds),
     ];
 }
 
@@ -808,6 +984,18 @@ if ($method === 'POST') {
 
     if ($action === 'change_ticket_category') {
         sendJson(200, handleChangeTicketCategoryApiAction($store, $payload, $apiClient));
+    }
+
+    if ($action === 'save_admin_email_preferences') {
+        sendJson(200, handleSaveAdminEmailPreferencesApiAction($payload, $apiClient));
+    }
+
+    if ($action === 'mark_changelog_read') {
+        sendJson(200, handleMarkChangelogReadApiAction($payload, $apiClient));
+    }
+
+    if ($action === 'mark_all_changelogs_read') {
+        sendJson(200, handleMarkAllChangelogsReadApiAction($payload, $apiClient));
     }
 
     if ($action === 'manage_ticket_template') {

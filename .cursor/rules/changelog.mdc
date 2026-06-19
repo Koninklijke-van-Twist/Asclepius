@@ -1,0 +1,43 @@
+---
+description: Changelog entries required for user-facing features and fixes
+alwaysApply: true
+---
+
+# Changelog bij features en fixes
+
+Vóór je commit of merge voor elke **nieuwe feature** of **bugfix** die zichtbaar is voor gebruikers:
+
+1. Voeg een entry toe in **alle vier** changelog-bestanden:
+   - `web/changelog/changelog-nl.md`
+   - `web/changelog/changelog-en.md`
+   - `web/changelog/changelog-de.md`
+   - `web/changelog/changelog-fr.md`
+
+2. Gebruik **dezelfde `id`** in elke taal (cross-language ID voor gelezen-status).
+
+3. Formaat per entry (entries scheiden met `---` op een eigen regel, met lege regel ervoor indien nodig):
+
+```
+id: 2026-06-19-voorbeeld-feature
+date: 2026-06-19
+title: Korte titel in deze taal
+author: Naam uit git of contributor
+
+Korte uitleg van de wijziging voor eindgebruikers.
+
+- Optioneel **vet** of *cursief* of `code`
+- Markdown-koppen (`##`) en links `[tekst](url)` worden ondersteund
+```
+
+Scheid entries altijd met een regel die alleen `---` bevat (LF-regeleinden; Windows CRLF wordt bij het inlezen genormaliseerd).
+
+4. Regels:
+   - `id`: uniek, stabiel, Engels/kebab-case, bijv. `2026-06-19-email-prefs`
+   - `date`: ISO `YYYY-MM-DD`
+   - `title`: korte titel in de taal van het bestand
+   - `author`: verantwoordelijke (vaak uit `git log`)
+   - Body: begrijpelijk voor ICT-beheerders, geen technische implementatiedetails
+
+5. Sorteer nieuwe entries **bovenaan** (nieuwste eerst).
+
+6. Geen changelog nodig voor puur interne refactors, tests of tooling zonder gebruikersimpact.

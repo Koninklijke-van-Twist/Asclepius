@@ -6,6 +6,7 @@ class TicketStore
         'ingediend',
         'in behandeling',
         'afwachtende op bestelling',
+        'afwachtende op derde partij',
     ];
 
     private const REQUESTER_RESPONSE_STATUS = 'afwachtende op gebruiker';
@@ -1999,6 +2000,10 @@ class TicketStore
             'awaiting order' => 'afwachtende op bestelling',
             'wartet auf bestellung' => 'afwachtende op bestelling',
             'en attente de commande' => 'afwachtende op bestelling',
+            'afwachtende op derde partij' => 'afwachtende op derde partij',
+            'awaiting third party' => 'afwachtende op derde partij',
+            'wartet auf dritte partei' => 'afwachtende op derde partij',
+            'en attente de tiers' => 'afwachtende op derde partij',
             'afgehandeld' => 'afgehandeld',
             'resolved' => 'afgehandeld',
             'erledigt' => 'afgehandeld',

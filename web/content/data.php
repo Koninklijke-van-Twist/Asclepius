@@ -175,6 +175,15 @@ $templateFragments = $canManageTickets && $view === 'template_tickets' && $store
     ? $store->getTicketTemplates()
     : [];
 $editingTemplateId = $canManageTickets && $view === 'template_tickets' ? max(0, (int) ($_GET['edit_template'] ?? 0)) : 0;
+$adminEmailPreferences = $canManageTickets && $view === 'email_prefs'
+    ? loadAdminEmailPreferences($userEmail)
+    : getDefaultAdminEmailPreferences();
+$changelogEntries = $canManageTickets && $view === 'changelog'
+    ? loadChangelogEntries(getCurrentLanguage())
+    : [];
+$changelogReadIds = $canManageTickets
+    ? loadChangelogReadIds($userEmail)
+    : [];
 $editingTemplateFragment = null;
 if ($editingTemplateId > 0) {
     foreach ($templateFragments as $templateFragment) {

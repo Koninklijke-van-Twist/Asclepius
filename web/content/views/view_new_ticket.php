@@ -71,7 +71,7 @@
             <label>
                 <?= h(__('new_ticket.attachments_label')) ?>
                 <input type="file" name="ticket_attachments[]" multiple data-accumulate-files="1">
-                <span class="hint" data-selected-files-summary hidden></span>
+                <ul class="draft-attachments-list" data-draft-attachments-list hidden></ul>
                 <span class="hint"><?= h(__('ticket.file_hint')) ?></span>
             </label>
 

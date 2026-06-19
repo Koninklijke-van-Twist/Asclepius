@@ -1258,6 +1258,283 @@
             padding-left: 18px;
         }
 
+        .draft-attachments-list {
+            list-style: none;
+            margin: 8px 0 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .draft-attachment-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #f8fbff;
+        }
+
+        .draft-attachment-name {
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+
+        .draft-attachment-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 0 0 auto;
+        }
+
+        .draft-attachment-insert,
+        .draft-attachment-remove {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+            color: #10233f;
+            font-size: 12px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        .draft-attachment-remove {
+            color: #b91c1c;
+        }
+
+        .draft-attachment-in-message {
+            font-size: 12px;
+            color: #0f766e;
+        }
+
+        .message-inline-attachment {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #f8fbff;
+        }
+
+        .message-inline-attachment-preview {
+            display: block;
+            max-width: 100%;
+        }
+
+        .message-inline-attachment-link {
+            display: block;
+            font-size: 12px;
+            line-height: 1.4;
+            color: var(--muted);
+            text-decoration: none;
+        }
+
+        .message-inline-attachment-link:hover {
+            color: #0b65c2;
+            text-decoration: underline;
+        }
+
+        .attachment-inline-image {
+            display: block;
+            max-width: min(100%, 480px);
+            max-height: 320px;
+            width: auto;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 0;
+        }
+
+        .email-prefs-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 10px;
+            max-width: 720px;
+        }
+
+        .email-prefs-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 14px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .email-prefs-label input {
+            margin-top: 2px;
+        }
+
+        .changelog-toolbar {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .changelog-mark-all-button,
+        .changelog-toggle-read-button {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+            color: #10233f;
+            font-size: 13px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .changelog-unread-list,
+        .changelog-read-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .changelog-read-section {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--line);
+        }
+
+        .changelog-entry {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .changelog-entry.is-unread {
+            border-color: #93c5fd;
+            background: #f8fbff;
+        }
+
+        .changelog-entry.is-read {
+            border-color: var(--line);
+            background: #fff;
+        }
+
+        .changelog-entry-summary {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .changelog-entry-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .changelog-entry-title {
+            flex: 1 1 auto;
+            font-weight: 600;
+            color: #10233f;
+        }
+
+        .changelog-entry-date {
+            font-size: 12px;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .changelog-entry-badge {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #2563eb;
+            flex: 0 0 auto;
+        }
+
+        .changelog-entry-body {
+            padding: 0 14px 14px;
+            color: #334155;
+            font-size: 14px;
+            line-height: 1.55;
+        }
+
+        .changelog-entry-body p {
+            margin: 0 0 10px;
+        }
+
+        .changelog-body-list {
+            margin: 0 0 10px;
+            padding-left: 18px;
+        }
+
+        .changelog-body-list-ordered {
+            list-style: decimal;
+        }
+
+        .changelog-entry-body code {
+            font-family: Consolas, Monaco, 'Courier New', monospace;
+            font-size: 0.92em;
+            background: #eef2f7;
+            border-radius: 4px;
+            padding: 1px 5px;
+        }
+
+        .changelog-entry-body a {
+            color: #0b65c2;
+        }
+
+        .changelog-heading {
+            margin: 0 0 8px;
+            color: #10233f;
+        }
+
+        .changelog-heading-1 {
+            font-size: 1.05rem;
+        }
+
+        .changelog-heading-2 {
+            font-size: 1rem;
+        }
+
+        .changelog-heading-3 {
+            font-size: 0.95rem;
+        }
+
+        .changelog-entry-author {
+            margin: 12px 0 0;
+            padding-top: 10px;
+            border-top: 1px solid var(--line);
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .changelog-empty {
+            margin: 0;
+            color: var(--muted);
+        }
+
+        .changelog-feedback.is-error,
+        .email-prefs-feedback.is-error {
+            color: #b91c1c;
+        }
+
+        .changelog-feedback:not(.is-error),
+        .email-prefs-feedback:not(.is-error) {
+            color: #0f766e;
+        }
+
+        .changelog-footer-actions {
+            margin-top: 16px;
+        }
+
         .attachment-item {
             display: flex;
             align-items: center;

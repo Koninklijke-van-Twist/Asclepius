@@ -274,6 +274,104 @@
         };
 
         var accumulatedFileMap = new WeakMap();
+        var DRAFT_ATTACHMENT_REMOVE_LABEL = <?= json_encode(__('ticket.draft_attachment_remove'), JSON_UNESCAPED_UNICODE) ?>;
+        var DRAFT_ATTACHMENT_INSERT_LABEL = <?= json_encode(__('ticket.draft_attachment_insert'), JSON_UNESCAPED_UNICODE) ?>;
+        var DRAFT_ATTACHMENT_IN_MESSAGE_LABEL = <?= json_encode(__('ticket.draft_attachment_in_message'), JSON_UNESCAPED_UNICODE) ?>;
+        var EMAIL_PREFS_SAVED_LABEL = <?= json_encode(__('email_prefs.saved'), JSON_UNESCAPED_UNICODE) ?>;
+        var EMAIL_PREFS_SAVE_FAILED_LABEL = <?= json_encode(__('email_prefs.save_failed'), JSON_UNESCAPED_UNICODE) ?>;
+        var CHANGELOG_SAVED_LABEL = <?= json_encode(__('changelog.saved'), JSON_UNESCAPED_UNICODE) ?>;
+        var CHANGELOG_SAVE_FAILED_LABEL = <?= json_encode(__('changelog.save_failed'), JSON_UNESCAPED_UNICODE) ?>;
+
+        var buildAttachmentMarker = function (filename)
+        {
+            return '[[attachment:' + String(filename || '').replace(/[\[\]]/g, '') + ']]';
+        };
+
+        var getFileIdentity = function (file)
+        {
+            return String(file.name) + '|' + String(file.size) + '|' + String(file.lastModified);
+        };
+
+        var findMessageTextareaInForm = function (form)
+        {
+            if (!form)
+            {
+                return null;
+            }
+
+            var messageField = form.querySelector('textarea[name="message"]');
+            if (messageField)
+            {
+                return messageField;
+            }
+
+            return form.querySelector('textarea[name="description"]');
+        };
+
+        var textareaContainsAttachmentMarker = function (textarea, filename)
+        {
+            if (!textarea || !filename)
+            {
+                return false;
+            }
+
+            return String(textarea.value || '').indexOf(buildAttachmentMarker(filename)) !== -1;
+        };
+
+        var insertAttachmentMarkerInTextarea = function (textarea, filename)
+        {
+            if (!textarea || !filename || textareaContainsAttachmentMarker(textarea, filename))
+            {
+                return;
+            }
+
+            var marker = buildAttachmentMarker(filename);
+            var value = String(textarea.value || '');
+            if (value !== '' && !value.endsWith('\n'))
+            {
+                value += '\n';
+            }
+
+            textarea.value = value + marker + '\n';
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+
+        var removeAttachmentMarkerFromTextarea = function (textarea, filename)
+        {
+            if (!textarea || !filename)
+            {
+                return;
+            }
+
+            var marker = buildAttachmentMarker(filename);
+            var lines = String(textarea.value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+            var changed = false;
+            var filtered = lines.filter(function (line)
+            {
+                if (line.trim() === marker)
+                {
+                    changed = true;
+                    return false;
+                }
+
+                return true;
+            });
+
+            if (!changed)
+            {
+                return;
+            }
+
+            textarea.value = filtered.join('\n').replace(/\n{3,}/g, '\n\n');
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+
+        var getDraftAttachmentsList = function (input)
+        {
+            return input && input.parentElement
+                ? input.parentElement.querySelector('[data-draft-attachments-list]')
+                : null;
+        };
 
         var syncAccumulatedFileInput = function (input, files)
         {
@@ -284,24 +382,90 @@
             });
             input.files = dataTransfer.files;
 
-            var summary = input.parentElement ? input.parentElement.querySelector('[data-selected-files-summary]') : null;
-            if (!summary)
+            var list = getDraftAttachmentsList(input);
+            if (!list)
             {
                 return;
             }
+
+            var form = input.closest('form');
+            var textarea = findMessageTextareaInForm(form);
+            list.innerHTML = '';
 
             if (!files.length)
             {
-                summary.hidden = true;
-                summary.textContent = '';
+                list.hidden = true;
                 return;
             }
 
-            summary.hidden = false;
-            summary.textContent = files.map(function (file)
+            list.hidden = false;
+            files.forEach(function (file)
             {
-                return file.name;
-            }).join(', ');
+                var item = document.createElement('li');
+                item.className = 'draft-attachment-item';
+                item.setAttribute('data-file-identity', getFileIdentity(file));
+
+                var name = document.createElement('span');
+                name.className = 'draft-attachment-name';
+                name.textContent = file.name;
+                item.appendChild(name);
+
+                var actions = document.createElement('span');
+                actions.className = 'draft-attachment-actions';
+
+                if (!textareaContainsAttachmentMarker(textarea, file.name))
+                {
+                    var insertButton = document.createElement('button');
+                    insertButton.type = 'button';
+                    insertButton.className = 'draft-attachment-insert';
+                    insertButton.setAttribute('data-draft-attachment-insert', '1');
+                    insertButton.textContent = DRAFT_ATTACHMENT_INSERT_LABEL;
+                    actions.appendChild(insertButton);
+                }
+                else
+                {
+                    var inMessage = document.createElement('span');
+                    inMessage.className = 'draft-attachment-in-message';
+                    inMessage.textContent = DRAFT_ATTACHMENT_IN_MESSAGE_LABEL;
+                    actions.appendChild(inMessage);
+                }
+
+                var removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'draft-attachment-remove';
+                removeButton.setAttribute('data-draft-attachment-remove', '1');
+                removeButton.textContent = DRAFT_ATTACHMENT_REMOVE_LABEL;
+                actions.appendChild(removeButton);
+
+                item.appendChild(actions);
+                list.appendChild(item);
+            });
+        };
+
+        var removeFileFromAccumulatingInput = function (fileInput, fileIdentity)
+        {
+            var collected = accumulatedFileMap.get(fileInput) || [];
+            var removedFile = null;
+            var nextFiles = collected.filter(function (file)
+            {
+                if (getFileIdentity(file) === fileIdentity)
+                {
+                    removedFile = file;
+                    return false;
+                }
+
+                return true;
+            });
+
+            accumulatedFileMap.set(fileInput, nextFiles);
+            syncAccumulatedFileInput(fileInput, nextFiles);
+
+            if (removedFile)
+            {
+                var form = fileInput.closest('form');
+                var textarea = findMessageTextareaInForm(form);
+                removeAttachmentMarkerFromTextarea(textarea, removedFile.name);
+            }
         };
 
         var addFilesToAccumulatingInput = function (fileInput, newFiles)
@@ -355,6 +519,61 @@
         initializeEmailChipInputs(document);
         initializeAccumulatingFileInputs(document);
 
+        document.addEventListener('click', function (event)
+        {
+            var target = event.target;
+            if (!(target instanceof HTMLElement))
+            {
+                return;
+            }
+
+            var removeButton = target.closest('[data-draft-attachment-remove]');
+            if (removeButton)
+            {
+                var item = removeButton.closest('.draft-attachment-item');
+                var list = removeButton.closest('[data-draft-attachments-list]');
+                var fileInput = list && list.parentElement
+                    ? list.parentElement.querySelector('input[type="file"][data-accumulate-files="1"]')
+                    : null;
+                var fileIdentity = item ? item.getAttribute('data-file-identity') : '';
+                if (fileInput && fileIdentity)
+                {
+                    removeFileFromAccumulatingInput(fileInput, fileIdentity);
+                }
+                return;
+            }
+
+            var insertButton = target.closest('[data-draft-attachment-insert]');
+            if (insertButton)
+            {
+                var insertItem = insertButton.closest('.draft-attachment-item');
+                var insertList = insertButton.closest('[data-draft-attachments-list]');
+                var insertInput = insertList && insertList.parentElement
+                    ? insertList.parentElement.querySelector('input[type="file"][data-accumulate-files="1"]')
+                    : null;
+                var insertIdentity = insertItem ? insertItem.getAttribute('data-file-identity') : '';
+                if (!insertInput || !insertIdentity)
+                {
+                    return;
+                }
+
+                var collected = accumulatedFileMap.get(insertInput) || [];
+                var selectedFile = collected.find(function (file)
+                {
+                    return getFileIdentity(file) === insertIdentity;
+                });
+                if (!selectedFile)
+                {
+                    return;
+                }
+
+                var form = insertInput.closest('form');
+                var textarea = findMessageTextareaInForm(form);
+                insertAttachmentMarkerInTextarea(textarea, selectedFile.name);
+                syncAccumulatedFileInput(insertInput, collected);
+            }
+        });
+
         document.addEventListener('paste', function (event)
         {
             var items = event.clipboardData ? Array.from(event.clipboardData.items) : [];
@@ -405,14 +624,24 @@
                     + '-' + pad(now.getSeconds());
                 var suffix = pasteIndex > 0 ? '-' + (pasteIndex + 1) : '';
                 pasteIndex++;
-                return new File([file], 'screenshot-' + timestamp + suffix + '.' + ext, {
+                return new File([file], 'attachment-' + timestamp + suffix + '.' + ext, {
                     type: file.type,
                     lastModified: file.lastModified || Date.now()
                 });
             }).filter(Boolean);
 
-            var added = addFilesToAccumulatingInput(fileInput, namedFiles);
-            if (added > 0)
+            var textarea = findMessageTextareaInForm(form);
+            var addedAny = false;
+            namedFiles.forEach(function (file)
+            {
+                if (addFilesToAccumulatingInput(fileInput, [file]) > 0)
+                {
+                    addedAny = true;
+                    insertAttachmentMarkerInTextarea(textarea, file.name);
+                }
+            });
+
+            if (addedAny)
             {
                 fileInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
@@ -741,6 +970,286 @@
         var webPushServiceWorkerUrl = document.body ? (document.body.getAttribute('data-webpush-sw-url') || '') : '';
         var csrfToken = document.body ? (document.body.getAttribute('data-csrf-token') || '') : '';
         var sessionKeepaliveUrl = document.body ? (document.body.getAttribute('data-session-keepalive-url') || 'session_keepalive.php') : 'session_keepalive.php';
+
+            var emailPrefsSection = document.querySelector('[data-email-prefs-section]');
+        if (emailPrefsSection)
+        {
+            var emailPrefsViewerEmail = emailPrefsSection.getAttribute('data-viewer-email') || '';
+            var emailPrefsUserIsAdmin = emailPrefsSection.getAttribute('data-user-is-admin') === '1';
+            var emailPrefsFeedback = emailPrefsSection.querySelector('[data-email-prefs-feedback]');
+            var emailPrefsFeedbackTimer = null;
+            var showEmailPrefsFeedback = function (message, isError)
+            {
+                if (!emailPrefsFeedback)
+                {
+                    return;
+                }
+
+                emailPrefsFeedback.textContent = message;
+                emailPrefsFeedback.hidden = false;
+                emailPrefsFeedback.classList.toggle('is-error', !!isError);
+                if (emailPrefsFeedbackTimer)
+                {
+                    clearTimeout(emailPrefsFeedbackTimer);
+                }
+
+                emailPrefsFeedbackTimer = setTimeout(function ()
+                {
+                    if (emailPrefsFeedback)
+                    {
+                        emailPrefsFeedback.hidden = true;
+                    }
+                }, 2200);
+            };
+
+            emailPrefsSection.querySelectorAll('[data-email-pref-type]').forEach(function (checkbox)
+            {
+                checkbox.addEventListener('change', function ()
+                {
+                    var notificationType = checkbox.getAttribute('data-email-pref-type') || '';
+                    if (!notificationType)
+                    {
+                        return;
+                    }
+
+                    fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': apiKey
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({
+                            action: 'save_admin_email_preferences',
+                            csrf_token: csrfToken,
+                            viewer_email: emailPrefsViewerEmail,
+                            user_is_admin: emailPrefsUserIsAdmin,
+                            is_admin_portal: true,
+                            notification_type: notificationType,
+                            enabled: checkbox.checked ? 1 : 0
+                        })
+                    }).then(function (response)
+                    {
+                        if (!response.ok)
+                        {
+                            throw new Error('email-prefs-request-failed');
+                        }
+
+                        return response.json();
+                    }).then(function (data)
+                    {
+                        if (!data || !data.success)
+                        {
+                            checkbox.checked = !checkbox.checked;
+                            showEmailPrefsFeedback(EMAIL_PREFS_SAVE_FAILED_LABEL, true);
+                            return;
+                        }
+
+                        showEmailPrefsFeedback(EMAIL_PREFS_SAVED_LABEL, false);
+                    }).catch(function ()
+                    {
+                        checkbox.checked = !checkbox.checked;
+                        showEmailPrefsFeedback(EMAIL_PREFS_SAVE_FAILED_LABEL, true);
+                    });
+                });
+            });
+        }
+
+        var changelogSection = document.querySelector('[data-changelog-section]');
+        if (changelogSection)
+        {
+            var changelogUnreadList = changelogSection.querySelector('[data-changelog-unread-list]');
+            var changelogReadList = changelogSection.querySelector('[data-changelog-read-list]');
+            var changelogReadSection = changelogSection.querySelector('[data-changelog-read-section]');
+            var changelogEmpty = changelogSection.querySelector('[data-changelog-empty]');
+            var changelogMarkAllButton = changelogSection.querySelector('[data-changelog-mark-all]');
+            var changelogToggleReadButton = changelogSection.querySelector('[data-changelog-toggle-read]');
+            var changelogFooterActions = changelogSection.querySelector('[data-changelog-footer-actions]');
+            var changelogFeedback = changelogSection.querySelector('[data-changelog-feedback]');
+            var changelogFeedbackTimer = null;
+            var changelogEntryIds = [];
+
+            try
+            {
+                changelogEntryIds = JSON.parse(changelogSection.getAttribute('data-changelog-ids') || '[]');
+            } catch (error)
+            {
+                changelogEntryIds = [];
+            }
+
+            var showChangelogFeedback = function (message, isError)
+            {
+                if (!changelogFeedback)
+                {
+                    return;
+                }
+
+                changelogFeedback.textContent = message;
+                changelogFeedback.hidden = false;
+                changelogFeedback.classList.toggle('is-error', !!isError);
+                if (changelogFeedbackTimer)
+                {
+                    clearTimeout(changelogFeedbackTimer);
+                }
+
+                changelogFeedbackTimer = setTimeout(function ()
+                {
+                    if (changelogFeedback)
+                    {
+                        changelogFeedback.hidden = true;
+                    }
+                }, 2200);
+            };
+
+            var syncChangelogEmptyState = function ()
+            {
+                if (!changelogUnreadList)
+                {
+                    return;
+                }
+
+                var unreadEntries = changelogUnreadList.querySelectorAll('[data-changelog-entry][data-changelog-read="0"]');
+                if (changelogMarkAllButton)
+                {
+                    changelogMarkAllButton.hidden = unreadEntries.length === 0;
+                }
+
+                var hasVisibleEntries = changelogUnreadList.querySelectorAll('[data-changelog-entry]').length > 0;
+                if (changelogEmpty)
+                {
+                    changelogEmpty.hidden = hasVisibleEntries;
+                }
+            };
+
+            var markChangelogEntryReadInPlace = function (entry)
+            {
+                if (!entry)
+                {
+                    return;
+                }
+
+                entry.setAttribute('data-changelog-read', '1');
+                entry.classList.remove('is-unread');
+                entry.classList.add('is-read');
+
+                var badge = entry.querySelector('.changelog-entry-badge');
+                if (badge)
+                {
+                    badge.remove();
+                }
+
+                syncChangelogEmptyState();
+            };
+
+            var changelogViewerEmail = changelogSection.getAttribute('data-viewer-email') || '';
+            var changelogUserIsAdmin = changelogSection.getAttribute('data-user-is-admin') === '1';
+
+            var postChangelogAction = function (action, body)
+            {
+                return fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(Object.assign({
+                        action: action,
+                        csrf_token: csrfToken,
+                        viewer_email: changelogViewerEmail,
+                        user_is_admin: changelogUserIsAdmin,
+                        is_admin_portal: true
+                    }, body || {}))
+                }).then(function (response)
+                {
+                    if (!response.ok)
+                    {
+                        throw new Error('changelog-request-failed');
+                    }
+
+                    return response.json();
+                });
+            };
+
+            changelogSection.querySelectorAll('[data-changelog-entry]').forEach(function (entry)
+            {
+                entry.addEventListener('toggle', function ()
+                {
+                    if (!entry.open || entry.getAttribute('data-changelog-read') === '1')
+                    {
+                        return;
+                    }
+
+                    var entryId = entry.getAttribute('data-changelog-id') || '';
+                    if (!entryId)
+                    {
+                        return;
+                    }
+
+                    postChangelogAction('mark_changelog_read', { entry_id: entryId }).then(function (data)
+                    {
+                        if (!data || !data.success)
+                        {
+                            showChangelogFeedback(CHANGELOG_SAVE_FAILED_LABEL, true);
+                            return;
+                        }
+
+                        markChangelogEntryReadInPlace(entry);
+                        showChangelogFeedback(CHANGELOG_SAVED_LABEL, false);
+                    }).catch(function ()
+                    {
+                        showChangelogFeedback(CHANGELOG_SAVE_FAILED_LABEL, true);
+                    });
+                });
+            });
+
+            if (changelogMarkAllButton)
+            {
+                changelogMarkAllButton.addEventListener('click', function ()
+                {
+                    var unreadEntries = changelogUnreadList
+                        ? Array.prototype.slice.call(changelogUnreadList.querySelectorAll('[data-changelog-entry][data-changelog-read="0"]'))
+                        : [];
+                    if (!unreadEntries.length)
+                    {
+                        return;
+                    }
+
+                    postChangelogAction('mark_all_changelogs_read', { entry_ids: changelogEntryIds }).then(function (data)
+                    {
+                        if (!data || !data.success)
+                        {
+                            showChangelogFeedback(CHANGELOG_SAVE_FAILED_LABEL, true);
+                            return;
+                        }
+
+                        unreadEntries.forEach(function (entry)
+                        {
+                            markChangelogEntryReadInPlace(entry);
+                        });
+                        showChangelogFeedback(CHANGELOG_SAVED_LABEL, false);
+                    }).catch(function ()
+                    {
+                        showChangelogFeedback(CHANGELOG_SAVE_FAILED_LABEL, true);
+                    });
+                });
+            }
+
+            if (changelogToggleReadButton && changelogReadSection)
+            {
+                changelogToggleReadButton.addEventListener('click', function ()
+                {
+                    var isHidden = changelogReadSection.hidden;
+                    changelogReadSection.hidden = !isHidden;
+                    changelogToggleReadButton.textContent = isHidden
+                        ? (changelogToggleReadButton.getAttribute('data-label-hide') || '')
+                        : (changelogToggleReadButton.getAttribute('data-label-show') || '');
+                });
+            }
+
+            syncChangelogEmptyState();
+        }
+
         var sessionKeepaliveTimer = null;
         var sessionKeepaliveInFlight = false;
         var lastSessionKeepaliveOkAt = Date.now();

@@ -472,10 +472,96 @@ function buildAttachmentDirectUrl(array $attachment): string
     return '';
 }
 
+function buildAttachmentMessageMarker(string $filename): string
+{
+    return '[[attachment:' . str_replace(['[', ']'], '', $filename) . ']]';
+}
+
+function extractReferencedAttachmentNames(string $messageText): array
+{
+    $names = [];
+    $normalized = str_replace(["\r\n", "\r"], "\n", $messageText);
+    foreach (explode("\n", $normalized) as $line) {
+        if (preg_match('/^\[\[attachment:(.+)\]\]$/', trim($line), $match) !== 1) {
+            continue;
+        }
+
+        $name = trim((string) ($match[1] ?? ''));
+        if ($name !== '') {
+            $names[] = $name;
+        }
+    }
+
+    return $names;
+}
+
+function findAttachmentByOriginalName(array $attachments, string $name): ?array
+{
+    foreach ($attachments as $attachment) {
+        if (!is_array($attachment)) {
+            continue;
+        }
+
+        if ((string) ($attachment['original_name'] ?? '') === $name) {
+            return $attachment;
+        }
+    }
+
+    return null;
+}
+
+function renderMessageInlineAttachmentHtml(array $attachment): string
+{
+    $downloadUrl = buildAttachmentDirectUrl($attachment);
+    $originalName = (string) ($attachment['original_name'] ?? '');
+    $attachmentId = (int) ($attachment['id'] ?? 0);
+    $isImageAttachment = isImageAttachment($attachment);
+    $fileThumbUrl = 'preview.php?id=' . $attachmentId . '&thumbnail=1';
+    $fileCheckUrl = 'preview.php?id=' . $attachmentId . '&check=1';
+
+    ob_start();
+    ?>
+    <div class="message-inline-attachment">
+        <?php if ($isImageAttachment && $downloadUrl !== ''): ?>
+            <div class="message-inline-attachment-preview">
+                <button type="button" class="attachment-thumb-button" data-image-preview-trigger
+                    data-preview-src="<?= h($downloadUrl) ?>"
+                    data-preview-alt="<?= h($originalName) ?>"
+                    aria-label="<?= h(__('ticket.preview_image')) ?>">
+                    <img class="attachment-inline-image" data-thumb-src="<?= h($downloadUrl) ?>" src=""
+                        alt="<?= h($originalName) ?>" loading="lazy" decoding="async">
+                </button>
+            </div>
+        <?php elseif (canPreviewFile($attachment)): ?>
+            <div class="message-inline-attachment-preview">
+                <button type="button" class="attachment-file-thumb-button" data-file-thumb-open
+                    data-preview-id="<?= $attachmentId ?>" data-file-thumb-check-url="<?= h($fileCheckUrl) ?>"
+                    data-file-thumb-src="<?= h($fileThumbUrl) ?>" aria-label="<?= h(__('ticket.preview_file')) ?>" hidden>
+                    <iframe class="attachment-file-thumb-frame" title="<?= h(__('ticket.preview_file')) ?>" loading="lazy"
+                        sandbox="allow-scripts allow-same-origin" scrolling="no"></iframe>
+                </button>
+            </div>
+        <?php endif; ?>
+        <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link message-inline-attachment-link"
+            <?= $downloadUrl !== '' ? 'download' : '' ?>>
+            <?= h($originalName) ?>
+        </a>
+    </div>
+    <?php
+    return (string) ob_get_clean();
+}
+
 function renderTicketMessageHtml(array $message, string $currentPage): string
 {
     $rawMessageText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
     $displayMessageText = (string) ($message['message_text'] ?? '');
+    $messageAttachments = is_array($message['attachments'] ?? null) ? $message['attachments'] : [];
+    $referencedAttachmentNames = extractReferencedAttachmentNames($rawMessageText);
+    $referencedAttachmentLookup = array_fill_keys($referencedAttachmentNames, true);
+    $listAttachments = array_values(array_filter(
+        $messageAttachments,
+        static fn(array $attachment): bool => !isset($referencedAttachmentLookup[(string) ($attachment['original_name'] ?? '')])
+    ));
     $messageIsTranslated = !empty($message['message_is_translated']) && $rawMessageText !== '' && $displayMessageText !== '' && $rawMessageText !== $displayMessageText;
     $translationPending = !empty($message['translation_pending']);
 
@@ -511,13 +597,13 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                 data-translated-text="<?= h((string) json_encode($displayMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
                 data-original-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
                 data-showing="translated">
-                <?= formatTicketMessageText($displayMessageText, (int) ($message['id'] ?? 0)) ?>
+                <?= formatTicketMessageText($displayMessageText, (int) ($message['id'] ?? 0), $messageAttachments) ?>
             </div>
         <?php endif; ?>
 
-        <?php if (!empty($message['attachments'])): ?>
+        <?php if ($listAttachments !== []): ?>
             <ul class="attachment-list">
-                <?php foreach ($message['attachments'] as $attachmentIndex => $attachment): ?>
+                <?php foreach ($listAttachments as $attachmentIndex => $attachment): ?>
                     <?php
                     $downloadUrl = buildAttachmentDirectUrl($attachment);
                     $isImageAttachment = isImageAttachment($attachment);
@@ -898,7 +984,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 <label>
                     <?= h(__('ticket.add_attachments')) ?>
                     <input type="file" name="reply_attachments[]" multiple data-accumulate-files="1">
-                    <span class="hint" data-selected-files-summary hidden></span>
+                    <ul class="draft-attachments-list" data-draft-attachments-list hidden></ul>
                     <span class="hint"><?= h(__('ticket.file_hint')) ?></span>
                 </label>
 
@@ -1337,6 +1423,7 @@ function translateStatus(string $dbStatus): string
         'in behandeling' => 'status.in_behandeling',
         'afwachtende op gebruiker' => 'status.afwachtende_op_gebruiker',
         'afwachtende op bestelling' => 'status.afwachtende_op_bestelling',
+        'afwachtende op derde partij' => 'status.afwachtende_op_derde_partij',
         'afgehandeld' => 'status.afgehandeld',
     ];
 
@@ -1781,7 +1868,7 @@ function makeTextInteractive(string $text, bool $forEmail = false): string
     return $escapedText;
 }
 
-function formatTicketMessageText(?string $messageText, int $messageId = 0): string
+function formatTicketMessageText(?string $messageText, int $messageId = 0, array $attachments = []): string
 {
     $normalized = str_replace(["\r\n", "\r"], "\n", trim((string) $messageText));
     if ($normalized === '') {
@@ -1793,6 +1880,17 @@ function formatTicketMessageText(?string $messageText, int $messageId = 0): stri
         $trimmedLine = trim($line);
         if ($trimmedLine === '') {
             $formattedLines[] = '';
+            continue;
+        }
+
+        if (preg_match('/^\[\[attachment:(.+)\]\]$/', $trimmedLine, $attachmentMatch) === 1) {
+            $attachmentName = trim((string) ($attachmentMatch[1] ?? ''));
+            $attachment = $attachmentName !== '' ? findAttachmentByOriginalName($attachments, $attachmentName) : null;
+            if ($attachment !== null) {
+                $formattedLines[] = renderMessageInlineAttachmentHtml($attachment);
+            } else {
+                $formattedLines[] = '<em>' . h($attachmentName !== '' ? $attachmentName : $trimmedLine) . '</em>';
+            }
             continue;
         }
 
@@ -1833,6 +1931,15 @@ function formatTicketMessageTextForEmail(?string $messageText): string
     foreach (explode("\n", $normalized) as $line) {
         if (trim($line) === '') {
             $formattedLines[] = '';
+            continue;
+        }
+
+        $trimmedLine = trim($line);
+        if (preg_match('/^\[\[attachment:(.+)\]\]$/', $trimmedLine, $attachmentMatch) === 1) {
+            $attachmentName = trim((string) ($attachmentMatch[1] ?? ''));
+            $formattedLines[] = '<p style="margin:8px 0;"><em>📎 '
+                . htmlspecialchars($attachmentName !== '' ? $attachmentName : $trimmedLine, ENT_QUOTES, 'UTF-8')
+                . '</em></p>';
             continue;
         }
 
