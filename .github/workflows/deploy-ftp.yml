@@ -119,6 +119,25 @@ jobs:
             --exclude-glob cache/** \
             --exclude-glob data/** \
             --exclude-glob auth.php \
+            --exclude-glob index.php \
+            --exclude-glob admin.php \
             ./web .
+          bye
+          EOF
+
+      - name: Deploy index.php and admin.php last
+        run: |
+          chmod 644 ./web/index.php ./web/admin.php
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
+          set cmd:fail-exit true
+          set net:max-retries 2
+          set net:timeout 20
+          set ftp:ssl-allow false
+          set ftp:passive-mode yes
+          cd "$FTP_REMOTE_DIR"
+          put ./web/index.php -o index.php
+          put ./web/admin.php -o admin.php
+          chmod 644 index.php
+          chmod 644 admin.php
           bye
           EOF
