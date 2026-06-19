@@ -60,15 +60,20 @@ jobs:
 
       - name: Upload update.notify (pre-update warning)
         run: |
+          umask 022
           : > ./update.notify
+          chmod 644 ./update.notify
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
           set cmd:fail-exit true
           set net:max-retries 2
           set net:timeout 20
           set ftp:ssl-allow false
           set ftp:passive-mode yes
+          set file:mode 644
+          set dir:mode 755
           cd "$FTP_REMOTE_DIR"
           put ./update.notify -o update.notify
+          chmod 644 update.notify
           bye
           EOF
 
@@ -86,6 +91,8 @@ jobs:
           set net:timeout 20
           set ftp:ssl-allow false
           set ftp:passive-mode yes
+          set file:mode 644
+          set dir:mode 755
           cd "$FTP_REMOTE_DIR"
           mirror -R \
             --exclude-glob .htaccess \
@@ -104,6 +111,8 @@ jobs:
           set net:timeout 20
           set ftp:ssl-allow false
           set ftp:passive-mode yes
+          set file:mode 644
+          set dir:mode 755
           cd "$FTP_REMOTE_DIR"
           mirror -R --delete \
             --exclude-glob .htaccess \
