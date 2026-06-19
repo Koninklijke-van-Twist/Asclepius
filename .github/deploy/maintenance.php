@@ -55,7 +55,7 @@ header('Retry-After: 120');
         }
     </style>
 </head>
-<body>
+<body data-asclepius-maintenance="1">
     <div class="maintenance-box">
         <h1>Asclepius</h1>
         <p id="maintenance-message">Asclepius wordt nu bijgewerkt naar een nieuwere versie. Een moment geduld alstublieft.</p>
@@ -84,6 +84,13 @@ header('Retry-After: 120');
                 document.documentElement.lang = messages[index].lang;
             }, 3000);
         }());
+    </script>
+    <script src="update-watch.js"></script>
+    <script>
+        if (window.AsclepiusUpdateWatch)
+        {
+            window.AsclepiusUpdateWatch.startMaintenanceWatch();
+        }
     </script>
 </body>
 </html>

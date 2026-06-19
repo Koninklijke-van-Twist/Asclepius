@@ -4,6 +4,7 @@
         <div class="update-notify-box" id="update-notify-text" role="status" aria-live="polite"></div>
     </div>
 </div>
+<script src="update-watch.js"></script>
 <script>
     (function ()
     {
@@ -14,6 +15,9 @@
         var textEl = document.getElementById('update-notify-text');
         var deployDeadline = null;
         var countdownTimer = null;
+        var activateDeployWatch = window.AsclepiusUpdateWatch
+            ? window.AsclepiusUpdateWatch.startUpdateBannerWatch()
+            : null;
 
         if (!banner || !textEl)
         {
@@ -63,6 +67,11 @@
             document.body.classList.add('has-update-notify');
             renderCountdown();
             countdownTimer = window.setInterval(renderCountdown, 1000);
+
+            if (activateDeployWatch)
+            {
+                activateDeployWatch();
+            }
         }
 
         function checkUpdateNotify ()
