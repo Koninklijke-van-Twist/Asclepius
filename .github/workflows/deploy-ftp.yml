@@ -62,7 +62,8 @@ jobs:
         run: |
           umask 022
           : > ./update.notify
-          chmod 644 ./update.notify
+          : > ./update.complete
+          chmod 644 ./update.notify ./update.complete
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
           set cmd:fail-exit true
           set net:max-retries 2
@@ -70,6 +71,7 @@ jobs:
           set ftp:ssl-allow false
           set ftp:passive-mode yes
           cd "$FTP_REMOTE_DIR"
+          rm -f update.complete
           put ./update.notify -o update.notify
           chmod 644 update.notify
           bye
@@ -139,5 +141,22 @@ jobs:
           put ./web/admin.php -o admin.php
           chmod 644 index.php
           chmod 644 admin.php
+          bye
+          EOF
+
+      - name: Upload update.complete (deploy finished)
+        run: |
+          umask 022
+          : > ./update.complete
+          chmod 644 ./update.complete
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
+          set cmd:fail-exit true
+          set net:max-retries 2
+          set net:timeout 20
+          set ftp:ssl-allow false
+          set ftp:passive-mode yes
+          cd "$FTP_REMOTE_DIR"
+          put ./update.complete -o update.complete
+          chmod 644 update.complete
           bye
           EOF

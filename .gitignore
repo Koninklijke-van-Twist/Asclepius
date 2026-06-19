@@ -3,6 +3,7 @@ web/auth.php
 
 web/cache/
 web/update.notify
+web/update.complete
 
 BC Webservices.txt
 

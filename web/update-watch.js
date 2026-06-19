@@ -2,37 +2,13 @@
 {
     'use strict';
 
-    var INDEX_CHECK_MS = 10000;
-    var MAINTENANCE_MARKER = 'data-asclepius-maintenance="1"';
-    var LIVE_MARKER = 'data-api-url="';
+    var CHECK_MS = 10000;
+    var NOTIFY_URL = 'update.notify';
+    var COMPLETE_URL = 'update.complete';
 
-    function isMaintenanceHtml (html)
+    function fileExists (url)
     {
-        return String(html || '').indexOf(MAINTENANCE_MARKER) !== -1;
-    }
-
-    function isLiveAppHtml (html)
-    {
-        return String(html || '').indexOf(LIVE_MARKER) !== -1;
-    }
-
-    function fetchIndexHtml ()
-    {
-        return fetch('index.php?_=' + String(Date.now()), {
-            cache: 'no-store',
-            credentials: 'same-origin'
-        }).then(function (response)
-        {
-            return response.ok ? response.text() : '';
-        }).catch(function ()
-        {
-            return '';
-        });
-    }
-
-    function fetchUpdateNotifyExists ()
-    {
-        return fetch('update.notify?_=' + String(Date.now()), {
+        return fetch(url + '?_=' + String(Date.now()), {
             method: 'HEAD',
             cache: 'no-store'
         }).then(function (response)
@@ -53,19 +29,21 @@
     {
         window.setInterval(function ()
         {
-            fetchIndexHtml().then(function (html)
+            fileExists(COMPLETE_URL).then(function (complete)
             {
-                if (html && isLiveAppHtml(html) && !isMaintenanceHtml(html))
+                if (complete)
                 {
                     reloadPage();
                 }
             });
-        }, INDEX_CHECK_MS);
+        }, CHECK_MS);
     }
 
     function startUpdateBannerWatch ()
     {
         var watching = false;
+        var notifyWasSeen = false;
+        var deployPhaseReloaded = false;
 
         window.setInterval(function ()
         {
@@ -74,33 +52,32 @@
                 return;
             }
 
-            fetchIndexHtml().then(function (html)
+            Promise.all([
+                fileExists(NOTIFY_URL),
+                fileExists(COMPLETE_URL)
+            ]).then(function (results)
             {
-                if (!html)
+                var notifyExists = results[0];
+                var completeExists = results[1];
+
+                if (notifyExists)
                 {
-                    return;
+                    notifyWasSeen = true;
                 }
 
-                if (isMaintenanceHtml(html))
+                if (completeExists)
                 {
                     reloadPage();
                     return;
                 }
 
-                if (!isLiveAppHtml(html))
+                if (notifyWasSeen && !notifyExists && !deployPhaseReloaded)
                 {
-                    return;
+                    deployPhaseReloaded = true;
+                    reloadPage();
                 }
-
-                fetchUpdateNotifyExists().then(function (notifyExists)
-                {
-                    if (!notifyExists)
-                    {
-                        reloadPage();
-                    }
-                });
             });
-        }, INDEX_CHECK_MS);
+        }, CHECK_MS);
 
         return function activateWatch ()
         {
