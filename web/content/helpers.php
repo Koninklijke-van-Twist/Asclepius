@@ -1912,7 +1912,7 @@ function buildNotificationBody(array $ticket, string $introKey, string $messageT
         . '<div style="max-width:600px;margin:32px auto;padding:0 16px;">'
         . '<div style="background:linear-gradient(135deg,#0e2c52,#0b65c2);border-radius:16px 16px 0 0;padding:24px 28px;">'
         . '<p style="margin:0 0 2px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.7);">Asclepius · ICT Tickets</p>'
-        . '<h1 style="margin:0;font-size:20px;color:#fff;">Ticket #' . (int) $ticket['id'] . '</h1>'
+        . '<h1 style="margin:0;font-size:20px;">Ticket #' . (int) $ticket['id'] . '</h1>'
         . '</div>'
         . '<div style="background:#fff;border-radius:0 0 16px 16px;padding:24px 28px;box-shadow:0 8px 24px rgba(15,35,63,.08);">'
         . '<p style="margin:0 0 20px;font-size:15px;">' . htmlspecialchars($intro, ENT_QUOTES, 'UTF-8') . '</p>'
