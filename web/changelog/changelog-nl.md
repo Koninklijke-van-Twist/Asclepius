@@ -1,3 +1,21 @@
+id: 2026-06-23-message-textarea-grow
+date: 2026-06-23
+title: Tekstvak groeit mee met je bericht
+author: Tim Falken
+
+Bij een nieuw ticket of een antwoord op een bestaand ticket wordt het tekstvak automatisch hoger naarmate je typt. Je hoeft niet meer in het vak te scrollen of het handmatig groter te trekken.
+
+---
+id: 2026-06-23-admin-ticket-improvements
+date: 2026-06-23
+title: Ticket beheren en statistieken
+author: Tim Falken
+
+ICT-beheerders kunnen de titel van een ticket wijzigen via een knop bovenaan het ticket, net als bij categorie wijzigen. De kaartjes met titel, datums, prioriteit, gebruikers en categorie zijn compacter en staan in een overzichtelijker raster.
+
+Op de statistiekenpagina staan extra tellers voor tickets in afwachting (bestelling, gebruiker, derde partij). In de tabel per aanvrager zie je hoeveel tickets iemand heeft ingediend.
+
+---
 id: 2026-06-19-user-display-names
 date: 2026-06-19
 title: Namen in plaats van e-mailadressen

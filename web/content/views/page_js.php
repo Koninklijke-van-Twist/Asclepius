@@ -3578,6 +3578,8 @@
                     {
                         return;
                     }
+
+                    card.querySelectorAll('.textarea-wrapper').forEach(initTextareaWrapper);
                 } else
                 {
                     applyTicketCardFields(card, ticket);
@@ -4131,12 +4133,50 @@
                 }
 
                 textarea.focus();
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
                 popup.hidden = true;
                 toggle.classList.remove('is-active');
             });
         };
 
-        document.querySelectorAll('.textarea-wrapper').forEach(initKeyPicker);
+        var syncTextareaHeight = function (textarea)
+        {
+            if (!textarea)
+            {
+                return;
+            }
+
+            textarea.style.height = 'auto';
+            textarea.style.height = String(textarea.scrollHeight) + 'px';
+        };
+
+        var initAutoGrowTextarea = function (textarea)
+        {
+            if (!textarea || textarea.dataset.autoGrowInit === '1')
+            {
+                return;
+            }
+
+            textarea.dataset.autoGrowInit = '1';
+            textarea.addEventListener('input', function ()
+            {
+                syncTextareaHeight(textarea);
+            });
+            syncTextareaHeight(textarea);
+        };
+
+        var initTextareaWrapper = function (wrapper)
+        {
+            if (!wrapper)
+            {
+                return;
+            }
+
+            initKeyPicker(wrapper);
+            initAutoGrowTextarea(wrapper.querySelector('textarea'));
+        };
+
+        document.querySelectorAll('.textarea-wrapper').forEach(initTextareaWrapper);
 
         document.addEventListener('click', function (e)
         {

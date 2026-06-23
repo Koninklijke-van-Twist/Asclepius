@@ -1,3 +1,21 @@
+id: 2026-06-23-message-textarea-grow
+date: 2026-06-23
+title: Textfeld wächst mit Ihrer Nachricht
+author: Tim Falken
+
+Bei einem neuen Ticket oder einer Antwort auf ein bestehendes Ticket wird das Textfeld automatisch höher, während Sie tippen. Sie müssen nicht mehr im Feld scrollen oder es manuell vergrößern.
+
+---
+id: 2026-06-23-admin-ticket-improvements
+date: 2026-06-23
+title: Ticketverwaltung und Statistiken
+author: Tim Falken
+
+ICT-Administratoren können den Titel eines Tickets über eine Schaltfläche oben am Ticket ändern, ähnlich wie bei der Kategorieänderung. Die Karten für Titel, Daten, Priorität, Benutzer und Kategorie sind kompakter und in einem übersichtlicheren Raster angeordnet.
+
+Auf der Statistikseite gibt es zusätzliche Zähler für wartende Tickets (Bestellung, Benutzer, Drittanbieter). In der Tabelle pro Antragsteller sehen Sie, wie viele Tickets jemand eingereicht hat.
+
+---
 id: 2026-06-19-user-display-names
 date: 2026-06-19
 title: Namen statt E-Mail-Adressen

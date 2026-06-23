@@ -1,3 +1,21 @@
+id: 2026-06-23-message-textarea-grow
+date: 2026-06-23
+title: Message field grows with your text
+author: Tim Falken
+
+When creating a new ticket or replying to an existing one, the message field automatically gets taller as you type. You no longer need to scroll inside the box or resize it manually.
+
+---
+id: 2026-06-23-admin-ticket-improvements
+date: 2026-06-23
+title: Ticket management and statistics
+author: Tim Falken
+
+ICT admins can change a ticket title via a button at the top of the ticket, similar to changing the category. The cards for title, dates, priority, users, and category are more compact and arranged in a clearer grid.
+
+The statistics page shows extra counters for tickets waiting (order, user, third party). In the per-requester table you can see how many tickets each person has submitted.
+
+---
 id: 2026-06-19-user-display-names
 date: 2026-06-19
 title: Names instead of email addresses

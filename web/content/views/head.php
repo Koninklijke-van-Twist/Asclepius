@@ -1893,6 +1893,8 @@
             box-sizing: border-box;
             position: relative;
             z-index: 1;
+            resize: none;
+            overflow-y: hidden;
         }
 
         .template-preview-rendered .shortcut-plus {

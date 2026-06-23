@@ -1,3 +1,21 @@
+id: 2026-06-23-message-textarea-grow
+date: 2026-06-23
+title: Le champ de texte s'agrandit avec votre message
+author: Tim Falken
+
+Lors de la création d'un nouveau ticket ou d'une réponse à un ticket existant, le champ de texte s'agrandit automatiquement pendant que vous tapez. Vous n'avez plus besoin de faire défiler dans le champ ni de le redimensionner manuellement.
+
+---
+id: 2026-06-23-admin-ticket-improvements
+date: 2026-06-23
+title: Gestion des tickets et statistiques
+author: Tim Falken
+
+Les administrateurs ICT peuvent modifier le titre d'un ticket via un bouton en haut du ticket, comme pour la catégorie. Les cartes titre, dates, priorité, utilisateurs et catégorie sont plus compactes et disposées dans une grille plus claire.
+
+La page statistiques affiche des compteurs supplémentaires pour les tickets en attente (commande, utilisateur, tiers). Dans le tableau par demandeur, vous voyez combien de tickets chaque personne a soumis.
+
+---
 id: 2026-06-19-user-display-names
 date: 2026-06-19
 title: Noms à la place des adresses e-mail
