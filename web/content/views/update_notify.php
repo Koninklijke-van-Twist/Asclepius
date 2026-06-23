@@ -10,7 +10,6 @@
     {
         var POLL_MS = 5000;
         var WARNING_MS = 5 * 60 * 1000;
-        var notifyUrl = 'update.notify';
         var banner = document.getElementById('update-notify-banner');
         var textEl = document.getElementById('update-notify-text');
         var deployDeadline = null;
@@ -76,22 +75,21 @@
 
         function checkUpdateNotify ()
         {
-            fetch(notifyUrl + '?_=' + String(Date.now()), {
-                method: 'HEAD',
-                cache: 'no-store'
-            }).then(function (response)
+            var poll = window.AsclepiusUpdateWatch && window.AsclepiusUpdateWatch.pollUpdateStatus;
+            if (!poll)
             {
-                if (!response.ok)
+                return;
+            }
+
+            poll().then(function (status)
+            {
+                if (!status || !status.notify)
                 {
                     return;
                 }
 
-                var lastModified = response.headers.get('Last-Modified');
-                var notifyStartedAt = lastModified ? new Date(lastModified).getTime() : Date.now();
+                var notifyStartedAt = status.notify_started_at || Date.now();
                 showBanner(notifyStartedAt + WARNING_MS);
-            }).catch(function ()
-            {
-                // Server of bestand niet bereikbaar: geen banner.
             });
         }
 
