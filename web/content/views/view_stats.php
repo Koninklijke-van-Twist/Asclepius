@@ -21,7 +21,15 @@
                     </div>
                     <div class="stats-card">
                         <span><?= h(__('stats.waiting_order')) ?></span>
-                        <strong id="stat-waiting"><?= (int) ($overallStats['waiting_order_tickets'] ?? 0) ?></strong>
+                        <strong id="stat-waiting-order"><?= (int) ($overallStats['waiting_order_tickets'] ?? 0) ?></strong>
+                    </div>
+                    <div class="stats-card">
+                        <span><?= h(__('stats.waiting_user')) ?></span>
+                        <strong id="stat-waiting-user"><?= (int) ($overallStats['waiting_user_tickets'] ?? 0) ?></strong>
+                    </div>
+                    <div class="stats-card">
+                        <span><?= h(__('stats.waiting_third_party')) ?></span>
+                        <strong id="stat-waiting-third-party"><?= (int) ($overallStats['waiting_third_party_tickets'] ?? 0) ?></strong>
                     </div>
                 </div>
 
@@ -36,6 +44,8 @@
                                 <th><?= h(__('stats.col_max_open')) ?></th>
                                 <th><?= h(__('stats.col_outstanding')) ?></th>
                                 <th><?= h(__('stats.col_waiting_order')) ?></th>
+                                <th><?= h(__('stats.col_waiting_user')) ?></th>
+                                <th><?= h(__('stats.col_waiting_third_party')) ?></th>
                             </tr>
                         </thead>
                         <tbody id="stats-ict-tbody">
@@ -57,6 +67,8 @@
                                     <td><?= h(formatDurationSeconds($statsRow['max_open_seconds'] ?? null)) ?></td>
                                     <td><?= (int) ($statsRow['open_count'] ?? 0) ?></td>
                                     <td><?= (int) ($statsRow['waiting_order_count'] ?? 0) ?></td>
+                                    <td><?= (int) ($statsRow['waiting_user_count'] ?? 0) ?></td>
+                                    <td><?= (int) ($statsRow['waiting_third_party_count'] ?? 0) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -73,6 +85,7 @@
                                 <thead>
                                     <tr>
                                         <th><?= h(__('stats.col_user')) ?></th>
+                                        <th><?= h(__('stats.col_submitted')) ?></th>
                                         <th><?= h(__('stats.col_avg_wait')) ?>*</th>
                                         <th><?= h(__('stats.col_max_wait')) ?>*</th>
                                         <th><?= h(__('stats.col_avg_response')) ?></th>
@@ -82,6 +95,7 @@
                                     <?php foreach ($requesterStats as $statsRow): ?>
                                         <tr>
                                             <td><?= renderUserDisplayLabel((string) $statsRow['user_email']) ?></td>
+                                            <td><?= (int) ($statsRow['submitted_count'] ?? 0) ?></td>
                                             <td><?= h(formatDurationSeconds($statsRow['average_wait_seconds'] ?? null)) ?>
                                             </td>
                                             <td><?= h(formatDurationSeconds($statsRow['max_wait_seconds'] ?? null)) ?>

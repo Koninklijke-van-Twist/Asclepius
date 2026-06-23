@@ -1464,6 +1464,71 @@
                 return;
             }
 
+            var openTitleButton = event.target.closest('[data-role="change-title-open"]');
+            if (openTitleButton)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+                var titleCard = openTitleButton.closest('details.ticket-card');
+                var titleModal = titleCard ? titleCard.querySelector('[data-role="ticket-title-modal"]') : null;
+                if (titleModal)
+                {
+                    var titleInput = titleModal.querySelector('[data-role="change-title-input"]');
+                    var currentTitle = openTitleButton.getAttribute('data-current-title') || '';
+                    if (titleInput)
+                    {
+                        titleInput.value = currentTitle;
+                    }
+                    setTitleFeedback(titleCard, '', false);
+                    titleModal.hidden = false;
+                    titleModal.classList.add('is-open');
+                    document.documentElement.style.overflow = 'hidden';
+                    if (titleInput)
+                    {
+                        titleInput.focus();
+                        titleInput.select();
+                    }
+                }
+                return;
+            }
+
+            var closeTitleButton = event.target.closest('[data-role="change-title-close"], [data-role="change-title-cancel"]');
+            if (closeTitleButton)
+            {
+                event.preventDefault();
+                closeTitleModal(closeTitleButton.closest('details.ticket-card'));
+                return;
+            }
+
+            if (event.target.matches('[data-role="ticket-title-modal"]'))
+            {
+                event.preventDefault();
+                closeTitleModal(event.target.closest('details.ticket-card'));
+                return;
+            }
+
+            var saveTitleButton = event.target.closest('[data-role="change-title-save"]');
+            if (saveTitleButton)
+            {
+                event.preventDefault();
+                var saveTitleCard = saveTitleButton.closest('details.ticket-card');
+                var saveTitleModal = saveTitleCard ? saveTitleCard.querySelector('[data-role="ticket-title-modal"]') : null;
+                if (!saveTitleCard || !saveTitleModal)
+                {
+                    return;
+                }
+
+                var titleInputField = saveTitleModal.querySelector('[data-role="change-title-input"]');
+                saveTitleButton.disabled = true;
+                syncTitleChangeViaApi(saveTitleCard, {
+                    title: titleInputField ? String(titleInputField.value || '').trim() : ''
+                }).finally(function ()
+                {
+                    saveTitleButton.disabled = false;
+                });
+                return;
+            }
+
             var closeCategoryButton = event.target.closest('[data-role="change-category-close"], [data-role="change-category-cancel"]');
             if (closeCategoryButton)
             {
@@ -2220,6 +2285,24 @@
             feedbackNode.classList.toggle('is-success', !isError && String(message || '') !== '');
         };
 
+        var setTitleFeedback = function (ticketCard, message, isError)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var feedbackNode = ticketCard.querySelector('[data-role="change-title-feedback"]');
+            if (!feedbackNode)
+            {
+                return;
+            }
+
+            feedbackNode.textContent = String(message || '');
+            feedbackNode.classList.toggle('is-error', !!isError);
+            feedbackNode.classList.toggle('is-success', !isError && String(message || '') !== '');
+        };
+
         var closeCategoryModal = function (ticketCard)
         {
             if (!ticketCard)
@@ -2228,6 +2311,24 @@
             }
 
             var modal = ticketCard.querySelector('[data-role="ticket-category-modal"]');
+            if (!modal)
+            {
+                return;
+            }
+
+            modal.hidden = true;
+            modal.classList.remove('is-open');
+            document.documentElement.style.overflow = '';
+        };
+
+        var closeTitleModal = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var modal = ticketCard.querySelector('[data-role="ticket-title-modal"]');
             if (!modal)
             {
                 return;
@@ -2314,6 +2415,46 @@
             appendCategoryChangeMessage(ticketCard, data.message_html || '', data.message_id || 0);
         };
 
+        var applyTitleChangeToCard = function (ticketCard, data)
+        {
+            if (!ticketCard || !data || !data.title)
+            {
+                return;
+            }
+
+            var encodedTitle = JSON.stringify(data.title);
+            var titleNode = ticketCard.querySelector('[data-role="ticket-title"]');
+            if (titleNode)
+            {
+                titleNode.textContent = data.title;
+                titleNode.setAttribute('data-original-text', encodedTitle);
+                titleNode.setAttribute('data-translated-text', encodedTitle);
+                titleNode.setAttribute('data-showing', 'translated');
+            }
+
+            var titleToggle = ticketCard.querySelector('[data-role="title-translation-toggle"]');
+            if (titleToggle)
+            {
+                titleToggle.remove();
+            }
+
+            setText(ticketCard.querySelector('[data-role="meta-title-value"]'), data.title);
+
+            var openTitleButton = ticketCard.querySelector('[data-role="change-title-open"]');
+            if (openTitleButton)
+            {
+                openTitleButton.setAttribute('data-current-title', data.title);
+            }
+
+            var titleInput = ticketCard.querySelector('[data-role="change-title-input"]');
+            if (titleInput)
+            {
+                titleInput.value = data.title;
+            }
+
+            ticketCard.dataset.needsTranslation = '0';
+        };
+
         var syncCategoryChangeViaApi = function (ticketCard, payload)
         {
             if (!ticketCard)
@@ -2341,6 +2482,37 @@
             }).catch(function ()
             {
                 setCategoryFeedback(ticketCard, '<?= addslashes(__('flash.db_error_prefix')) ?>', true);
+                return null;
+            });
+        };
+
+        var syncTitleChangeViaApi = function (ticketCard, payload)
+        {
+            if (!ticketCard)
+            {
+                return Promise.resolve();
+            }
+
+            setTitleFeedback(ticketCard, '', false);
+            return apiFetchJson('change_ticket_title', Object.assign({
+                ticket_id: Number(ticketCard.getAttribute('data-ticket-id') || 0),
+                current_page: ticketPollPayload.current_page || 'admin.php',
+                viewer_email: ticketPollPayload.viewer_email || '',
+                user_is_admin: !!ticketPollPayload.user_is_admin
+            }, payload || {})).then(function (data)
+            {
+                if (!data || data.success !== true)
+                {
+                    setTitleFeedback(ticketCard, data && data.error ? data.error : '<?= addslashes(__('flash.db_error_prefix')) ?>', true);
+                    return data || null;
+                }
+
+                applyTitleChangeToCard(ticketCard, data);
+                closeTitleModal(ticketCard);
+                return data;
+            }).catch(function ()
+            {
+                setTitleFeedback(ticketCard, '<?= addslashes(__('flash.db_error_prefix')) ?>', true);
                 return null;
             });
         };
@@ -3247,6 +3419,13 @@
         {
             setText(card.querySelector('[data-role="ticket-number"]'), '#' + ticket.id);
             setText(card.querySelector('[data-role="ticket-title"]'), ticket.title);
+            var rawTitle = String(ticket.title_raw || ticket.title || '');
+            setText(card.querySelector('[data-role="meta-title-value"]'), rawTitle);
+            var openTitleButton = card.querySelector('[data-role="change-title-open"]');
+            if (openTitleButton && rawTitle !== '')
+            {
+                openTitleButton.setAttribute('data-current-title', rawTitle);
+            }
             applyParticipantSummaryToCard(card, ticket.participant_emails, ticket.requester_label, ticket.requester_tooltip, ticket.user_email);
             setText(card.querySelector('[data-role="ticket-category"]'), ticket.category_label);
             setText(card.querySelector('[data-role="ticket-created"]'), ticket.created_at_label);

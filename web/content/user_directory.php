@@ -301,6 +301,8 @@ function mapBigscreenIctStatRow(array $row, array $availability): array
         'max_open' => formatDurationSeconds($row['max_open_seconds'] ?? null),
         'open_count' => (int) ($row['open_count'] ?? 0),
         'waiting_order_count' => (int) ($row['waiting_order_count'] ?? 0),
+        'waiting_user_count' => (int) ($row['waiting_user_count'] ?? 0),
+        'waiting_third_party_count' => (int) ($row['waiting_third_party_count'] ?? 0),
     ];
 }
 
@@ -311,6 +313,7 @@ function mapBigscreenRequesterStatRow(array $row): array
     return [
         'user_email' => $email,
         'user_label' => formatUserDisplayName($email),
+        'submitted_count' => (int) ($row['submitted_count'] ?? 0),
         'average_wait' => formatDurationSeconds($row['average_wait_seconds'] ?? null),
         'max_wait' => formatDurationSeconds($row['max_wait_seconds'] ?? null),
         'average_response' => formatDurationSeconds($row['average_response_seconds'] ?? null),

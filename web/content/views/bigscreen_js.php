@@ -91,6 +91,7 @@
             var BS = <?= json_encode([
                 'noUserStats' => __('bs.no_user_stats'),
                 'colUser' => __('bs.col_user'),
+                'colSubmitted' => __('bs.col_submitted'),
                 'colAvgWait' => __('bs.col_avg_wait'),
                 'colMaxWait' => __('bs.col_max_wait'),
                 'colAvgResponse' => __('bs.col_avg_response'),
@@ -237,7 +238,9 @@
                     setText('stat-total', os.total_tickets || 0);
                     setText('stat-open', os.open_tickets || 0);
                     setText('stat-resolved', os.resolved_tickets || 0);
-                    setText('stat-waiting', os.waiting_order_tickets || 0);
+                    setText('stat-waiting-order', os.waiting_order_tickets || 0);
+                    setText('stat-waiting-user', os.waiting_user_tickets || 0);
+                    setText('stat-waiting-third-party', os.waiting_third_party_tickets || 0);
                 }
 
                 var ictTbody = document.getElementById('stats-ict-tbody');
@@ -258,6 +261,8 @@
                             + '<td>' + esc(r.max_open) + '</td>'
                             + '<td>' + r.open_count + '</td>'
                             + '<td>' + r.waiting_order_count + '</td>'
+                            + '<td>' + r.waiting_user_count + '</td>'
+                            + '<td>' + r.waiting_third_party_count + '</td>'
                             + '</tr>';
                     });
                     ictTbody.innerHTML = rows;
@@ -276,13 +281,14 @@
                         {
                             rrows += '<tr>'
                                 + '<td>' + esc(r.user_label || r.user_email) + '</td>'
+                                + '<td>' + r.submitted_count + '</td>'
                                 + '<td>' + esc(r.average_wait) + '</td>'
                                 + '<td>' + esc(r.max_wait) + '</td>'
                                 + '<td>' + esc(r.average_response) + '</td>'
                                 + '</tr>';
                         });
                         reqWrap.innerHTML = '<div class="table-wrap"><table>'
-                            + '<thead><tr><th>' + esc(BS.colUser) + '</th><th>' + esc(BS.colAvgWait) + '*</th><th>' + esc(BS.colMaxWait) + '*</th><th>' + esc(BS.colAvgResponse) + '</th></tr></thead>'
+                            + '<thead><tr><th>' + esc(BS.colUser) + '</th><th>' + esc(BS.colSubmitted) + '</th><th>' + esc(BS.colAvgWait) + '*</th><th>' + esc(BS.colMaxWait) + '*</th><th>' + esc(BS.colAvgResponse) + '</th></tr></thead>'
                             + '<tbody>' + rrows + '</tbody></table></div>'
                             + '<p class="stats-note">' + BS.waitNote + '</p>';
                     }

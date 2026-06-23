@@ -770,6 +770,15 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
 
         <div class="ticket-body">
             <div class="meta-grid">
+                <?php if ($userIsAdmin && $isAdminPortal): ?>
+                    <div class="meta-item">
+                        <span class="meta-label"><?= h(__('ticket.title_label')) ?></span>
+                        <button type="button" class="secondary-button" data-role="change-title-open"
+                            data-current-title="<?= h($rawTitle) ?>">
+                            <?= h(__('ticket.change_title_button')) ?>
+                        </button>
+                    </div>
+                <?php endif; ?>
                 <div class="meta-item">
                     <span class="meta-label"><?= h(__('ticket.meta_created')) ?></span>
                     <span data-role="meta-created-value"><?= h(formatDateTime((string) ($ticket['created_at'] ?? ''))) ?> ·
@@ -810,7 +819,6 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                     </div>
                     <div class="meta-item">
                         <span class="meta-label"><?= h(__('ticket.meta_category')) ?></span>
-                        <span data-role="meta-category-value"><?= h(translateCategory((string) ($ticket['category'] ?? ''))) ?></span>
                         <button type="button" class="secondary-button" data-role="change-category-open"
                             data-current-category="<?= h((string) ($ticket['category'] ?? '')) ?>">
                             <?= h(__('ticket.change_category_button')) ?>
@@ -890,6 +898,33 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                                     data-role="participants-apply-button"><?= h(__('ticket.participants_save_button')) ?></button>
                             </div>
                         </form>
+                    </div>
+                </div>
+
+                <div class="ticket-participants-modal" data-role="ticket-title-modal" hidden>
+                    <div class="ticket-participants-modal-card">
+                        <div class="ticket-participants-modal-head">
+                            <h3><?= h(__('ticket.change_title_heading')) ?></h3>
+                            <button type="button" class="participant-modal-close" data-role="change-title-close"
+                                aria-label="<?= h(__('ticket.preview_close')) ?>">&times;</button>
+                        </div>
+
+                        <p class="hint" data-role="change-title-feedback"></p>
+
+                        <label>
+                            <?= h(__('ticket.change_title_label')) ?>
+                            <input type="text" maxlength="150" data-role="change-title-input"
+                                value="<?= h($rawTitle) ?>">
+                        </label>
+
+                        <div class="button-row">
+                            <button type="button" class="secondary-button" data-role="change-title-cancel">
+                                <?= h(__('ticket.change_title_cancel')) ?>
+                            </button>
+                            <button type="button" data-role="change-title-save">
+                                <?= h(__('ticket.change_title_save')) ?>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

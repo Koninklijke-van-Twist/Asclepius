@@ -164,6 +164,8 @@ $overallStats = $canManageTickets && $view === 'stats' && $store instanceof Tick
         'open_tickets' => 0,
         'resolved_tickets' => 0,
         'waiting_order_tickets' => 0,
+        'waiting_user_tickets' => 0,
+        'waiting_third_party_tickets' => 0,
     ];
 $ictStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getIctUserStats()

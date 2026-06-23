@@ -427,7 +427,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $statusChanged = true;
             }
 
-            if ($message === '' && $files === [] && !$statusChanged && !$assigneeChanged && !$priorityChanged && !$dueDateChanged) {
+            if ($message === '' && $files === [] && !$statusChanged && !$assigneeChanged && !$priorityChanged && !$dueDateChanged && !$reopenRequested) {
                 $errors[] = __('flash.reply_empty');
             }
 

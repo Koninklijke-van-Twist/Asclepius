@@ -255,7 +255,9 @@ class TicketStore
             "SELECT COUNT(*) AS total_tickets,
                     SUM(CASE WHEN status <> 'afgehandeld' THEN 1 ELSE 0 END) AS open_tickets,
                     SUM(CASE WHEN status = 'afgehandeld' THEN 1 ELSE 0 END) AS resolved_tickets,
-                    SUM(CASE WHEN status = 'afwachtende op bestelling' THEN 1 ELSE 0 END) AS waiting_order_tickets
+                    SUM(CASE WHEN status = 'afwachtende op bestelling' THEN 1 ELSE 0 END) AS waiting_order_tickets,
+                    SUM(CASE WHEN status = 'afwachtende op gebruiker' THEN 1 ELSE 0 END) AS waiting_user_tickets,
+                    SUM(CASE WHEN status = 'afwachtende op derde partij' THEN 1 ELSE 0 END) AS waiting_third_party_tickets
              FROM tickets"
         );
         $row = $statement->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -265,6 +267,8 @@ class TicketStore
             'open_tickets' => (int) ($row['open_tickets'] ?? 0),
             'resolved_tickets' => (int) ($row['resolved_tickets'] ?? 0),
             'waiting_order_tickets' => (int) ($row['waiting_order_tickets'] ?? 0),
+            'waiting_user_tickets' => (int) ($row['waiting_user_tickets'] ?? 0),
+            'waiting_third_party_tickets' => (int) ($row['waiting_third_party_tickets'] ?? 0),
         ];
     }
 
@@ -281,6 +285,8 @@ class TicketStore
                 'handled_count' => 0,
                 'open_count' => 0,
                 'waiting_order_count' => 0,
+                'waiting_user_count' => 0,
+                'waiting_third_party_count' => 0,
                 'average_open_seconds' => null,
                 'max_open_seconds' => null,
             ];
@@ -292,6 +298,8 @@ class TicketStore
                     SUM(CASE WHEN status = 'afgehandeld' THEN 1 ELSE 0 END) AS handled_count,
                     SUM(CASE WHEN status <> 'afgehandeld' THEN 1 ELSE 0 END) AS open_count,
                     SUM(CASE WHEN status = 'afwachtende op bestelling' THEN 1 ELSE 0 END) AS waiting_order_count,
+                    SUM(CASE WHEN status = 'afwachtende op gebruiker' THEN 1 ELSE 0 END) AS waiting_user_count,
+                    SUM(CASE WHEN status = 'afwachtende op derde partij' THEN 1 ELSE 0 END) AS waiting_third_party_count,
                     AVG(
                         (julianday(
                             CASE
@@ -328,6 +336,8 @@ class TicketStore
             $statsByUser[$ictUser]['handled_count'] = (int) ($row['handled_count'] ?? 0);
             $statsByUser[$ictUser]['open_count'] = (int) ($row['open_count'] ?? 0);
             $statsByUser[$ictUser]['waiting_order_count'] = (int) ($row['waiting_order_count'] ?? 0);
+            $statsByUser[$ictUser]['waiting_user_count'] = (int) ($row['waiting_user_count'] ?? 0);
+            $statsByUser[$ictUser]['waiting_third_party_count'] = (int) ($row['waiting_third_party_count'] ?? 0);
             $statsByUser[$ictUser]['average_open_seconds'] = isset($row['average_open_seconds']) && $row['average_open_seconds'] !== null
                 ? max(0, (float) $row['average_open_seconds'])
                 : null;
@@ -566,6 +576,46 @@ class TicketStore
             'assigned_email' => (string) ($newAssignee ?? ''),
             'assignee_changed' => $assigneeChanged,
         ];
+    }
+
+    public function updateTicketTitle(int $ticketId, string $title): bool
+    {
+        $normalizedTitle = trim($title);
+        if ($ticketId <= 0 || $normalizedTitle === '') {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'UPDATE tickets
+             SET title = :title,
+                 updated_at = :updated_at
+             WHERE id = :id'
+        );
+        $statement->execute([
+            ':title' => $normalizedTitle,
+            ':updated_at' => date('c'),
+            ':id' => $ticketId,
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function deleteTextTranslationsForEntity(string $entityType, int $entityId): void
+    {
+        $normalizedEntityType = trim($entityType);
+        if ($normalizedEntityType === '' || $entityId <= 0) {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'DELETE FROM ticket_text_translations
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+        ]);
     }
 
     public function updateTicket(int $ticketId, string $status, ?string $assignedEmail, int $priority = 0, ?string $dueDate = null): void

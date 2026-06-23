@@ -45,7 +45,9 @@ $currentLang = getCurrentLanguage();
         </div>
     </div>
     <div class="hero-actions" <?= $isBigscreen ? ' hidden' : '' ?>>
-        <span class="user-chip" title="<?= h($userEmail) ?>"><?= h(formatUserDisplayName($userEmail)) ?><?= $userIsAdmin ? h(__('header.admin_suffix')) : '' ?></span>
+        <span class="user-chip" title="<?= h($userEmail) ?>">
+            <?= h(formatUserDisplayName($userEmail)) ?><?= $userIsAdmin ? h(__('header.admin_suffix')) : '' ?>
+        </span>
         <a class="nav-link <?= !$isAdminPortal ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
         <?php if ($userIsAdmin): ?>
             <a class="nav-link <?= $isAdminPortal && $view === 'overview' ? 'active' : '' ?>"

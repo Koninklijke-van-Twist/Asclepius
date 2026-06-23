@@ -98,6 +98,10 @@
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
         }
 
+        .admin-grid-full {
+            grid-column: 1 / -1;
+        }
+
         a {
             color: var(--accent);
         }
@@ -1221,21 +1225,49 @@
 
         .meta-grid {
             display: grid;
-            gap: 10px;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         .meta-item {
-            padding: 10px;
-            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+            padding: 8px 10px;
+            border-radius: 10px;
             background: #f8fbff;
             border: 1px solid var(--line);
         }
 
         .meta-label {
             display: block;
-            font-size: 12px;
+            font-size: 11px;
+            font-weight: 700;
             color: var(--muted);
-            margin-bottom: 4px;
+            margin-bottom: 0;
+            line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .meta-item>span:not(.meta-label) {
+            font-size: 13px;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .meta-item [data-role="meta-title-value"] {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .meta-item select {
+            padding: 6px 8px;
+            border-radius: 8px;
+            font-size: 13px;
         }
 
         .thread {
@@ -2053,8 +2085,14 @@
         }
 
         .meta-item .secondary-button[data-role="manage-participants-open"],
-        .meta-item .secondary-button[data-role="change-category-open"] {
-            width: 100%;
+        .meta-item .secondary-button[data-role="change-category-open"],
+        .meta-item .secondary-button[data-role="change-title-open"] {
+            width: auto;
+            align-self: flex-start;
+            margin-top: 2px;
+            padding: 5px 10px;
+            font-size: 12px;
+            border-radius: 8px;
         }
 
         .participant-chip-list {
@@ -2174,18 +2212,21 @@
         }
 
         [data-role="manage-participants-feedback"],
-        [data-role="change-category-feedback"] {
+        [data-role="change-category-feedback"],
+        [data-role="change-title-feedback"] {
             min-height: 18px;
             margin: 0;
         }
 
         [data-role="manage-participants-feedback"].is-error,
-        [data-role="change-category-feedback"].is-error {
+        [data-role="change-category-feedback"].is-error,
+        [data-role="change-title-feedback"].is-error {
             color: var(--danger);
         }
 
         [data-role="manage-participants-feedback"].is-success,
-        [data-role="change-category-feedback"].is-success {
+        [data-role="change-category-feedback"].is-success,
+        [data-role="change-title-feedback"].is-success {
             color: var(--success);
         }
 
@@ -2328,10 +2369,16 @@
         @media (min-width: 760px) {
 
             .form-grid.two-columns,
-            .admin-grid,
-            .meta-grid,
-            .stats-grid {
+            .admin-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .meta-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
             }
 
             .ticket-summary {

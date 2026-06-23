@@ -631,6 +631,60 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
     ];
 }
 
+function handleChangeTicketTitleApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    if (!$userIsAdmin && !isTrustedApiRequester()) {
+        return [
+            'success' => false,
+            'error' => __('flash.settings_admin_only'),
+        ];
+    }
+
+    $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+    $title = trim((string) ($payload['title'] ?? ''));
+
+    if ($title === '') {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_title_required'),
+        ];
+    }
+
+    $ticket = $store->getTicket($ticketId, true, $viewerEmail);
+    if ($ticket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+        ];
+    }
+
+    $currentTitle = trim((string) ($ticket['title'] ?? ''));
+    if ($title === $currentTitle) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_title_unchanged'),
+        ];
+    }
+
+    if (!$store->updateTicketTitle($ticketId, $title)) {
+        return [
+            'success' => false,
+            'error' => __('flash.db_error_prefix'),
+        ];
+    }
+
+    $store->deleteTextTranslationsForEntity('ticket_title', $ticketId);
+
+    return [
+        'success' => true,
+        'message' => __('flash.ticket_title_changed'),
+        'ticket_id' => $ticketId,
+        'title' => $title,
+    ];
+}
+
 function buildBigscreenPollApiPayload(TicketStore $store): array
 {
     global $ictUsers;
@@ -967,6 +1021,10 @@ if ($method === 'POST') {
 
     if ($action === 'change_ticket_category') {
         sendJson(200, handleChangeTicketCategoryApiAction($store, $payload, $apiClient));
+    }
+
+    if ($action === 'change_ticket_title') {
+        sendJson(200, handleChangeTicketTitleApiAction($store, $payload, $apiClient));
     }
 
     if ($action === 'save_admin_email_preferences') {
