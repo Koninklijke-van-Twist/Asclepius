@@ -189,17 +189,42 @@ function getRefreshRequiredUnauthorizedReason(string $providedKey): ?string
 function getRequestBody(): array
 {
     $contentType = strtolower(trim((string) ($_SERVER['CONTENT_TYPE'] ?? '')));
+    $payload = [];
+
     if (str_contains($contentType, 'application/json')) {
         $rawBody = file_get_contents('php://input');
-        if (!is_string($rawBody) || trim($rawBody) === '') {
-            return [];
+        if (is_string($rawBody) && trim($rawBody) !== '') {
+            $decoded = json_decode($rawBody, true);
+            if (is_array($decoded)) {
+                $payload = $decoded;
+            }
         }
-
-        $decoded = json_decode($rawBody, true);
-        return is_array($decoded) ? $decoded : [];
     }
 
-    return $_POST;
+    if ($payload === [] && $_POST !== []) {
+        $payload = $_POST;
+    }
+
+    return merge_api_request_payload($payload);
+}
+
+function merge_api_request_payload(array $payload): array
+{
+    $queryParams = [];
+    $queryString = trim((string) ($_SERVER['QUERY_STRING'] ?? ''));
+    if ($queryString !== '') {
+        parse_str($queryString, $queryParams);
+    }
+
+    foreach (['action', 'page_name', 'viewer_email', 'user_email'] as $key) {
+        $currentValue = trim((string) ($payload[$key] ?? ''));
+        $queryValue = trim((string) ($queryParams[$key] ?? ''));
+        if ($currentValue === '' && $queryValue !== '') {
+            $payload[$key] = $queryValue;
+        }
+    }
+
+    return $payload;
 }
 
 function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
@@ -914,12 +939,213 @@ function buildBigscreenVersionApiPayload(): array
     ];
 }
 
+function buildPageAccessTicketTitle(string $pageName): string
+{
+    return 'Aanvraag toegang tot ' . $pageName;
+}
+
+function buildPageAccessTicketDescription(string $pageName): string
+{
+    return 'Ik wil graag toegang krijgen tot de pagina ' . $pageName . ' op sleutels.kvt.nl.';
+}
+
+function buildAsclepiusWebBasePath(): string
+{
+    $host = strtolower(trim((string) ($_SERVER['HTTP_HOST'] ?? '')));
+    if ($host === 'sleutels.kvt.nl') {
+        return '/asclepius';
+    }
+
+    $docRoot = realpath((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
+    $webDir = realpath(__DIR__);
+    if (
+        is_string($docRoot) && $docRoot !== '' &&
+        is_string($webDir) && $webDir !== '' &&
+        str_starts_with(str_replace('\\', '/', $webDir), str_replace('\\', '/', $docRoot))
+    ) {
+        $relative = substr(str_replace('\\', '/', $webDir), strlen(str_replace('\\', '/', $docRoot)));
+
+        return '/' . trim($relative, '/');
+    }
+
+    return '/asclepius';
+}
+
+function buildAsclepiusTicketUrl(int $ticketId): string
+{
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'sleutels.kvt.nl'));
+    if ($host === '') {
+        $host = 'sleutels.kvt.nl';
+    }
+
+    return $scheme . '://' . $host . buildAsclepiusWebBasePath() . '/index.php?open=' . $ticketId;
+}
+
+function buildPageAccessTicketApiResponse(array $ticket, bool $created): array
+{
+    $ticketId = (int) ($ticket['id'] ?? 0);
+    $messages = [];
+    foreach ($ticket['messages'] ?? [] as $message) {
+        if (!is_array($message)) {
+            continue;
+        }
+
+        $senderEmail = (string) ($message['sender_email'] ?? '');
+        $messages[] = [
+            'id' => (int) ($message['id'] ?? 0),
+            'sender_email' => $senderEmail,
+            'sender_label' => formatUserDisplayName($senderEmail),
+            'sender_role' => (string) ($message['sender_role'] ?? 'user'),
+            'message_text' => (string) ($message['message_text'] ?? ''),
+            'created_at' => formatDateTime((string) ($message['created_at'] ?? '')),
+        ];
+    }
+
+    return [
+        'success' => true,
+        'created' => $created,
+        'message' => $created
+            ? 'Uw aanvraag is ingediend. U ontvangt ook een bevestiging per e-mail.'
+            : 'Er is al een open ticket voor deze toegangsaanvraag.',
+        'ticket' => [
+            'id' => $ticketId,
+            'title' => (string) ($ticket['title'] ?? ''),
+            'status' => (string) ($ticket['status'] ?? ''),
+            'status_label' => translateStatus((string) ($ticket['status'] ?? '')),
+            'category' => (string) ($ticket['category'] ?? ''),
+            'category_label' => translateCategory((string) ($ticket['category'] ?? '')),
+            'created_at' => formatDateTime((string) ($ticket['created_at'] ?? '')),
+            'updated_at' => formatDateTime((string) ($ticket['updated_at'] ?? '')),
+        ],
+        'messages' => $messages,
+        'ticket_url' => buildAsclepiusTicketUrl($ticketId),
+    ];
+}
+
+function handleRequestPageAccessApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    global $ictUsers;
+
+    $userEmail = strtolower(trim((string) (
+        $apiClient['email'] ?? ($payload['viewer_email'] ?? ($payload['user_email'] ?? ''))
+    )));
+    if ($userEmail === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_user',
+        ];
+    }
+
+    if ($apiClient === null && !isTrustedApiRequester()) {
+        return [
+            'success' => false,
+            'error' => 'unauthorized',
+        ];
+    }
+
+    $pageName = trim((string) ($payload['page_name'] ?? ''));
+    if ($pageName === '') {
+        return [
+            'success' => false,
+            'error' => 'page_name_required',
+        ];
+    }
+
+    $category = 'sleutels.kvt.nl web-applicatieproblemen';
+    $title = buildPageAccessTicketTitle($pageName);
+    $description = buildPageAccessTicketDescription($pageName);
+
+    $existingTicket = null;
+    foreach ($store->getTickets(false, $userEmail) as $ticket) {
+        if (!is_array($ticket)) {
+            continue;
+        }
+
+        if (
+            trim((string) ($ticket['title'] ?? '')) === $title
+            && strtolower(trim((string) ($ticket['status'] ?? ''))) !== 'afgehandeld'
+        ) {
+            $existingTicket = $ticket;
+            break;
+        }
+    }
+
+    $created = false;
+    if ($existingTicket !== null) {
+        $ticketId = (int) ($existingTicket['id'] ?? 0);
+    } else {
+        try {
+            $result = $store->createTicket($title, $category, $userEmail, $description);
+        } catch (Throwable $exception) {
+            return [
+                'success' => false,
+                'error' => 'create_failed',
+                'details' => $exception->getMessage(),
+            ];
+        }
+
+        $ticketId = (int) ($result['ticket_id'] ?? 0);
+        $created = true;
+
+        $createdTicket = $store->getTicket($ticketId, true, $userEmail);
+        if ($createdTicket !== null) {
+            $assignedEmail = trim((string) ($result['assigned_email'] ?? ''));
+            $ictRecipients = $assignedEmail !== ''
+                ? [$assignedEmail]
+                : extractIctUserEmails(is_array($ictUsers) ? $ictUsers : []);
+            $ictLang = $assignedEmail !== '' ? getUserMailLang($assignedEmail) : 'nl';
+            sendTicketNotification(
+                $store,
+                is_array($ictUsers) ? $ictUsers : [],
+                $ictRecipients,
+                __mail('email.subject_new_ticket', $ictLang, $ticketId),
+                buildNotificationBody($createdTicket, 'email.intro_new_ict', $description, true, $ictLang),
+                $userEmail,
+                (string) ($createdTicket['category'] ?? $category),
+                $ticketId,
+                'new_ticket',
+                $userEmail
+            );
+
+            $requesterRecipients = is_array($createdTicket['participant_emails'] ?? null)
+                ? $createdTicket['participant_emails']
+                : [$userEmail];
+            $requesterLang = getUserMailLang($userEmail);
+            sendTicketNotification(
+                $store,
+                is_array($ictUsers) ? $ictUsers : [],
+                $requesterRecipients,
+                __mail('email.subject_created', $requesterLang, $ticketId),
+                buildNotificationBody($createdTicket, 'email.intro_created_self', $description, false, $requesterLang),
+                null,
+                (string) ($createdTicket['category'] ?? $category),
+                $ticketId,
+                null,
+                $userEmail
+            );
+        }
+    }
+
+    $ticket = $store->getTicket($ticketId, false, $userEmail);
+    if ($ticket === null) {
+        return [
+            'success' => false,
+            'error' => 'ticket_not_found',
+        ];
+    }
+
+    return buildPageAccessTicketApiResponse($ticket, $created);
+}
+
 /**
  * Page load
  */
+if (!defined('ASCLEPIUS_API_SKIP_ROUTER')) {
 $providedApiKey = getApiKeyFromRequest();
 $apiClient = loadApiClientByToken($providedApiKey);
-if (!isTrustedApiRequester() && $apiClient === null && !isValidApiKey($providedApiKey, $apiKeys ?? [])) {
+$hasValidServiceApiKey = isValidApiKey($providedApiKey, $apiKeys ?? []);
+if (!isTrustedApiRequester() && $apiClient === null && !$hasValidServiceApiKey) {
     $unauthorizedReason = getRefreshRequiredUnauthorizedReason($providedApiKey);
     sendJson(401, [
         'success' => false,
@@ -1156,6 +1382,21 @@ if ($method === 'POST') {
         sendJson(200, buildBigscreenVersionApiPayload());
     }
 
+    if ($action === 'request_page_access') {
+        $effectiveApiClient = $apiClient;
+        if ($effectiveApiClient === null && $hasValidServiceApiKey) {
+            $viewerEmail = strtolower(trim((string) ($payload['viewer_email'] ?? ($payload['user_email'] ?? ''))));
+            $effectiveApiClient = [
+                'email' => $viewerEmail,
+                'is_admin' => false,
+                'oid' => '',
+                'api_key' => $providedApiKey,
+            ];
+        }
+
+        sendJson(200, handleRequestPageAccessApiAction($store, $payload, $effectiveApiClient));
+    }
+
     if ($action === 'translate_ticket') {
         $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
         $language = strtolower(trim((string) ($payload['language'] ?? 'nl')));
@@ -1264,3 +1505,4 @@ sendJson(405, [
     'success' => false,
     'error' => 'Method niet toegestaan.',
 ]);
+}
