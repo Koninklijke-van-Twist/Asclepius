@@ -344,6 +344,7 @@ const TRANSLATIONS = [
         'flash.status_changed_to' => 'Status gewijzigd naar %s.',
         'flash.attachment_upload_error' => 'Bijlage "%s" kon niet worden geüpload.',
         'flash.attachment_too_large' => 'Bijlage "%s" is groter dan 20 MB.',
+        'flash.upload_request_too_large' => 'De upload is te groot. Kies een kleiner bestand of verlaag de totale grootte van je bijlagen.',
 
         // E-mail notificaties
         'email.subject_new_ticket' => 'Nieuw ticket #%d',
@@ -704,6 +705,7 @@ const TRANSLATIONS = [
         'flash.status_changed_to' => 'Status changed to %s.',
         'flash.attachment_upload_error' => 'Attachment "%s" could not be uploaded.',
         'flash.attachment_too_large' => 'Attachment "%s" is larger than 20 MB.',
+        'flash.upload_request_too_large' => 'The upload is too large. Choose a smaller file or reduce the total size of your attachments.',
 
         // Email notifications
         'email.subject_new_ticket' => 'New ticket #%d',
@@ -1064,6 +1066,7 @@ const TRANSLATIONS = [
         'flash.status_changed_to' => 'Status geändert auf %s.',
         'flash.attachment_upload_error' => 'Anhang "%s" konnte nicht hochgeladen werden.',
         'flash.attachment_too_large' => 'Anhang "%s" ist größer als 20 MB.',
+        'flash.upload_request_too_large' => 'Der Upload ist zu groß. Wählen Sie eine kleinere Datei oder reduzieren Sie die Gesamtgröße Ihrer Anhänge.',
 
         // E-Mail-Benachrichtigungen
         'email.subject_new_ticket' => 'Neues Ticket #%d',
@@ -1424,6 +1427,7 @@ const TRANSLATIONS = [
         'flash.status_changed_to' => 'Statut modifié en %s.',
         'flash.attachment_upload_error' => 'La pièce jointe "%s" n\'a pas pu être téléchargée.',
         'flash.attachment_too_large' => 'La pièce jointe "%s" dépasse 20 Mo.',
+        'flash.upload_request_too_large' => 'Le téléversement est trop volumineux. Choisissez un fichier plus petit ou réduisez la taille totale de vos pièces jointes.',
 
         // Notifications par e-mail
         'email.subject_new_ticket' => 'Nouveau ticket #%d',

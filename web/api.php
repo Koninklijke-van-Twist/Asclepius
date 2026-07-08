@@ -284,6 +284,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         'openTicketId' => $openTicketId,
         'view' => $view,
         'isReadOnlyTicket' => $browseMode === 'all_completed_public',
+        'viewerEmail' => $viewerEmail,
     ];
 
     $isAllTicketsView = $browseMode === 'all_completed_public';

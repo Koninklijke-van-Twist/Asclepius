@@ -1,3 +1,15 @@
+id: 2026-07-08-ticket-ux-upload-fixes
+date: 2026-07-08
+title: Suche, Selbstzuweisung und Uploads
+author: Tim Falken
+
+Das Suchfeld in der Ticketübersicht aktualisiert sich jetzt im Hintergrund ohne die Seite neu zu laden, sodass Sie weiter tippen können.
+
+Sie können ein Ticket immer **sich selbst** zuweisen, auch wenn Sie als abwesend markiert sind oder Kategorieregeln es sonst blockieren würden.
+
+Bei sehr großen Uploads (z. B. MP4) erscheint eine klare Fehlermeldung statt einer unterbrochenen Sitzung. Inline-Bilder laden zuverlässiger, wenn mehrere in einer Nachricht stehen.
+
+---
 id: 2026-07-08-all-tickets-tab
 date: 2026-07-08
 title: Tab „Alle Tickets“ und private Tickets

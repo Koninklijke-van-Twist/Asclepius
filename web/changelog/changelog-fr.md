@@ -1,3 +1,15 @@
+id: 2026-07-08-ticket-ux-upload-fixes
+date: 2026-07-08
+title: Recherche, auto-attribution et téléversements
+author: Tim Falken
+
+Le champ de recherche de l'aperçu des tickets se met à jour en arrière-plan sans recharger la page, ce qui vous permet de continuer à taper.
+
+Vous pouvez toujours vous attribuer un ticket **à vous-même**, même si vous êtes marqué absent ou si les règles de catégorie le bloqueraient autrement.
+
+Les téléversements très volumineux (comme les MP4) affichent désormais une erreur claire au lieu de couper la session. Les images intégrées se chargent plus fiablement lorsqu'il y en a plusieurs dans un message.
+
+---
 id: 2026-07-08-all-tickets-tab
 date: 2026-07-08
 title: Onglet Tous les tickets et tickets privés

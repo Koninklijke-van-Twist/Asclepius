@@ -14,6 +14,7 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
         'csrfToken' => $csrfToken,
         'openTicketId' => $openTicketId,
         'view' => $view,
+        'viewerEmail' => $userEmail,
         'isReadOnlyTicket' => $isAllTicketsView,
     ];
     $ticketPollPayload = [

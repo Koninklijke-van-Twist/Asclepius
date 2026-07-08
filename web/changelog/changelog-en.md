@@ -1,3 +1,15 @@
+id: 2026-07-08-ticket-ux-upload-fixes
+date: 2026-07-08
+title: Search, self-assignment, and uploads
+author: Tim Falken
+
+The ticket overview search field now refreshes in the background without reloading the page, so you can keep typing.
+
+You can always assign a ticket to **yourself**, even if you are marked absent or category rules would otherwise block it.
+
+Very large uploads (such as MP4) now show a clear error instead of breaking your session. Inline images load more reliably when several appear in one message.
+
+---
 id: 2026-07-08-all-tickets-tab
 date: 2026-07-08
 title: All tickets tab and private tickets

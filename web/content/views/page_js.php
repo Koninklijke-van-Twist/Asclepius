@@ -1387,8 +1387,77 @@
 
         var ticketSearchInput = liveTicketSection ? liveTicketSection.querySelector('input[name="search"]') : null;
         var ticketSearchSubmitTimer = null;
+        var ticketSearchRefreshInFlight = false;
+
+        var applyLiveTicketSearch = function ()
+        {
+            if (!ticketSearchInput || !liveTicketSection)
+            {
+                return;
+            }
+
+            var searchValue = ticketSearchInput.value || '';
+            ticketPollPayload.search_query = searchValue;
+            ticketPollPayload.last_signature = '';
+
+            try
+            {
+                var searchUrl = new URL(window.location.href);
+                if (searchValue.trim() !== '')
+                {
+                    searchUrl.searchParams.set('search', searchValue);
+                }
+                else
+                {
+                    searchUrl.searchParams.delete('search');
+                }
+                history.replaceState(null, '', searchUrl.toString());
+            }
+            catch (error)
+            {
+                // URL update is optional; search refresh should still work.
+            }
+
+            if (ticketSearchRefreshInFlight)
+            {
+                return;
+            }
+
+            ticketSearchRefreshInFlight = true;
+            apiFetchJson('ticket_poll', ticketPollPayload)
+                .then(function (data)
+                {
+                    if (data)
+                    {
+                        applyIncrementalTicketUpdate(data);
+                    }
+                })
+                .catch(function (error)
+                {
+                    if (error && (error.message === 'unauthorized' || error.message === 'refresh-required'))
+                    {
+                        return;
+                    }
+                })
+                .finally(function ()
+                {
+                    ticketSearchRefreshInFlight = false;
+                });
+        };
+
         if (ticketSearchInput && ticketSearchInput.form)
         {
+            ticketSearchInput.form.addEventListener('submit', function (event)
+            {
+                event.preventDefault();
+                if (ticketSearchSubmitTimer)
+                {
+                    clearTimeout(ticketSearchSubmitTimer);
+                    ticketSearchSubmitTimer = null;
+                }
+                applyLiveTicketSearch();
+            });
+
             ticketSearchInput.addEventListener('input', function ()
             {
                 if (ticketSearchSubmitTimer)
@@ -1398,7 +1467,7 @@
 
                 ticketSearchSubmitTimer = setTimeout(function ()
                 {
-                    ticketSearchInput.form.submit();
+                    applyLiveTicketSearch();
                 }, 300);
             });
         }
@@ -4020,19 +4089,18 @@
         // File preview modal + lazy thumbnails
         var previewModal = null;
         var previewIframe = null;
+        var pendingThumbImages = [];
+        var activeThumbLoads = 0;
+        var MAX_CONCURRENT_THUMB_LOADS = 2;
 
-        var hydrateTicketThumbnails = function (ticketCard)
+        var loadNextThumbImage = function ()
         {
-            if (!ticketCard || !ticketCard.open)
+            while (activeThumbLoads < MAX_CONCURRENT_THUMB_LOADS && pendingThumbImages.length > 0)
             {
-                return;
-            }
-
-            ticketCard.querySelectorAll('img[data-thumb-src]').forEach(function (imageThumb)
-            {
-                if (imageThumb.dataset.thumbLoaded === '1')
+                var imageThumb = pendingThumbImages.shift();
+                if (!imageThumb || imageThumb.dataset.thumbLoaded === '1')
                 {
-                    return;
+                    continue;
                 }
 
                 var thumbSrc = imageThumb.getAttribute('data-thumb-src') || '';
@@ -4043,19 +4111,51 @@
                     {
                         missingSrcButton.remove();
                     }
-                    return;
+                    continue;
                 }
 
+                activeThumbLoads += 1;
                 imageThumb.dataset.thumbLoaded = '1';
-                imageThumb.src = thumbSrc;
+
+                var finalizeThumbLoad = function ()
+                {
+                    activeThumbLoads = Math.max(0, activeThumbLoads - 1);
+                    loadNextThumbImage();
+                };
+
+                imageThumb.addEventListener('load', finalizeThumbLoad, { once: true });
                 imageThumb.addEventListener('error', function ()
                 {
-                    var brokenThumbButton = imageThumb.closest('.attachment-thumb-button');
-                    if (brokenThumbButton)
-                    {
-                        brokenThumbButton.remove();
-                    }
+                    imageThumb.removeAttribute('src');
+                    imageThumb.dataset.thumbLoaded = '0';
+                    finalizeThumbLoad();
                 }, { once: true });
+                imageThumb.src = thumbSrc;
+            }
+        };
+
+        var enqueueThumbImage = function (imageThumb)
+        {
+            if (!imageThumb || imageThumb.dataset.thumbQueued === '1' || imageThumb.dataset.thumbLoaded === '1')
+            {
+                return;
+            }
+
+            imageThumb.dataset.thumbQueued = '1';
+            pendingThumbImages.push(imageThumb);
+            loadNextThumbImage();
+        };
+
+        var hydrateTicketThumbnails = function (ticketCard)
+        {
+            if (!ticketCard || !ticketCard.open)
+            {
+                return;
+            }
+
+            ticketCard.querySelectorAll('img[data-thumb-src]').forEach(function (imageThumb)
+            {
+                enqueueThumbImage(imageThumb);
             });
 
             ticketCard.querySelectorAll('[data-file-thumb-open]').forEach(function (thumbButton)
@@ -4109,6 +4209,44 @@
                     });
             });
         };
+
+        document.addEventListener('submit', function (event)
+        {
+            var uploadForm = event.target;
+            if (!uploadForm || !uploadForm.getAttribute || uploadForm.getAttribute('enctype') !== 'multipart/form-data')
+            {
+                return;
+            }
+
+            var maxUploadBytes = parseInt((document.body && document.body.getAttribute('data-max-upload-bytes')) || '0', 10);
+            var postMaxBytes = parseInt((document.body && document.body.getAttribute('data-post-max-bytes')) || '0', 10);
+            var effectiveLimit = maxUploadBytes;
+            if (postMaxBytes > 0 && (effectiveLimit <= 0 || postMaxBytes < effectiveLimit))
+            {
+                effectiveLimit = postMaxBytes;
+            }
+
+            if (effectiveLimit <= 0)
+            {
+                return;
+            }
+
+            var fileInputs = uploadForm.querySelectorAll('input[type="file"]');
+            var totalBytes = 0;
+            fileInputs.forEach(function (fileInput)
+            {
+                Array.prototype.forEach.call(fileInput.files || [], function (file)
+                {
+                    totalBytes += file.size || 0;
+                });
+            });
+
+            if (totalBytes > effectiveLimit)
+            {
+                event.preventDefault();
+                window.alert(<?= json_encode(__('flash.upload_request_too_large'), JSON_UNESCAPED_UNICODE) ?>);
+            }
+        });
 
         document.querySelectorAll('details.ticket-card[open]').forEach(function (ticketCard)
         {

@@ -1,3 +1,15 @@
+id: 2026-07-08-ticket-ux-upload-fixes
+date: 2026-07-08
+title: Zoeken, zelf-toewijzing en uploads
+author: Tim Falken
+
+Het zoekveld in het ticketoverzicht ververst nu op de achtergrond zonder de pagina te herladen, zodat je kunt blijven typen.
+
+Je kunt een ticket altijd aan **jezelf** toewijzen, ook als je als afwezig staat of normale categorie-regels anders zouden blokkeren.
+
+Bij zeer grote uploads (zoals MP4) krijg je een duidelijke foutmelding in plaats van een verbroken sessie. Inline-afbeeldingen laden betrouwbaarder wanneer er meerdere in een bericht staan.
+
+---
 id: 2026-07-08-all-tickets-tab
 date: 2026-07-08
 title: Tab Alle tickets en privétickets

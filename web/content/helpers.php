@@ -720,10 +720,21 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     }
     $needsTranslation = $titleNeedsTrans || $messagesNeedTrans;
     $canAssignToRequester = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
-    $assignableIctUsers = array_values(array_filter(
+    $viewerEmail = strtolower(trim((string) ($context['viewerEmail'] ?? '')));
+    $assignableIctUsers = array_values(array_unique(array_filter(
         extractIctUserEmails($ictUsers),
-        static fn(string $ictUser): bool => $ictUser !== '' && ($canAssignToRequester || $ictUser !== $requesterEmail)
-    ));
+        static function (string $ictUser) use ($canAssignToRequester, $requesterEmail, $viewerEmail): bool {
+            if ($ictUser === '') {
+                return false;
+            }
+
+            if ($viewerEmail !== '' && $ictUser === $viewerEmail) {
+                return true;
+            }
+
+            return $canAssignToRequester || $ictUser !== $requesterEmail;
+        }
+    )));
     $showTicketShareLink = ($canManageTickets && $isAdminPortal)
         || $isReadOnlyTicket
         || (!$isAdminPortal && $view === 'overview');
@@ -1420,6 +1431,11 @@ function validateUploadedFiles(array $files): array
         $error = (int) ($file['error'] ?? UPLOAD_ERR_OK);
         $size = (int) ($file['size'] ?? 0);
 
+        if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+            $errors[] = __('flash.upload_request_too_large');
+            continue;
+        }
+
         if ($error !== UPLOAD_ERR_OK) {
             $errors[] = __('flash.attachment_upload_error', $name);
             continue;
@@ -1431,6 +1447,42 @@ function validateUploadedFiles(array $files): array
     }
 
     return $errors;
+}
+
+function parsePhpIniSize(string $value): int
+{
+    $value = trim($value);
+    if ($value === '') {
+        return 0;
+    }
+
+    $unit = strtolower(substr($value, -1));
+    $number = (int) $value;
+
+    return match ($unit) {
+        'g' => $number * 1024 * 1024 * 1024,
+        'm' => $number * 1024 * 1024,
+        'k' => $number * 1024,
+        default => $number,
+    };
+}
+
+function detectOversizedUploadRequest(): bool
+{
+    $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($contentLength <= 0) {
+        return false;
+    }
+
+    $postMaxBytes = parsePhpIniSize((string) ini_get('post_max_size'));
+    if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
+        return true;
+    }
+
+    return $_SERVER['REQUEST_METHOD'] === 'POST'
+        && $contentLength > 0
+        && ($_POST === [] || !isset($_POST['csrf_token']))
+        && empty($_FILES);
 }
 
 function formatDateTime(string $value): string

@@ -91,6 +91,11 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription'])) {
+    if (detectOversizedUploadRequest()) {
+        pushFlash('error', __('flash.upload_request_too_large'));
+        redirectToPage($returnPage, $baseQuery);
+    }
+
     if (!hash_equals($csrfToken, (string) ($_POST['csrf_token'] ?? ''))) {
         pushFlash('error', __('flash.session_expired'));
         redirectToPage($returnPage, $baseQuery);
@@ -396,11 +401,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
                 $templateTicketSelfAssignmentAllowed = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
                 $availabilityByUser = $store->getIctUserAvailability();
+                $isAssigningToSelf = $requestedAssignee !== '' && $requestedAssignee === strtolower($userEmail);
                 if ($requestedAssignee !== '' && !in_array($requestedAssignee, extractIctUserEmails($ictUsers), true)) {
                     $errors[] = __('flash.invalid_employee');
-                } elseif ($requestedAssignee !== '' && $requestedAssignee === $requesterEmail && !$templateTicketSelfAssignmentAllowed) {
+                } elseif ($requestedAssignee !== '' && $requestedAssignee === $requesterEmail && !$templateTicketSelfAssignmentAllowed && !$isAssigningToSelf) {
                     $errors[] = __('flash.self_assignment_not_allowed');
-                } elseif ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee]) && $requestedAssignee !== $currentAssignee) {
+                } elseif ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee]) && $requestedAssignee !== $currentAssignee && !$isAssigningToSelf) {
                     $errors[] = __('flash.employee_away');
                 } else {
                     $newAssignee = $requestedAssignee;
