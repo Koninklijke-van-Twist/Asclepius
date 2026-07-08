@@ -3786,6 +3786,11 @@
                 return;
             }
 
+            if (messagesWrap.getAttribute('data-lazy-messages') === '1' && card.dataset.threadLoaded !== '1')
+            {
+                return;
+            }
+
             var existingMessageIds = {};
             thread.querySelectorAll('[data-message-id]').forEach(function (messageNode)
             {
@@ -3965,14 +3970,26 @@
                 loadingHint.hidden = true;
             }
 
+            var existingMessageIds = {};
+            thread.querySelectorAll('[data-message-id]').forEach(function (messageNode)
+            {
+                existingMessageIds[messageNode.getAttribute('data-message-id')] = true;
+            });
+
             (messages || []).forEach(function (message)
             {
+                if (existingMessageIds[String(message.id)])
+                {
+                    return;
+                }
+
                 var template = document.createElement('template');
                 template.innerHTML = (message.html || '').trim();
                 var messageNode = template.content.firstElementChild;
                 if (messageNode)
                 {
                     thread.appendChild(messageNode);
+                    existingMessageIds[String(message.id)] = true;
                 }
             });
 

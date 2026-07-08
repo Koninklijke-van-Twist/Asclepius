@@ -1,3 +1,13 @@
+id: 2026-07-08-translation-assignment-fixes
+date: 2026-07-08
+title: Übersetzungen und Ticketzuweisung
+author: Tim Falken
+
+Bei übersetzten Tickets sehen Sie nur den übersetzten Text. Das Original ist über **Original anzeigen** verfügbar oder solange die Übersetzung noch lädt.
+
+Über die API erstellte Tickets (z. B. automatische Zugriffsanfragen) werden sofort einem verfügbaren ICT-Administrator zugewiesen. Bestehende Tickets ohne Bearbeiter werden beim Laden oder Suchen automatisch und still zugewiesen.
+
+---
 id: 2026-07-08-ticket-ux-upload-fixes
 date: 2026-07-08
 title: Suche, Selbstzuweisung und Uploads

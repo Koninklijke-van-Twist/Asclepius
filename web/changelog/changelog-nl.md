@@ -1,3 +1,13 @@
+id: 2026-07-08-translation-assignment-fixes
+date: 2026-07-08
+title: Vertalingen en tickettoewijzing
+author: Tim Falken
+
+Bij vertaalde tickets zie je nu alleen de vertaalde tekst. Het origineel is beschikbaar via de knop **Toon origineel**, of wanneer de vertaling nog wordt geladen.
+
+Tickets die via de API worden aangemaakt (zoals automatische toegangsaanvragen) worden direct toegewezen aan een beschikbare ICT-beheerder. Bestaande tickets zonder behandelaar worden bij het laden of zoeken automatisch en stil toegewezen.
+
+---
 id: 2026-07-08-ticket-ux-upload-fixes
 date: 2026-07-08
 title: Zoeken, zelf-toewijzing en uploads

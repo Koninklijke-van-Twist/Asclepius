@@ -423,6 +423,55 @@ class TicketStore
         return $this->pickAssignee($category, $excludeEmail);
     }
 
+    public function ensureTicketAssigned(int $ticketId): ?string
+    {
+        if ($ticketId <= 0) {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT category, assigned_email, status
+             FROM tickets
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $statement->execute([':id' => $ticketId]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+
+        $assignedEmail = strtolower(trim((string) ($row['assigned_email'] ?? '')));
+        if ($assignedEmail !== '') {
+            return $assignedEmail;
+        }
+
+        if (strtolower((string) ($row['status'] ?? '')) === 'afgehandeld') {
+            return null;
+        }
+
+        $assignee = $this->pickAssignee((string) ($row['category'] ?? ''));
+        if ($assignee === null || trim($assignee) === '') {
+            return null;
+        }
+
+        $assignee = strtolower(trim($assignee));
+        $updatedAt = date('c');
+        $updateStatement = $this->pdo->prepare(
+            'UPDATE tickets
+             SET assigned_email = :assigned_email,
+                 updated_at = :updated_at
+             WHERE id = :id'
+        );
+        $updateStatement->execute([
+            ':assigned_email' => $assignee,
+            ':updated_at' => $updatedAt,
+            ':id' => $ticketId,
+        ]);
+
+        return $assignee;
+    }
+
     public function createTicket(
         string $title,
         string $category,
@@ -496,6 +545,10 @@ class TicketStore
             $this->storeAttachments($ticketId, $messageId, $files, $userEmail);
 
             $this->pdo->commit();
+
+            if ($assignee === null || trim((string) $assignee) === '') {
+                $assignee = $this->ensureTicketAssigned($ticketId);
+            }
 
             return [
                 'ticket_id' => $ticketId,
@@ -1020,6 +1073,24 @@ class TicketStore
         $tickets = $statement->fetchAll(PDO::FETCH_ASSOC);
         $tickets = array_map(fn(array $ticket): array => $this->applyDerivedPriorityForDueDate($ticket), $tickets);
 
+        foreach ($tickets as &$ticket) {
+            $assignedEmail = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
+            if ($assignedEmail !== '' || strtolower((string) ($ticket['status'] ?? '')) === 'afgehandeld') {
+                continue;
+            }
+
+            $ticketId = (int) ($ticket['id'] ?? 0);
+            if ($ticketId <= 0) {
+                continue;
+            }
+
+            $newAssignee = $this->ensureTicketAssigned($ticketId);
+            if ($newAssignee !== null) {
+                $ticket['assigned_email'] = $newAssignee;
+            }
+        }
+        unset($ticket);
+
         if ($adminList) {
             usort($tickets, static function (array $left, array $right): int {
                 $leftResolved = (string) ($left['status'] ?? '') === 'afgehandeld';
@@ -1077,6 +1148,14 @@ class TicketStore
         }
 
         $ticket = $this->applyDerivedPriorityForDueDate($ticket);
+
+        $assignedEmail = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
+        if ($assignedEmail === '' && strtolower((string) ($ticket['status'] ?? '')) !== 'afgehandeld') {
+            $newAssignee = $this->ensureTicketAssigned((int) $ticket['id']);
+            if ($newAssignee !== null) {
+                $ticket['assigned_email'] = $newAssignee;
+            }
+        }
 
         $ticket['participant_emails'] = $this->getTicketParticipants((int) $ticket['id']);
         $ticket['messages'] = $this->getMessagesForTicket((int) $ticket['id']);

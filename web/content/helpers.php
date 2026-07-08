@@ -269,14 +269,17 @@ function buildTicketPollItemsFromTickets(TicketStore $store, array $tickets, arr
     ), static fn(int $ticketId): bool => $ticketId > 0));
 
     $participantsByTicketId = $store->getTicketParticipantsBatch($ticketIds);
-    $messagesByTicketId = $store->getTicketMessagesBatch($ticketIds);
+    $openTicketId = (int) ($context['openTicketId'] ?? 0);
+    $messageTicketIds = $openTicketId > 0 ? [$openTicketId] : [];
+    $messagesByTicketId = $messageTicketIds !== []
+        ? $store->getTicketMessagesBatch($messageTicketIds)
+        : [];
     warmUserDirectoryForContext(collectEmailsForUserDirectoryWarmup(
         $tickets,
         $participantsByTicketId,
         is_array($context['ictUsers'] ?? null) ? $context['ictUsers'] : [],
         $messagesByTicketId
     ));
-    $openTicketId = (int) ($context['openTicketId'] ?? 0);
     $pollItems = [];
 
     foreach ($tickets as $ticket) {

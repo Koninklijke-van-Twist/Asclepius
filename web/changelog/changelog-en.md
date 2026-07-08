@@ -1,3 +1,13 @@
+id: 2026-07-08-translation-assignment-fixes
+date: 2026-07-08
+title: Translations and ticket assignment
+author: Tim Falken
+
+For translated tickets you now see only the translated text. The original is available via **Show original**, or while the translation is still loading.
+
+Tickets created via the API (such as automatic access requests) are immediately assigned to an available ICT admin. Existing tickets without an assignee are silently auto-assigned when loading or searching.
+
+---
 id: 2026-07-08-ticket-ux-upload-fixes
 date: 2026-07-08
 title: Search, self-assignment, and uploads

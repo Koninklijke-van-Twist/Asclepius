@@ -1,3 +1,13 @@
+id: 2026-07-08-translation-assignment-fixes
+date: 2026-07-08
+title: Traductions et attribution des tickets
+author: Tim Falken
+
+Pour les tickets traduits, vous ne voyez que le texte traduit. L'original est disponible via **Afficher l'original**, ou pendant le chargement de la traduction.
+
+Les tickets créés via l'API (comme les demandes d'accès automatiques) sont immédiatement attribués à un administrateur ICT disponible. Les tickets existants sans responsable sont attribués automatiquement et silencieusement lors du chargement ou de la recherche.
+
+---
 id: 2026-07-08-ticket-ux-upload-fixes
 date: 2026-07-08
 title: Recherche, auto-attribution et téléversements
