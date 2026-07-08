@@ -1316,6 +1316,75 @@
             }
         }
 
+        var ticketShareModal = document.querySelector('[data-role="ticket-share-modal"]');
+        var ticketShareUrlInput = ticketShareModal ? ticketShareModal.querySelector('[data-role="ticket-share-url-input"]') : null;
+
+        var closeTicketShareModal = function ()
+        {
+            if (!ticketShareModal)
+            {
+                return;
+            }
+
+            ticketShareModal.hidden = true;
+            ticketShareModal.classList.remove('is-open');
+            document.documentElement.style.overflow = '';
+        };
+
+        var openTicketShareModal = function (shareUrl)
+        {
+            if (!ticketShareModal || !ticketShareUrlInput)
+            {
+                return;
+            }
+
+            ticketShareUrlInput.value = shareUrl;
+            ticketShareModal.hidden = false;
+            ticketShareModal.classList.add('is-open');
+            document.documentElement.style.overflow = 'hidden';
+            window.setTimeout(function ()
+            {
+                ticketShareUrlInput.focus();
+                ticketShareUrlInput.select();
+            }, 0);
+        };
+
+        var copyTextToClipboard = function (text)
+        {
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function')
+            {
+                return navigator.clipboard.writeText(text);
+            }
+
+            return new Promise(function (resolve, reject)
+            {
+                var helperInput = document.createElement('textarea');
+                helperInput.value = text;
+                helperInput.setAttribute('readonly', 'readonly');
+                helperInput.style.position = 'fixed';
+                helperInput.style.left = '-9999px';
+                document.body.appendChild(helperInput);
+                helperInput.select();
+
+                try
+                {
+                    var copied = document.execCommand('copy');
+                    document.body.removeChild(helperInput);
+                    if (copied)
+                    {
+                        resolve();
+                        return;
+                    }
+                    reject(new Error('copy_failed'));
+                }
+                catch (error)
+                {
+                    document.body.removeChild(helperInput);
+                    reject(error);
+                }
+            });
+        };
+
         var ticketSearchInput = liveTicketSection ? liveTicketSection.querySelector('input[name="search"]') : null;
         var ticketSearchSubmitTimer = null;
         if (ticketSearchInput && ticketSearchInput.form)
@@ -1405,6 +1474,37 @@
 
         document.addEventListener('click', function (event)
         {
+            var shareLinkButton = event.target.closest('[data-role="ticket-share-link"]');
+            if (shareLinkButton)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+
+                var shareUrl = shareLinkButton.getAttribute('data-share-url') || '';
+                if (shareUrl === '')
+                {
+                    return;
+                }
+
+                copyTextToClipboard(shareUrl).catch(function () { /* modal still shows fallback field */ });
+                openTicketShareModal(shareUrl);
+                return;
+            }
+
+            var closeShareButton = event.target.closest('[data-role="ticket-share-close"]');
+            if (closeShareButton)
+            {
+                event.preventDefault();
+                closeTicketShareModal();
+                return;
+            }
+
+            if (ticketShareModal && event.target === ticketShareModal)
+            {
+                closeTicketShareModal();
+                return;
+            }
+
             var openParticipantsButton = event.target.closest('[data-role="manage-participants-open"]');
             if (openParticipantsButton)
             {
@@ -1654,7 +1754,7 @@
         {
             if (event.key === 'Escape')
             {
-                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open').forEach(function (modal)
+                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-share-modal"].is-open').forEach(function (modal)
                 {
                     modal.hidden = true;
                     modal.classList.remove('is-open');
@@ -2712,6 +2812,89 @@
             });
         });
 
+        var syncPrivateToggleState = function (toggleLabel, isPrivate)
+        {
+            if (!toggleLabel)
+            {
+                return;
+            }
+
+            toggleLabel.classList.toggle('is-active', !!isPrivate);
+
+            var pill = toggleLabel.querySelector('[data-role="private-ticket-pill"]');
+            if (pill)
+            {
+                var privateLabel = pill.getAttribute('data-label-private') || '';
+                var publicLabel = pill.getAttribute('data-label-public') || '';
+                pill.textContent = isPrivate ? privateLabel : publicLabel;
+            }
+        };
+
+        document.addEventListener('click', function (event)
+        {
+            var privateToggleLabel = event.target.closest('.private-ticket-toggle');
+            if (privateToggleLabel)
+            {
+                event.stopPropagation();
+            }
+        });
+
+        document.addEventListener('change', function (event)
+        {
+            var privateToggle = event.target && event.target.matches && event.target.matches('[data-role="ticket-private-toggle"]')
+                ? event.target
+                : null;
+            if (!privateToggle)
+            {
+                return;
+            }
+
+            var ticketCard = privateToggle.closest ? privateToggle.closest('details.ticket-card[data-ticket-id]') : null;
+            if (!ticketCard)
+            {
+                privateToggle.checked = !privateToggle.checked;
+                return;
+            }
+
+            var ticketId = parseInt(ticketCard.getAttribute('data-ticket-id') || '0', 10);
+            if (ticketId <= 0)
+            {
+                privateToggle.checked = !privateToggle.checked;
+                return;
+            }
+
+            var previousChecked = !privateToggle.checked;
+            var privateChip = privateToggle.closest('.private-ticket-toggle');
+            syncPrivateToggleState(privateChip, privateToggle.checked);
+            privateToggle.disabled = true;
+
+            apiFetchJson('update_ticket_private', {
+                csrf_token: csrfToken,
+                ticket_id: ticketId,
+                is_private: !!privateToggle.checked,
+                viewer_email: ticketPollPayload.viewer_email || '',
+                user_is_admin: !!ticketPollPayload.user_is_admin,
+                is_admin_portal: !!ticketPollPayload.is_admin_portal
+            }).then(function (data)
+            {
+                if (!data || data.success !== true)
+                {
+                    privateToggle.checked = previousChecked;
+                    syncPrivateToggleState(privateChip, privateToggle.checked);
+                    return;
+                }
+
+                syncPrivateToggleState(privateChip, !!privateToggle.checked);
+            }).catch(function ()
+            {
+                privateToggle.checked = previousChecked;
+                syncPrivateToggleState(privateChip, privateToggle.checked);
+            }).finally(function ()
+            {
+                privateToggle.disabled = false;
+            });
+        });
+
         var parseJsonString = function (value)
         {
             try
@@ -3305,6 +3488,46 @@
             });
         };
 
+        var openTicketScrollDone = false;
+
+        var scrollTicketCardIntoView = function (card)
+        {
+            if (!card)
+            {
+                return;
+            }
+
+            window.requestAnimationFrame(function ()
+            {
+                card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        };
+
+        var focusOpenTicketFromUrl = function ()
+        {
+            if (!liveTicketSection || openTicketScrollDone)
+            {
+                return;
+            }
+
+            var openTicketId = parseInt(ticketPollPayload.open_ticket_id || '0', 10);
+            if (openTicketId <= 0)
+            {
+                return;
+            }
+
+            var card = liveTicketSection.querySelector('details.ticket-card[data-ticket-id="' + openTicketId + '"]');
+            if (!card)
+            {
+                return;
+            }
+
+            openTicketScrollDone = true;
+            card.open = true;
+            loadLazyTicketThread(card);
+            scrollTicketCardIntoView(card);
+        };
+
         var ticketSectionHasActiveInput = function (section)
         {
             if (section.querySelector('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open'))
@@ -3469,6 +3692,17 @@
             {
                 var reopenEnabled = reopenWrap.getAttribute('data-user-reopen-enabled') === '1';
                 reopenWrap.hidden = !reopenEnabled || ticket.status !== 'afgehandeld';
+            }
+
+            var privateToggleLabelCard = card.querySelector('.private-ticket-toggle');
+            if (privateToggleLabelCard)
+            {
+                var privateInput = privateToggleLabelCard.querySelector('[data-role="ticket-private-toggle"]');
+                if (privateInput && !privateInput.disabled)
+                {
+                    privateInput.checked = !!ticket.is_private;
+                }
+                syncPrivateToggleState(privateToggleLabelCard, !!ticket.is_private);
             }
 
             card.style.setProperty('--ticket-color', ticket.status_color);
@@ -3747,6 +3981,8 @@
             {
                 triggerLazyTranslations(liveTicketSection);
             }, 200);
+            window.setTimeout(focusOpenTicketFromUrl, 120);
+            window.setTimeout(focusOpenTicketFromUrl, 500);
         }
 
         if (browserNotificationPollUrl)

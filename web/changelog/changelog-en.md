@@ -1,3 +1,15 @@
+id: 2026-07-08-all-tickets-tab
+date: 2026-07-08
+title: All tickets tab and private tickets
+author: Tim Falken
+
+Regular users now have a new **All tickets** tab showing resolved tickets. Tickets there are read-only: you can view them but cannot post messages or change details. The overview has the same filters as the ICT overview (category, search, assignee).
+
+ICT admins can mark a ticket as **Private** in the ICT overview via a checkbox on the ticket. Private tickets never appear in the All tickets tab.
+
+On the ICT overview, All tickets, and My tickets pages, a 🔗 icon appears to the left of the ticket number. It always copies the same link (`index.php?open=…`). When opened, you land in the right place: **your own tickets** in My tickets, **admins** otherwise in the ICT overview, **other users** on completed public tickets in All tickets.
+
+---
 id: 2026-06-23-message-textarea-grow
 date: 2026-06-23
 title: Message field grows with your text

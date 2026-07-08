@@ -11,7 +11,7 @@ class TicketStore
 
     private const REQUESTER_RESPONSE_STATUS = 'afwachtende op gebruiker';
 
-    private const TICKET_LIST_COLUMNS = 't.id, t.title, t.category, t.user_email, t.assigned_email, t.status, t.priority, t.created_at, t.updated_at, t.due_date, t.resolved_at';
+    private const TICKET_LIST_COLUMNS = 't.id, t.title, t.category, t.user_email, t.assigned_email, t.status, t.priority, t.created_at, t.updated_at, t.due_date, t.resolved_at, t.is_private';
 
     private PDO $pdo;
     private string $databasePath;
@@ -600,6 +600,27 @@ class TicketStore
         return $statement->rowCount() > 0;
     }
 
+    public function updateTicketPrivate(int $ticketId, bool $isPrivate): bool
+    {
+        if ($ticketId <= 0) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'UPDATE tickets
+             SET is_private = :is_private,
+                 updated_at = :updated_at
+             WHERE id = :id'
+        );
+        $statement->execute([
+            ':is_private' => $isPrivate ? 1 : 0,
+            ':updated_at' => date('c'),
+            ':id' => $ticketId,
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
     public function deleteTextTranslationsForEntity(string $entityType, int $entityId): void
     {
         $normalizedEntityType = trim($entityType);
@@ -860,12 +881,17 @@ class TicketStore
         ]);
     }
 
-    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null): array
+    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default'): array
     {
         $conditions = [];
         $parameters = [];
+        $allCompletedPublic = $browseMode === 'all_completed_public';
+        $adminList = $isAdmin && !$allCompletedPublic;
 
-        if (!$isAdmin) {
+        if ($allCompletedPublic) {
+            $conditions[] = "t.status = 'afgehandeld'";
+            $conditions[] = 'COALESCE(t.is_private, 0) = 0';
+        } elseif (!$isAdmin) {
             $conditions[] = 'EXISTS (
                 SELECT 1
                 FROM ticket_participants tp
@@ -875,7 +901,7 @@ class TicketStore
             $parameters[':user_email'] = strtolower(trim($userEmail));
         }
 
-        if ($statusFilters !== []) {
+        if ($statusFilters !== [] && !$allCompletedPublic) {
             $statusPlaceholders = [];
             foreach ($statusFilters as $index => $status) {
                 $placeholder = ':status_' . $index;
@@ -885,7 +911,7 @@ class TicketStore
             $conditions[] = 't.status IN (' . implode(', ', $statusPlaceholders) . ')';
         }
 
-        if ($isAdmin && $assignedFilter !== null && $assignedFilter !== '') {
+        if (($adminList || $allCompletedPublic) && $assignedFilter !== null && $assignedFilter !== '') {
             if ($assignedFilter === '__unassigned__') {
                 $conditions[] = '(t.assigned_email IS NULL OR t.assigned_email = "")';
             } else {
@@ -904,7 +930,7 @@ class TicketStore
             $conditions[] = 't.category IN (' . implode(', ', $categoryPlaceholders) . ')';
         }
 
-        if ($isAdmin) {
+        if ($adminList || $allCompletedPublic) {
             $searchQuery = trim((string) ($searchQuery ?? ''));
             if ($searchQuery !== '') {
                 $searchTerms = preg_split('/\s+/u', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
@@ -978,7 +1004,7 @@ class TicketStore
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
         }
 
-        if ($isAdmin) {
+        if ($adminList || $allCompletedPublic) {
             $sql .= " ORDER BY CASE WHEN t.status = 'afgehandeld' THEN 1 ELSE 0 END ASC,
                             datetime(t.created_at) DESC,
                             t.id DESC";
@@ -994,7 +1020,7 @@ class TicketStore
         $tickets = $statement->fetchAll(PDO::FETCH_ASSOC);
         $tickets = array_map(fn(array $ticket): array => $this->applyDerivedPriorityForDueDate($ticket), $tickets);
 
-        if ($isAdmin) {
+        if ($adminList) {
             usort($tickets, static function (array $left, array $right): int {
                 $leftResolved = (string) ($left['status'] ?? '') === 'afgehandeld';
                 $rightResolved = (string) ($right['status'] ?? '') === 'afgehandeld';
@@ -1023,12 +1049,16 @@ class TicketStore
         return $tickets;
     }
 
-    public function getTicket(int $ticketId, bool $isAdmin, string $userEmail): ?array
+    public function getTicket(int $ticketId, bool $isAdmin, string $userEmail, string $browseMode = 'default'): ?array
     {
         $conditions = ['id = :id'];
         $parameters = [':id' => $ticketId];
+        $allCompletedPublic = $browseMode === 'all_completed_public';
 
-        if (!$isAdmin) {
+        if ($allCompletedPublic) {
+            $conditions[] = "status = 'afgehandeld'";
+            $conditions[] = 'COALESCE(is_private, 0) = 0';
+        } elseif (!$isAdmin) {
             $conditions[] = 'EXISTS (
                 SELECT 1
                 FROM ticket_participants tp
@@ -1844,6 +1874,7 @@ class TicketStore
         $this->ensureColumn('tickets', 'updated_at', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'resolved_at', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'due_date', 'TEXT DEFAULT NULL');
+        $this->ensureColumn('tickets', 'is_private', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_messages', 'message_text', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('ticket_attachments', 'mime_type', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_attachments', 'file_size', 'INTEGER NOT NULL DEFAULT 0');

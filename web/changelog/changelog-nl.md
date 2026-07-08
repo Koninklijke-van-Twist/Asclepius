@@ -1,3 +1,15 @@
+id: 2026-07-08-all-tickets-tab
+date: 2026-07-08
+title: Tab Alle tickets en privétickets
+author: Tim Falken
+
+Normale gebruikers hebben een nieuw tabblad **Alle tickets** met een overzicht van afgehandelde tickets. Tickets zijn daar alleen-lezen: je kunt ze bekijken maar geen berichten plaatsen of gegevens wijzigen. Het overzicht heeft dezelfde filters als het ICT-overzicht (categorie, zoeken, behandelaar).
+
+ICT-beheerders kunnen in het ICT-overzicht een ticket als **Privé** markeren via een checkbox op het ticket. Privétickets verschijnen nooit in het tabblad Alle tickets.
+
+Op het ICT-overzicht, Alle tickets en Mijn tickets staat links naast het ticketnummer een 🔗-icoon. Daarmee kopieer je overal dezelfde link (`index.php?open=…`). Bij openen land je op de juiste plek: **eigen tickets** in Mijn tickets, **admins** anders in het ICT-overzicht, **andere gebruikers** bij afgeronde openbare tickets in Alle tickets.
+
+---
 id: 2026-06-23-message-textarea-grow
 date: 2026-06-23
 title: Tekstvak groeit mee met je bericht

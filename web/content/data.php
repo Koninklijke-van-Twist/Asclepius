@@ -112,7 +112,7 @@ function postLocalApiJson(string $path, array $payload): ?array
  */
 
 $tickets = $store instanceof TicketStore
-    ? $store->getTickets($canManageTickets, $userEmail, $effectiveStatusFilters, $assignedFilter, $effectiveCategoryFilters, $searchQuery)
+    ? $store->getTickets($canManageTickets, $userEmail, $effectiveStatusFilters, $assignedFilter, $effectiveCategoryFilters, $searchQuery, $ticketBrowseMode)
     : [];
 $currentLanguage = getCurrentLanguage();
 if ($store instanceof TicketStore) {
@@ -120,6 +120,22 @@ if ($store instanceof TicketStore) {
         fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage, true),
         $tickets
     );
+}
+
+if ($openTicketId > 0 && $store instanceof TicketStore && ($isAllTicketsView || ($canManageTickets && $view === 'overview'))) {
+    $openTicketIdsInList = array_map(
+        static fn(array $ticket): int => (int) ($ticket['id'] ?? 0),
+        $tickets
+    );
+    if (!in_array($openTicketId, $openTicketIdsInList, true)) {
+        $linkedOpenTicket = $store->getTicket($openTicketId, $canManageTickets, $userEmail, $ticketBrowseMode);
+        if (is_array($linkedOpenTicket)) {
+            $tickets = array_merge(
+                [localizeTicketForViewer($linkedOpenTicket, $store, $currentLanguage, true)],
+                $tickets
+            );
+        }
+    }
 }
 
 $ticketDetailsById = [];
@@ -333,7 +349,9 @@ if (isset($_GET['_tickets_poll'])) {
         'csrf_token' => $csrfToken,
         'open_ticket_id' => $openTicketId,
         'view' => $view,
+        'browse_mode' => $ticketBrowseMode,
         'assigned_filter' => $assignedFilter,
+        'search_query' => $searchQuery,
         'status_filters' => $effectiveStatusFilters,
         'category_filters' => $effectiveCategoryFilters,
     ]);
@@ -355,6 +373,7 @@ if (isset($_GET['_tickets_poll'])) {
         'csrfToken' => $csrfToken,
         'openTicketId' => $openTicketId,
         'view' => $view,
+        'isReadOnlyTicket' => $isAllTicketsView,
     ];
     echo json_encode([
         'success' => true,
@@ -363,7 +382,7 @@ if (isset($_GET['_tickets_poll'])) {
             ? buildTicketPollItemsFromTickets($store, $tickets, $pollContext, getCurrentLanguage())
             : [],
         'is_empty' => $tickets === [],
-        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : h(__('tickets.empty_user'))) . '</div>',
+        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : ($isAllTicketsView ? h(__('tickets.empty_all')) : h(__('tickets.empty_user')))) . '</div>',
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }

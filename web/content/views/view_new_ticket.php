@@ -1,4 +1,4 @@
-<?php if (!$isAdminPortal): ?>
+<?php if (!$isAdminPortal && $view !== 'all_tickets'): ?>
     <section class="panel">
         <h2><?= h(__('new_ticket.heading')) ?></h2>
         <p class="panel-intro"><?= h(__('new_ticket.intro')) ?></p>

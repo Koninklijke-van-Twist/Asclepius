@@ -48,7 +48,11 @@ $currentLang = getCurrentLanguage();
         <span class="user-chip" title="<?= h($userEmail) ?>">
             <?= h(formatUserDisplayName($userEmail)) ?><?= $userIsAdmin ? h(__('header.admin_suffix')) : '' ?>
         </span>
-        <a class="nav-link <?= !$isAdminPortal ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
+        <a class="nav-link <?= !$isAdminPortal && $view !== 'all_tickets' ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
+        <?php if (!$userIsAdmin): ?>
+            <a class="nav-link <?= !$isAdminPortal && $view === 'all_tickets' ? 'active' : '' ?>"
+                href="index.php?view=all_tickets"><?= h(__('nav.all_tickets')) ?></a>
+        <?php endif; ?>
         <?php if ($userIsAdmin): ?>
             <a class="nav-link <?= $isAdminPortal && $view === 'overview' ? 'active' : '' ?>"
                 href="admin.php"><?= h(__('nav.ict_overview')) ?></a>

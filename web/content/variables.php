@@ -89,8 +89,11 @@ if ($apiClientOid !== '' && preg_match('/^[a-z0-9-]{8,128}$/', $apiClientOid) ==
 }
 
 $userPrefs = loadUserPrefs($userEmail);
-$resetOverviewFilters = $canManageTickets && isset($_GET['reset_filters']) && (string) $_GET['reset_filters'] === '1';
-$savedOverviewFilters = $canManageTickets && !$resetOverviewFilters
+$requestedView = trim((string) ($_GET['view'] ?? ''));
+$isAllTicketsView = !$isAdminPortal && !$userIsAdmin && $requestedView === 'all_tickets';
+$canUseTicketOverviewFilters = $canManageTickets || $isAllTicketsView;
+$resetOverviewFilters = $canUseTicketOverviewFilters && isset($_GET['reset_filters']) && (string) $_GET['reset_filters'] === '1';
+$savedOverviewFilters = $canUseTicketOverviewFilters && !$resetOverviewFilters
     ? normalizeSavedTicketOverviewFilters($userPrefs)
     : [
         'status_filter_active' => false,
@@ -134,7 +137,7 @@ if (!isset($_SESSION['csrf_token'])) {
 }
 $csrfToken = (string) $_SESSION['csrf_token'];
 
-$statusFilterRequestActive = $canManageTickets
+$statusFilterRequestActive = $canUseTicketOverviewFilters
     ? (isset($_GET['status_filter_mode']) || isset($_GET['status'])
         ? true
         : $savedOverviewFilters['status_filter_active'])
@@ -147,7 +150,7 @@ $statusFilters = $statusFilterRequestActive
     : [];
 $effectiveStatusFilters = $statusFilterRequestActive && $statusFilters === [] ? ['__no_matching_status__'] : $statusFilters;
 
-$categoryFilterRequestActive = $canManageTickets
+$categoryFilterRequestActive = $canUseTicketOverviewFilters
     ? (isset($_GET['category_filter_mode']) || isset($_GET['category'])
         ? true
         : $savedOverviewFilters['category_filter_active'])
@@ -160,21 +163,41 @@ $categoryFilters = $categoryFilterRequestActive
     : [];
 $effectiveCategoryFilters = $categoryFilterRequestActive && $categoryFilters === [] ? ['__no_matching_category__'] : $categoryFilters;
 
-$assignedFilter = $canManageTickets
+$assignedFilter = $canUseTicketOverviewFilters
     ? trim((string) (array_key_exists('assigned', $_GET) ? $_GET['assigned'] : $savedOverviewFilters['assigned_filter']))
     : '';
 $validAssignedFilters = array_merge(['', '__unassigned__'], extractIctUserEmails($ictUsers));
 if (!in_array($assignedFilter, $validAssignedFilters, true)) {
     $assignedFilter = '';
 }
-$searchQuery = $canManageTickets
+$searchQuery = $canUseTicketOverviewFilters
     ? trim((string) (array_key_exists('search', $_GET) ? $_GET['search'] : $savedOverviewFilters['search_query']))
     : '';
-$requestedView = trim((string) ($_GET['view'] ?? ''));
-$view = $canManageTickets && in_array($requestedView, ['settings', 'stats', 'template_tickets', 'email_prefs', 'changelog'], true) ? $requestedView : 'overview';
+if ($canManageTickets) {
+    $view = in_array($requestedView, ['settings', 'stats', 'template_tickets', 'email_prefs', 'changelog'], true) ? $requestedView : 'overview';
+} elseif ($isAllTicketsView) {
+    $view = 'all_tickets';
+} else {
+    $view = 'overview';
+}
+$ticketBrowseMode = resolveTicketBrowseMode($canManageTickets, $isAllTicketsView);
 $openTicketId = max(0, (int) ($_GET['open'] ?? 0));
 
-if ($canManageTickets) {
+if ($openTicketId > 0 && $store instanceof TicketStore) {
+    maybeRedirectForOpenTicketLink($store, $userIsAdmin, $isAdminPortal, $openTicketId, $userEmail, $requestedView);
+}
+
+if ($openTicketId > 0 && $store instanceof TicketStore && isOpenTicketNavigationRequest()) {
+    if (!validateOpenTicketLinkAccess($store, $openTicketId, $userIsAdmin, $isAdminPortal, $isAllTicketsView, $userEmail, $ticketBrowseMode)) {
+        $openTicketId = 0;
+        $flashMessages[] = [
+            'type' => 'error',
+            'message' => __('flash.ticket_link_unavailable'),
+        ];
+    }
+}
+
+if ($canUseTicketOverviewFilters) {
     saveUserPref($userEmail, 'ticket_overview_filters', [
         'status_filter_active' => $resetOverviewFilters ? false : $statusFilterRequestActive,
         'status_filters' => $resetOverviewFilters ? [] : $statusFilters,

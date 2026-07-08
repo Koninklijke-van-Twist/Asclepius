@@ -11,7 +11,12 @@ $returnPage = normalizeReturnPage((string) ($_POST['return_page'] ?? ($isAdminPo
 
 if ($isAdminPortal && !$userIsAdmin) {
     pushFlash('error', __('flash.admin_only'));
-    redirectToPage('index.php');
+    $redirectParams = [];
+    $openParam = max(0, (int) ($_GET['open'] ?? 0));
+    if ($openParam > 0) {
+        $redirectParams['open'] = $openParam;
+    }
+    redirectToPage('index.php', $redirectParams);
 }
 
 if (isset($_GET['download']) && $store instanceof TicketStore) {
@@ -31,7 +36,13 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
     }
 
     $attachmentTicketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
-    if ($attachmentTicketId <= 0 || $store->getTicket($attachmentTicketId, $canManageTickets, $userEmail) === null) {
+    $attachmentTicket = $attachmentTicketId > 0
+        ? $store->getTicket($attachmentTicketId, $canManageTickets, $userEmail, $ticketBrowseMode)
+        : null;
+    if ($attachmentTicket === null && $attachmentTicketId > 0 && !$canManageTickets) {
+        $attachmentTicket = $store->getTicket($attachmentTicketId, false, $userEmail, 'all_completed_public');
+    }
+    if ($attachmentTicketId <= 0 || $attachmentTicket === null) {
         http_response_code(404);
         exit(__('flash.attachment_not_found'));
     }
@@ -347,9 +358,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
         if ($formAction === 'reply_ticket') {
             $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
-            $ticket = $store->getTicket($ticketId, $canManageTickets, $userEmail);
+            $ticket = $store->getTicket($ticketId, $canManageTickets, $userEmail, $ticketBrowseMode);
             if ($ticket === null) {
                 throw new RuntimeException(__('flash.ticket_not_found'));
+            }
+
+            if ($isAllTicketsView) {
+                throw new RuntimeException(__('flash.read_only_ticket'));
             }
 
             $message = trim((string) ($_POST['message'] ?? ''));

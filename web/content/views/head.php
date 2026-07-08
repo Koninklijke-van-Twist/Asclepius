@@ -1157,6 +1157,8 @@
 
         .ticket-card {
             border-radius: 16px;
+            scroll-margin-top: 24px;
+            scroll-margin-bottom: 24px;
             background: #fff;
             border: 1px solid var(--line);
             overflow: hidden;
@@ -1183,6 +1185,51 @@
         .ticket-main-title {
             margin: 0;
             font-size: 18px;
+        }
+
+        .ticket-share-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            margin-right: 2px;
+            padding: 0;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+            vertical-align: middle;
+            opacity: 0.72;
+            transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+        }
+
+        .ticket-share-link:hover {
+            opacity: 1;
+            background: rgba(37, 99, 235, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .ticket-share-url-field {
+            display: grid;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        .ticket-share-url-input {
+            width: 100%;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .ticket-share-modal-card {
+            width: min(520px, 100%);
         }
 
         .ticket-subtitle {
@@ -1215,6 +1262,45 @@
             background: #eef2f7;
             color: var(--muted);
             width: fit-content;
+        }
+
+        .private-ticket-toggle {
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .private-ticket-toggle input {
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .private-ticket-pill {
+            --ticket-color: #94a3b8;
+            width: 92px;
+            min-width: 92px;
+            justify-content: center;
+            opacity: 0.85;
+            transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+        }
+
+        .private-ticket-toggle:hover .private-ticket-pill {
+            opacity: 1;
+            transform: translateY(-1px);
+        }
+
+        .private-ticket-toggle.is-active .private-ticket-pill {
+            --ticket-color: #7c3aed;
+            opacity: 1;
         }
 
         .ticket-body {

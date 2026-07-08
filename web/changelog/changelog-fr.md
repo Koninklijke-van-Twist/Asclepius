@@ -1,3 +1,15 @@
+id: 2026-07-08-all-tickets-tab
+date: 2026-07-08
+title: Onglet Tous les tickets et tickets privés
+author: Tim Falken
+
+Les utilisateurs normaux disposent d'un nouvel onglet **Tous les tickets** avec un aperçu des tickets résolus. Les tickets y sont en lecture seule : vous pouvez les consulter mais pas envoyer de messages ni modifier les données. L'aperçu propose les mêmes filtres que la vue d'ensemble ICT (catégorie, recherche, responsable).
+
+Les administrateurs ICT peuvent marquer un ticket comme **Privé** dans la vue d'ensemble ICT via une case à cocher sur le ticket. Les tickets privés n'apparaissent jamais dans l'onglet Tous les tickets.
+
+Dans la vue d'ensemble ICT, Tous les tickets et Mes tickets, une icône 🔗 apparaît à gauche du numéro de ticket. Elle copie partout le même lien (`index.php?open=…`). À l'ouverture, vous arrivez au bon endroit : **vos propres tickets** dans Mes tickets, les **admins** sinon dans la vue ICT, les **autres utilisateurs** sur les tickets publics résolus dans Tous les tickets.
+
+---
 id: 2026-06-23-message-textarea-grow
 date: 2026-06-23
 title: Le champ de texte s'agrandit avec votre message

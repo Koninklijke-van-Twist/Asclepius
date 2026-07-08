@@ -237,6 +237,13 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     $csrfToken = (string) ($payload['csrf_token'] ?? '');
     $openTicketId = max(0, (int) ($payload['open_ticket_id'] ?? 0));
     $view = trim((string) ($payload['view'] ?? 'overview'));
+    $browseMode = trim((string) ($payload['browse_mode'] ?? 'default'));
+    if ($browseMode !== 'all_completed_public') {
+        $browseMode = 'default';
+    }
+    if (!$canManageTickets && $view === 'all_tickets') {
+        $browseMode = 'all_completed_public';
+    }
     $currentLanguage = strtolower(trim((string) ($payload['current_language'] ?? 'nl')));
     if (!array_key_exists($currentLanguage, SUPPORTED_LANGUAGES)) {
         $currentLanguage = 'nl';
@@ -253,7 +260,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     ));
     $lastSignature = trim((string) ($payload['last_signature'] ?? ''));
 
-    $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery);
+    $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode);
     $signature = buildTicketSnapshotSignature($tickets);
     if ($lastSignature !== '' && hash_equals($lastSignature, $signature)) {
         return [
@@ -276,14 +283,17 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         'csrfToken' => $csrfToken,
         'openTicketId' => $openTicketId,
         'view' => $view,
+        'isReadOnlyTicket' => $browseMode === 'all_completed_public',
     ];
+
+    $isAllTicketsView = $browseMode === 'all_completed_public';
 
     return [
         'success' => true,
         'signature' => $signature,
         'tickets' => buildTicketPollItemsFromTickets($store, $tickets, $pollContext, $currentLanguage),
         'is_empty' => $tickets === [],
-        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : h(__('tickets.empty_user'))) . '</div>',
+        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : ($isAllTicketsView ? h(__('tickets.empty_all')) : h(__('tickets.empty_user')))) . '</div>',
     ];
 }
 
@@ -707,6 +717,53 @@ function handleChangeTicketTitleApiAction(TicketStore $store, array $payload, ?a
         'message' => __('flash.ticket_title_changed'),
         'ticket_id' => $ticketId,
         'title' => $title,
+    ];
+}
+
+function handleUpdateTicketPrivateApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    $isAdminPortal = !empty($payload['is_admin_portal']);
+    $canManageTickets = $isAdminPortal && $userIsAdmin;
+    if (!$canManageTickets && !isTrustedApiRequester()) {
+        return [
+            'success' => false,
+            'error' => __('flash.settings_admin_only'),
+        ];
+    }
+
+    $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+    $isPrivate = !empty($payload['is_private']);
+
+    $ticket = $store->getTicket($ticketId, true, $viewerEmail);
+    if ($ticket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+        ];
+    }
+
+    $currentPrivate = !empty($ticket['is_private']);
+    if ($isPrivate === $currentPrivate) {
+        return [
+            'success' => true,
+            'ticket_id' => $ticketId,
+            'is_private' => $isPrivate,
+        ];
+    }
+
+    if (!$store->updateTicketPrivate($ticketId, $isPrivate)) {
+        return [
+            'success' => false,
+            'error' => __('flash.db_error_prefix'),
+        ];
+    }
+
+    return [
+        'success' => true,
+        'ticket_id' => $ticketId,
+        'is_private' => $isPrivate,
     ];
 }
 
@@ -1211,8 +1268,16 @@ if ($method === 'POST') {
         if (!array_key_exists($currentLanguage, SUPPORTED_LANGUAGES)) {
             $currentLanguage = 'nl';
         }
+        $view = trim((string) ($payload['view'] ?? 'overview'));
+        $browseMode = trim((string) ($payload['browse_mode'] ?? 'default'));
+        if ($browseMode !== 'all_completed_public') {
+            $browseMode = 'default';
+        }
+        if (!$canManageTickets && $view === 'all_tickets') {
+            $browseMode = 'all_completed_public';
+        }
 
-        $ticketDetail = $store->getTicket($ticketId, $canManageTickets, $viewerEmail);
+        $ticketDetail = $store->getTicket($ticketId, $canManageTickets, $viewerEmail, $browseMode);
         if (!is_array($ticketDetail)) {
             sendJson(404, ['success' => false, 'error' => 'ticket_not_found']);
         }
@@ -1251,6 +1316,10 @@ if ($method === 'POST') {
 
     if ($action === 'change_ticket_title') {
         sendJson(200, handleChangeTicketTitleApiAction($store, $payload, $apiClient));
+    }
+
+    if ($action === 'update_ticket_private') {
+        sendJson(200, handleUpdateTicketPrivateApiAction($store, $payload, $apiClient));
     }
 
     if ($action === 'save_admin_email_preferences') {

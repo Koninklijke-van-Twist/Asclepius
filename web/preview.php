@@ -50,7 +50,16 @@ $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
 $ticketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
 $viewerEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
 $viewerIsAdmin = !empty($_SESSION['user']['admin']);
-if ($ticketId <= 0 || $store->getTicket($ticketId, $viewerIsAdmin, $viewerEmail) === null) {
+$currentPage = basename((string) ($_SERVER['PHP_SELF'] ?? 'index.php'));
+$isAdminPortal = $currentPage === 'admin.php';
+$canManageTickets = $isAdminPortal && $viewerIsAdmin;
+$requestedView = trim((string) ($_GET['view'] ?? ''));
+$ticketBrowseMode = resolveTicketBrowseMode($canManageTickets, !$isAdminPortal && !$viewerIsAdmin && $requestedView === 'all_tickets');
+$ticket = $ticketId > 0 ? $store->getTicket($ticketId, $canManageTickets, $viewerEmail, $ticketBrowseMode) : null;
+if ($ticket === null && $ticketId > 0 && !$canManageTickets) {
+    $ticket = $store->getTicket($ticketId, false, $viewerEmail, 'all_completed_public');
+}
+if ($ticketId <= 0 || $ticket === null) {
     http_response_code(403);
     exit('Access denied');
 }

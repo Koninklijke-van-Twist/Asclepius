@@ -176,6 +176,10 @@ function buildNavigationQuery(array $statusFilters, array $categoryFilters, stri
         $query['view'] = $view;
     }
 
+    if (!$isAdminPortal && $view === 'all_tickets') {
+        $query['view'] = 'all_tickets';
+    }
+
     if ($openTicketId > 0) {
         $query['open'] = $openTicketId;
     }
@@ -204,6 +208,15 @@ function buildCurrentPageUrl(string $page, array $overrides = [], array $removeK
     return $page . ($queryString !== '' ? '?' . $queryString : '');
 }
 
+function resolveTicketBrowseMode(bool $canManageTickets, bool $isAllTicketsView): string
+{
+    if ($canManageTickets) {
+        return 'default';
+    }
+
+    return $isAllTicketsView ? 'all_completed_public' : 'default';
+}
+
 function buildTicketSnapshotSignature(array $tickets): string
 {
     $snapshot = array_map(static function (array $ticket): array {
@@ -213,6 +226,7 @@ function buildTicketSnapshotSignature(array $tickets): string
             'status' => (string) ($ticket['status'] ?? ''),
             'assigned_email' => strtolower((string) ($ticket['assigned_email'] ?? '')),
             'message_count' => (int) ($ticket['message_count'] ?? 0),
+            'is_private' => (int) ($ticket['is_private'] ?? 0),
         ];
     }, $tickets);
 
@@ -676,6 +690,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $view = (string) ($context['view'] ?? 'overview');
     $includeMessages = !array_key_exists('includeMessages', $context) || !empty($context['includeMessages']);
     $lazyMessages = !empty($context['lazyMessages']);
+    $isReadOnlyTicket = !empty($context['isReadOnlyTicket']);
     $ticketColor = getStatusColor((string) ($ticket['status'] ?? ''));
     $shouldOpen = $openTicketId > 0 && (int) ($ticket['id'] ?? 0) === $openTicketId;
     $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
@@ -709,6 +724,12 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
         extractIctUserEmails($ictUsers),
         static fn(string $ictUser): bool => $ictUser !== '' && ($canAssignToRequester || $ictUser !== $requesterEmail)
     ));
+    $showTicketShareLink = ($canManageTickets && $isAdminPortal)
+        || $isReadOnlyTicket
+        || (!$isAdminPortal && $view === 'overview');
+    $ticketShareUrl = $showTicketShareLink
+        ? buildTicketShareUrl((int) ($ticket['id'] ?? 0))
+        : '';
 
     ob_start();
     ?>
@@ -718,7 +739,12 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
         <summary>
             <div class="ticket-summary">
                 <div>
-                    <p class="ticket-main-title"><strong><span
+                    <p class="ticket-main-title"><strong><?php if ($showTicketShareLink && $ticketShareUrl !== ''): ?>
+                            <button type="button" class="ticket-share-link" data-role="ticket-share-link"
+                                data-share-url="<?= h($ticketShareUrl) ?>"
+                                aria-label="<?= h(__('ticket.share_link_label')) ?>"
+                                title="<?= h(__('ticket.share_link_label')) ?>">🔗</button>
+                        <?php endif; ?><span
                                 data-role="ticket-number">#<?= (int) ($ticket['id'] ?? 0) ?></span> · <span
                                 data-role="ticket-title"
                                 data-translated-text="<?= h((string) json_encode($displayTitle, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
@@ -745,7 +771,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                     </div>
                 </div>
                 <div class="ticket-subtitle">
-                    <?php if ($isAdminPortal): ?>
+                    <?php if ($isAdminPortal || $isReadOnlyTicket): ?>
                         <span class="status-pill" data-role="status-pill"
                             style="--ticket-color: <?= h($ticketColor) ?>;"><?= h(translateStatus((string) ($ticket['status'] ?? ''))) ?></span>
                     <?php endif; ?>
@@ -760,9 +786,19 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                             <?= (int) ($ticket['priority'] ?? 0) ?> ·
                             <?= h(formatPriorityLabel((int) ($ticket['priority'] ?? 0))) ?></span>
                     <?php endif; ?>
-                    <?php if ($isAdminPortal): ?>
+                    <?php if ($isAdminPortal || $isReadOnlyTicket): ?>
                         <span class="count-badge" data-role="time-open-badge"><?= h(__('ticket.time_open')) ?>:
                             <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
+                    <?php endif; ?>
+                    <?php if ($canManageTickets): ?>
+                        <label class="private-ticket-toggle<?= !empty($ticket['is_private']) ? ' is-active' : '' ?>"
+                            title="<?= h(__('ticket.private_label')) ?>">
+                            <input type="checkbox" data-role="ticket-private-toggle" value="1"
+                                <?= !empty($ticket['is_private']) ? 'checked' : '' ?>>
+                            <span class="status-pill private-ticket-pill" data-role="private-ticket-pill"
+                                data-label-private="<?= h(__('ticket.private_label')) ?>"
+                                data-label-public="<?= h(__('ticket.public_label')) ?>"><?= h(!empty($ticket['is_private']) ? __('ticket.private_label') : __('ticket.public_label')) ?></span>
+                        </label>
                     <?php endif; ?>
                 </div>
             </div>
@@ -966,6 +1002,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 </div>
             <?php endif; ?>
 
+            <?php if (!$isReadOnlyTicket): ?>
             <form method="post"
                 action="<?= h($currentPage) ?><?= $isAdminPortal && $view === 'settings' ? '?view=settings' : '' ?>"
                 enctype="multipart/form-data" class="reply-form" id="<?= h($replyFormId) ?>">
@@ -1047,6 +1084,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         type="submit"><?= $canManageTickets ? h(__('ticket.btn_save')) : h(__('ticket.btn_reply')) ?></button>
                 </div>
             </form>
+            <?php endif; ?>
         </div>
     </details>
     <?php
@@ -1083,6 +1121,7 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
         'assigned_email' => $assignedEmail,
         'assigned_label' => $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : __('ticket.unassigned'),
         'assigned_color' => emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl')),
+        'is_private' => !empty($ticket['is_private']),
         'message_count' => (int) ($ticket['message_count'] ?? 0),
         'time_open_label' => formatDurationSeconds($ticketOpenDuration),
         'meta_created_value' => formatDateTime((string) ($ticket['created_at'] ?? '')) . ' · ' . formatDurationSeconds($ticketOpenDuration),
@@ -2005,12 +2044,147 @@ function formatTicketMessageTextForEmail(?string $messageText): string
 
 function buildAbsoluteTicketUrl(int $ticketId, bool $adminPage = false): string
 {
+    return buildTicketShareUrl($ticketId);
+}
+
+function buildTicketShareUrl(int $ticketId, string $shareContext = 'universal'): string
+{
+    if ($ticketId <= 0) {
+        return '';
+    }
+
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '/index.php')), '/.');
-    $targetPage = $adminPage ? 'admin.php' : 'index.php';
+    $baseUrl = $scheme . '://' . $host . ($basePath !== '' ? $basePath : '') . '/';
 
-    return $scheme . '://' . $host . ($basePath !== '' ? $basePath : '') . '/' . $targetPage . '?open=' . $ticketId;
+    return $baseUrl . 'index.php?' . http_build_query([
+        'open' => $ticketId,
+    ]);
+}
+
+function isOpenTicketNavigationRequest(): bool
+{
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+        return false;
+    }
+
+    foreach (['_partial', '_tickets_poll', '_bigscreen_poll', '_browser_notifications_poll', '_webpush_subscription', 'download'] as $skipKey) {
+        if (isset($_GET[$skipKey])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function resolveTicketForOpenLinkRouting(TicketStore $store, int $ticketId, bool $userIsAdmin, string $userEmail): ?array
+{
+    if ($userIsAdmin) {
+        $ticket = $store->getTicket($ticketId, true, $userEmail);
+        if ($ticket !== null) {
+            return $ticket;
+        }
+    }
+
+    $ticket = $store->getTicket($ticketId, false, $userEmail);
+    if ($ticket !== null) {
+        return $ticket;
+    }
+
+    return $store->getTicket($ticketId, false, $userEmail, 'all_completed_public');
+}
+
+function isTicketRequester(array $ticket, string $userEmail): bool
+{
+    return strtolower(trim((string) ($ticket['user_email'] ?? ''))) === strtolower(trim($userEmail));
+}
+
+function maybeRedirectForOpenTicketLink(
+    TicketStore $store,
+    bool $userIsAdmin,
+    bool $isAdminPortal,
+    int $openTicketId,
+    string $userEmail,
+    string $requestedView
+): void {
+    if ($openTicketId <= 0 || !isOpenTicketNavigationRequest()) {
+        return;
+    }
+
+    $ticketForRouting = resolveTicketForOpenLinkRouting($store, $openTicketId, $userIsAdmin, $userEmail);
+    if ($ticketForRouting === null) {
+        return;
+    }
+
+    if (isTicketRequester($ticketForRouting, $userEmail)) {
+        if ($isAdminPortal || $requestedView === 'all_tickets') {
+            redirectToPage('index.php', ['open' => $openTicketId]);
+        }
+
+        return;
+    }
+
+    if ($userIsAdmin) {
+        if (!$isAdminPortal) {
+            redirectToPage('admin.php', ['open' => $openTicketId]);
+        }
+
+        return;
+    }
+
+    if ($isAdminPortal) {
+        redirectToPage('index.php', ['open' => $openTicketId]);
+    }
+
+    $publicTicket = $store->getTicket($openTicketId, false, $userEmail, 'all_completed_public');
+    if ($publicTicket !== null) {
+        if ($requestedView !== 'all_tickets') {
+            redirectToPage('index.php', [
+                'view' => 'all_tickets',
+                'open' => $openTicketId,
+            ]);
+        }
+
+        return;
+    }
+
+    $participantTicket = $store->getTicket($openTicketId, false, $userEmail);
+    if ($participantTicket !== null) {
+        if ($requestedView === 'all_tickets') {
+            redirectToPage('index.php', ['open' => $openTicketId]);
+        }
+
+        return;
+    }
+}
+
+function validateOpenTicketLinkAccess(
+    TicketStore $store,
+    int $openTicketId,
+    bool $userIsAdmin,
+    bool $isAdminPortal,
+    bool $isAllTicketsView,
+    string $userEmail,
+    string $ticketBrowseMode
+): bool {
+    if ($openTicketId <= 0) {
+        return true;
+    }
+
+    if ($userIsAdmin && $isAdminPortal) {
+        return $store->getTicket($openTicketId, true, $userEmail) !== null;
+    }
+
+    if ($isAllTicketsView) {
+        return $store->getTicket($openTicketId, false, $userEmail, 'all_completed_public') !== null;
+    }
+
+    if (!$isAdminPortal) {
+        return $store->getTicket($openTicketId, false, $userEmail) !== null;
+    }
+
+    return true;
 }
 
 /**

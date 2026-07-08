@@ -1,4 +1,9 @@
-<?php if (!$isAdminPortal || ($isAdminPortal && $view === 'overview')): ?>
+<?php
+$showMyTicketsSection = !$isAdminPortal && !$isAllTicketsView;
+$showAllTicketsSection = $isAllTicketsView;
+$showAdminOverviewSection = $isAdminPortal && $view === 'overview';
+?>
+<?php if ($showMyTicketsSection || $showAllTicketsSection || $showAdminOverviewSection): ?>
     <?php
     $ticketCardBaseContext = [
         'currentPage' => $currentPage,
@@ -9,6 +14,7 @@
         'csrfToken' => $csrfToken,
         'openTicketId' => $openTicketId,
         'view' => $view,
+        'isReadOnlyTicket' => $isAllTicketsView,
     ];
     $ticketPollPayload = [
         'current_page' => $currentPage,
@@ -20,36 +26,53 @@
         'csrf_token' => $csrfToken,
         'open_ticket_id' => $openTicketId,
         'view' => $view,
+        'browse_mode' => $ticketBrowseMode,
         'assigned_filter' => $assignedFilter,
         'search_query' => $searchQuery,
         'status_filters' => $effectiveStatusFilters,
         'category_filters' => $effectiveCategoryFilters,
         'last_signature' => $ticketSnapshotSignature,
     ];
+    $ticketHeading = $isAdminPortal
+        ? __('tickets.heading_admin')
+        : ($isAllTicketsView ? __('tickets.heading_all') : __('tickets.heading_user'));
+    $ticketEmptyMessage = $isAdminPortal
+        ? __('tickets.empty_admin')
+        : ($isAllTicketsView ? __('tickets.empty_all') : __('tickets.empty_user'));
     ?>
     <section class="panel" data-live-ticket-section data-ticket-signature="<?= h($ticketSnapshotSignature) ?>"
         data-ticket-poll-payload="<?= h((string) json_encode($ticketPollPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
         data-ticket-poll-interval="15000">
-        <h2><?= $isAdminPortal ? h(__('tickets.heading_admin')) : h(__('tickets.heading_user')) ?></h2>
+        <h2><?= h($ticketHeading) ?></h2>
+        <?php if ($isAllTicketsView): ?>
+            <p class="panel-intro"><?= h(__('tickets.intro_all')) ?></p>
+        <?php endif; ?>
 
-        <?php if ($isAdminPortal): ?>
+        <?php if ($canUseTicketOverviewFilters): ?>
             <form method="get" class="filters-form">
-                <input type="hidden" name="status_filter_mode" value="manual">
+                <?php if ($isAllTicketsView): ?>
+                    <input type="hidden" name="view" value="all_tickets">
+                <?php endif; ?>
+                <?php if (!$isAllTicketsView): ?>
+                    <input type="hidden" name="status_filter_mode" value="manual">
+                <?php endif; ?>
                 <input type="hidden" name="category_filter_mode" value="manual">
 
-                <div>
-                    <label><?= h(__('filter.status_label')) ?></label>
-                    <div class="checkbox-group">
-                        <?php foreach (TICKET_STATUSES as $status): ?>
-                            <?php $statusSelected = isStatusFilterSelected($status, $statusFilters, $statusFilterRequestActive); ?>
-                            <label class="checkbox-chip <?= $statusSelected ? 'is-active' : 'is-inactive' ?>"
-                                style="--status-color: <?= h(getStatusColor($status)) ?>;">
-                                <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
-                                <span><?= h(translateStatus($status)) ?></span>
-                            </label>
-                        <?php endforeach; ?>
+                <?php if (!$isAllTicketsView): ?>
+                    <div>
+                        <label><?= h(__('filter.status_label')) ?></label>
+                        <div class="checkbox-group">
+                            <?php foreach (TICKET_STATUSES as $status): ?>
+                                <?php $statusSelected = isStatusFilterSelected($status, $statusFilters, $statusFilterRequestActive); ?>
+                                <label class="checkbox-chip <?= $statusSelected ? 'is-active' : 'is-inactive' ?>"
+                                    style="--status-color: <?= h(getStatusColor($status)) ?>;">
+                                    <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
+                                    <span><?= h(translateStatus($status)) ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
-                </div>
+                <?php endif; ?>
 
                 <div>
                     <label><?= h(__('filter.category_label')) ?></label>
@@ -88,14 +111,14 @@
 
                 <div class="button-row">
                     <a class="secondary-button"
-                        href="<?= h(buildCurrentPageUrl($currentPage, ['reset_filters' => '1', 'open' => null], ['_partial', '_tickets_poll', 'reset_filters', 'status_filter_mode', 'status', 'category_filter_mode', 'category', 'assigned', 'search'])) ?>"><?= h(__('filter.reset')) ?></a>
+                        href="<?= h(buildCurrentPageUrl($currentPage, array_merge($isAllTicketsView ? ['view' => 'all_tickets'] : [], ['reset_filters' => '1', 'open' => null]), ['_partial', '_tickets_poll', 'reset_filters', 'status_filter_mode', 'status', 'category_filter_mode', 'category', 'assigned', 'search'])) ?>"><?= h(__('filter.reset')) ?></a>
                 </div>
             </form>
         <?php endif; ?>
 
         <?php if ($tickets === []): ?>
             <div class="empty-state">
-                <?= $isAdminPortal ? h(__('tickets.empty_admin')) : h(__('tickets.empty_user')) ?>
+                <?= h($ticketEmptyMessage) ?>
             </div>
         <?php else: ?>
             <div class="ticket-list">

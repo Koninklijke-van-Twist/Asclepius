@@ -1,3 +1,15 @@
+id: 2026-07-08-all-tickets-tab
+date: 2026-07-08
+title: Tab „Alle Tickets“ und private Tickets
+author: Tim Falken
+
+Normale Benutzer haben einen neuen Tab **Alle Tickets** mit einer Übersicht abgeschlossener Tickets. Tickets sind dort schreibgeschützt: Sie können sie ansehen, aber keine Nachrichten senden oder Daten ändern. Die Übersicht hat dieselben Filter wie die ICT-Übersicht (Kategorie, Suche, Bearbeiter).
+
+ICT-Administratoren können in der ICT-Übersicht ein Ticket per Checkbox als **Privat** markieren. Private Tickets erscheinen nie im Tab Alle Tickets.
+
+In der ICT-Übersicht, unter Alle Tickets und Meine Tickets steht links neben der Ticketnummer ein 🔗-Symbol. Es kopiert überall denselben Link (`index.php?open=…`). Beim Öffnen landen Sie am richtigen Ort: **eigene Tickets** unter Meine Tickets, **Admins** sonst in der ICT-Übersicht, **andere Benutzer** bei abgeschlossenen öffentlichen Tickets unter Alle Tickets.
+
+---
 id: 2026-06-23-message-textarea-grow
 date: 2026-06-23
 title: Textfeld wächst mit Ihrer Nachricht
