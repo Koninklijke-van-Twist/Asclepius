@@ -234,6 +234,7 @@ if (
     && !$resetOverviewFilters
     && !hasExplicitTicketFilterQueryParams()
     && hasActiveTicketOverviewFilters($statusFilterRequestActive, $categoryFilterRequestActive, $assignedFilter, $searchQuery)
+    && strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST'
 ) {
     $hydratedQuery = buildTicketOverviewNavigationQuery(
         $statusFilters,
