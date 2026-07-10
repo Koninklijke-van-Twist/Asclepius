@@ -93,15 +93,16 @@ $requestedView = trim((string) ($_GET['view'] ?? ''));
 $isAllTicketsView = !$isAdminPortal && !$userIsAdmin && $requestedView === 'all_tickets';
 $canUseTicketOverviewFilters = $canManageTickets || $isAllTicketsView;
 $resetOverviewFilters = $canUseTicketOverviewFilters && isset($_GET['reset_filters']) && (string) $_GET['reset_filters'] === '1';
-$savedOverviewFilters = $canUseTicketOverviewFilters && !$resetOverviewFilters
-    ? normalizeSavedTicketOverviewFilters($userPrefs)
-    : [
+$savedOverviewFilters = $resetOverviewFilters
+    ? [
         'status_filter_active' => false,
         'status_filters' => [],
         'category_filter_active' => false,
         'category_filters' => [],
         'assigned_filter' => '',
-    ];
+        'search_query' => '',
+    ]
+    : normalizeSavedTicketOverviewFilters($userPrefs);
 
 $flashMessages = $_SESSION['flash_messages'] ?? [];
 unset($_SESSION['flash_messages']);
@@ -181,6 +182,10 @@ if ($canManageTickets) {
     $view = 'overview';
 }
 $ticketBrowseMode = resolveTicketBrowseMode($canManageTickets, $isAllTicketsView);
+$showTicketListSection = ($isAdminPortal && $view === 'overview')
+    || $isAllTicketsView
+    || (!$isAdminPortal && !$isAllTicketsView);
+$ticketPage = $showTicketListSection ? max(1, (int) ($_GET['page'] ?? 1)) : 1;
 $openTicketId = max(0, (int) ($_GET['open'] ?? 0));
 
 if ($openTicketId > 0 && $store instanceof TicketStore) {
@@ -208,6 +213,45 @@ if ($canUseTicketOverviewFilters) {
     ]);
 }
 
+$overviewListView = $isAllTicketsView ? 'all_tickets' : 'overview';
+$ticketListNavigationQuery = buildTicketOverviewNavigationQuery(
+    $statusFilters,
+    $categoryFilters,
+    $assignedFilter,
+    $searchQuery,
+    $overviewListView,
+    $isAdminPortal,
+    $statusFilterRequestActive,
+    $categoryFilterRequestActive,
+    $openTicketId,
+    $ticketPage
+);
+
+if (
+    isTicketOverviewListRequest()
+    && $showTicketListSection
+    && $canUseTicketOverviewFilters
+    && !$resetOverviewFilters
+    && !hasExplicitTicketFilterQueryParams()
+    && hasActiveTicketOverviewFilters($statusFilterRequestActive, $categoryFilterRequestActive, $assignedFilter, $searchQuery)
+) {
+    $hydratedQuery = buildTicketOverviewNavigationQuery(
+        $statusFilters,
+        $categoryFilters,
+        $assignedFilter,
+        $searchQuery,
+        $overviewListView,
+        $isAdminPortal,
+        $statusFilterRequestActive,
+        $categoryFilterRequestActive,
+        $openTicketId,
+        $ticketPage
+    );
+
+    header('Location: ' . buildCurrentPageUrl($currentPage, $hydratedQuery));
+    exit;
+}
+
 $baseQuery = buildNavigationQuery(
     $statusFilters,
     $categoryFilters,
@@ -216,5 +260,7 @@ $baseQuery = buildNavigationQuery(
     $view,
     $isAdminPortal,
     $statusFilterRequestActive,
-    $categoryFilterRequestActive
+    $categoryFilterRequestActive,
+    $openTicketId,
+    $ticketPage
 );

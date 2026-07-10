@@ -144,7 +144,7 @@ function buildRequesterSummary(array $participantEmails, string $fallbackEmail):
     ];
 }
 
-function buildNavigationQuery(array $statusFilters, array $categoryFilters, string $assignedFilter, string $searchQuery, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, bool $categoryFilterRequestActive = false, int $openTicketId = 0): array
+function buildNavigationQuery(array $statusFilters, array $categoryFilters, string $assignedFilter, string $searchQuery, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, bool $categoryFilterRequestActive = false, int $openTicketId = 0, int $page = 1): array
 {
     $query = [];
 
@@ -184,7 +184,226 @@ function buildNavigationQuery(array $statusFilters, array $categoryFilters, stri
         $query['open'] = $openTicketId;
     }
 
+    if ($page > 1) {
+        $query['page'] = $page;
+    }
+
     return $query;
+}
+
+function hasExplicitTicketFilterQueryParams(): bool
+{
+    return isset($_GET['status_filter_mode'])
+        || isset($_GET['status'])
+        || isset($_GET['category_filter_mode'])
+        || isset($_GET['category'])
+        || array_key_exists('assigned', $_GET)
+        || array_key_exists('search', $_GET)
+        || isset($_GET['reset_filters']);
+}
+
+function hasActiveTicketOverviewFilters(bool $statusFilterRequestActive, bool $categoryFilterRequestActive, string $assignedFilter, string $searchQuery): bool
+{
+    return $statusFilterRequestActive
+        || $categoryFilterRequestActive
+        || $assignedFilter !== ''
+        || $searchQuery !== '';
+}
+
+function isTicketOverviewListRequest(): bool
+{
+    return !isset($_GET['_partial'])
+        && !isset($_GET['_tickets_poll'])
+        && !isset($_GET['_browser_notifications_poll'])
+        && !isset($_GET['_webpush_subscription'])
+        && !isset($_GET['_bigscreen_poll'])
+        && !isset($_GET['_bigscreen_version']);
+}
+
+function buildTicketOverviewNavigationQuery(
+    array $statusFilters,
+    array $categoryFilters,
+    string $assignedFilter,
+    string $searchQuery,
+    string $view,
+    bool $isAdminPortal,
+    bool $statusFilterRequestActive,
+    bool $categoryFilterRequestActive,
+    int $openTicketId = 0,
+    int $page = 1
+): array {
+    return buildNavigationQuery(
+        $statusFilters,
+        $categoryFilters,
+        $assignedFilter,
+        $searchQuery,
+        $view,
+        $isAdminPortal,
+        $statusFilterRequestActive,
+        $categoryFilterRequestActive,
+        $openTicketId,
+        $page
+    );
+}
+
+function buildTicketOverviewNavigationQueryFromSaved(array $savedOverviewFilters, string $view, bool $isAdminPortal, int $openTicketId = 0, int $page = 1): array
+{
+    return buildTicketOverviewNavigationQuery(
+        is_array($savedOverviewFilters['status_filters'] ?? null) ? $savedOverviewFilters['status_filters'] : [],
+        is_array($savedOverviewFilters['category_filters'] ?? null) ? $savedOverviewFilters['category_filters'] : [],
+        trim((string) ($savedOverviewFilters['assigned_filter'] ?? '')),
+        trim((string) ($savedOverviewFilters['search_query'] ?? '')),
+        $view,
+        $isAdminPortal,
+        !empty($savedOverviewFilters['status_filter_active']),
+        !empty($savedOverviewFilters['category_filter_active']),
+        $openTicketId,
+        $page
+    );
+}
+
+/**
+ * @return list<int|null>
+ */
+function buildTicketPaginationSequence(int $currentPage, int $totalPages, int $radius = 2): array
+{
+    if ($totalPages <= 1) {
+        return [];
+    }
+
+    $pageNumbers = [];
+    $addPage = static function (int $page) use (&$pageNumbers, $totalPages): void {
+        if ($page >= 1 && $page <= $totalPages) {
+            $pageNumbers[$page] = $page;
+        }
+    };
+
+    $addPage(1);
+    for ($page = $currentPage - $radius; $page <= $currentPage + $radius; $page++) {
+        $addPage($page);
+    }
+    $addPage($totalPages);
+
+    $sortedPages = array_values($pageNumbers);
+    sort($sortedPages);
+
+    $sequence = [];
+    $previousPage = 0;
+    foreach ($sortedPages as $page) {
+        if ($previousPage > 0 && $page - $previousPage > 1) {
+            $sequence[] = null;
+        }
+
+        $sequence[] = $page;
+        $previousPage = $page;
+    }
+
+    return $sequence;
+}
+
+function renderTicketPaginationHtml(string $currentPage, int $ticketPage, int $ticketTotalPages, array $baseNavigationQuery): string
+{
+    if ($ticketTotalPages <= 1) {
+        return '';
+    }
+
+    $sequence = buildTicketPaginationSequence($ticketPage, $ticketTotalPages);
+    if ($sequence === []) {
+        return '';
+    }
+
+    ob_start();
+    ?>
+    <nav class="ticket-pagination" aria-label="<?= h(__('pagination.tickets_label')) ?>">
+        <?php if ($ticketPage > 1): ?>
+            <a class="ticket-pagination-button ticket-pagination-prev"
+                href="<?= h(buildPageUrl($currentPage, buildTicketPaginationLinkQuery($baseNavigationQuery, $ticketPage - 1))) ?>"
+                aria-label="<?= h(__('pagination.previous')) ?>">‹</a>
+        <?php else: ?>
+            <span class="ticket-pagination-button ticket-pagination-prev is-disabled" aria-hidden="true">‹</span>
+        <?php endif; ?>
+
+        <?php foreach ($sequence as $pageNumber): ?>
+            <?php if ($pageNumber === null): ?>
+                <span class="ticket-pagination-ellipsis" aria-hidden="true">…</span>
+            <?php elseif ($pageNumber === $ticketPage): ?>
+                <span class="ticket-pagination-button is-current" aria-current="page"><?= (int) $pageNumber ?></span>
+            <?php else: ?>
+                <a class="ticket-pagination-button"
+                    href="<?= h(buildPageUrl($currentPage, buildTicketPaginationLinkQuery($baseNavigationQuery, (int) $pageNumber))) ?>"><?= (int) $pageNumber ?></a>
+            <?php endif; ?>
+        <?php endforeach; ?>
+
+        <?php if ($ticketPage < $ticketTotalPages): ?>
+            <a class="ticket-pagination-button ticket-pagination-next"
+                href="<?= h(buildPageUrl($currentPage, buildTicketPaginationLinkQuery($baseNavigationQuery, $ticketPage + 1))) ?>"
+                aria-label="<?= h(__('pagination.next')) ?>">›</a>
+        <?php else: ?>
+            <span class="ticket-pagination-button ticket-pagination-next is-disabled" aria-hidden="true">›</span>
+        <?php endif; ?>
+    </nav>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function buildPageUrl(string $page, array $query): string
+{
+    $normalizedQuery = [];
+    foreach ($query as $key => $value) {
+        if ($value === null || $value === '' || $value === []) {
+            continue;
+        }
+
+        $normalizedQuery[$key] = $value;
+    }
+
+    $queryString = http_build_query($normalizedQuery, '', '&', PHP_QUERY_RFC3986);
+
+    return $page . ($queryString !== '' ? '?' . $queryString : '');
+}
+
+function buildTicketPaginationLinkQuery(array $baseQuery, int $page): array
+{
+    $query = $baseQuery;
+    if ($page > 1) {
+        $query['page'] = $page;
+    } else {
+        unset($query['page']);
+    }
+
+    return $query;
+}
+
+function buildTicketPollPaginationHtml(
+    string $currentPage,
+    int $ticketPage,
+    int $ticketTotalPages,
+    array $statusFilters,
+    array $categoryFilters,
+    string $assignedFilter,
+    string $searchQuery,
+    string $view,
+    bool $isAdminPortal,
+    bool $statusFilterRequestActive,
+    bool $categoryFilterRequestActive,
+    int $openTicketId = 0
+): string {
+    $overviewListView = $view === 'all_tickets' ? 'all_tickets' : 'overview';
+    $baseNavigationQuery = buildTicketOverviewNavigationQuery(
+        $statusFilters,
+        $categoryFilters,
+        $assignedFilter,
+        $searchQuery,
+        $overviewListView,
+        $isAdminPortal,
+        $statusFilterRequestActive,
+        $categoryFilterRequestActive,
+        $openTicketId,
+        1
+    );
+
+    return renderTicketPaginationHtml($currentPage, $ticketPage, $ticketTotalPages, $baseNavigationQuery);
 }
 
 function buildCurrentPageUrl(string $page, array $overrides = [], array $removeKeys = []): string

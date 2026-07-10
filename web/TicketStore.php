@@ -934,7 +934,98 @@ class TicketStore
         ]);
     }
 
-    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default'): array
+    public function countTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default'): int
+    {
+        $filterState = $this->buildTicketListFilters($isAdmin, $userEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode);
+        $sql = 'SELECT COUNT(*) FROM tickets t';
+
+        if ($filterState['conditions'] !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $filterState['conditions']);
+        }
+
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($filterState['parameters']);
+
+        return (int) $statement->fetchColumn();
+    }
+
+    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default', ?int $limit = null, ?int $offset = null): array
+    {
+        $filterState = $this->buildTicketListFilters($isAdmin, $userEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode);
+        $conditions = $filterState['conditions'];
+        $parameters = $filterState['parameters'];
+        $adminList = $filterState['adminList'];
+        $allCompletedPublic = $filterState['allCompletedPublic'];
+
+        $sql = 'SELECT ' . self::TICKET_LIST_COLUMNS . ',
+                       COALESCE(message_counts.message_count, 0) AS message_count,
+                       COALESCE(attachment_counts.attachment_count, 0) AS attachment_count
+                FROM tickets t
+                LEFT JOIN (
+                    SELECT ticket_id, COUNT(*) AS message_count
+                    FROM ticket_messages
+                    GROUP BY ticket_id
+                ) message_counts ON message_counts.ticket_id = t.id
+                LEFT JOIN (
+                    SELECT ticket_id, COUNT(*) AS attachment_count
+                    FROM ticket_attachments
+                    GROUP BY ticket_id
+                ) attachment_counts ON attachment_counts.ticket_id = t.id';
+
+        if ($conditions !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $conditions);
+        }
+
+        if ($adminList || $allCompletedPublic) {
+            $sql .= " ORDER BY CASE WHEN t.status = 'afgehandeld' THEN 1 ELSE 0 END ASC,
+                            datetime(t.created_at) DESC,
+                            t.id DESC";
+        } else {
+            $sql .= ' ORDER BY datetime(t.updated_at) DESC, datetime(t.created_at) DESC, t.id DESC';
+        }
+
+        $this->writeSearchDebugLog($sql, $parameters);
+
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($parameters);
+
+        $tickets = $statement->fetchAll(PDO::FETCH_ASSOC);
+        $tickets = array_map(fn(array $ticket): array => $this->applyDerivedPriorityForDueDate($ticket), $tickets);
+
+        if ($adminList) {
+            $this->sortAdminTicketList($tickets);
+        }
+
+        if ($limit !== null) {
+            $offset = max(0, $offset ?? 0);
+            $tickets = array_slice($tickets, $offset, max(0, $limit));
+        }
+
+        foreach ($tickets as &$ticket) {
+            $assignedEmail = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
+            if ($assignedEmail !== '' || strtolower((string) ($ticket['status'] ?? '')) === 'afgehandeld') {
+                continue;
+            }
+
+            $ticketId = (int) ($ticket['id'] ?? 0);
+            if ($ticketId <= 0) {
+                continue;
+            }
+
+            $newAssignee = $this->ensureTicketAssigned($ticketId);
+            if ($newAssignee !== null) {
+                $ticket['assigned_email'] = $newAssignee;
+            }
+        }
+        unset($ticket);
+
+        return $tickets;
+    }
+
+    /**
+     * @return array{conditions: list<string>, parameters: array<string, mixed>, adminList: bool, allCompletedPublic: bool}
+     */
+    private function buildTicketListFilters(bool $isAdmin, string $userEmail, array $statusFilters, ?string $assignedFilter, array $categoryFilters, ?string $searchQuery, string $browseMode): array
     {
         $conditions = [];
         $parameters = [];
@@ -1038,86 +1129,42 @@ class TicketStore
             }
         }
 
-        $sql = 'SELECT ' . self::TICKET_LIST_COLUMNS . ',
-                       COALESCE(message_counts.message_count, 0) AS message_count,
-                       COALESCE(attachment_counts.attachment_count, 0) AS attachment_count
-                FROM tickets t
-                LEFT JOIN (
-                    SELECT ticket_id, COUNT(*) AS message_count
-                    FROM ticket_messages
-                    GROUP BY ticket_id
-                ) message_counts ON message_counts.ticket_id = t.id
-                LEFT JOIN (
-                    SELECT ticket_id, COUNT(*) AS attachment_count
-                    FROM ticket_attachments
-                    GROUP BY ticket_id
-                ) attachment_counts ON attachment_counts.ticket_id = t.id';
+        return [
+            'conditions' => $conditions,
+            'parameters' => $parameters,
+            'adminList' => $adminList,
+            'allCompletedPublic' => $allCompletedPublic,
+        ];
+    }
 
-        if ($conditions !== []) {
-            $sql .= ' WHERE ' . implode(' AND ', $conditions);
-        }
-
-        if ($adminList || $allCompletedPublic) {
-            $sql .= " ORDER BY CASE WHEN t.status = 'afgehandeld' THEN 1 ELSE 0 END ASC,
-                            datetime(t.created_at) DESC,
-                            t.id DESC";
-        } else {
-            $sql .= ' ORDER BY datetime(t.updated_at) DESC, datetime(t.created_at) DESC, t.id DESC';
-        }
-
-        $this->writeSearchDebugLog($sql, $parameters);
-
-        $statement = $this->pdo->prepare($sql);
-        $statement->execute($parameters);
-
-        $tickets = $statement->fetchAll(PDO::FETCH_ASSOC);
-        $tickets = array_map(fn(array $ticket): array => $this->applyDerivedPriorityForDueDate($ticket), $tickets);
-
-        foreach ($tickets as &$ticket) {
-            $assignedEmail = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
-            if ($assignedEmail !== '' || strtolower((string) ($ticket['status'] ?? '')) === 'afgehandeld') {
-                continue;
+    /**
+     * @param list<array<string, mixed>> $tickets
+     */
+    private function sortAdminTicketList(array &$tickets): void
+    {
+        usort($tickets, static function (array $left, array $right): int {
+            $leftResolved = (string) ($left['status'] ?? '') === 'afgehandeld';
+            $rightResolved = (string) ($right['status'] ?? '') === 'afgehandeld';
+            if ($leftResolved !== $rightResolved) {
+                return $leftResolved ? 1 : -1;
             }
 
-            $ticketId = (int) ($ticket['id'] ?? 0);
-            if ($ticketId <= 0) {
-                continue;
+            if (!$leftResolved) {
+                $leftPriority = (int) ($left['priority'] ?? 0);
+                $rightPriority = (int) ($right['priority'] ?? 0);
+                if ($leftPriority !== $rightPriority) {
+                    return $rightPriority <=> $leftPriority;
+                }
             }
 
-            $newAssignee = $this->ensureTicketAssigned($ticketId);
-            if ($newAssignee !== null) {
-                $ticket['assigned_email'] = $newAssignee;
+            $leftCreated = strtotime((string) ($left['created_at'] ?? '')) ?: 0;
+            $rightCreated = strtotime((string) ($right['created_at'] ?? '')) ?: 0;
+            if ($leftCreated !== $rightCreated) {
+                return $rightCreated <=> $leftCreated;
             }
-        }
-        unset($ticket);
 
-        if ($adminList) {
-            usort($tickets, static function (array $left, array $right): int {
-                $leftResolved = (string) ($left['status'] ?? '') === 'afgehandeld';
-                $rightResolved = (string) ($right['status'] ?? '') === 'afgehandeld';
-                if ($leftResolved !== $rightResolved) {
-                    return $leftResolved ? 1 : -1;
-                }
-
-                if (!$leftResolved) {
-                    $leftPriority = (int) ($left['priority'] ?? 0);
-                    $rightPriority = (int) ($right['priority'] ?? 0);
-                    if ($leftPriority !== $rightPriority) {
-                        return $rightPriority <=> $leftPriority;
-                    }
-                }
-
-                $leftCreated = strtotime((string) ($left['created_at'] ?? '')) ?: 0;
-                $rightCreated = strtotime((string) ($right['created_at'] ?? '')) ?: 0;
-                if ($leftCreated !== $rightCreated) {
-                    return $rightCreated <=> $leftCreated;
-                }
-
-                return (int) ($right['id'] ?? 0) <=> (int) ($left['id'] ?? 0);
-            });
-        }
-
-        return $tickets;
+            return (int) ($right['id'] ?? 0) <=> (int) ($left['id'] ?? 0);
+        });
     }
 
     public function getTicket(int $ticketId, bool $isAdmin, string $userEmail, string $browseMode = 'default'): ?array

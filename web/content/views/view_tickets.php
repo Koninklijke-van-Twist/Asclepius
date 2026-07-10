@@ -31,7 +31,15 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
         'assigned_filter' => $assignedFilter,
         'search_query' => $searchQuery,
         'status_filters' => $effectiveStatusFilters,
+        'status_filters_selected' => $statusFilters,
+        'status_filter_active' => $statusFilterRequestActive,
         'category_filters' => $effectiveCategoryFilters,
+        'category_filters_selected' => $categoryFilters,
+        'category_filter_active' => $categoryFilterRequestActive,
+        'page' => $ticketPage,
+        'per_page' => TICKETS_PER_PAGE,
+        'total_pages' => $ticketTotalPages,
+        'total_count' => $ticketTotalCount,
         'last_signature' => $ticketSnapshotSignature,
     ];
     $ticketHeading = $isAdminPortal
@@ -117,6 +125,10 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
             </form>
         <?php endif; ?>
 
+        <?php if ($ticketPaginationHtml !== ''): ?>
+            <div data-role="ticket-pagination"><?= $ticketPaginationHtml ?></div>
+        <?php endif; ?>
+
         <?php if ($tickets === []): ?>
             <div class="empty-state">
                 <?= h($ticketEmptyMessage) ?>
@@ -128,6 +140,10 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                     <?= renderTicketCardHtml($ticket, $ticketDetail, buildTicketCardRenderContext($ticketCardBaseContext, $ticket, $openTicketId)) ?>
                 <?php endforeach; ?>
             </div>
+        <?php endif; ?>
+
+        <?php if ($ticketPaginationHtml !== ''): ?>
+            <div data-role="ticket-pagination"><?= $ticketPaginationHtml ?></div>
         <?php endif; ?>
     </section>
 <?php endif; ?>

@@ -1,3 +1,13 @@
+id: 2026-07-10-ticket-pagination-filters
+date: 2026-07-10
+title: Pagination des tickets et filtres enregistrés
+author: Tim Falken
+
+Les listes de tickets affichent désormais au maximum **20 tickets par page**, avec une navigation au-dessus et en dessous de la liste. Les liens de pagination conservent les filtres, le terme de recherche et les autres paramètres d'URL. Après une recherche ou un filtrage, la pagination est recalculée sur les résultats filtrés.
+
+Les filtres enregistrés se chargent à nouveau correctement lorsque vous accédez directement à `admin.php` ou revenez à l'aperçu ICT ou Tous les tickets via le menu de navigation.
+
+---
 id: 2026-07-08-translation-assignment-fixes
 date: 2026-07-08
 title: Traductions et attribution des tickets

@@ -1389,6 +1389,44 @@
         var ticketSearchSubmitTimer = null;
         var ticketSearchRefreshInFlight = false;
 
+        var updateTicketPagination = function (paginationHtml, pollData)
+        {
+            if (!liveTicketSection)
+            {
+                return;
+            }
+
+            var html = typeof paginationHtml === 'string' ? paginationHtml : '';
+            liveTicketSection.querySelectorAll('[data-role="ticket-pagination"]').forEach(function (paginationNode)
+            {
+                if (html !== '')
+                {
+                    paginationNode.innerHTML = html;
+                    paginationNode.hidden = false;
+                }
+                else
+                {
+                    paginationNode.innerHTML = '';
+                    paginationNode.hidden = true;
+                }
+            });
+
+            if (pollData && typeof pollData.page === 'number')
+            {
+                ticketPollPayload.page = pollData.page;
+            }
+
+            if (pollData && typeof pollData.total_pages === 'number')
+            {
+                ticketPollPayload.total_pages = pollData.total_pages;
+            }
+
+            if (pollData && typeof pollData.total_count === 'number')
+            {
+                ticketPollPayload.total_count = pollData.total_count;
+            }
+        };
+
         var applyLiveTicketSearch = function ()
         {
             if (!ticketSearchInput || !liveTicketSection)
@@ -1398,6 +1436,7 @@
 
             var searchValue = ticketSearchInput.value || '';
             ticketPollPayload.search_query = searchValue;
+            ticketPollPayload.page = 1;
             ticketPollPayload.last_signature = '';
 
             try
@@ -1411,6 +1450,7 @@
                 {
                     searchUrl.searchParams.delete('search');
                 }
+                searchUrl.searchParams.delete('page');
                 history.replaceState(null, '', searchUrl.toString());
             }
             catch (error)
@@ -3857,6 +3897,9 @@
             {
                 ticketPollPayload.last_signature = data.signature;
             }
+
+            updateTicketPagination(data.pagination_html || '', data);
+
             if (!list)
             {
                 return;

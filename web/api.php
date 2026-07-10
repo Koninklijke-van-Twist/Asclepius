@@ -254,13 +254,42 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         array_map('trim', (array) ($payload['status_filters'] ?? [])),
         static fn(string $status): bool => $status !== ''
     ));
+    $statusFiltersSelected = array_values(array_filter(
+        array_map('trim', (array) ($payload['status_filters_selected'] ?? [])),
+        static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
+    ));
     $categoryFilters = array_values(array_filter(
         array_map('trim', (array) ($payload['category_filters'] ?? [])),
         static fn(string $category): bool => $category !== ''
     ));
+    $categoryFiltersSelected = array_values(array_filter(
+        array_map('trim', (array) ($payload['category_filters_selected'] ?? [])),
+        static fn(string $category): bool => in_array($category, TICKET_CATEGORIES, true)
+    ));
+    $statusFilterRequestActive = !empty($payload['status_filter_active']);
+    $categoryFilterRequestActive = !empty($payload['category_filter_active']);
     $lastSignature = trim((string) ($payload['last_signature'] ?? ''));
+    $ticketPage = max(1, (int) ($payload['page'] ?? 1));
+    $perPage = max(1, (int) ($payload['per_page'] ?? TICKETS_PER_PAGE));
 
-    $tickets = $store->getTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode);
+    $ticketTotalCount = $store->countTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode);
+    $ticketTotalPages = max(1, (int) ceil($ticketTotalCount / $perPage));
+    if ($ticketPage > $ticketTotalPages) {
+        $ticketPage = $ticketTotalPages;
+    }
+    $ticketPageOffset = ($ticketPage - 1) * $perPage;
+
+    $tickets = $store->getTickets(
+        $canManageTickets,
+        $viewerEmail,
+        $statusFilters,
+        $assignedFilter,
+        $categoryFilters,
+        $searchQuery,
+        $browseMode,
+        $perPage,
+        $ticketPageOffset
+    );
     $signature = buildTicketSnapshotSignature($tickets);
     if ($lastSignature !== '' && hash_equals($lastSignature, $signature)) {
         return [
@@ -288,6 +317,20 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     ];
 
     $isAllTicketsView = $browseMode === 'all_completed_public';
+    $paginationHtml = buildTicketPollPaginationHtml(
+        $currentPage,
+        $ticketPage,
+        $ticketTotalPages,
+        $statusFiltersSelected,
+        $categoryFiltersSelected,
+        $assignedFilter,
+        $searchQuery,
+        $isAllTicketsView ? 'all_tickets' : $view,
+        $isAdminPortal,
+        $statusFilterRequestActive,
+        $categoryFilterRequestActive,
+        $openTicketId
+    );
 
     return [
         'success' => true,
@@ -295,6 +338,10 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         'tickets' => buildTicketPollItemsFromTickets($store, $tickets, $pollContext, $currentLanguage),
         'is_empty' => $tickets === [],
         'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : ($isAllTicketsView ? h(__('tickets.empty_all')) : h(__('tickets.empty_user')))) . '</div>',
+        'page' => $ticketPage,
+        'total_pages' => $ticketTotalPages,
+        'total_count' => $ticketTotalCount,
+        'pagination_html' => $paginationHtml,
     ];
 }
 

@@ -1,3 +1,13 @@
+id: 2026-07-10-ticket-pagination-filters
+date: 2026-07-10
+title: Ticket-Paginierung und gespeicherte Filter
+author: Tim Falken
+
+Ticketlisten zeigen jetzt maximal **20 Tickets pro Seite**, mit Seitennavigation ober- und unterhalb der Liste. Die Seitenlinks behalten Filter, Suchbegriffe und andere URL-Parameter. Nach Suche oder Filterung wird die Paginierung anhand der gefilterten Ergebnisse neu berechnet.
+
+Gespeicherte Filter werden wieder korrekt geladen, wenn Sie direkt zu `admin.php` gehen oder über das Navigationsmenü zum ICT-Überblick oder Alle Tickets zurückkehren.
+
+---
 id: 2026-07-08-translation-assignment-fixes
 date: 2026-07-08
 title: Übersetzungen und Ticketzuweisung

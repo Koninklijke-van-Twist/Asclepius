@@ -111,8 +111,53 @@ function postLocalApiJson(string $path, array $payload): ?array
  * Page load
  */
 
-$tickets = $store instanceof TicketStore
-    ? $store->getTickets($canManageTickets, $userEmail, $effectiveStatusFilters, $assignedFilter, $effectiveCategoryFilters, $searchQuery, $ticketBrowseMode)
+$ticketTotalCount = 0;
+$ticketTotalPages = 1;
+$ticketPageOffset = 0;
+
+if ($store instanceof TicketStore && $showTicketListSection) {
+    $ticketTotalCount = $store->countTickets(
+        $canManageTickets,
+        $userEmail,
+        $effectiveStatusFilters,
+        $assignedFilter,
+        $effectiveCategoryFilters,
+        $searchQuery,
+        $ticketBrowseMode
+    );
+    $ticketTotalPages = max(1, (int) ceil($ticketTotalCount / TICKETS_PER_PAGE));
+    if ($ticketPage > $ticketTotalPages) {
+        $ticketPage = $ticketTotalPages;
+    }
+    $ticketPageOffset = ($ticketPage - 1) * TICKETS_PER_PAGE;
+}
+
+$overviewListView = $isAllTicketsView ? 'all_tickets' : 'overview';
+$ticketListNavigationQuery = buildTicketOverviewNavigationQuery(
+    $statusFilters,
+    $categoryFilters,
+    $assignedFilter,
+    $searchQuery,
+    $overviewListView,
+    $isAdminPortal,
+    $statusFilterRequestActive,
+    $categoryFilterRequestActive,
+    $openTicketId,
+    1
+);
+
+$tickets = $store instanceof TicketStore && $showTicketListSection
+    ? $store->getTickets(
+        $canManageTickets,
+        $userEmail,
+        $effectiveStatusFilters,
+        $assignedFilter,
+        $effectiveCategoryFilters,
+        $searchQuery,
+        $ticketBrowseMode,
+        TICKETS_PER_PAGE,
+        $ticketPageOffset
+    )
     : [];
 $currentLanguage = getCurrentLanguage();
 if ($store instanceof TicketStore) {
@@ -241,6 +286,22 @@ foreach ($statsOpenTickets as $sideTicket) {
 warmUserDirectoryForContext($directoryWarmupEmails);
 
 $ticketSnapshotSignature = buildTicketSnapshotSignature($tickets);
+$ticketPaginationHtml = $showTicketListSection
+    ? buildTicketPollPaginationHtml(
+        $currentPage,
+        $ticketPage,
+        $ticketTotalPages,
+        $statusFilters,
+        $categoryFilters,
+        $assignedFilter,
+        $searchQuery,
+        $overviewListView,
+        $isAdminPortal,
+        $statusFilterRequestActive,
+        $categoryFilterRequestActive,
+        $openTicketId
+    )
+    : '';
 
 if (isset($_GET['_webpush_subscription'])) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -353,7 +414,13 @@ if (isset($_GET['_tickets_poll'])) {
         'assigned_filter' => $assignedFilter,
         'search_query' => $searchQuery,
         'status_filters' => $effectiveStatusFilters,
+        'status_filters_selected' => $statusFilters,
+        'status_filter_active' => $statusFilterRequestActive,
         'category_filters' => $effectiveCategoryFilters,
+        'category_filters_selected' => $categoryFilters,
+        'category_filter_active' => $categoryFilterRequestActive,
+        'page' => $ticketPage,
+        'per_page' => TICKETS_PER_PAGE,
     ]);
 
     if (is_array($apiResponse) && (int) ($apiResponse['status'] ?? 0) >= 200 && (int) ($apiResponse['status'] ?? 0) < 300) {
@@ -384,6 +451,10 @@ if (isset($_GET['_tickets_poll'])) {
             : [],
         'is_empty' => $tickets === [],
         'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : ($isAllTicketsView ? h(__('tickets.empty_all')) : h(__('tickets.empty_user')))) . '</div>',
+        'page' => $ticketPage,
+        'total_pages' => $ticketTotalPages,
+        'total_count' => $ticketTotalCount,
+        'pagination_html' => $ticketPaginationHtml,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }

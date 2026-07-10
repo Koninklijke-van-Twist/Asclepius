@@ -1,3 +1,13 @@
+id: 2026-07-10-ticket-pagination-filters
+date: 2026-07-10
+title: Ticketpaginering en opgeslagen filters
+author: Tim Falken
+
+Ticketlijsten tonen nu maximaal **20 tickets per pagina**, met paginanavigatie boven en onder de lijst. Paginanavigatie behoudt filters, zoekterm en andere URL-parameters. Na zoeken of filteren wordt de paginering opnieuw berekend op de gefilterde resultaten.
+
+Opgeslagen filters worden weer correct geladen als je direct naar `admin.php` gaat of via het navigatiemenu terugkeert naar het ICT-overzicht of Alle tickets.
+
+---
 id: 2026-07-08-translation-assignment-fixes
 date: 2026-07-08
 title: Vertalingen en tickettoewijzing
