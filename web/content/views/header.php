@@ -55,7 +55,7 @@ $currentLang = getCurrentLanguage();
         <?php endif; ?>
         <?php if ($userIsAdmin): ?>
             <a class="nav-link <?= $isAdminPortal && $view === 'overview' ? 'active' : '' ?>"
-                href="<?= h(buildCurrentPageUrl('admin.php', buildTicketOverviewNavigationQueryFromSaved($savedOverviewFilters, 'overview', true))) ?>"><?= h(__('nav.ict_overview')) ?></a>
+                href="<?= h(buildPageUrl('admin.php', buildTicketOverviewNavigationQueryFromSaved($savedOverviewFilters, 'overview', true))) ?>"><?= h(__('nav.ict_overview')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'settings' ? 'active' : '' ?>"
                 href="admin.php?view=settings"><?= h(__('nav.settings')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'stats' ? 'active' : '' ?>"
