@@ -794,6 +794,7 @@
 
         .tickets-per-page-control {
             display: inline-flex;
+            min-width: 250px;
             align-items: center;
             gap: 8px;
             margin: 0;
@@ -803,6 +804,7 @@
 
         .tickets-per-page-control select {
             min-width: 72px;
+            max-width: 100px;
             border: 1px solid var(--line);
             border-radius: 10px;
             padding: 8px 10px;
