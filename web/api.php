@@ -270,7 +270,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     $categoryFilterRequestActive = !empty($payload['category_filter_active']);
     $lastSignature = trim((string) ($payload['last_signature'] ?? ''));
     $ticketPage = max(1, (int) ($payload['page'] ?? 1));
-    $perPage = max(1, (int) ($payload['per_page'] ?? TICKETS_PER_PAGE));
+    $perPage = normalizeTicketsPerPage((int) ($payload['per_page'] ?? DEFAULT_TICKETS_PER_PAGE));
 
     $ticketTotalCount = $store->countTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode);
     $ticketTotalPages = max(1, (int) ceil($ticketTotalCount / $perPage));

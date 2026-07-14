@@ -186,6 +186,16 @@ $showTicketListSection = ($isAdminPortal && $view === 'overview')
     || $isAllTicketsView
     || (!$isAdminPortal && !$isAllTicketsView);
 $ticketPage = $showTicketListSection ? max(1, (int) ($_GET['page'] ?? 1)) : 1;
+
+if ($showTicketListSection && isset($_GET['per_page'])) {
+    $normalizedTicketsPerPage = normalizeTicketsPerPage((int) $_GET['per_page']);
+    if ($normalizedTicketsPerPage !== resolveTicketsPerPage($userPrefs)) {
+        saveUserPref($userEmail, 'tickets_per_page', $normalizedTicketsPerPage);
+        $userPrefs['tickets_per_page'] = $normalizedTicketsPerPage;
+    }
+}
+
+$ticketsPerPage = $showTicketListSection ? resolveTicketsPerPage($userPrefs) : DEFAULT_TICKETS_PER_PAGE;
 $openTicketId = max(0, (int) ($_GET['open'] ?? 0));
 
 if ($openTicketId > 0 && $store instanceof TicketStore) {

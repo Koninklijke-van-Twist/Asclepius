@@ -1,3 +1,11 @@
+id: 2026-07-14-tickets-per-page-preference
+date: 2026-07-14
+title: Tickets per pagina instelbaar
+author: Tim Falken
+
+Je kunt nu instellen hoeveel tickets je per pagina ziet (5 tot 100, standaard 20). De keuze staat rechts naast **Reset filters** in het filterblok, of in hetzelfde blok op **Mijn tickets**. Je instelling wordt opgeslagen en geldt overal: Mijn tickets, ICT-overzicht en Alle tickets.
+
+---
 id: 2026-07-10-ticket-pagination-filters
 date: 2026-07-10
 title: Ticketpaginering en opgeslagen filters

@@ -125,11 +125,11 @@ if ($store instanceof TicketStore && $showTicketListSection) {
         $searchQuery,
         $ticketBrowseMode
     );
-    $ticketTotalPages = max(1, (int) ceil($ticketTotalCount / TICKETS_PER_PAGE));
+    $ticketTotalPages = max(1, (int) ceil($ticketTotalCount / $ticketsPerPage));
     if ($ticketPage > $ticketTotalPages) {
         $ticketPage = $ticketTotalPages;
     }
-    $ticketPageOffset = ($ticketPage - 1) * TICKETS_PER_PAGE;
+    $ticketPageOffset = ($ticketPage - 1) * $ticketsPerPage;
 }
 
 $overviewListView = $isAllTicketsView ? 'all_tickets' : 'overview';
@@ -155,7 +155,7 @@ $tickets = $store instanceof TicketStore && $showTicketListSection
         $effectiveCategoryFilters,
         $searchQuery,
         $ticketBrowseMode,
-        TICKETS_PER_PAGE,
+        $ticketsPerPage,
         $ticketPageOffset
     )
     : [];
@@ -420,7 +420,7 @@ if (isset($_GET['_tickets_poll'])) {
         'category_filters_selected' => $categoryFilters,
         'category_filter_active' => $categoryFilterRequestActive,
         'page' => $ticketPage,
-        'per_page' => TICKETS_PER_PAGE,
+        'per_page' => $ticketsPerPage,
     ]);
 
     if (is_array($apiResponse) && (int) ($apiResponse['status'] ?? 0) >= 200 && (int) ($apiResponse['status'] ?? 0) < 300) {

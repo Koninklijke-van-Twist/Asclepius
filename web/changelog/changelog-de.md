@@ -1,3 +1,11 @@
+id: 2026-07-14-tickets-per-page-preference
+date: 2026-07-14
+title: Tickets pro Seite einstellbar
+author: Tim Falken
+
+Sie können jetzt festlegen, wie viele Tickets pro Seite angezeigt werden (5 bis 100, Standard 20). Die Auswahl steht rechts neben **Filter zurücksetzen** im Filterblock oder im gleichen Block unter **Meine Tickets**. Ihre Einstellung wird gespeichert und gilt überall: Meine Tickets, ICT-Überblick und Alle Tickets.
+
+---
 id: 2026-07-10-ticket-pagination-filters
 date: 2026-07-10
 title: Ticket-Paginierung und gespeicherte Filter

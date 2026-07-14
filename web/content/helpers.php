@@ -436,6 +436,35 @@ function resolveTicketBrowseMode(bool $canManageTickets, bool $isAllTicketsView)
     return $isAllTicketsView ? 'all_completed_public' : 'default';
 }
 
+function normalizeTicketsPerPage(int $value): int
+{
+    return in_array($value, TICKETS_PER_PAGE_OPTIONS, true) ? $value : DEFAULT_TICKETS_PER_PAGE;
+}
+
+function resolveTicketsPerPage(array $userPrefs): int
+{
+    return normalizeTicketsPerPage((int) ($userPrefs['tickets_per_page'] ?? DEFAULT_TICKETS_PER_PAGE));
+}
+
+function renderTicketsPerPageSelectHtml(int $selectedPerPage): string
+{
+    $selectedPerPage = normalizeTicketsPerPage($selectedPerPage);
+
+    ob_start();
+    ?>
+    <label class="tickets-per-page-control">
+        <?= h(__('filter.per_page_label')) ?>
+        <select name="per_page" onchange="this.form.submit()">
+            <?php foreach (TICKETS_PER_PAGE_OPTIONS as $option): ?>
+                <option value="<?= (int) $option ?>" <?= $option === $selectedPerPage ? 'selected' : '' ?>><?= (int) $option ?></option>
+            <?php endforeach; ?>
+        </select>
+    </label>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function buildTicketSnapshotSignature(array $tickets): string
 {
     $snapshot = array_map(static function (array $ticket): array {

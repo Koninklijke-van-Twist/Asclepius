@@ -37,7 +37,7 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
         'category_filters_selected' => $categoryFilters,
         'category_filter_active' => $categoryFilterRequestActive,
         'page' => $ticketPage,
-        'per_page' => TICKETS_PER_PAGE,
+        'per_page' => $ticketsPerPage,
         'total_pages' => $ticketTotalPages,
         'total_count' => $ticketTotalCount,
         'last_signature' => $ticketSnapshotSignature,
@@ -118,9 +118,16 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                     </select>
                 </label>
 
-                <div class="button-row">
+                <div class="filters-toolbar-row">
                     <a class="secondary-button"
-                        href="<?= h(buildCurrentPageUrl($currentPage, array_merge($isAllTicketsView ? ['view' => 'all_tickets'] : [], ['reset_filters' => '1', 'open' => null]), ['_partial', '_tickets_poll', 'reset_filters', 'status_filter_mode', 'status', 'category_filter_mode', 'category', 'assigned', 'search'])) ?>"><?= h(__('filter.reset')) ?></a>
+                        href="<?= h(buildCurrentPageUrl($currentPage, array_merge($isAllTicketsView ? ['view' => 'all_tickets'] : [], ['reset_filters' => '1', 'open' => null]), ['_partial', '_tickets_poll', 'reset_filters', 'status_filter_mode', 'status', 'category_filter_mode', 'category', 'assigned', 'search', 'per_page'])) ?>"><?= h(__('filter.reset')) ?></a>
+                    <?= renderTicketsPerPageSelectHtml($ticketsPerPage) ?>
+                </div>
+            </form>
+        <?php elseif ($showTicketListSection): ?>
+            <form method="get" class="filters-form filters-form-compact">
+                <div class="filters-toolbar-row filters-toolbar-row-end">
+                    <?= renderTicketsPerPageSelectHtml($ticketsPerPage) ?>
                 </div>
             </form>
         <?php endif; ?>

@@ -775,6 +775,41 @@
             margin-bottom: 14px;
         }
 
+        .filters-form-compact {
+            display: block;
+        }
+
+        .filters-toolbar-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .filters-toolbar-row-end {
+            justify-content: flex-end;
+        }
+
+        .tickets-per-page-control {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .tickets-per-page-control select {
+            min-width: 72px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 8px 10px;
+            font: inherit;
+            background: #fff;
+        }
+
         .ticket-pagination {
             display: flex;
             flex-wrap: wrap;

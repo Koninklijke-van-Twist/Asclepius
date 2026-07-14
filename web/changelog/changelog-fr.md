@@ -1,3 +1,11 @@
+id: 2026-07-14-tickets-per-page-preference
+date: 2026-07-14
+title: Nombre de tickets par page configurable
+author: Tim Falken
+
+Vous pouvez désormais choisir combien de tickets s'affichent par page (5 à 100, 20 par défaut). Le réglage se trouve à droite de **Réinitialiser les filtres** dans le bloc de filtres, ou dans le même bloc sur **Mes tickets**. Votre choix est enregistré et s'applique partout : Mes tickets, Aperçu ICT et Tous les tickets.
+
+---
 id: 2026-07-10-ticket-pagination-filters
 date: 2026-07-10
 title: Pagination des tickets et filtres enregistrés
