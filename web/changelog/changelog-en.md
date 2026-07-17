@@ -1,3 +1,11 @@
+id: 2026-07-17-api-user-names
+date: 2026-07-17
+title: User names in API responses
+author: Tim Falken
+
+API responses that include a user email now also include the matching **display name** (from the Graph user directory). Participant lists include a `participants` array with email and name.
+
+---
 id: 2026-07-17-api-docs
 date: 2026-07-17
 title: API documentation in Settings

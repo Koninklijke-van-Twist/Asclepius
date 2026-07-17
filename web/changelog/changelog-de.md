@@ -1,3 +1,11 @@
+id: 2026-07-17-api-user-names
+date: 2026-07-17
+title: Benutzernamen in API-Antworten
+author: Tim Falken
+
+API-Antworten mit einer Benutzer-E-Mail enthalten jetzt auch den zugehörigen **Anzeigenamen** (aus dem Graph-Benutzerverzeichnis). Teilnehmerlisten enthalten ein `participants`-Array mit E-Mail und Name.
+
+---
 id: 2026-07-17-api-docs
 date: 2026-07-17
 title: API-Dokumentation in den Einstellungen

@@ -1,3 +1,11 @@
+id: 2026-07-17-api-user-names
+date: 2026-07-17
+title: Noms d'utilisateur dans les réponses API
+author: Tim Falken
+
+Les réponses API qui contiennent un e-mail utilisateur incluent désormais aussi le **nom d'affichage** correspondant (via l'annuaire Graph). Les listes de participants incluent un tableau `participants` avec e-mail et nom.
+
+---
 id: 2026-07-17-api-docs
 date: 2026-07-17
 title: Documentation API dans Paramètres

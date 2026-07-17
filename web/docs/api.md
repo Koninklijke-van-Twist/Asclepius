@@ -32,6 +32,8 @@ HTTP-status: `401`.
 
 Antwoorden zijn JSON met UTF-8.
 
+Waar een gebruikers-e-mail in de response staat (`user_email`, `assigned_email`, `sender_email`, enz.), bevat het antwoord ook de bijbehorende weergavenaam (`user_name`, `assigned_name`, `sender_name`, …) op basis van de Microsoft Graph-gebruikerslijst. Bij `participant_emails` staat daarnaast een `participants`-array met objecten `{ "email", "name" }`.
+
 ## GET — tickets ophalen
 
 ### Alle tickets
@@ -94,7 +96,8 @@ Succes → `201`:
   "success": true,
   "ticket_id": 123,
   "assigned_email": "ict@kvt.nl",
-  "ticket": { /* ticketobject */ }
+  "assigned_name": "ICT Medewerker",
+  "ticket": { /* ticketobject met o.a. user_email/user_name */ }
 }
 ```
 

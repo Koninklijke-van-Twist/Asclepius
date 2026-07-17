@@ -349,3 +349,106 @@ function warmUserDirectoryForBigscreenPoll(array $tickets, array $ictUsers): voi
 
     warmUserDirectoryForContext($emails);
 }
+
+function collectEmailsFromApiPayload(mixed $value, array &$emails): void
+{
+    if (!is_array($value)) {
+        return;
+    }
+
+    foreach ($value as $key => $item) {
+        if (is_string($key) && is_string($item) && ($key === 'email' || str_ends_with($key, '_email'))) {
+            $emails[] = $item;
+        }
+
+        if ($key === 'participant_emails' && is_array($item)) {
+            foreach ($item as $participantEmail) {
+                if (is_string($participantEmail)) {
+                    $emails[] = $participantEmail;
+                }
+            }
+        }
+
+        if (is_array($item)) {
+            collectEmailsFromApiPayload($item, $emails);
+        }
+    }
+}
+
+function enrichApiValueWithUserNames(mixed $value): mixed
+{
+    if (!is_array($value)) {
+        return $value;
+    }
+
+    if (array_is_list($value)) {
+        return array_map(
+            static fn(mixed $item): mixed => enrichApiValueWithUserNames($item),
+            $value
+        );
+    }
+
+    $result = [];
+    foreach ($value as $key => $item) {
+        $result[$key] = is_array($item) ? enrichApiValueWithUserNames($item) : $item;
+    }
+
+    foreach ($result as $key => $item) {
+        if (!is_string($key) || (!is_string($item) && $item !== null)) {
+            continue;
+        }
+
+        if ($key !== 'email' && !str_ends_with($key, '_email')) {
+            continue;
+        }
+
+        $nameKey = $key === 'email' ? 'name' : (substr($key, 0, -strlen('_email')) . '_name');
+        if (array_key_exists($nameKey, $result)) {
+            continue;
+        }
+
+        if ($item === null || trim((string) $item) === '') {
+            $result[$nameKey] = $item === null ? null : '';
+            continue;
+        }
+
+        $result[$nameKey] = formatUserDisplayName((string) $item);
+    }
+
+    if (
+        isset($result['participant_emails'])
+        && is_array($result['participant_emails'])
+        && !isset($result['participants'])
+    ) {
+        $participants = [];
+        foreach ($result['participant_emails'] as $participantEmail) {
+            if (!is_string($participantEmail)) {
+                continue;
+            }
+
+            $normalizedEmail = normalizeDirectoryEmail($participantEmail);
+            $participants[] = [
+                'email' => $normalizedEmail,
+                'name' => $normalizedEmail !== '' ? formatUserDisplayName($normalizedEmail) : '',
+            ];
+        }
+
+        $result['participants'] = $participants;
+    }
+
+    return $result;
+}
+
+function enrichApiResponseWithUserNames(array $payload): array
+{
+    $emails = [];
+    collectEmailsFromApiPayload($payload, $emails);
+    if ($emails !== []) {
+        warmUserDirectoryForContext($emails);
+    }
+
+    /** @var array $enriched */
+    $enriched = enrichApiValueWithUserNames($payload);
+
+    return $enriched;
+}

@@ -1,3 +1,11 @@
+id: 2026-07-17-api-user-names
+date: 2026-07-17
+title: Gebruikersnamen in API-responses
+author: Tim Falken
+
+API-responses die een gebruikers-e-mailadres bevatten, geven nu ook de bijbehorende **weergavenaam** mee (via de Graph-gebruikerslijst). Bij deelnemerslijsten staat een `participants`-array met e-mail en naam.
+
+---
 id: 2026-07-17-api-docs
 date: 2026-07-17
 title: API-documentatie in Instellingen
