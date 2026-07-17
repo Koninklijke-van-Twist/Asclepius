@@ -133,15 +133,9 @@ if ($store instanceof TicketStore && $showTicketListSection) {
 }
 
 $overviewListView = $isAllTicketsView ? 'all_tickets' : 'overview';
-$ticketListNavigationQuery = buildTicketOverviewNavigationQuery(
-    $statusFilters,
-    $categoryFilters,
-    $assignedFilter,
-    $searchQuery,
+$ticketListNavigationQuery = buildTicketListLocationQuery(
     $overviewListView,
     $isAdminPortal,
-    $statusFilterRequestActive,
-    $categoryFilterRequestActive,
     $openTicketId,
     1
 );

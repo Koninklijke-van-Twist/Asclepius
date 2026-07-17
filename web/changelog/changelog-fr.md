@@ -1,3 +1,11 @@
+id: 2026-07-17-prefs-led-ticket-filters
+date: 2026-07-17
+title: Les filtres restent enregistrés dans votre profil
+author: Tim Falken
+
+Les filtres de tickets (statut, catégorie, assigné, recherche) sont désormais stockés dans vos préférences utilisateur plutôt que dans l'URL. Après l'enregistrement d'un ticket, vos filtres restent. Les filtres n'apparaissent temporairement dans l'URL que lorsque vous les modifiez ; ensuite l'URL est à nouveau nettoyée.
+
+---
 id: 2026-07-17-attachment-open-new-tab
 date: 2026-07-17
 title: Pièces jointes ouvertes dans un nouvel onglet

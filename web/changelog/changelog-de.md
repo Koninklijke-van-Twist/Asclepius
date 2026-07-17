@@ -1,3 +1,11 @@
+id: 2026-07-17-prefs-led-ticket-filters
+date: 2026-07-17
+title: Filter bleiben in Ihrem Profil gespeichert
+author: Tim Falken
+
+Ticketfilter (Status, Kategorie, Bearbeiter, Suche) werden jetzt in Ihren Benutzereinstellungen statt in der URL gespeichert. Nach dem Speichern eines Tickets bleiben Ihre Filter erhalten. Filter erscheinen nur vorübergehend in der URL, wenn Sie sie ändern; danach wird die URL wieder bereinigt.
+
+---
 id: 2026-07-17-attachment-open-new-tab
 date: 2026-07-17
 title: Anhänge öffnen in neuem Tab

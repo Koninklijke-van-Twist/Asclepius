@@ -51,11 +51,11 @@ $currentLang = getCurrentLanguage();
         <a class="nav-link <?= !$isAdminPortal && $view !== 'all_tickets' ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
         <?php if (!$userIsAdmin): ?>
             <a class="nav-link <?= !$isAdminPortal && $view === 'all_tickets' ? 'active' : '' ?>"
-                href="<?= h(buildCurrentPageUrl('index.php', buildTicketOverviewNavigationQueryFromSaved($savedOverviewFilters, 'all_tickets', false))) ?>"><?= h(__('nav.all_tickets')) ?></a>
+                href="index.php?view=all_tickets"><?= h(__('nav.all_tickets')) ?></a>
         <?php endif; ?>
         <?php if ($userIsAdmin): ?>
             <a class="nav-link <?= $isAdminPortal && $view === 'overview' ? 'active' : '' ?>"
-                href="<?= h(buildPageUrl('admin.php', buildTicketOverviewNavigationQueryFromSaved($savedOverviewFilters, 'overview', true))) ?>"><?= h(__('nav.ict_overview')) ?></a>
+                href="admin.php"><?= h(__('nav.ict_overview')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'settings' ? 'active' : '' ?>"
                 href="admin.php?view=settings"><?= h(__('nav.settings')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'stats' ? 'active' : '' ?>"

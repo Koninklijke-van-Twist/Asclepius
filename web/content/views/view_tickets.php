@@ -120,7 +120,11 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
 
                 <div class="filters-toolbar-row">
                     <a class="secondary-button"
-                        href="<?= h(buildCurrentPageUrl($currentPage, array_merge($isAllTicketsView ? ['view' => 'all_tickets'] : [], ['reset_filters' => '1', 'open' => null]), ['_partial', '_tickets_poll', 'reset_filters', 'status_filter_mode', 'status', 'category_filter_mode', 'category', 'assigned', 'search', 'per_page'])) ?>"><?= h(__('filter.reset')) ?></a>
+                        href="<?= h(buildPageUrl($currentPage, array_merge(
+                            $isAllTicketsView ? ['view' => 'all_tickets'] : [],
+                            ['reset_filters' => '1'],
+                            $openTicketId > 0 ? ['open' => $openTicketId] : []
+                        ))) ?>"><?= h(__('filter.reset')) ?></a>
                     <?= renderTicketsPerPageSelectHtml($ticketsPerPage) ?>
                 </div>
             </form>

@@ -1,3 +1,11 @@
+id: 2026-07-17-prefs-led-ticket-filters
+date: 2026-07-17
+title: Filters stay saved in your profile
+author: Tim Falken
+
+Ticket filters (status, category, assignee, search) are now stored in your user preferences instead of the URL. After saving a ticket, your filters remain. Filters only appear temporarily in the URL when you change them; afterwards the URL is cleaned again.
+
+---
 id: 2026-07-17-attachment-open-new-tab
 date: 2026-07-17
 title: Attachments open in a new tab

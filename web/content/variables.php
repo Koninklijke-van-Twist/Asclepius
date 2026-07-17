@@ -138,42 +138,72 @@ if (!isset($_SESSION['csrf_token'])) {
 }
 $csrfToken = (string) $_SESSION['csrf_token'];
 
-$statusFilterRequestActive = $canUseTicketOverviewFilters
-    ? (isset($_GET['status_filter_mode']) || isset($_GET['status'])
-        ? true
-        : $savedOverviewFilters['status_filter_active'])
-    : false;
-$statusFilters = $statusFilterRequestActive
-    ? array_values(array_filter(
-        array_map('trim', (array) ((isset($_GET['status_filter_mode']) || isset($_GET['status'])) ? ($_GET['status'] ?? []) : $savedOverviewFilters['status_filters'])),
-        static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
-    ))
-    : [];
-$effectiveStatusFilters = $statusFilterRequestActive && $statusFilters === [] ? ['__no_matching_status__'] : $statusFilters;
+$statusFilterRequestActive = false;
+$statusFilters = [];
+$effectiveStatusFilters = [];
+$categoryFilterRequestActive = false;
+$categoryFilters = [];
+$effectiveCategoryFilters = [];
+$assignedFilter = '';
+$searchQuery = '';
+$ticketOverviewFilterChangeRequested = $canUseTicketOverviewFilters
+    && ($resetOverviewFilters || hasExplicitTicketFilterQueryParams());
 
-$categoryFilterRequestActive = $canUseTicketOverviewFilters
-    ? (isset($_GET['category_filter_mode']) || isset($_GET['category'])
-        ? true
-        : $savedOverviewFilters['category_filter_active'])
-    : false;
-$categoryFilters = $categoryFilterRequestActive
-    ? array_values(array_filter(
-        array_map('trim', (array) ((isset($_GET['category_filter_mode']) || isset($_GET['category'])) ? ($_GET['category'] ?? []) : $savedOverviewFilters['category_filters'])),
-        static fn(string $category): bool => in_array($category, TICKET_CATEGORIES, true)
-    ))
-    : [];
-$effectiveCategoryFilters = $categoryFilterRequestActive && $categoryFilters === [] ? ['__no_matching_category__'] : $categoryFilters;
+if ($canUseTicketOverviewFilters) {
+    if ($ticketOverviewFilterChangeRequested) {
+        $statusFilterRequestActive = !$resetOverviewFilters
+            && (isset($_GET['status_filter_mode']) || isset($_GET['status']));
+        $statusFilters = $statusFilterRequestActive
+            ? array_values(array_filter(
+                array_map('trim', (array) ($_GET['status'] ?? [])),
+                static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
+            ))
+            : [];
 
-$assignedFilter = $canUseTicketOverviewFilters
-    ? trim((string) (array_key_exists('assigned', $_GET) ? $_GET['assigned'] : $savedOverviewFilters['assigned_filter']))
-    : '';
-$validAssignedFilters = array_merge(['', '__unassigned__'], extractIctUserEmails($ictUsers));
-if (!in_array($assignedFilter, $validAssignedFilters, true)) {
-    $assignedFilter = '';
+        $categoryFilterRequestActive = !$resetOverviewFilters
+            && (isset($_GET['category_filter_mode']) || isset($_GET['category']));
+        $categoryFilters = $categoryFilterRequestActive
+            ? array_values(array_filter(
+                array_map('trim', (array) ($_GET['category'] ?? [])),
+                static fn(string $category): bool => in_array($category, TICKET_CATEGORIES, true)
+            ))
+            : [];
+
+        $assignedFilter = !$resetOverviewFilters && array_key_exists('assigned', $_GET)
+            ? trim((string) $_GET['assigned'])
+            : '';
+        $searchQuery = !$resetOverviewFilters && array_key_exists('search', $_GET)
+            ? trim((string) $_GET['search'])
+            : '';
+    } else {
+        $statusFilterRequestActive = !empty($savedOverviewFilters['status_filter_active']);
+        $statusFilters = $statusFilterRequestActive
+            ? array_values(array_filter(
+                array_map('trim', (array) ($savedOverviewFilters['status_filters'] ?? [])),
+                static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
+            ))
+            : [];
+
+        $categoryFilterRequestActive = !empty($savedOverviewFilters['category_filter_active']);
+        $categoryFilters = $categoryFilterRequestActive
+            ? array_values(array_filter(
+                array_map('trim', (array) ($savedOverviewFilters['category_filters'] ?? [])),
+                static fn(string $category): bool => in_array($category, TICKET_CATEGORIES, true)
+            ))
+            : [];
+
+        $assignedFilter = trim((string) ($savedOverviewFilters['assigned_filter'] ?? ''));
+        $searchQuery = trim((string) ($savedOverviewFilters['search_query'] ?? ''));
+    }
+
+    $effectiveStatusFilters = $statusFilterRequestActive && $statusFilters === [] ? ['__no_matching_status__'] : $statusFilters;
+    $effectiveCategoryFilters = $categoryFilterRequestActive && $categoryFilters === [] ? ['__no_matching_category__'] : $categoryFilters;
+
+    $validAssignedFilters = array_merge(['', '__unassigned__'], extractIctUserEmails($ictUsers));
+    if (!in_array($assignedFilter, $validAssignedFilters, true)) {
+        $assignedFilter = '';
+    }
 }
-$searchQuery = $canUseTicketOverviewFilters
-    ? trim((string) (array_key_exists('search', $_GET) ? $_GET['search'] : $savedOverviewFilters['search_query']))
-    : '';
 if ($canManageTickets) {
     $view = in_array($requestedView, ['settings', 'stats', 'template_tickets', 'email_prefs', 'changelog'], true) ? $requestedView : 'overview';
 } elseif ($isAllTicketsView) {
@@ -186,12 +216,16 @@ $showTicketListSection = ($isAdminPortal && $view === 'overview')
     || $isAllTicketsView
     || (!$isAdminPortal && !$isAllTicketsView);
 $ticketPage = $showTicketListSection ? max(1, (int) ($_GET['page'] ?? 1)) : 1;
+$ticketsPerPageChanged = false;
 
 if ($showTicketListSection && isset($_GET['per_page'])) {
     $normalizedTicketsPerPage = normalizeTicketsPerPage((int) $_GET['per_page']);
     if ($normalizedTicketsPerPage !== resolveTicketsPerPage($userPrefs)) {
         saveUserPref($userEmail, 'tickets_per_page', $normalizedTicketsPerPage);
         $userPrefs['tickets_per_page'] = $normalizedTicketsPerPage;
+        $ticketsPerPageChanged = true;
+    } else {
+        $ticketsPerPageChanged = true;
     }
 }
 
@@ -212,7 +246,7 @@ if ($openTicketId > 0 && $store instanceof TicketStore && isOpenTicketNavigation
     }
 }
 
-if ($canUseTicketOverviewFilters) {
+if ($canUseTicketOverviewFilters && $ticketOverviewFilterChangeRequested) {
     saveUserPref($userEmail, 'ticket_overview_filters', [
         'status_filter_active' => $resetOverviewFilters ? false : $statusFilterRequestActive,
         'status_filters' => $resetOverviewFilters ? [] : $statusFilters,
@@ -221,57 +255,44 @@ if ($canUseTicketOverviewFilters) {
         'assigned_filter' => $resetOverviewFilters ? '' : $assignedFilter,
         'search_query' => $resetOverviewFilters ? '' : $searchQuery,
     ]);
+    $savedOverviewFilters = [
+        'status_filter_active' => $resetOverviewFilters ? false : $statusFilterRequestActive,
+        'status_filters' => $resetOverviewFilters ? [] : $statusFilters,
+        'category_filter_active' => $resetOverviewFilters ? false : $categoryFilterRequestActive,
+        'category_filters' => $resetOverviewFilters ? [] : $categoryFilters,
+        'assigned_filter' => $resetOverviewFilters ? '' : $assignedFilter,
+        'search_query' => $resetOverviewFilters ? '' : $searchQuery,
+    ];
 }
 
 $overviewListView = $isAllTicketsView ? 'all_tickets' : 'overview';
-$ticketListNavigationQuery = buildTicketOverviewNavigationQuery(
-    $statusFilters,
-    $categoryFilters,
-    $assignedFilter,
-    $searchQuery,
-    $overviewListView,
-    $isAdminPortal,
-    $statusFilterRequestActive,
-    $categoryFilterRequestActive,
-    $openTicketId,
-    $ticketPage
-);
 
 if (
     isTicketOverviewListRequest()
     && $showTicketListSection
-    && $canUseTicketOverviewFilters
-    && !$resetOverviewFilters
-    && !hasExplicitTicketFilterQueryParams()
-    && hasActiveTicketOverviewFilters($statusFilterRequestActive, $categoryFilterRequestActive, $assignedFilter, $searchQuery)
     && strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST'
+    && ($ticketOverviewFilterChangeRequested || $ticketsPerPageChanged || $resetOverviewFilters)
 ) {
-    $hydratedQuery = buildTicketOverviewNavigationQuery(
-        $statusFilters,
-        $categoryFilters,
-        $assignedFilter,
-        $searchQuery,
+    // Persist filter/per-page changes in prefs, then continue on a clean location URL.
+    $cleanPage = $ticketOverviewFilterChangeRequested || $resetOverviewFilters ? 1 : $ticketPage;
+    redirectToPage($currentPage, buildTicketListLocationQuery(
         $overviewListView,
         $isAdminPortal,
-        $statusFilterRequestActive,
-        $categoryFilterRequestActive,
         $openTicketId,
-        $ticketPage
-    );
-
-    header('Location: ' . buildCurrentPageUrl($currentPage, $hydratedQuery));
-    exit;
+        $cleanPage
+    ));
 }
 
-$baseQuery = buildNavigationQuery(
-    $statusFilters,
-    $categoryFilters,
-    $assignedFilter,
-    $searchQuery,
+$ticketListNavigationQuery = buildTicketListLocationQuery(
+    $overviewListView,
+    $isAdminPortal,
+    $openTicketId,
+    1
+);
+
+$baseQuery = buildTicketListLocationQuery(
     $view,
     $isAdminPortal,
-    $statusFilterRequestActive,
-    $categoryFilterRequestActive,
     $openTicketId,
     $ticketPage
 );

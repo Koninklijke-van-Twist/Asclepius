@@ -928,6 +928,39 @@ function handleSaveAdminEmailPreferencesApiAction(array $payload, ?array $apiCli
     ];
 }
 
+function handleSaveTicketOverviewSearchApiAction(array $payload, ?array $apiClient): array
+{
+    ensureApiSessionStarted();
+    $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+    $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+    if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+        return [
+            'success' => false,
+            'error' => 'csrf',
+        ];
+    }
+
+    $userEmail = strtolower(trim((string) (
+        $apiClient['email'] ?? ($payload['viewer_email'] ?? ($_SESSION['user']['email'] ?? ''))
+    )));
+    if ($userEmail === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_user',
+        ];
+    }
+
+    $userPrefs = loadUserPrefs($userEmail);
+    $savedFilters = normalizeSavedTicketOverviewFilters($userPrefs);
+    $savedFilters['search_query'] = trim((string) ($payload['search_query'] ?? ''));
+    saveUserPref($userEmail, 'ticket_overview_filters', $savedFilters);
+
+    return [
+        'success' => true,
+        'search_query' => $savedFilters['search_query'],
+    ];
+}
+
 function resolveChangelogApiActor(array $payload, ?array $apiClient): array
 {
     $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
@@ -1372,6 +1405,10 @@ if ($method === 'POST') {
 
     if ($action === 'save_admin_email_preferences') {
         sendJson(200, handleSaveAdminEmailPreferencesApiAction($payload, $apiClient));
+    }
+
+    if ($action === 'save_ticket_overview_search') {
+        sendJson(200, handleSaveTicketOverviewSearchApiAction($payload, $apiClient));
     }
 
     if ($action === 'mark_changelog_read') {

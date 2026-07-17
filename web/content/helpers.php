@@ -146,31 +146,15 @@ function buildRequesterSummary(array $participantEmails, string $fallbackEmail):
 
 function buildNavigationQuery(array $statusFilters, array $categoryFilters, string $assignedFilter, string $searchQuery, string $view, bool $isAdminPortal, bool $statusFilterRequestActive = false, bool $categoryFilterRequestActive = false, int $openTicketId = 0, int $page = 1): array
 {
+    // Filter state lives in user prefs; keep URLs limited to location params.
+    unset($statusFilters, $categoryFilters, $assignedFilter, $searchQuery, $statusFilterRequestActive, $categoryFilterRequestActive);
+
+    return buildTicketListLocationQuery($view, $isAdminPortal, $openTicketId, $page);
+}
+
+function buildTicketListLocationQuery(string $view, bool $isAdminPortal, int $openTicketId = 0, int $page = 1): array
+{
     $query = [];
-
-    if ($statusFilterRequestActive) {
-        $query['status_filter_mode'] = 'manual';
-    }
-
-    if ($statusFilters !== []) {
-        $query['status'] = $statusFilters;
-    }
-
-    if ($categoryFilterRequestActive) {
-        $query['category_filter_mode'] = 'manual';
-    }
-
-    if ($categoryFilters !== []) {
-        $query['category'] = $categoryFilters;
-    }
-
-    if ($assignedFilter !== '') {
-        $query['assigned'] = $assignedFilter;
-    }
-
-    if ($searchQuery !== '') {
-        $query['search'] = $searchQuery;
-    }
 
     if ($isAdminPortal && $view !== 'overview') {
         $query['view'] = $view;
@@ -248,18 +232,9 @@ function buildTicketOverviewNavigationQuery(
 
 function buildTicketOverviewNavigationQueryFromSaved(array $savedOverviewFilters, string $view, bool $isAdminPortal, int $openTicketId = 0, int $page = 1): array
 {
-    return buildTicketOverviewNavigationQuery(
-        is_array($savedOverviewFilters['status_filters'] ?? null) ? $savedOverviewFilters['status_filters'] : [],
-        is_array($savedOverviewFilters['category_filters'] ?? null) ? $savedOverviewFilters['category_filters'] : [],
-        trim((string) ($savedOverviewFilters['assigned_filter'] ?? '')),
-        trim((string) ($savedOverviewFilters['search_query'] ?? '')),
-        $view,
-        $isAdminPortal,
-        !empty($savedOverviewFilters['status_filter_active']),
-        !empty($savedOverviewFilters['category_filter_active']),
-        $openTicketId,
-        $page
-    );
+    unset($savedOverviewFilters);
+
+    return buildTicketListLocationQuery($view, $isAdminPortal, $openTicketId, $page);
 }
 
 /**
@@ -389,19 +364,17 @@ function buildTicketPollPaginationHtml(
     bool $categoryFilterRequestActive,
     int $openTicketId = 0
 ): string {
-    $overviewListView = $view === 'all_tickets' ? 'all_tickets' : 'overview';
-    $baseNavigationQuery = buildTicketOverviewNavigationQuery(
+    unset(
         $statusFilters,
         $categoryFilters,
         $assignedFilter,
         $searchQuery,
-        $overviewListView,
-        $isAdminPortal,
         $statusFilterRequestActive,
-        $categoryFilterRequestActive,
-        $openTicketId,
-        1
+        $categoryFilterRequestActive
     );
+
+    $overviewListView = $view === 'all_tickets' ? 'all_tickets' : 'overview';
+    $baseNavigationQuery = buildTicketListLocationQuery($overviewListView, $isAdminPortal, $openTicketId, 1);
 
     return renderTicketPaginationHtml($currentPage, $ticketPage, $ticketTotalPages, $baseNavigationQuery);
 }

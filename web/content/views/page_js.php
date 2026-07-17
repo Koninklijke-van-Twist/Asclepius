@@ -1442,14 +1442,7 @@
             try
             {
                 var searchUrl = new URL(window.location.href);
-                if (searchValue.trim() !== '')
-                {
-                    searchUrl.searchParams.set('search', searchValue);
-                }
-                else
-                {
-                    searchUrl.searchParams.delete('search');
-                }
+                searchUrl.searchParams.delete('search');
                 searchUrl.searchParams.delete('page');
                 history.replaceState(null, '', searchUrl.toString());
             }
@@ -1457,6 +1450,16 @@
             {
                 // URL update is optional; search refresh should still work.
             }
+
+            apiFetchJson('save_ticket_overview_search', {
+                csrf_token: csrfToken,
+                search_query: searchValue,
+                viewer_email: ticketPollPayload.viewer_email || '',
+                user_is_admin: !!ticketPollPayload.user_is_admin
+            }).catch(function ()
+            {
+                // Preference persistence is best-effort; live results still refresh.
+            });
 
             if (ticketSearchRefreshInFlight)
             {

@@ -1,3 +1,11 @@
+id: 2026-07-17-prefs-led-ticket-filters
+date: 2026-07-17
+title: Filters blijven bewaard in je profiel
+author: Tim Falken
+
+Ticketfilters (status, categorie, behandelaar, zoekterm) worden nu bijgehouden in je gebruikersvoorkeuren in plaats van in de URL. Na het opslaan van een ticket blijven je filters staan. Filters verschijnen alleen tijdelijk in de URL wanneer je ze aanpast; daarna wordt de URL weer schoon.
+
+---
 id: 2026-07-17-attachment-open-new-tab
 date: 2026-07-17
 title: Bijlagen openen in nieuw tabblad
