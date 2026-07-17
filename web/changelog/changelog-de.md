@@ -1,3 +1,11 @@
+id: 2026-07-17-attachment-open-new-tab
+date: 2026-07-17
+title: Anhänge öffnen in neuem Tab
+author: Tim Falken
+
+Ein Klick auf einen Anhangsnamen öffnet die Datei jetzt in einem **neuen Tab**. Die Ticketseite bleibt geöffnet. Modal-Vorschauen sind unverändert.
+
+---
 id: 2026-07-14-tickets-per-page-preference
 date: 2026-07-14
 title: Tickets pro Seite einstellbar

@@ -824,7 +824,7 @@ function renderMessageInlineAttachmentHtml(array $attachment): string
             </div>
         <?php endif; ?>
         <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link message-inline-attachment-link"
-            <?= $downloadUrl !== '' ? 'download' : '' ?>>
+            <?= $downloadUrl !== '' ? 'download target="_blank" rel="noopener noreferrer"' : '' ?>>
             <?= h($originalName) ?>
         </a>
     </div>
@@ -915,7 +915,7 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
                             </button>
                         <?php endif; ?>
                         <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link"
-                            <?= $downloadUrl !== '' ? '' : 'aria-disabled="true"' ?>>
+                            <?= $downloadUrl !== '' ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"' ?>>
                             <?= h((string) ($attachment['original_name'] ?? '')) ?>
                         </a>
                         <span class="attachment-size">(<?= formatFileSize(max(0, (int) ($attachment['file_size'] ?? 0))) ?>)</span>

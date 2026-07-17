@@ -1,3 +1,11 @@
+id: 2026-07-17-attachment-open-new-tab
+date: 2026-07-17
+title: Attachments open in a new tab
+author: Tim Falken
+
+Clicking an attachment name now opens the file in a **new tab**. The ticket page stays open. Modal previews are unchanged.
+
+---
 id: 2026-07-14-tickets-per-page-preference
 date: 2026-07-14
 title: Configurable tickets per page

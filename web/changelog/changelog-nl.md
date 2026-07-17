@@ -1,3 +1,11 @@
+id: 2026-07-17-attachment-open-new-tab
+date: 2026-07-17
+title: Bijlagen openen in nieuw tabblad
+author: Tim Falken
+
+Als je op een bijlagenaam klikt, opent het bestand nu in een **nieuw tabblad**. De ticketpagina blijft openstaan. Voorbeeldweergaven in de modal zijn hierdoor niet veranderd.
+
+---
 id: 2026-07-14-tickets-per-page-preference
 date: 2026-07-14
 title: Tickets per pagina instelbaar

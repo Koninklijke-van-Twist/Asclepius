@@ -1,3 +1,11 @@
+id: 2026-07-17-attachment-open-new-tab
+date: 2026-07-17
+title: Pièces jointes ouvertes dans un nouvel onglet
+author: Tim Falken
+
+Un clic sur le nom d'une pièce jointe ouvre désormais le fichier dans un **nouvel onglet**. La page du ticket reste ouverte. Les aperçus dans la modal restent inchangés.
+
+---
 id: 2026-07-14-tickets-per-page-preference
 date: 2026-07-14
 title: Nombre de tickets par page configurable
