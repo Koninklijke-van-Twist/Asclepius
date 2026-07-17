@@ -3,6 +3,7 @@
     $apiDocsMarkdown = loadApiDocsMarkdown();
     $apiDocsHtml = $apiDocsMarkdown !== '' ? formatApiDocsHtml($apiDocsMarkdown) : '';
     ?>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <section class="panel api-docs-panel">
         <div class="api-docs-toolbar">
             <div>
@@ -20,4 +21,19 @@
             </div>
         <?php endif; ?>
     </section>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+        (function ()
+        {
+            if (typeof hljs === 'undefined')
+            {
+                return;
+            }
+
+            document.querySelectorAll('.api-docs-body pre.api-docs-code code').forEach(function (block)
+            {
+                hljs.highlightElement(block);
+            });
+        }());
+    </script>
 <?php endif; ?>

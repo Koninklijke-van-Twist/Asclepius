@@ -22,34 +22,43 @@ function formatApiDocsHtml(string $markdown): string
         return '';
     }
 
-    $parts = preg_split('/^```([a-zA-Z0-9_-]*)\s*$/m', $normalized, -1, PREG_SPLIT_DELIM_CAPTURE);
-    if (!is_array($parts) || $parts === []) {
-        return formatChangelogBodyHtml($normalized);
-    }
-
     $htmlParts = [];
-    $index = 0;
-    $partCount = count($parts);
+    $offset = 0;
+    $length = strlen($normalized);
 
-    while ($index < $partCount) {
-        $chunk = (string) ($parts[$index] ?? '');
-        if ($chunk !== '') {
-            $htmlParts[] = formatChangelogBodyHtml($chunk);
+    while (
+        preg_match(
+            '/^```([a-zA-Z0-9_-]*)[ \t]*\n([\s\S]*?)^```[ \t]*$/m',
+            $normalized,
+            $match,
+            PREG_OFFSET_CAPTURE,
+            $offset
+        ) === 1
+    ) {
+        $matchStart = (int) $match[0][1];
+        $matchText = (string) $match[0][0];
+
+        if ($matchStart > $offset) {
+            $before = substr($normalized, $offset, $matchStart - $offset);
+            if (trim($before) !== '') {
+                $htmlParts[] = formatChangelogBodyHtml($before);
+            }
         }
 
-        $index++;
-        if ($index >= $partCount) {
-            break;
-        }
-
-        $language = trim((string) ($parts[$index] ?? ''));
-        $index++;
-        $code = (string) ($parts[$index] ?? '');
-        $index++;
-
+        $language = trim((string) $match[1][0]);
+        $code = rtrim((string) $match[2][0], "\n");
         $htmlParts[] = '<pre class="api-docs-code"><code'
             . ($language !== '' ? ' class="language-' . h($language) . '"' : '')
-            . '>' . h(rtrim($code, "\n")) . '</code></pre>';
+            . '>' . h($code) . '</code></pre>';
+
+        $offset = $matchStart + strlen($matchText);
+    }
+
+    if ($offset < $length) {
+        $after = substr($normalized, $offset);
+        if (trim((string) $after) !== '') {
+            $htmlParts[] = formatChangelogBodyHtml((string) $after);
+        }
     }
 
     return implode('', $htmlParts);

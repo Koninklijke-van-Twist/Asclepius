@@ -587,23 +587,6 @@
             gap: 8px;
         }
 
-        .api-docs-code {
-            margin: 4px 0 12px;
-            padding: 12px 14px;
-            overflow-x: auto;
-            border-radius: 12px;
-            border: 1px solid var(--line);
-            background: #0f172a;
-            color: #e2e8f0;
-            font-size: 0.92rem;
-            line-height: 1.45;
-        }
-
-        .api-docs-code code {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-            white-space: pre;
-        }
-
         button,
         .secondary-button {
             border: 0;
@@ -1814,6 +1797,33 @@
             background: #eef2f7;
             border-radius: 4px;
             padding: 1px 5px;
+        }
+
+        .api-docs-body .api-docs-code,
+        .api-docs-body.changelog-entry-body .api-docs-code {
+            margin: 4px 0 12px;
+            padding: 0;
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid #1e293b;
+            background: #282c34;
+            font-size: 0.92rem;
+            line-height: 1.45;
+        }
+
+        .api-docs-body .api-docs-code code,
+        .api-docs-body.changelog-entry-body .api-docs-code code {
+            display: block;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            white-space: pre;
+            background: transparent !important;
+            padding: 12px 14px !important;
+            border-radius: 0;
+            font-size: inherit;
+        }
+
+        .api-docs-body .api-docs-code code.hljs {
+            background: transparent;
         }
 
         .changelog-entry-body a {
