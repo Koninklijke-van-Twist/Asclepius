@@ -1,3 +1,11 @@
+id: 2026-07-17-api-docs
+date: 2026-07-17
+title: API-Dokumentation in den Einstellungen
+author: Tim Falken
+
+Unten in den **Einstellungen** gibt es eine Schaltfläche **API**. Darüber öffnen Sie die Asclepius-API-Dokumentation (Authentifizierung, Endpunkte und Beispiele) in der Anwendung.
+
+---
 id: 2026-07-17-prefs-led-ticket-filters
 date: 2026-07-17
 title: Filter bleiben in Ihrem Profil gespeichert

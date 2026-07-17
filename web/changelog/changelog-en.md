@@ -1,3 +1,11 @@
+id: 2026-07-17-api-docs
+date: 2026-07-17
+title: API documentation in Settings
+author: Tim Falken
+
+At the bottom of **Settings** there is an **API** button. It opens the Asclepius API documentation (authentication, endpoints, and examples) inside the app.
+
+---
 id: 2026-07-17-prefs-led-ticket-filters
 date: 2026-07-17
 title: Filters stay saved in your profile

@@ -56,7 +56,7 @@ $currentLang = getCurrentLanguage();
         <?php if ($userIsAdmin): ?>
             <a class="nav-link <?= $isAdminPortal && $view === 'overview' ? 'active' : '' ?>"
                 href="admin.php"><?= h(__('nav.ict_overview')) ?></a>
-            <a class="nav-link <?= $isAdminPortal && $view === 'settings' ? 'active' : '' ?>"
+            <a class="nav-link <?= $isAdminPortal && in_array($view, ['settings', 'api'], true) ? 'active' : '' ?>"
                 href="admin.php?view=settings"><?= h(__('nav.settings')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'stats' ? 'active' : '' ?>"
                 href="admin.php?view=stats"><?= h(__('nav.ict_stats')) ?></a>

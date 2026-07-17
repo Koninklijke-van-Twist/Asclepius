@@ -9,6 +9,7 @@ require_once __DIR__ . '/content/LaraTranslationProvider.php';
 require_once __DIR__ . '/content/translation.php';
 require_once __DIR__ . '/content/mail.php';
 require_once __DIR__ . '/content/changelog.php';
+require_once __DIR__ . '/content/api_docs.php';
 require_once __DIR__ . '/content/variables.php';
 require_once __DIR__ . '/content/actions.php';
 require_once __DIR__ . '/content/data.php';
@@ -62,6 +63,8 @@ $apiUrl = 'api.php';
             <?php require __DIR__ . '/content/views/view_new_ticket.php'; ?>
 
             <?php require __DIR__ . '/content/views/view_settings.php'; ?>
+
+            <?php require __DIR__ . '/content/views/view_api.php'; ?>
 
             <?php require __DIR__ . '/content/views/view_stats.php'; ?>
 

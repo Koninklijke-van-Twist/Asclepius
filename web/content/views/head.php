@@ -564,6 +564,46 @@
             margin-top: 8px;
         }
 
+        .settings-actions-row {
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .settings-api-docs-button {
+            margin-left: auto;
+        }
+
+        .api-docs-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .api-docs-body {
+            display: grid;
+            gap: 8px;
+        }
+
+        .api-docs-code {
+            margin: 4px 0 12px;
+            padding: 12px 14px;
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 0.92rem;
+            line-height: 1.45;
+        }
+
+        .api-docs-code code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            white-space: pre;
+        }
+
         button,
         .secondary-button {
             border: 0;

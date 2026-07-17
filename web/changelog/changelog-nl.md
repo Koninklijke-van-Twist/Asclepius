@@ -1,3 +1,11 @@
+id: 2026-07-17-api-docs
+date: 2026-07-17
+title: API-documentatie in Instellingen
+author: Tim Falken
+
+Onderin **Instellingen** staat een knop **API**. Daarmee open je de Asclepius API-documentatie (authenticatie, endpoints en voorbeelden) in de applicatie.
+
+---
 id: 2026-07-17-prefs-led-ticket-filters
 date: 2026-07-17
 title: Filters blijven bewaard in je profiel

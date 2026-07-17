@@ -1,3 +1,11 @@
+id: 2026-07-17-api-docs
+date: 2026-07-17
+title: Documentation API dans Paramètres
+author: Tim Falken
+
+En bas des **Paramètres**, un bouton **API** ouvre la documentation de l'API Asclepius (authentification, points d'accès et exemples) dans l'application.
+
+---
 id: 2026-07-17-prefs-led-ticket-filters
 date: 2026-07-17
 title: Les filtres restent enregistrés dans votre profil
