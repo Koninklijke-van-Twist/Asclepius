@@ -1,3 +1,11 @@
+id: 2026-07-21-exact-ticket-number-search
+date: 2026-07-21
+title: Ticketnummersuche ignoriert Filter
+author: Tim Falken
+
+Wenn du in der Suchleiste eine **Ticketnummer** eingibst (zum Beispiel `42` oder `#42`), erscheint dieses Ticket immer in den Ergebnissen — auch wenn es nicht zu den aktiven Status-, Kategorie- oder Bearbeiterfiltern passt.
+
+---
 id: 2026-07-17-api-user-names
 date: 2026-07-17
 title: Benutzernamen in API-Antworten

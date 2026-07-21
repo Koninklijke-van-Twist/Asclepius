@@ -1,3 +1,11 @@
+id: 2026-07-21-exact-ticket-number-search
+date: 2026-07-21
+title: Ticketnummer zoeken negeert filters
+author: Tim Falken
+
+Als je in de zoekbalk een **ticketnummer** typt (bijvoorbeeld `42` of `#42`), verschijnt dat ticket altijd in de resultaten — ook als het niet overeenkomt met de actieve status-, categorie- of behandelaarfilters.
+
+---
 id: 2026-07-17-api-user-names
 date: 2026-07-17
 title: Gebruikersnamen in API-responses

@@ -1025,18 +1025,54 @@ class TicketStore
     /**
      * @return array{conditions: list<string>, parameters: array<string, mixed>, adminList: bool, allCompletedPublic: bool}
      */
+    /**
+     * Extract ticket IDs that the search query names exactly (e.g. "42", "#42").
+     *
+     * @return list<int>
+     */
+    private function extractExactTicketIdsFromSearch(?string $searchQuery): array
+    {
+        $searchQuery = trim((string) ($searchQuery ?? ''));
+        if ($searchQuery === '') {
+            return [];
+        }
+
+        $ids = [];
+        $candidates = preg_split('/\s+/u', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $candidates[] = $searchQuery;
+
+        foreach ($candidates as $candidate) {
+            $candidate = trim((string) $candidate);
+            if ($candidate === '') {
+                continue;
+            }
+            if (preg_match('/^#?(\d+)$/u', $candidate, $matches) !== 1) {
+                continue;
+            }
+            $ticketId = (int) ($matches[1] ?? 0);
+            if ($ticketId > 0) {
+                $ids[$ticketId] = $ticketId;
+            }
+        }
+
+        return array_values($ids);
+    }
+
     private function buildTicketListFilters(bool $isAdmin, string $userEmail, array $statusFilters, ?string $assignedFilter, array $categoryFilters, ?string $searchQuery, string $browseMode): array
     {
-        $conditions = [];
+        $accessConditions = [];
+        $listConditions = [];
         $parameters = [];
         $allCompletedPublic = $browseMode === 'all_completed_public';
         $adminList = $isAdmin && !$allCompletedPublic;
+        $searchEnabled = $adminList || $allCompletedPublic;
+        $exactTicketIds = $searchEnabled ? $this->extractExactTicketIdsFromSearch($searchQuery) : [];
 
         if ($allCompletedPublic) {
-            $conditions[] = "t.status = 'afgehandeld'";
-            $conditions[] = 'COALESCE(t.is_private, 0) = 0';
+            $accessConditions[] = "t.status = 'afgehandeld'";
+            $accessConditions[] = 'COALESCE(t.is_private, 0) = 0';
         } elseif (!$isAdmin) {
-            $conditions[] = 'EXISTS (
+            $accessConditions[] = 'EXISTS (
                 SELECT 1
                 FROM ticket_participants tp
                 WHERE tp.ticket_id = t.id
@@ -1052,14 +1088,14 @@ class TicketStore
                 $statusPlaceholders[] = $placeholder;
                 $parameters[$placeholder] = $status;
             }
-            $conditions[] = 't.status IN (' . implode(', ', $statusPlaceholders) . ')';
+            $listConditions[] = 't.status IN (' . implode(', ', $statusPlaceholders) . ')';
         }
 
         if (($adminList || $allCompletedPublic) && $assignedFilter !== null && $assignedFilter !== '') {
             if ($assignedFilter === '__unassigned__') {
-                $conditions[] = '(t.assigned_email IS NULL OR t.assigned_email = "")';
+                $listConditions[] = '(t.assigned_email IS NULL OR t.assigned_email = "")';
             } else {
-                $conditions[] = 't.assigned_email = :assigned_email';
+                $listConditions[] = 't.assigned_email = :assigned_email';
                 $parameters[':assigned_email'] = strtolower(trim($assignedFilter));
             }
         }
@@ -1071,10 +1107,10 @@ class TicketStore
                 $categoryPlaceholders[] = $placeholder;
                 $parameters[$placeholder] = $category;
             }
-            $conditions[] = 't.category IN (' . implode(', ', $categoryPlaceholders) . ')';
+            $listConditions[] = 't.category IN (' . implode(', ', $categoryPlaceholders) . ')';
         }
 
-        if ($adminList || $allCompletedPublic) {
+        if ($searchEnabled) {
             $searchQuery = trim((string) ($searchQuery ?? ''));
             if ($searchQuery !== '') {
                 $searchTerms = preg_split('/\s+/u', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
@@ -1124,9 +1160,31 @@ class TicketStore
                         )";
                     }
 
-                    $conditions[] = implode(' AND ', $searchConditions);
+                    $listConditions[] = implode(' AND ', $searchConditions);
                 }
             }
+        }
+
+        $filteredConditions = array_merge($accessConditions, $listConditions);
+        $conditions = $filteredConditions;
+
+        // Exact ticket-number matches always surface, ignoring status/assignee/category filters.
+        // Admins may jump to any ticket by ID; other viewers still keep access restrictions.
+        if ($exactTicketIds !== []) {
+            $exactPlaceholders = [];
+            foreach ($exactTicketIds as $index => $ticketId) {
+                $placeholder = ':exact_ticket_id_' . $index;
+                $exactPlaceholders[] = $placeholder;
+                $parameters[$placeholder] = $ticketId;
+            }
+            $exactMatchCondition = 't.id IN (' . implode(', ', $exactPlaceholders) . ')';
+            $exactBranchConditions = $isAdmin
+                ? [$exactMatchCondition]
+                : array_merge($accessConditions, [$exactMatchCondition]);
+
+            $filteredSql = $filteredConditions === [] ? '1=1' : implode(' AND ', $filteredConditions);
+            $exactSql = implode(' AND ', $exactBranchConditions);
+            $conditions = ['((' . $filteredSql . ') OR (' . $exactSql . '))'];
         }
 
         return [

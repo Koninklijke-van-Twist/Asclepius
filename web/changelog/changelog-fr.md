@@ -1,3 +1,11 @@
+id: 2026-07-21-exact-ticket-number-search
+date: 2026-07-21
+title: Recherche par numéro de ticket ignore les filtres
+author: Tim Falken
+
+Lorsque vous saisissez un **numéro de ticket** dans la barre de recherche (par exemple `42` ou `#42`), ce ticket apparaît toujours dans les résultats — même s'il ne correspond pas aux filtres actifs de statut, catégorie ou intervenant.
+
+---
 id: 2026-07-17-api-user-names
 date: 2026-07-17
 title: Noms d'utilisateur dans les réponses API

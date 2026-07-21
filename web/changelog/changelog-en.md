@@ -1,3 +1,11 @@
+id: 2026-07-21-exact-ticket-number-search
+date: 2026-07-21
+title: Ticket number search ignores filters
+author: Tim Falken
+
+When you type a **ticket number** in the search box (for example `42` or `#42`), that ticket always appears in the results — even if it does not match the active status, category, or assignee filters.
+
+---
 id: 2026-07-17-api-user-names
 date: 2026-07-17
 title: User names in API responses
