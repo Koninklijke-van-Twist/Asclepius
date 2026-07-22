@@ -16,6 +16,8 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
         'view' => $view,
         'viewerEmail' => $userEmail,
         'isReadOnlyTicket' => $isAllTicketsView,
+        'activeCustomStatuses' => $activeCustomStatuses ?? [],
+        'recentCustomStatuses' => $recentCustomStatuses ?? [],
     ];
     $ticketPollPayload = [
         'current_page' => $currentPage,
@@ -71,10 +73,32 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                     <div>
                         <label><?= h(__('filter.status_label')) ?></label>
                         <div class="checkbox-group">
-                            <?php foreach (TICKET_STATUSES as $status): ?>
-                                <?php $statusSelected = isStatusFilterSelected($status, $statusFilters, $statusFilterRequestActive); ?>
+                            <?php
+                            $statusFilterOptions = array_merge(TICKET_STATUSES, $activeCustomStatusLabels ?? []);
+                            $customStatusCreatorByLabel = [];
+                            foreach (($activeCustomStatuses ?? []) as $customStatusRow) {
+                                $label = (string) ($customStatusRow['display_label'] ?? '');
+                                if ($label !== '') {
+                                    $customStatusCreatorByLabel[$label] = strtolower(trim((string) ($customStatusRow['created_by_email'] ?? '')));
+                                }
+                            }
+                            if ($customStatusCreatorByLabel !== []) {
+                                warmUserDirectoryForContext(array_values($customStatusCreatorByLabel));
+                            }
+                            foreach ($statusFilterOptions as $status):
+                                $statusSelected = isStatusFilterSelected($status, $statusFilters, $statusFilterRequestActive);
+                                $isCustomStatus = !in_array($status, TICKET_STATUSES, true);
+                                $creatorEmail = $isCustomStatus ? (string) ($customStatusCreatorByLabel[$status] ?? '') : '';
+                                $creatorTooltip = '';
+                                if ($isCustomStatus) {
+                                    $creatorTooltip = $creatorEmail !== ''
+                                        ? __('filter.custom_status_created_by', formatUserDisplayName($creatorEmail))
+                                        : __('filter.custom_status_created_by_unknown');
+                                }
+                                ?>
                                 <label class="checkbox-chip <?= $statusSelected ? 'is-active' : 'is-inactive' ?>"
-                                    style="--status-color: <?= h(getStatusColor($status)) ?>;">
+                                    style="--status-color: <?= h(getStatusColor($status)) ?>;"
+                                    <?php if ($creatorTooltip !== ''): ?>title="<?= h($creatorTooltip) ?>"<?php endif; ?>>
                                     <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
                                     <span><?= h(translateStatus($status)) ?></span>
                                 </label>

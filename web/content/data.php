@@ -436,6 +436,8 @@ if (isset($_GET['_tickets_poll'])) {
         'view' => $view,
         'isReadOnlyTicket' => $isAllTicketsView,
         'viewerEmail' => $userEmail,
+        'activeCustomStatuses' => $activeCustomStatuses ?? [],
+        'recentCustomStatuses' => $recentCustomStatuses ?? [],
     ];
     echo json_encode([
         'success' => true,

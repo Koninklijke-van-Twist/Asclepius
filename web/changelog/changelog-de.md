@@ -1,3 +1,11 @@
+id: 2026-07-22-custom-ticket-statuses
+date: 2026-07-22
+title: Eigene Ticketstatusse
+author: Tim Falken
+
+Als ICT-Admin kannst du beim Ändern eines Ticketstatus auf **Sonstiges** klicken und einen eigenen Statusnamen eingeben. Dieser Status erscheint in der Statusauswahl und in den Filterchips, solange Tickets ihn verwenden. Ein Filter für einen von dir erstellten Status ist standardmäßig aktiv. Beim Hover über einen eigenen Filterchip siehst du, wer ihn erstellt hat. Unterschiedliche Groß-/Kleinschreibung wird zusammengeführt, und die Farbe ergibt sich aus dem Namen.
+
+---
 id: 2026-07-21-exact-ticket-number-search
 date: 2026-07-21
 title: Ticketnummersuche ignoriert Filter

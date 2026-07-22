@@ -257,7 +257,10 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     ));
     $statusFiltersSelected = array_values(array_filter(
         array_map('trim', (array) ($payload['status_filters_selected'] ?? [])),
-        static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
+        static fn(string $status): bool => isAllowedTicketStatusValue(
+            $status,
+            $store->getActiveCustomStatusLabels()
+        )
     ));
     $categoryFilters = array_values(array_filter(
         array_map('trim', (array) ($payload['category_filters'] ?? [])),
@@ -315,6 +318,8 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         'view' => $view,
         'isReadOnlyTicket' => $browseMode === 'all_completed_public',
         'viewerEmail' => $viewerEmail,
+        'activeCustomStatuses' => $store->getActiveCustomStatuses(),
+        'recentCustomStatuses' => $canManageTickets ? getRecentCustomStatusesForUser($viewerEmail) : [],
     ];
 
     $isAllTicketsView = $browseMode === 'all_completed_public';
@@ -952,7 +957,15 @@ function handleSaveTicketOverviewSearchApiAction(array $payload, ?array $apiClie
     }
 
     $userPrefs = loadUserPrefs($userEmail);
-    $savedFilters = normalizeSavedTicketOverviewFilters($userPrefs);
+    $activeCustomLabels = [];
+    try {
+        global $ictUsers;
+        $store = new TicketStore(DATABASE_FILE, UPLOAD_DIRECTORY, is_array($ictUsers) ? $ictUsers : [], TICKET_CATEGORIES);
+        $activeCustomLabels = $store->getActiveCustomStatusLabels();
+    } catch (Throwable) {
+        $activeCustomLabels = [];
+    }
+    $savedFilters = normalizeSavedTicketOverviewFilters($userPrefs, $activeCustomLabels);
     $savedFilters['search_query'] = trim((string) ($payload['search_query'] ?? ''));
     saveUserPref($userEmail, 'ticket_overview_filters', $savedFilters);
 

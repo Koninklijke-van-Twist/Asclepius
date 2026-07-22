@@ -34,6 +34,8 @@ Antwoorden zijn JSON met UTF-8.
 
 Waar een gebruikers-e-mail in de response staat (`user_email`, `assigned_email`, `sender_email`, enz.), bevat het antwoord ook de bijbehorende weergavenaam (`user_name`, `assigned_name`, `sender_name`, …) op basis van de Microsoft Graph-gebruikerslijst. Bij `participant_emails` staat daarnaast een `participants`-array met objecten `{ "email", "name" }`.
 
+Het veld `status` kan een vaste status zijn (`ingediend`, `in behandeling`, …) of een **eigen status** die in de ICT-omgeving is aangemaakt. Eigen statussen worden als vrije tekst teruggegeven (zonder aparte vertaalsleutel).
+
 ## GET — tickets ophalen
 
 ### Alle tickets

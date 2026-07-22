@@ -2318,6 +2318,44 @@
             border-radius: 8px;
         }
 
+        .status-select-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-select-row select {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .status-select-row .secondary-button {
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+
+        .custom-status-recent {
+            margin-top: 8px;
+        }
+
+        .custom-status-recent-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .custom-status-recent-chip {
+            font-size: 13px;
+        }
+
+        [data-role="custom-status-feedback"] {
+            min-height: 1.2em;
+        }
+
+        [data-role="custom-status-feedback"].is-error {
+            color: #b91c1c;
+        }
+
         .participant-chip-list {
             display: flex;
             flex-wrap: wrap;

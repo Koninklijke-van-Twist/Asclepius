@@ -389,11 +389,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
             if ($canManageTickets) {
                 $requestedStatus = trim((string) ($_POST['status'] ?? $ticket['status']));
-                if (!in_array($requestedStatus, TICKET_STATUSES, true)) {
+                $resolvedStatus = resolveTicketStatusValue($requestedStatus, $store, $userEmail);
+                if ($resolvedStatus === null) {
                     $errors[] = __('flash.invalid_status');
                 } else {
-                    $newStatus = $requestedStatus;
+                    $newStatus = $resolvedStatus;
                     $statusChanged = $newStatus !== (string) $ticket['status'];
+                    if ($statusChanged && matchBuiltInTicketStatus($newStatus) === null) {
+                        pushRecentCustomStatusForUser($userEmail, $newStatus);
+                        $prefs = loadUserPrefs($userEmail);
+                        $overview = normalizeSavedTicketOverviewFilters(
+                            $prefs,
+                            $store->getActiveCustomStatusLabels()
+                        );
+                        // Ensure the new status is treated as "seen" and enabled if filters are active.
+                        $activeForDefault = [[
+                            'display_label' => $newStatus,
+                            'created_by_email' => strtolower(trim($userEmail)),
+                        ]];
+                        $overview['status_filters'] = applyDefaultEnabledOwnCustomStatusFilters(
+                            $userEmail,
+                            $activeForDefault,
+                            !empty($overview['status_filter_active']),
+                            array_values(array_filter(
+                                array_map('trim', (array) ($overview['status_filters'] ?? [])),
+                                static fn(string $status): bool => $status !== ''
+                            ))
+                        );
+                    }
                 }
 
                 $requestedAssignee = strtolower(trim((string) ($_POST['assigned_email'] ?? (string) ($ticket['assigned_email'] ?? ''))));

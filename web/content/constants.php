@@ -34,6 +34,7 @@ const TICKET_STATUSES = [
     'afwachtende op derde partij',
     'afgehandeld',
 ];
+const CUSTOM_TICKET_STATUS_MAX_LENGTH = 40;
 const STATUS_COLORS = [
     'ingediend' => '#2563eb',
     'in behandeling' => '#d97706',

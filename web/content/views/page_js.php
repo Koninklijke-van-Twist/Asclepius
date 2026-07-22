@@ -1780,6 +1780,86 @@
                 return;
             }
 
+            var openCustomStatusButton = event.target.closest('[data-role="custom-status-open"]');
+            if (openCustomStatusButton)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+                var customStatusCard = openCustomStatusButton.closest('details.ticket-card');
+                var customStatusModal = customStatusCard ? customStatusCard.querySelector('[data-role="ticket-custom-status-modal"]') : null;
+                if (customStatusModal)
+                {
+                    var customStatusInput = customStatusModal.querySelector('[data-role="custom-status-input"]');
+                    if (customStatusInput)
+                    {
+                        customStatusInput.value = '';
+                    }
+                    setCustomStatusFeedback(customStatusCard, '', false);
+                    customStatusModal.hidden = false;
+                    customStatusModal.classList.add('is-open');
+                    document.documentElement.style.overflow = 'hidden';
+                    if (customStatusInput)
+                    {
+                        customStatusInput.focus();
+                    }
+                }
+                return;
+            }
+
+            var customStatusRecentPick = event.target.closest('[data-role="custom-status-recent-pick"]');
+            if (customStatusRecentPick)
+            {
+                event.preventDefault();
+                var recentCard = customStatusRecentPick.closest('details.ticket-card');
+                var recentModal = recentCard ? recentCard.querySelector('[data-role="ticket-custom-status-modal"]') : null;
+                var recentInput = recentModal ? recentModal.querySelector('[data-role="custom-status-input"]') : null;
+                if (recentInput)
+                {
+                    recentInput.value = customStatusRecentPick.getAttribute('data-status') || '';
+                    recentInput.focus();
+                }
+                return;
+            }
+
+            var closeCustomStatusButton = event.target.closest('[data-role="custom-status-close"], [data-role="custom-status-cancel"]');
+            if (closeCustomStatusButton)
+            {
+                event.preventDefault();
+                closeCustomStatusModal(closeCustomStatusButton.closest('details.ticket-card'));
+                return;
+            }
+
+            if (event.target.matches('[data-role="ticket-custom-status-modal"]'))
+            {
+                event.preventDefault();
+                closeCustomStatusModal(event.target.closest('details.ticket-card'));
+                return;
+            }
+
+            var saveCustomStatusButton = event.target.closest('[data-role="custom-status-save"]');
+            if (saveCustomStatusButton)
+            {
+                event.preventDefault();
+                var applyCard = saveCustomStatusButton.closest('details.ticket-card');
+                var applyModal = applyCard ? applyCard.querySelector('[data-role="ticket-custom-status-modal"]') : null;
+                var applyInput = applyModal ? applyModal.querySelector('[data-role="custom-status-input"]') : null;
+                if (!applyCard || !applyInput)
+                {
+                    return;
+                }
+
+                var sanitizedStatus = sanitizeCustomStatusClient(applyInput.value || '');
+                if (!sanitizedStatus)
+                {
+                    setCustomStatusFeedback(applyCard, '<?= addslashes(__('flash.invalid_status')) ?>', true);
+                    return;
+                }
+
+                applyCustomStatusToSelect(applyCard, sanitizedStatus);
+                closeCustomStatusModal(applyCard);
+                return;
+            }
+
             if (event.target.matches('[data-role="ticket-participants-modal"]'))
             {
                 event.preventDefault();
@@ -1864,9 +1944,21 @@
 
         document.addEventListener('keydown', function (event)
         {
+            if (event.key === 'Enter' && event.target && event.target.matches('[data-role="custom-status-input"]'))
+            {
+                event.preventDefault();
+                var enterCard = event.target.closest('details.ticket-card');
+                var enterSave = enterCard ? enterCard.querySelector('[data-role="custom-status-save"]') : null;
+                if (enterSave)
+                {
+                    enterSave.click();
+                }
+                return;
+            }
+
             if (event.key === 'Escape')
             {
-                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-share-modal"].is-open').forEach(function (modal)
+                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-custom-status-modal"].is-open, [data-role="ticket-share-modal"].is-open, [data-role="ticket-title-modal"].is-open').forEach(function (modal)
                 {
                     modal.hidden = true;
                     modal.classList.remove('is-open');
@@ -2495,6 +2587,99 @@
             feedbackNode.textContent = String(message || '');
             feedbackNode.classList.toggle('is-error', !!isError);
             feedbackNode.classList.toggle('is-success', !isError && String(message || '') !== '');
+        };
+
+        var setCustomStatusFeedback = function (ticketCard, message, isError)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var feedbackNode = ticketCard.querySelector('[data-role="custom-status-feedback"]');
+            if (!feedbackNode)
+            {
+                return;
+            }
+
+            feedbackNode.textContent = String(message || '');
+            feedbackNode.classList.toggle('is-error', !!isError);
+        };
+
+        var sanitizeCustomStatusClient = function (rawValue)
+        {
+            var value = String(rawValue || '').trim();
+            if (!value)
+            {
+                return '';
+            }
+
+            value = value.replace(/[^\p{L}\p{N}\s'\-]/gu, '');
+            value = value.replace(/\s+/g, ' ').trim();
+            if (!value)
+            {
+                return '';
+            }
+
+            if (value.length > <?= (int) CUSTOM_TICKET_STATUS_MAX_LENGTH ?>)
+            {
+                value = value.slice(0, <?= (int) CUSTOM_TICKET_STATUS_MAX_LENGTH ?>).trim();
+            }
+
+            return value;
+        };
+
+        var applyCustomStatusToSelect = function (ticketCard, statusValue)
+        {
+            if (!ticketCard || !statusValue)
+            {
+                return;
+            }
+
+            var statusSelect = ticketCard.querySelector('[data-role="status-select"]');
+            if (!statusSelect)
+            {
+                return;
+            }
+
+            var existingOption = null;
+            Array.prototype.forEach.call(statusSelect.options, function (option)
+            {
+                if (String(option.value || '').toLocaleLowerCase() === String(statusValue).toLocaleLowerCase())
+                {
+                    existingOption = option;
+                }
+            });
+
+            if (existingOption)
+            {
+                statusSelect.value = existingOption.value;
+                return;
+            }
+
+            var option = document.createElement('option');
+            option.value = statusValue;
+            option.textContent = statusValue;
+            statusSelect.appendChild(option);
+            statusSelect.value = statusValue;
+        };
+
+        var closeCustomStatusModal = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var modal = ticketCard.querySelector('[data-role="ticket-custom-status-modal"]');
+            if (!modal)
+            {
+                return;
+            }
+
+            modal.hidden = true;
+            modal.classList.remove('is-open');
+            document.documentElement.style.overflow = '';
         };
 
         var setTitleFeedback = function (ticketCard, message, isError)
@@ -3642,7 +3827,7 @@
 
         var ticketSectionHasActiveInput = function (section)
         {
-            if (section.querySelector('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open'))
+            if (section.querySelector('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-custom-status-modal"].is-open, [data-role="ticket-title-modal"].is-open'))
             {
                 return true;
             }

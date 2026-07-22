@@ -692,6 +692,118 @@ class TicketStore
         ]);
     }
 
+    /**
+     * Custom statuses currently used on at least one ticket (excluding built-ins).
+     *
+     * @return list<array{display_label: string, created_by_email: string, created_at: string}>
+     */
+    public function getActiveCustomStatuses(): array
+    {
+        $builtInKeys = array_map(static fn(string $status): string => self::unicodeLower($status), TICKET_STATUSES);
+        $placeholders = [];
+        $parameters = [];
+        foreach ($builtInKeys as $index => $key) {
+            $placeholder = ':builtin_' . $index;
+            $placeholders[] = $placeholder;
+            $parameters[$placeholder] = $key;
+        }
+
+        $sql = 'SELECT MIN(t.status) AS ticket_status,
+                       MAX(cts.display_label) AS registry_label,
+                       MAX(cts.created_by_email) AS created_by_email,
+                       MAX(cts.created_at) AS created_at
+                FROM tickets t
+                LEFT JOIN custom_ticket_statuses cts
+                    ON cts.status_key = mb_lower(t.status)
+                WHERE mb_lower(t.status) NOT IN (' . implode(', ', $placeholders) . ')
+                GROUP BY mb_lower(t.status)
+                ORDER BY COALESCE(MAX(cts.display_label), MIN(t.status)) COLLATE NOCASE ASC';
+
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($parameters);
+
+        $rows = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $registryLabel = trim((string) ($row['registry_label'] ?? ''));
+            $ticketStatus = trim((string) ($row['ticket_status'] ?? ''));
+            $displayLabel = $registryLabel !== '' ? $registryLabel : $ticketStatus;
+            if ($displayLabel === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'display_label' => $displayLabel,
+                'created_by_email' => strtolower(trim((string) ($row['created_by_email'] ?? ''))),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getActiveCustomStatusLabels(): array
+    {
+        return array_values(array_map(
+            static fn(array $row): string => (string) ($row['display_label'] ?? ''),
+            $this->getActiveCustomStatuses()
+        ));
+    }
+
+    /**
+     * Resolve a sanitized custom label to a canonical display value and register it if new.
+     */
+    public function resolveAndRegisterCustomStatus(string $sanitizedLabel, string $createdByEmail): string
+    {
+        $sanitizedLabel = trim($sanitizedLabel);
+        if ($sanitizedLabel === '') {
+            return $sanitizedLabel;
+        }
+
+        $statusKey = self::unicodeLower($sanitizedLabel);
+        $createdByEmail = strtolower(trim($createdByEmail));
+
+        $existing = $this->pdo->prepare(
+            'SELECT display_label
+             FROM custom_ticket_statuses
+             WHERE status_key = :status_key
+             LIMIT 1'
+        );
+        $existing->execute([':status_key' => $statusKey]);
+        $registryLabel = trim((string) ($existing->fetchColumn() ?: ''));
+        if ($registryLabel !== '') {
+            return $registryLabel;
+        }
+
+        $fromTicket = $this->pdo->prepare(
+            'SELECT status
+             FROM tickets
+             WHERE mb_lower(status) = :status_key
+             LIMIT 1'
+        );
+        $fromTicket->execute([':status_key' => $statusKey]);
+        $ticketLabel = trim((string) ($fromTicket->fetchColumn() ?: ''));
+        $displayLabel = $ticketLabel !== '' ? $ticketLabel : $sanitizedLabel;
+
+        $insert = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO custom_ticket_statuses (status_key, display_label, created_by_email, created_at)
+             VALUES (:status_key, :display_label, :created_by_email, :created_at)'
+        );
+        $insert->execute([
+            ':status_key' => $statusKey,
+            ':display_label' => $displayLabel,
+            ':created_by_email' => $createdByEmail,
+            ':created_at' => date('c'),
+        ]);
+
+        $existing->execute([':status_key' => $statusKey]);
+        $finalLabel = trim((string) ($existing->fetchColumn() ?: ''));
+
+        return $finalLabel !== '' ? $finalLabel : $displayLabel;
+    }
+
     public function updateTicket(int $ticketId, string $status, ?string $assignedEmail, int $priority = 0, ?string $dueDate = null): void
     {
         $currentTicket = $this->pdo->prepare('SELECT status FROM tickets WHERE id = :id LIMIT 1');
@@ -2009,6 +2121,15 @@ class TicketStore
         );
 
         $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS custom_ticket_statuses (
+                status_key TEXT PRIMARY KEY,
+                display_label TEXT NOT NULL,
+                created_by_email TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )'
+        );
+
+        $this->pdo->exec(
             'CREATE TABLE IF NOT EXISTS ticket_participants (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ticket_id INTEGER NOT NULL,
@@ -2079,6 +2200,7 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_id ON ticket_status_transitions(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_status ON ticket_status_transitions(ticket_id, status)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_custom_ticket_statuses_label ON custom_ticket_statuses(display_label)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_ticket_id ON ticket_participants(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_user_email ON ticket_participants(user_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_templates_name ON ticket_templates(name)');

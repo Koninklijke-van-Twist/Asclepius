@@ -93,16 +93,6 @@ $requestedView = trim((string) ($_GET['view'] ?? ''));
 $isAllTicketsView = !$isAdminPortal && !$userIsAdmin && $requestedView === 'all_tickets';
 $canUseTicketOverviewFilters = $canManageTickets || $isAllTicketsView;
 $resetOverviewFilters = $canUseTicketOverviewFilters && isset($_GET['reset_filters']) && (string) $_GET['reset_filters'] === '1';
-$savedOverviewFilters = $resetOverviewFilters
-    ? [
-        'status_filter_active' => false,
-        'status_filters' => [],
-        'category_filter_active' => false,
-        'category_filters' => [],
-        'assigned_filter' => '',
-        'search_query' => '',
-    ]
-    : normalizeSavedTicketOverviewFilters($userPrefs);
 
 $flashMessages = $_SESSION['flash_messages'] ?? [];
 unset($_SESSION['flash_messages']);
@@ -115,6 +105,24 @@ try {
 } catch (Throwable $exception) {
     $storeError = $exception->getMessage();
 }
+
+$activeCustomStatuses = $store instanceof TicketStore ? $store->getActiveCustomStatuses() : [];
+$activeCustomStatusLabels = array_values(array_map(
+    static fn(array $row): string => (string) ($row['display_label'] ?? ''),
+    $activeCustomStatuses
+));
+$recentCustomStatuses = $canManageTickets ? getRecentCustomStatusesForUser($userEmail) : [];
+
+$savedOverviewFilters = $resetOverviewFilters
+    ? [
+        'status_filter_active' => false,
+        'status_filters' => [],
+        'category_filter_active' => false,
+        'category_filters' => [],
+        'assigned_filter' => '',
+        'search_query' => '',
+    ]
+    : normalizeSavedTicketOverviewFilters($userPrefs, $activeCustomStatusLabels);
 
 $storageDiagnostics = [
     'database_path' => DATABASE_FILE,
@@ -156,7 +164,7 @@ if ($canUseTicketOverviewFilters) {
         $statusFilters = $statusFilterRequestActive
             ? array_values(array_filter(
                 array_map('trim', (array) ($_GET['status'] ?? [])),
-                static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
+                static fn(string $status): bool => isAllowedTicketStatusValue($status, $activeCustomStatusLabels)
             ))
             : [];
 
@@ -180,7 +188,7 @@ if ($canUseTicketOverviewFilters) {
         $statusFilters = $statusFilterRequestActive
             ? array_values(array_filter(
                 array_map('trim', (array) ($savedOverviewFilters['status_filters'] ?? [])),
-                static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
+                static fn(string $status): bool => isAllowedTicketStatusValue($status, $activeCustomStatusLabels)
             ))
             : [];
 
@@ -194,6 +202,24 @@ if ($canUseTicketOverviewFilters) {
 
         $assignedFilter = trim((string) ($savedOverviewFilters['assigned_filter'] ?? ''));
         $searchQuery = trim((string) ($savedOverviewFilters['search_query'] ?? ''));
+    }
+
+    if ($statusFilterRequestActive && $canManageTickets) {
+        $statusFilters = applyDefaultEnabledOwnCustomStatusFilters(
+            $userEmail,
+            $activeCustomStatuses,
+            true,
+            $statusFilters
+        );
+    } elseif ($canManageTickets && $activeCustomStatuses !== []) {
+        // Mark own customs as known even when all filters appear selected, so later
+        // enabling manual filters does not suddenly force-check old statuses.
+        applyDefaultEnabledOwnCustomStatusFilters(
+            $userEmail,
+            $activeCustomStatuses,
+            false,
+            $statusFilters
+        );
     }
 
     $effectiveStatusFilters = $statusFilterRequestActive && $statusFilters === [] ? ['__no_matching_status__'] : $statusFilters;

@@ -1,3 +1,11 @@
+id: 2026-07-22-custom-ticket-statuses
+date: 2026-07-22
+title: Statuts de ticket personnalisés
+author: Tim Falken
+
+En tant qu’admin ICT, vous pouvez cliquer sur **Autre** lors du changement de statut d’un ticket et saisir un nom de statut personnalisé. Ce statut apparaît dans la liste de choix et dans les bulles de filtre tant que des tickets l’utilisent. Un filtre pour un statut que vous avez créé est activé par défaut. Au survol d’une bulle personnalisée, vous voyez qui l’a créée. Les variantes de majuscules sont fusionnées, et la couleur est dérivée du nom.
+
+---
 id: 2026-07-21-exact-ticket-number-search
 date: 2026-07-21
 title: Recherche par numéro de ticket ignore les filtres

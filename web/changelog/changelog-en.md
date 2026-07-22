@@ -1,3 +1,11 @@
+id: 2026-07-22-custom-ticket-statuses
+date: 2026-07-22
+title: Custom ticket statuses
+author: Tim Falken
+
+As an ICT admin you can click **Other** when changing a ticket status and enter a custom status name. That status appears in the status dropdown and in the filter chips while any tickets use it. A filter for a status you created is enabled by default. Hovering a custom filter chip shows who created it. Different capitalization is merged into one status, and the color is derived from the name.
+
+---
 id: 2026-07-21-exact-ticket-number-search
 date: 2026-07-21
 title: Ticket number search ignores filters

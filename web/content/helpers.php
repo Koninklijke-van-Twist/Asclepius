@@ -945,6 +945,19 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $needsTranslation = $titleNeedsTrans || $messagesNeedTrans;
     $canAssignToRequester = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
     $viewerEmail = strtolower(trim((string) ($context['viewerEmail'] ?? '')));
+    $activeCustomStatuses = is_array($context['activeCustomStatuses'] ?? null) ? $context['activeCustomStatuses'] : [];
+    $activeCustomStatusLabels = array_values(array_filter(array_map(
+        static fn(array $row): string => trim((string) ($row['display_label'] ?? '')),
+        $activeCustomStatuses
+    ), static fn(string $label): bool => $label !== ''));
+    $recentCustomStatuses = is_array($context['recentCustomStatuses'] ?? null)
+        ? array_values(array_filter(array_map('trim', $context['recentCustomStatuses']), static fn(string $s): bool => $s !== ''))
+        : [];
+    $statusSelectOptions = array_values(array_unique(array_merge(TICKET_STATUSES, $activeCustomStatusLabels)));
+    $currentTicketStatus = (string) ($ticket['status'] ?? '');
+    if ($currentTicketStatus !== '' && !in_array($currentTicketStatus, $statusSelectOptions, true)) {
+        $statusSelectOptions[] = $currentTicketStatus;
+    }
     $assignableIctUsers = array_values(array_unique(array_filter(
         extractIctUserEmails($ictUsers),
         static function (string $ictUser) use ($canAssignToRequester, $requesterEmail, $viewerEmail): bool {
@@ -1235,6 +1248,50 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         </div>
                     </div>
                 </div>
+
+                <div class="ticket-participants-modal" data-role="ticket-custom-status-modal" hidden>
+                    <div class="ticket-participants-modal-card">
+                        <div class="ticket-participants-modal-head">
+                            <h3><?= h(__('ticket.custom_status_heading')) ?></h3>
+                            <button type="button" class="participant-modal-close" data-role="custom-status-close"
+                                aria-label="<?= h(__('ticket.preview_close')) ?>">&times;</button>
+                        </div>
+
+                        <p class="hint" data-role="custom-status-feedback"></p>
+
+                        <label>
+                            <?= h(__('ticket.custom_status_label')) ?>
+                            <input type="text" data-role="custom-status-input"
+                                maxlength="<?= (int) CUSTOM_TICKET_STATUS_MAX_LENGTH ?>"
+                                placeholder="<?= h(__('ticket.custom_status_placeholder')) ?>"
+                                autocomplete="off">
+                        </label>
+
+                        <?php if ($recentCustomStatuses !== []): ?>
+                            <div class="custom-status-recent" data-role="custom-status-recent">
+                                <p class="hint"><?= h(__('ticket.custom_status_recent')) ?></p>
+                                <div class="custom-status-recent-chips">
+                                    <?php foreach ($recentCustomStatuses as $recentStatus): ?>
+                                        <button type="button" class="secondary-button custom-status-recent-chip"
+                                            data-role="custom-status-recent-pick"
+                                            data-status="<?= h($recentStatus) ?>">
+                                            <?= h($recentStatus) ?>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="button-row">
+                            <button type="button" class="secondary-button" data-role="custom-status-cancel">
+                                <?= h(__('ticket.custom_status_cancel')) ?>
+                            </button>
+                            <button type="button" data-role="custom-status-save">
+                                <?= h(__('ticket.custom_status_apply')) ?>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             <?php endif; ?>
 
             <?php if (!$isReadOnlyTicket): ?>
@@ -1248,13 +1305,18 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
 
                 <?php if ($canManageTickets): ?>
                     <div class="admin-grid">
-                        <label>
+                        <label class="status-select-field">
                             <?= h(__('ticket.status_label')) ?>
-                            <select name="status" data-role="status-select">
-                                <?php foreach (TICKET_STATUSES as $status): ?>
-                                    <option value="<?= h($status) ?>" <?= (string) ($ticket['status'] ?? '') === $status ? 'selected' : '' ?>><?= h(translateStatus($status)) ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <div class="status-select-row">
+                                <select name="status" data-role="status-select">
+                                    <?php foreach ($statusSelectOptions as $status): ?>
+                                        <option value="<?= h($status) ?>" <?= $currentTicketStatus === $status ? 'selected' : '' ?>><?= h(translateStatus($status)) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <button type="button" class="secondary-button" data-role="custom-status-open">
+                                    <?= h(__('ticket.custom_status_other')) ?>
+                                </button>
+                            </div>
                         </label>
                         <label>
                             <?= h(__('ticket.assigned_to')) ?>
@@ -1372,7 +1434,7 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
     ];
 }
 
-function normalizeSavedTicketOverviewFilters(array $prefs): array
+function normalizeSavedTicketOverviewFilters(array $prefs, array $activeCustomStatusLabels = []): array
 {
     $savedFilters = $prefs['ticket_overview_filters'] ?? null;
     if (!is_array($savedFilters)) {
@@ -1388,7 +1450,7 @@ function normalizeSavedTicketOverviewFilters(array $prefs): array
 
     $statusFilters = array_values(array_filter(
         array_map('trim', (array) ($savedFilters['status_filters'] ?? [])),
-        static fn(string $status): bool => in_array($status, TICKET_STATUSES, true)
+        static fn(string $status): bool => isAllowedTicketStatusValue($status, $activeCustomStatusLabels)
     ));
     $categoryFilters = array_values(array_filter(
         array_map('trim', (array) ($savedFilters['category_filters'] ?? [])),
@@ -1779,7 +1841,22 @@ function getTicketOpenDurationSeconds(array $ticket): ?int
 
 function getStatusColor(string $status): string
 {
-    return STATUS_COLORS[$status] ?? '#475569';
+    if (isset(STATUS_COLORS[$status])) {
+        return STATUS_COLORS[$status];
+    }
+
+    $normalized = trim($status);
+    if ($normalized === '') {
+        return '#475569';
+    }
+
+    foreach (STATUS_COLORS as $builtInStatus => $color) {
+        if (mb_strtolower($builtInStatus) === mb_strtolower($normalized)) {
+            return $color;
+        }
+    }
+
+    return stringToHexColor($normalized);
 }
 
 /**
@@ -1832,7 +1909,17 @@ function emailToHexColor(string $email): string
         return $configuredColor;
     }
 
-    $hash = hash('sha256', $normalizedEmail);
+    return stringToHexColor($normalizedEmail);
+}
+
+function stringToHexColor(string $value): string
+{
+    $normalized = trim($value);
+    if ($normalized === '') {
+        return '#64748b';
+    }
+
+    $hash = hash('sha256', mb_strtolower($normalized));
     $hueSeed = hexdec(substr($hash, 0, 2));
     $saturationSeed = hexdec(substr($hash, 2, 2));
     $lightnessSeed = hexdec(substr($hash, 4, 2));
@@ -1843,6 +1930,168 @@ function emailToHexColor(string $email): string
     $lightness = 42 + ($lightnessSeed % 12);
 
     return hslToHex($hue, $saturation, $lightness);
+}
+
+function sanitizeCustomTicketStatusInput(string $raw): ?string
+{
+    $value = trim($raw);
+    if ($value === '') {
+        return null;
+    }
+
+    $value = preg_replace('/[^\p{L}\p{N}\s\'\-]/u', '', $value) ?? '';
+    $value = preg_replace('/\s+/u', ' ', trim($value)) ?? '';
+    if ($value === '') {
+        return null;
+    }
+
+    if (mb_strlen($value) > CUSTOM_TICKET_STATUS_MAX_LENGTH) {
+        $value = rtrim(mb_substr($value, 0, CUSTOM_TICKET_STATUS_MAX_LENGTH));
+    }
+
+    return $value !== '' ? $value : null;
+}
+
+function matchBuiltInTicketStatus(string $value): ?string
+{
+    $needle = mb_strtolower(trim($value));
+    if ($needle === '') {
+        return null;
+    }
+
+    foreach (TICKET_STATUSES as $status) {
+        if (mb_strtolower($status) === $needle) {
+            return $status;
+        }
+    }
+
+    return null;
+}
+
+function isAllowedTicketStatusValue(string $status, array $activeCustomLabels = []): bool
+{
+    if (in_array($status, TICKET_STATUSES, true)) {
+        return true;
+    }
+
+    return in_array($status, $activeCustomLabels, true);
+}
+
+/**
+ * Resolve a posted/selected status to a canonical value (built-in or registered custom).
+ */
+function resolveTicketStatusValue(string $raw, ?TicketStore $store, string $actorEmail): ?string
+{
+    $sanitized = sanitizeCustomTicketStatusInput($raw);
+    if ($sanitized === null) {
+        return null;
+    }
+
+    $builtIn = matchBuiltInTicketStatus($sanitized);
+    if ($builtIn !== null) {
+        return $builtIn;
+    }
+
+    if ($store instanceof TicketStore) {
+        return $store->resolveAndRegisterCustomStatus($sanitized, $actorEmail);
+    }
+
+    return $sanitized;
+}
+
+/**
+ * @return list<string>
+ */
+function getRecentCustomStatusesForUser(string $email): array
+{
+    $prefs = loadUserPrefs($email);
+    $recent = array_values(array_filter(
+        array_map('trim', (array) ($prefs['recent_custom_statuses'] ?? [])),
+        static fn(string $status): bool => $status !== ''
+    ));
+
+    return array_slice($recent, 0, 5);
+}
+
+function pushRecentCustomStatusForUser(string $email, string $status): void
+{
+    $status = trim($status);
+    if ($status === '' || matchBuiltInTicketStatus($status) !== null) {
+        return;
+    }
+
+    $recent = getRecentCustomStatusesForUser($email);
+    $recent = array_values(array_filter(
+        $recent,
+        static fn(string $entry): bool => mb_strtolower($entry) !== mb_strtolower($status)
+    ));
+    array_unshift($recent, $status);
+    saveUserPref($email, 'recent_custom_statuses', array_slice($recent, 0, 5));
+}
+
+/**
+ * First time a custom status created by this user appears, include it in their active status filters.
+ * Once seen (and optionally unchecked by the user), it is not forced back on.
+ *
+ * @param list<array{display_label?: string, created_by_email?: string}> $activeCustomStatuses
+ * @param list<string> $statusFilters
+ * @return list<string>
+ */
+function applyDefaultEnabledOwnCustomStatusFilters(
+    string $userEmail,
+    array $activeCustomStatuses,
+    bool $statusFilterActive,
+    array $statusFilters
+): array {
+    $userEmail = strtolower(trim($userEmail));
+    if ($userEmail === '' || $activeCustomStatuses === []) {
+        return $statusFilters;
+    }
+
+    $prefs = loadUserPrefs($userEmail);
+    $known = array_values(array_filter(
+        array_map('trim', (array) ($prefs['known_own_custom_status_filters'] ?? [])),
+        static fn(string $status): bool => $status !== ''
+    ));
+    $knownLower = array_map(static fn(string $status): string => mb_strtolower($status), $known);
+    $filtersLower = array_map(static fn(string $status): string => mb_strtolower($status), $statusFilters);
+
+    $changedKnown = false;
+    $changedFilters = false;
+
+    foreach ($activeCustomStatuses as $row) {
+        $label = trim((string) ($row['display_label'] ?? ''));
+        $creator = strtolower(trim((string) ($row['created_by_email'] ?? '')));
+        if ($label === '' || $creator === '' || $creator !== $userEmail) {
+            continue;
+        }
+
+        $labelLower = mb_strtolower($label);
+        if (!in_array($labelLower, $knownLower, true)) {
+            $known[] = $label;
+            $knownLower[] = $labelLower;
+            $changedKnown = true;
+
+            if ($statusFilterActive && !in_array($labelLower, $filtersLower, true)) {
+                $statusFilters[] = $label;
+                $filtersLower[] = $labelLower;
+                $changedFilters = true;
+            }
+        }
+    }
+
+    if ($changedKnown) {
+        saveUserPref($userEmail, 'known_own_custom_status_filters', array_values(array_unique($known)));
+    }
+
+    if ($changedFilters) {
+        $overview = normalizeSavedTicketOverviewFilters($prefs, array_column($activeCustomStatuses, 'display_label'));
+        $overview['status_filter_active'] = true;
+        $overview['status_filters'] = array_values(array_unique($statusFilters));
+        saveUserPref($userEmail, 'ticket_overview_filters', $overview);
+    }
+
+    return array_values(array_unique($statusFilters));
 }
 
 function getConfiguredIctUserColor(string $normalizedEmail): ?string

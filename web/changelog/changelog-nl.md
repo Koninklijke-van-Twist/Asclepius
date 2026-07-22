@@ -1,3 +1,11 @@
+id: 2026-07-22-custom-ticket-statuses
+date: 2026-07-22
+title: Eigen ticketstatussen
+author: Tim Falken
+
+Als ICT-beheerder kun je bij het wijzigen van een ticketstatus op **Anders** klikken en een eigen statusnaam invoeren. Die status verschijnt in de statuskeuze en in de filterbubbels zolang er tickets mee staan. Een filter voor een status die jij hebt aangemaakt staat standaard aan. Bij een filterbubble zie je wie de status heeft aangemaakt. Andere hoofdletters worden samengevoegd tot één status, en de kleur volgt automatisch uit de naam.
+
+---
 id: 2026-07-21-exact-ticket-number-search
 date: 2026-07-21
 title: Ticketnummer zoeken negeert filters
