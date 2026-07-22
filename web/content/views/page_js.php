@@ -4843,9 +4843,9 @@
         {
             // Layered sines: fast + medium + slow for a less repetitive waterline.
             var WAVE_LAYERS = [
-                { amp: 2.1, wavelength: 18, phaseScale: 1 },
-                { amp: 1.15, wavelength: 43, phaseScale: 0.52 },
-                { amp: 0.65, wavelength: 89, phaseScale: 1.37 }
+                { amp: 2.4, wavelength: 42, phaseScale: 1 },
+                { amp: 1.35, wavelength: 96, phaseScale: 0.52 },
+                { amp: 0.75, wavelength: 180, phaseScale: 1.37 }
             ];
             var MAX_AMP = WAVE_LAYERS.reduce(function (sum, layer)
             {
@@ -4862,13 +4862,19 @@
             var rafId = 0;
             var startTs = 0;
 
-            var waveOffset = function (along, phase)
+            var waveOffset = function (along, perimeter, phase)
             {
+                if (perimeter <= 0)
+                {
+                    return 0;
+                }
                 var total = 0;
                 for (var i = 0; i < WAVE_LAYERS.length; i++)
                 {
                     var layer = WAVE_LAYERS[i];
-                    total += layer.amp * Math.sin((along / layer.wavelength) * Math.PI * 2 + phase * layer.phaseScale);
+                    // Integer cycles around the box so start/end meet without a kink.
+                    var cycles = Math.max(1, Math.round(perimeter / layer.wavelength));
+                    total += layer.amp * Math.sin((cycles * along / perimeter) * Math.PI * 2 + phase * layer.phaseScale);
                 }
                 return total;
             };
@@ -4881,6 +4887,8 @@
                 var r = Math.max(0, Math.min(radius - edge, rw / 2, rh / 2));
                 var straightW = Math.max(0, rw - 2 * r);
                 var straightH = Math.max(0, rh - 2 * r);
+                var arcLen = (Math.PI / 2) * r;
+                var perimeter = 2 * (straightW + straightH) + 4 * arcLen;
                 var points = [];
                 var dist = 0;
                 var ox = originX + edge;
@@ -4888,7 +4896,7 @@
 
                 var push = function (x, y, nx, ny, along)
                 {
-                    var wave = waveOffset(along, phase);
+                    var wave = waveOffset(along, perimeter, phase);
                     points.push([
                         ox + x + nx * wave,
                         oy + y + ny * wave
@@ -4943,6 +4951,16 @@
                 if (points.length < 2)
                 {
                     return null;
+                }
+
+                // Drop near-duplicate close point so Z joins cleanly on the start sample.
+                var firstPt = points[0];
+                var lastPt = points[points.length - 1];
+                var closeDx = lastPt[0] - firstPt[0];
+                var closeDy = lastPt[1] - firstPt[1];
+                if ((closeDx * closeDx + closeDy * closeDy) < 0.01)
+                {
+                    points.pop();
                 }
 
                 var d = 'M' + points[0][0].toFixed(2) + ' ' + points[0][1].toFixed(2);
