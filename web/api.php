@@ -320,6 +320,8 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         'viewerEmail' => $viewerEmail,
         'activeCustomStatuses' => $store->getActiveCustomStatuses(),
         'recentCustomStatuses' => $canManageTickets ? getRecentCustomStatusesForUser($viewerEmail) : [],
+        'includeGhostMessages' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
+        'showGhostToggle' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
     ];
 
     $isAllTicketsView = $browseMode === 'all_completed_public';
@@ -1138,8 +1140,8 @@ function buildPageAccessTicketApiResponse(array $ticket, bool $created): array
 {
     $ticketId = (int) ($ticket['id'] ?? 0);
     $messages = [];
-    foreach ($ticket['messages'] ?? [] as $message) {
-        if (!is_array($message)) {
+        foreach ($ticket['messages'] ?? [] as $message) {
+        if (!is_array($message) || !empty($message['is_ghost'])) {
             continue;
         }
 
@@ -1372,7 +1374,13 @@ if ($method === 'POST') {
             $browseMode = 'all_completed_public';
         }
 
-        $ticketDetail = $store->getTicket($ticketId, $canManageTickets, $viewerEmail, $browseMode);
+        $ticketDetail = $store->getTicket(
+            $ticketId,
+            $canManageTickets,
+            $viewerEmail,
+            $browseMode,
+            shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view)
+        );
         if (!is_array($ticketDetail)) {
             sendJson(404, ['success' => false, 'error' => 'ticket_not_found']);
         }

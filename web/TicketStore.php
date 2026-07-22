@@ -866,12 +866,12 @@ class TicketStore
         }
     }
 
-    public function addMessage(int $ticketId, string $senderEmail, string $senderRole, string $messageText, array $files = []): int
+    public function addMessage(int $ticketId, string $senderEmail, string $senderRole, string $messageText, array $files = [], bool $isGhost = false): int
     {
         $now = date('c');
         $statement = $this->pdo->prepare(
-            'INSERT INTO ticket_messages (ticket_id, sender_email, sender_role, message_text, created_at)
-             VALUES (:ticket_id, :sender_email, :sender_role, :message_text, :created_at)'
+            'INSERT INTO ticket_messages (ticket_id, sender_email, sender_role, message_text, created_at, is_ghost)
+             VALUES (:ticket_id, :sender_email, :sender_role, :message_text, :created_at, :is_ghost)'
         );
         $statement->execute([
             ':ticket_id' => $ticketId,
@@ -879,6 +879,7 @@ class TicketStore
             ':sender_role' => $senderRole,
             ':message_text' => $messageText,
             ':created_at' => $now,
+            ':is_ghost' => $isGhost ? 1 : 0,
         ]);
 
         $messageId = (int) $this->pdo->lastInsertId();
@@ -1076,6 +1077,7 @@ class TicketStore
                 LEFT JOIN (
                     SELECT ticket_id, COUNT(*) AS message_count
                     FROM ticket_messages
+                    WHERE COALESCE(is_ghost, 0) = 0
                     GROUP BY ticket_id
                 ) message_counts ON message_counts.ticket_id = t.id
                 LEFT JOIN (
@@ -1255,6 +1257,7 @@ class TicketStore
                                 SELECT 1
                                 FROM ticket_messages tm
                                 WHERE tm.ticket_id = t.id
+                                  AND COALESCE(tm.is_ghost, 0) = 0
                                   AND (
                                       instr(mb_lower(COALESCE(tm.sender_email, '')), {$placeholder}) > 0
                                       OR instr(mb_lower(COALESCE(tm.message_text, '')), {$placeholder}) > 0
@@ -1337,7 +1340,7 @@ class TicketStore
         });
     }
 
-    public function getTicket(int $ticketId, bool $isAdmin, string $userEmail, string $browseMode = 'default'): ?array
+    public function getTicket(int $ticketId, bool $isAdmin, string $userEmail, string $browseMode = 'default', bool $includeGhostMessages = false): ?array
     {
         $conditions = ['id = :id'];
         $parameters = [':id' => $ticketId];
@@ -1375,7 +1378,7 @@ class TicketStore
         }
 
         $ticket['participant_emails'] = $this->getTicketParticipants((int) $ticket['id']);
-        $ticket['messages'] = $this->getMessagesForTicket((int) $ticket['id']);
+        $ticket['messages'] = $this->getMessagesForTicket((int) $ticket['id'], $includeGhostMessages);
 
         return $ticket;
     }
@@ -1423,7 +1426,7 @@ class TicketStore
      * @param list<int> $ticketIds
      * @return array<int, list<array<string, mixed>>>
      */
-    public function getTicketMessagesBatch(array $ticketIds): array
+    public function getTicketMessagesBatch(array $ticketIds, bool $includeGhostMessages = false): array
     {
         $ticketIds = $this->normalizeTicketIds($ticketIds);
         if ($ticketIds === []) {
@@ -1432,10 +1435,11 @@ class TicketStore
 
         [$inClause, $parameters] = $this->buildInClause('ticket_id', $ticketIds);
 
+        $ghostSql = $includeGhostMessages ? '' : ' AND COALESCE(is_ghost, 0) = 0';
         $messageStatement = $this->pdo->prepare(
             'SELECT *
              FROM ticket_messages
-             WHERE ticket_id IN (' . $inClause . ')
+             WHERE ticket_id IN (' . $inClause . ')' . $ghostSql . '
              ORDER BY ticket_id ASC, datetime(created_at) ASC, id ASC'
         );
         $messageStatement->execute($parameters);
@@ -1469,6 +1473,7 @@ class TicketStore
             }
 
             $message['attachments'] = $attachmentsByTicketAndMessage[$ticketId][$messageId] ?? [];
+            $message['is_ghost'] = !empty($message['is_ghost']);
             $messagesByTicket[$ticketId][] = $message;
         }
 
@@ -2044,6 +2049,7 @@ class TicketStore
                 sender_role TEXT NOT NULL,
                 message_text TEXT NOT NULL DEFAULT "",
                 created_at TEXT NOT NULL,
+                is_ghost INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
             )'
         );
@@ -2181,6 +2187,7 @@ class TicketStore
         $this->ensureColumn('tickets', 'due_date', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'is_private', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_messages', 'message_text', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_messages', 'is_ghost', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_attachments', 'mime_type', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_attachments', 'file_size', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_text_translations', 'source_language', 'TEXT NOT NULL DEFAULT ""');
@@ -2642,12 +2649,13 @@ class TicketStore
         return $row !== false ? $row['user_email'] : null;
     }
 
-    private function getMessagesForTicket(int $ticketId): array
+    private function getMessagesForTicket(int $ticketId, bool $includeGhostMessages = false): array
     {
+        $ghostSql = $includeGhostMessages ? '' : ' AND COALESCE(is_ghost, 0) = 0';
         $messageStatement = $this->pdo->prepare(
             'SELECT *
              FROM ticket_messages
-             WHERE ticket_id = :ticket_id
+             WHERE ticket_id = :ticket_id' . $ghostSql . '
              ORDER BY datetime(created_at) ASC, id ASC'
         );
         $messageStatement->execute([':ticket_id' => $ticketId]);
@@ -2670,10 +2678,48 @@ class TicketStore
         foreach ($messages as &$message) {
             $messageId = (int) $message['id'];
             $message['attachments'] = $attachmentsByMessage[$messageId] ?? [];
+            $message['is_ghost'] = !empty($message['is_ghost']);
         }
         unset($message);
 
         return $messages;
+    }
+
+    public function isGhostMessage(int $messageId): bool
+    {
+        if ($messageId <= 0) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT COALESCE(is_ghost, 0)
+             FROM ticket_messages
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $statement->execute([':id' => $messageId]);
+        $value = $statement->fetchColumn();
+
+        return (int) $value === 1;
+    }
+
+    public function isGhostAttachment(int $attachmentId): bool
+    {
+        if ($attachmentId <= 0) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT COALESCE(tm.is_ghost, 0)
+             FROM ticket_attachments ta
+             LEFT JOIN ticket_messages tm ON tm.id = ta.message_id
+             WHERE ta.id = :id
+             LIMIT 1'
+        );
+        $statement->execute([':id' => $attachmentId]);
+        $value = $statement->fetchColumn();
+
+        return (int) $value === 1;
     }
 
     private function normalizeParticipantEmails(array $participantEmails, string $primaryEmail = ''): array

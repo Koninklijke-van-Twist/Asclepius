@@ -64,6 +64,11 @@ if ($ticketId <= 0 || $ticket === null) {
     exit('Access denied');
 }
 
+if ($store->isGhostAttachment($attachmentId) && !$canManageTickets) {
+    http_response_code(404);
+    exit('Attachment not found');
+}
+
 $storedPath = (string) ($attachment['stored_path'] ?? '');
 if ($storedPath === '' || !file_exists($storedPath)) {
     http_response_code(404);

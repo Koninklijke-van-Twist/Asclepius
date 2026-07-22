@@ -18,6 +18,8 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
         'isReadOnlyTicket' => $isAllTicketsView,
         'activeCustomStatuses' => $activeCustomStatuses ?? [],
         'recentCustomStatuses' => $recentCustomStatuses ?? [],
+        'includeGhostMessages' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
+        'showGhostToggle' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
     ];
     $ticketPollPayload = [
         'current_page' => $currentPage,

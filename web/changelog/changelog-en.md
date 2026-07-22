@@ -1,3 +1,11 @@
+id: 2026-07-22-ghost-messages
+date: 2026-07-22
+title: Ghost messages on ICT overview
+author: Tim Falken
+
+On the **ICT overview** you can enable ghost mode when replying (ghost button next to the keyboard). Those messages are only visible to ICT on that overview, with purple styling. Status changes and other system notes remain normal messages.
+
+---
 id: 2026-07-22-custom-ticket-statuses
 date: 2026-07-22
 title: Custom ticket statuses

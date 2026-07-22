@@ -47,6 +47,11 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
         exit(__('flash.attachment_not_found'));
     }
 
+    if ($store->isGhostAttachment($attachmentId) && !shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view)) {
+        http_response_code(404);
+        exit(__('flash.attachment_not_found'));
+    }
+
     $downloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($attachment['original_name'] ?? 'bijlage')) ?: 'bijlage';
     clearstatcache(true, $storedPath);
     $fileSize = filesize($storedPath);
@@ -376,6 +381,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             $messageForStorage = $message;
             $files = normalizeUploadedFiles('reply_attachments');
             $errors = validateUploadedFiles($files);
+            $isGhostMode = shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view)
+                && (string) ($_POST['ghost_mode'] ?? '0') === '1';
 
             $newStatus = (string) $ticket['status'];
             $newAssignee = (string) ($ticket['assigned_email'] ?? '');
@@ -477,9 +484,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
             if ($canManageTickets && $statusChanged) {
                 $statusChangeNote = buildStatusChangeNote($newStatus, $userEmail);
-                $messageForStorage = $message !== ''
-                    ? rtrim($message) . PHP_EOL . PHP_EOL . $statusChangeNote
-                    : $statusChangeNote;
+                if ($isGhostMode) {
+                    // Keep system notes as a normal message; ghost text is stored separately.
+                    $messageForStorage = $statusChangeNote;
+                } else {
+                    $messageForStorage = $message !== ''
+                        ? rtrim($message) . PHP_EOL . PHP_EOL . $statusChangeNote
+                        : $statusChangeNote;
+                }
+            } elseif ($isGhostMode) {
+                $messageForStorage = '';
             }
 
             if ($errors !== []) {
@@ -490,14 +504,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null, $newPriority, $newDueDate);
             }
 
-            if ($messageForStorage !== '' || $files !== []) {
+            $visibleMessageForMail = '';
+            if ($isGhostMode) {
+                if ($messageForStorage !== '') {
+                    $store->addMessage($ticketId, $userEmail, 'admin', $messageForStorage, []);
+                    $visibleMessageForMail = $messageForStorage;
+                }
+                if ($message !== '' || $files !== []) {
+                    $store->addMessage($ticketId, $userEmail, 'admin', $message, $files, true);
+                }
+            } elseif ($messageForStorage !== '' || $files !== []) {
                 $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $messageForStorage, $files);
+                $visibleMessageForMail = $messageForStorage;
             }
 
             $updatedTicket = $store->getTicket($ticketId, true, $userEmail);
             if ($updatedTicket !== null) {
                 if ($canManageTickets) {
-                    $shouldNotifyRequester = $statusChanged || $assigneeChanged || $messageForStorage !== '' || $files !== [];
+                    $shouldNotifyRequester = $statusChanged || $assigneeChanged || $visibleMessageForMail !== ''
+                        || (!$isGhostMode && $files !== []);
                     if ($shouldNotifyRequester) {
                         $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
                             ? $updatedTicket['participant_emails']
@@ -509,7 +534,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                             $ictUsers,
                             $requesterRecipients,
                             __mail('email.subject_update', $reqLang, $ticketId),
-                            buildNotificationBody($updatedTicket, 'email.intro_update', $messageForStorage, false, $reqLang, $updateIntroSuffix),
+                            buildNotificationBody($updatedTicket, 'email.intro_update', $visibleMessageForMail, false, $reqLang, $updateIntroSuffix),
                             $userEmail,
                             (string) ($updatedTicket['category'] ?? ''),
                             $ticketId,
@@ -525,7 +550,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                             $ictUsers,
                             [$newAssignee],
                             __mail('email.subject_assigned', $assigneeLang, $ticketId),
-                            buildNotificationBody($updatedTicket, 'email.intro_assigned', $message, true, $assigneeLang),
+                            buildNotificationBody($updatedTicket, 'email.intro_assigned', $isGhostMode ? '' : $message, true, $assigneeLang),
                             $userEmail,
                             (string) ($updatedTicket['category'] ?? ''),
                             $ticketId,

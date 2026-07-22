@@ -1480,6 +1480,49 @@
             background: #eff6ff;
         }
 
+        .message.is-ghost {
+            position: relative;
+            overflow: hidden;
+            background: #5b21b6;
+            border-color: #ddd6fe;
+            color: #f5f3ff;
+        }
+
+        .message.is-ghost::after {
+            content: '';
+            position: absolute;
+            right: 48px;
+            bottom: 6px;
+            width: min(144px, 42%);
+            height: min(162px, calc(100% - 12px));
+            background: url('Ghost-watermark.svg') no-repeat center / contain;
+            opacity: 0.22;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .message.is-ghost > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .message.is-ghost .message-meta,
+        .message.is-ghost .message-role,
+        .message.is-ghost .message-text,
+        .message.is-ghost .message-text a,
+        .message.is-ghost .attachment-download-link,
+        .message.is-ghost .hint {
+            color: #f5f3ff;
+        }
+
+        .message.is-ghost .message-role {
+            opacity: 0.92;
+        }
+
+        .message.is-ghost .message-text a {
+            text-decoration-color: #ddd6fe;
+        }
+
         .message-meta {
             display: flex;
             flex-wrap: wrap;
@@ -2116,6 +2159,70 @@
             z-index: 1;
             resize: none;
             overflow-y: hidden;
+        }
+
+        .textarea-wrapper.has-ghost-toggle textarea {
+            padding-right: 68px;
+        }
+
+        .textarea-wrapper.is-ghost-mode textarea {
+            background-color: #5b21b6;
+            color: #f5f3ff;
+            border-color: #ddd6fe;
+            caret-color: #f5f3ff;
+        }
+
+        .textarea-wrapper.is-ghost-mode::after {
+            content: '';
+            position: absolute;
+            right: 100px;
+            bottom: 10px;
+            width: min(176px, 42%);
+            height: min(198px, calc(100% - 16px));
+            background: url('Ghost-watermark.svg') no-repeat center / contain;
+            opacity: 0.22;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .textarea-wrapper.is-ghost-mode textarea::placeholder {
+            color: #ddd6fe;
+            opacity: 0.85;
+        }
+
+        .ghost-mode-toggle {
+            position: absolute;
+            bottom: 8px;
+            right: 40px;
+            width: 26px;
+            height: 26px;
+            padding: 0;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.88);
+            color: var(--muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            font-size: 15px;
+            z-index: 2;
+            transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+        }
+
+        .ghost-mode-toggle:hover,
+        .ghost-mode-toggle.is-active {
+            background: #5b21b6;
+            border-color: #ddd6fe;
+            color: #f5f3ff;
+            box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.35);
+        }
+
+        .textarea-wrapper.is-ghost-mode .key-picker-toggle {
+            background: rgba(91, 33, 182, 0.55);
+            border-color: #ddd6fe;
+            color: #f5f3ff;
         }
 
         .template-preview-rendered .shortcut-plus {

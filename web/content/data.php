@@ -167,7 +167,8 @@ if ($openTicketId > 0 && $store instanceof TicketStore && ($isAllTicketsView || 
         $tickets
     );
     if (!in_array($openTicketId, $openTicketIdsInList, true)) {
-        $linkedOpenTicket = $store->getTicket($openTicketId, $canManageTickets, $userEmail, $ticketBrowseMode);
+        $includeGhostForOpen = shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view);
+        $linkedOpenTicket = $store->getTicket($openTicketId, $canManageTickets, $userEmail, $ticketBrowseMode, $includeGhostForOpen);
         if (is_array($linkedOpenTicket)) {
             $tickets = array_merge(
                 [localizeTicketForViewer($linkedOpenTicket, $store, $currentLanguage, true)],
@@ -185,7 +186,10 @@ if ($store instanceof TicketStore) {
     ), static fn(int $ticketId): bool => $ticketId > 0));
     $participantsByTicketId = $store->getTicketParticipantsBatch($ticketIds);
     $messageTicketIds = $openTicketId > 0 ? [$openTicketId] : [];
-    $messagesByTicketId = $messageTicketIds !== [] ? $store->getTicketMessagesBatch($messageTicketIds) : [];
+    $includeGhostMessages = shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view);
+    $messagesByTicketId = $messageTicketIds !== []
+        ? $store->getTicketMessagesBatch($messageTicketIds, $includeGhostMessages)
+        : [];
 
     foreach ($tickets as $ticket) {
         $ticketId = (int) ($ticket['id'] ?? 0);
@@ -438,6 +442,8 @@ if (isset($_GET['_tickets_poll'])) {
         'viewerEmail' => $userEmail,
         'activeCustomStatuses' => $activeCustomStatuses ?? [],
         'recentCustomStatuses' => $recentCustomStatuses ?? [],
+        'includeGhostMessages' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
+        'showGhostToggle' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
     ];
     echo json_encode([
         'success' => true,

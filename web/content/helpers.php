@@ -2,6 +2,11 @@
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'user_directory.php';
 
+function shouldIncludeGhostMessages(bool $canManageTickets, bool $isAdminPortal, string $view): bool
+{
+    return $canManageTickets && $isAdminPortal && $view === 'overview';
+}
+
 function h(?string $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
@@ -492,8 +497,9 @@ function buildTicketPollItemsFromTickets(TicketStore $store, array $tickets, arr
     $participantsByTicketId = $store->getTicketParticipantsBatch($ticketIds);
     $openTicketId = (int) ($context['openTicketId'] ?? 0);
     $messageTicketIds = $openTicketId > 0 ? [$openTicketId] : [];
+    $includeGhostMessages = !empty($context['includeGhostMessages']);
     $messagesByTicketId = $messageTicketIds !== []
-        ? $store->getTicketMessagesBatch($messageTicketIds)
+        ? $store->getTicketMessagesBatch($messageTicketIds, $includeGhostMessages)
         : [];
     warmUserDirectoryForContext(collectEmailsForUserDirectoryWarmup(
         $tickets,
@@ -821,10 +827,11 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
 
     ob_start();
     ?>
-    <article class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?>"
+    <article class="message <?= ($message['sender_role'] ?? '') === 'admin' ? 'admin' : 'user' ?><?= !empty($message['is_ghost']) ? ' is-ghost' : '' ?>"
         data-message-id="<?= (int) ($message['id'] ?? 0) ?>"
         data-message-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
-        data-translation-status="<?= $translationPending ? 'pending' : 'loaded' ?>">
+        data-translation-status="<?= $translationPending ? 'pending' : 'loaded' ?>"
+        <?= !empty($message['is_ghost']) ? 'data-ghost="1"' : '' ?>>
         <div class="message-meta">
             <?php $senderEmail = (string) ($message['sender_email'] ?? ''); ?>
             <strong title="<?= h(formatUserDisplayName($senderEmail) !== strtolower(trim($senderEmail)) ? $senderEmail : '') ?>"><?= h(formatUserDisplayName($senderEmail)) ?></strong>
@@ -945,6 +952,8 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $needsTranslation = $titleNeedsTrans || $messagesNeedTrans;
     $canAssignToRequester = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
     $viewerEmail = strtolower(trim((string) ($context['viewerEmail'] ?? '')));
+    $includeGhostMessages = !empty($context['includeGhostMessages']);
+    $showGhostToggle = !empty($context['showGhostToggle']);
     $activeCustomStatuses = is_array($context['activeCustomStatuses'] ?? null) ? $context['activeCustomStatuses'] : [];
     $activeCustomStatusLabels = array_values(array_filter(array_map(
         static fn(array $row): string => trim((string) ($row['display_label'] ?? '')),
@@ -1342,8 +1351,15 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
 
                 <label>
                     <?= h(__('ticket.new_message')) ?>
-                    <div class="textarea-wrapper">
-                        <textarea name="message" placeholder="<?= h(__('ticket.new_message_placeholder')) ?>"></textarea>
+                    <div class="textarea-wrapper<?= $showGhostToggle ? ' has-ghost-toggle' : '' ?>" data-role="reply-textarea-wrap">
+                        <textarea name="message" placeholder="<?= h(__('ticket.new_message_placeholder')) ?>" data-role="reply-message-input"></textarea>
+                        <?php if ($showGhostToggle): ?>
+                            <input type="hidden" name="ghost_mode" value="0" data-role="ghost-mode-input">
+                            <button type="button" class="ghost-mode-toggle" data-role="ghost-mode-toggle"
+                                title="<?= h(__('ticket.ghost_toggle_tooltip')) ?>"
+                                aria-label="<?= h(__('ticket.ghost_toggle_tooltip')) ?>"
+                                aria-pressed="false">👻</button>
+                        <?php endif; ?>
                         <button type="button" class="key-picker-toggle" title="<?= h(__('ticket.key_picker_tooltip')) ?>"
                             aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"

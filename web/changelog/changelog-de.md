@@ -1,3 +1,11 @@
+id: 2026-07-22-ghost-messages
+date: 2026-07-22
+title: Ghost-Nachrichten in der ICT-Übersicht
+author: Tim Falken
+
+In der **ICT-Übersicht** kannst du beim Antworten den Ghost-Modus aktivieren (Geister-Schaltfläche neben der Tastatur). Solche Nachrichten sind nur für ICT in dieser Übersicht sichtbar, mit lila Styling. Statusänderungen und andere Systemhinweise bleiben normale Nachrichten.
+
+---
 id: 2026-07-22-custom-ticket-statuses
 date: 2026-07-22
 title: Eigene Ticketstatusse

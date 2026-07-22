@@ -1780,6 +1780,26 @@
                 return;
             }
 
+            var ghostModeToggle = event.target.closest('[data-role="ghost-mode-toggle"]');
+            if (ghostModeToggle)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+                var ghostWrap = ghostModeToggle.closest('[data-role="reply-textarea-wrap"]');
+                var ghostInput = ghostWrap ? ghostWrap.querySelector('[data-role="ghost-mode-input"]') : null;
+                if (!ghostWrap || !ghostInput)
+                {
+                    return;
+                }
+
+                var ghostEnabled = ghostInput.value !== '1';
+                ghostInput.value = ghostEnabled ? '1' : '0';
+                ghostWrap.classList.toggle('is-ghost-mode', ghostEnabled);
+                ghostModeToggle.classList.toggle('is-active', ghostEnabled);
+                ghostModeToggle.setAttribute('aria-pressed', ghostEnabled ? 'true' : 'false');
+                return;
+            }
+
             var openCustomStatusButton = event.target.closest('[data-role="custom-status-open"]');
             if (openCustomStatusButton)
             {

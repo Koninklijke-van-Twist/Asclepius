@@ -1,3 +1,11 @@
+id: 2026-07-22-ghost-messages
+date: 2026-07-22
+title: Messages fantômes dans l’aperçu ICT
+author: Tim Falken
+
+Dans l’**aperçu ICT**, vous pouvez activer le mode fantôme en répondant (bouton fantôme à côté du clavier). Ces messages ne sont visibles que pour l’ICT dans cet aperçu, avec un style violet. Les changements de statut et autres notes système restent des messages normaux.
+
+---
 id: 2026-07-22-custom-ticket-statuses
 date: 2026-07-22
 title: Statuts de ticket personnalisés
