@@ -1797,6 +1797,10 @@
                 ghostWrap.classList.toggle('is-ghost-mode', ghostEnabled);
                 ghostModeToggle.classList.toggle('is-active', ghostEnabled);
                 ghostModeToggle.setAttribute('aria-pressed', ghostEnabled ? 'true' : 'false');
+                if (typeof window.syncGhostWaveBorders === 'function')
+                {
+                    window.syncGhostWaveBorders();
+                }
                 return;
             }
 
@@ -4834,5 +4838,369 @@
                 });
             }
         });
+
+        (function initGhostWaveBorders()
+        {
+            // Layered sines: fast + medium + slow for a less repetitive waterline.
+            var WAVE_LAYERS = [
+                { amp: 2.1, wavelength: 18, phaseScale: 1 },
+                { amp: 1.15, wavelength: 43, phaseScale: 0.52 },
+                { amp: 0.65, wavelength: 89, phaseScale: 1.37 }
+            ];
+            var MAX_AMP = WAVE_LAYERS.reduce(function (sum, layer)
+            {
+                return sum + layer.amp;
+            }, 0);
+            var STROKE = 2.5;
+            var FILL = '#5b21b6';
+            var STROKE_COLOR = '#f9a8d4';
+            var RADIUS_MESSAGE = 14;
+            var RADIUS_TEXTAREA = 12;
+            var STEP = 2;
+            var PERIOD_MS = 3200;
+            var hosts = new Map();
+            var rafId = 0;
+            var startTs = 0;
+
+            var waveOffset = function (along, phase)
+            {
+                var total = 0;
+                for (var i = 0; i < WAVE_LAYERS.length; i++)
+                {
+                    var layer = WAVE_LAYERS[i];
+                    total += layer.amp * Math.sin((along / layer.wavelength) * Math.PI * 2 + phase * layer.phaseScale);
+                }
+                return total;
+            };
+
+            var buildWavyRoundedRectPath = function (width, height, radius, phase, originX, originY)
+            {
+                var edge = STROKE / 2;
+                var rw = Math.max(1, width - edge * 2);
+                var rh = Math.max(1, height - edge * 2);
+                var r = Math.max(0, Math.min(radius - edge, rw / 2, rh / 2));
+                var straightW = Math.max(0, rw - 2 * r);
+                var straightH = Math.max(0, rh - 2 * r);
+                var points = [];
+                var dist = 0;
+                var ox = originX + edge;
+                var oy = originY + edge;
+
+                var push = function (x, y, nx, ny, along)
+                {
+                    var wave = waveOffset(along, phase);
+                    points.push([
+                        ox + x + nx * wave,
+                        oy + y + ny * wave
+                    ]);
+                };
+
+                var sampleStraight = function (x0, y0, dx, dy, nx, ny, length)
+                {
+                    if (length <= 0)
+                    {
+                        push(x0, y0, nx, ny, dist);
+                        return;
+                    }
+                    for (var t = 0; t < length; t += STEP)
+                    {
+                        push(x0 + dx * t, y0 + dy * t, nx, ny, dist + t);
+                    }
+                    push(x0 + dx * length, y0 + dy * length, nx, ny, dist + length);
+                    dist += length;
+                };
+
+                var sampleArc = function (cx, cy, startAng, sweep)
+                {
+                    if (r <= 0)
+                    {
+                        return;
+                    }
+                    var len = Math.abs(sweep) * r;
+                    if (len <= 0)
+                    {
+                        return;
+                    }
+                    for (var t = 0; t < len; t += STEP)
+                    {
+                        var ang = startAng + (t / len) * sweep;
+                        push(cx + r * Math.cos(ang), cy + r * Math.sin(ang), Math.cos(ang), Math.sin(ang), dist + t);
+                    }
+                    var endAng = startAng + sweep;
+                    push(cx + r * Math.cos(endAng), cy + r * Math.sin(endAng), Math.cos(endAng), Math.sin(endAng), dist + len);
+                    dist += len;
+                };
+
+                sampleStraight(r, 0, 1, 0, 0, -1, straightW);
+                sampleArc(rw - r, r, -Math.PI / 2, Math.PI / 2);
+                sampleStraight(rw, r, 0, 1, 1, 0, straightH);
+                sampleArc(rw - r, rh - r, 0, Math.PI / 2);
+                sampleStraight(rw - r, rh, -1, 0, 0, 1, straightW);
+                sampleArc(r, rh - r, Math.PI / 2, Math.PI / 2);
+                sampleStraight(0, rh - r, 0, -1, -1, 0, straightH);
+                sampleArc(r, r, Math.PI, Math.PI / 2);
+
+                if (points.length < 2)
+                {
+                    return null;
+                }
+
+                var d = 'M' + points[0][0].toFixed(2) + ' ' + points[0][1].toFixed(2);
+                for (var i = 1; i < points.length; i++)
+                {
+                    d += 'L' + points[i][0].toFixed(2) + ' ' + points[i][1].toFixed(2);
+                }
+                d += 'Z';
+                return d;
+            };
+
+            var ensureSvg = function (host)
+            {
+                var svg = null;
+                for (var i = 0; i < host.children.length; i++)
+                {
+                    if (host.children[i].classList && host.children[i].classList.contains('ghost-wave-border'))
+                    {
+                        svg = host.children[i];
+                        break;
+                    }
+                }
+                if (svg)
+                {
+                    return svg;
+                }
+                svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.classList.add('ghost-wave-border');
+                svg.setAttribute('aria-hidden', 'true');
+                svg.setAttribute('focusable', 'false');
+                var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('fill', FILL);
+                path.setAttribute('stroke', STROKE_COLOR);
+                path.setAttribute('stroke-width', String(STROKE));
+                path.setAttribute('stroke-linejoin', 'round');
+                path.setAttribute('stroke-linecap', 'round');
+                svg.appendChild(path);
+                host.insertBefore(svg, host.firstChild);
+                return svg;
+            };
+
+            var ensureContentWrap = function (host)
+            {
+                if (!host.classList.contains('message'))
+                {
+                    return null;
+                }
+                var wrap = null;
+                for (var i = 0; i < host.children.length; i++)
+                {
+                    if (host.children[i].classList && host.children[i].classList.contains('ghost-wave-content'))
+                    {
+                        wrap = host.children[i];
+                        break;
+                    }
+                }
+                if (wrap)
+                {
+                    return wrap;
+                }
+                wrap = document.createElement('div');
+                wrap.className = 'ghost-wave-content';
+                var nodes = Array.prototype.slice.call(host.childNodes);
+                host.appendChild(wrap);
+                nodes.forEach(function (node)
+                {
+                    if (node === wrap)
+                    {
+                        return;
+                    }
+                    if (node.nodeType === 1 && node.classList && node.classList.contains('ghost-wave-border'))
+                    {
+                        return;
+                    }
+                    wrap.appendChild(node);
+                });
+                return wrap;
+            };
+
+            var unwrapContentWrap = function (host)
+            {
+                var wrap = host.querySelector(':scope > .ghost-wave-content');
+                if (!wrap)
+                {
+                    return;
+                }
+                while (wrap.firstChild)
+                {
+                    host.insertBefore(wrap.firstChild, wrap);
+                }
+                wrap.parentNode.removeChild(wrap);
+            };
+
+            var resolveTargetBox = function (host)
+            {
+                if (host.classList.contains('textarea-wrapper'))
+                {
+                    return host.querySelector('textarea') || host;
+                }
+                var wrap = host.querySelector(':scope > .ghost-wave-content');
+                return wrap || host;
+            };
+
+            var paintHost = function (host, phase)
+            {
+                var entry = hosts.get(host);
+                if (!entry)
+                {
+                    return;
+                }
+                var target = resolveTargetBox(host);
+                var hostRect = host.getBoundingClientRect();
+                var rect = target.getBoundingClientRect();
+                if (rect.width < 8 || rect.height < 8)
+                {
+                    return;
+                }
+                var pad = Math.ceil(MAX_AMP) + 3;
+                var radius = host.classList.contains('textarea-wrapper') ? RADIUS_TEXTAREA : RADIUS_MESSAGE;
+                var svgD = buildWavyRoundedRectPath(rect.width, rect.height, radius, phase, pad, pad);
+                var clipD = buildWavyRoundedRectPath(rect.width, rect.height, radius, phase, 0, 0);
+                if (!svgD || !clipD)
+                {
+                    return;
+                }
+                var svg = entry.svg;
+                var path = svg.querySelector('path');
+                var svgW = rect.width + pad * 2;
+                var svgH = rect.height + pad * 2;
+                svg.setAttribute('viewBox', '0 0 ' + svgW + ' ' + svgH);
+                svg.setAttribute('width', String(svgW));
+                svg.setAttribute('height', String(svgH));
+                svg.style.left = (rect.left - hostRect.left - pad) + 'px';
+                svg.style.top = (rect.top - hostRect.top - pad) + 'px';
+                path.setAttribute('d', svgD);
+
+                var clipValue = 'path("' + clipD + '")';
+                if (entry.clipTarget)
+                {
+                    entry.clipTarget.style.clipPath = clipValue;
+                    entry.clipTarget.style.webkitClipPath = clipValue;
+                }
+            };
+
+            var tick = function (ts)
+            {
+                if (!startTs)
+                {
+                    startTs = ts;
+                }
+                var phase = ((ts - startTs) / PERIOD_MS) * Math.PI * 2;
+                hosts.forEach(function (_entry, host)
+                {
+                    paintHost(host, phase);
+                });
+                rafId = hosts.size ? window.requestAnimationFrame(tick) : 0;
+            };
+
+            var startLoop = function ()
+            {
+                if (!rafId && hosts.size)
+                {
+                    startTs = 0;
+                    rafId = window.requestAnimationFrame(tick);
+                }
+            };
+
+            var stopLoopIfEmpty = function ()
+            {
+                if (!hosts.size && rafId)
+                {
+                    window.cancelAnimationFrame(rafId);
+                    rafId = 0;
+                }
+            };
+
+            var attachHost = function (host)
+            {
+                if (hosts.has(host))
+                {
+                    return;
+                }
+                var svg = ensureSvg(host);
+                var clipTarget = null;
+                if (host.classList.contains('message'))
+                {
+                    clipTarget = ensureContentWrap(host);
+                }
+                else if (host.classList.contains('textarea-wrapper'))
+                {
+                    clipTarget = host.querySelector('textarea');
+                }
+                hosts.set(host, { svg: svg, clipTarget: clipTarget });
+                startLoop();
+            };
+
+            var detachHost = function (host)
+            {
+                var entry = hosts.get(host);
+                if (!entry)
+                {
+                    return;
+                }
+                if (entry.clipTarget)
+                {
+                    entry.clipTarget.style.clipPath = '';
+                    entry.clipTarget.style.webkitClipPath = '';
+                }
+                if (host.classList.contains('message'))
+                {
+                    unwrapContentWrap(host);
+                }
+                if (entry.svg && entry.svg.parentNode === host)
+                {
+                    entry.svg.parentNode.removeChild(entry.svg);
+                }
+                hosts.delete(host);
+                stopLoopIfEmpty();
+            };
+
+            var syncGhostWaveBorders = function ()
+            {
+                var wanted = new Set();
+                document.querySelectorAll('.message.is-ghost, .textarea-wrapper.is-ghost-mode').forEach(function (host)
+                {
+                    wanted.add(host);
+                    attachHost(host);
+                });
+                hosts.forEach(function (_entry, host)
+                {
+                    if (!wanted.has(host))
+                    {
+                        detachHost(host);
+                    }
+                });
+            };
+
+            window.syncGhostWaveBorders = syncGhostWaveBorders;
+            syncGhostWaveBorders();
+
+            if (typeof MutationObserver !== 'undefined')
+            {
+                var syncTimer = 0;
+                var scheduleSync = function ()
+                {
+                    if (syncTimer)
+                    {
+                        return;
+                    }
+                    syncTimer = window.setTimeout(function ()
+                    {
+                        syncTimer = 0;
+                        syncGhostWaveBorders();
+                    }, 50);
+                };
+                var observer = new MutationObserver(scheduleSync);
+                observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+            }
+        })();
     });
 </script>

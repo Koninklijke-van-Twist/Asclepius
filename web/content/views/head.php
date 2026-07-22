@@ -1482,13 +1482,48 @@
 
         .message.is-ghost {
             position: relative;
-            overflow: hidden;
+            overflow: visible;
             background: #5b21b6;
-            border-color: #ddd6fe;
-            color: #f5f3ff;
+            border: 2px solid #f9a8d4;
+            border-radius: 14px;
+            color: #fce7f3;
+            box-shadow: none;
         }
 
-        .message.is-ghost::after {
+        .message.is-ghost:has(> .ghost-wave-border) {
+            background: transparent;
+            border-color: transparent;
+            border-radius: 0;
+            padding: 0;
+        }
+
+        .message.is-ghost > .ghost-wave-border,
+        .textarea-wrapper.is-ghost-mode > .ghost-wave-border {
+            position: absolute;
+            left: 0;
+            top: 0;
+            overflow: visible;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .ghost-wave-border path {
+            fill: #5b21b6;
+            stroke: #f9a8d4;
+            stroke-width: 2.5px;
+            stroke-linejoin: round;
+            stroke-linecap: round;
+        }
+
+        .message.is-ghost > .ghost-wave-content {
+            position: relative;
+            z-index: 1;
+            overflow: visible;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        .message.is-ghost > .ghost-wave-content::after {
             content: '';
             position: absolute;
             right: 48px;
@@ -1501,18 +1536,13 @@
             z-index: 0;
         }
 
-        .message.is-ghost > * {
-            position: relative;
-            z-index: 1;
-        }
-
         .message.is-ghost .message-meta,
         .message.is-ghost .message-role,
         .message.is-ghost .message-text,
         .message.is-ghost .message-text a,
         .message.is-ghost .attachment-download-link,
         .message.is-ghost .hint {
-            color: #f5f3ff;
+            color: #fce7f3;
         }
 
         .message.is-ghost .message-role {
@@ -1520,7 +1550,8 @@
         }
 
         .message.is-ghost .message-text a {
-            text-decoration-color: #ddd6fe;
+            color: #f9a8d4;
+            text-decoration-color: #f9a8d4;
         }
 
         .message-meta {
@@ -2165,11 +2196,21 @@
             padding-right: 68px;
         }
 
+        .textarea-wrapper.is-ghost-mode {
+            overflow: visible;
+        }
+
         .textarea-wrapper.is-ghost-mode textarea {
             background-color: #5b21b6;
-            color: #f5f3ff;
-            border-color: #ddd6fe;
-            caret-color: #f5f3ff;
+            color: #fce7f3;
+            border: 2px solid #f9a8d4;
+            caret-color: #fce7f3;
+            box-shadow: none;
+        }
+
+        .textarea-wrapper.is-ghost-mode:has(> .ghost-wave-border) textarea {
+            background-color: transparent;
+            border-color: transparent;
         }
 
         .textarea-wrapper.is-ghost-mode::after {
@@ -2186,8 +2227,8 @@
         }
 
         .textarea-wrapper.is-ghost-mode textarea::placeholder {
-            color: #ddd6fe;
-            opacity: 0.85;
+            color: #f9a8d4;
+            opacity: 0.75;
         }
 
         .ghost-mode-toggle {
@@ -2214,15 +2255,15 @@
         .ghost-mode-toggle:hover,
         .ghost-mode-toggle.is-active {
             background: #5b21b6;
-            border-color: #ddd6fe;
-            color: #f5f3ff;
-            box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.35);
+            border-color: #f9a8d4;
+            color: #fce7f3;
+            box-shadow: 0 0 0 2px rgba(249, 168, 212, 0.35);
         }
 
         .textarea-wrapper.is-ghost-mode .key-picker-toggle {
             background: rgba(91, 33, 182, 0.55);
-            border-color: #ddd6fe;
-            color: #f5f3ff;
+            border-color: #f9a8d4;
+            color: #fce7f3;
         }
 
         .template-preview-rendered .shortcut-plus {

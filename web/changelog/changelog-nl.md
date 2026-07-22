@@ -3,7 +3,7 @@ date: 2026-07-22
 title: Ghost-berichten op ICT-overzicht
 author: Tim Falken
 
-Op het **ICT-overzicht** kun je bij een antwoord de ghost-modus inschakelen (spook-knop naast het toetsenbord). Zo'n bericht is alleen voor ICT zichtbaar op dat overzicht, met paarse styling. Statuswijzigingen en andere systeeminformatie blijven normale berichten.
+Op het **ICT-overzicht** kun je bij een antwoord de ghost-modus inschakelen (spook-knop naast het toetsenbord). Zo'n bericht is alleen voor ICT zichtbaar op dat overzicht, met paarse styling en een golvende rand. Statuswijzigingen en andere systeeminformatie blijven normale berichten.
 
 ---
 id: 2026-07-22-custom-ticket-statuses
