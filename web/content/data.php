@@ -214,8 +214,14 @@ $settingsMatrix = $canManageTickets && $view === 'settings' && $store instanceof
     : [];
 $loadByIctUser = [];
 $availabilityByIctUser = $canManageTickets && in_array($view, ['settings', 'stats'], true) && $store instanceof TicketStore
-    ? $store->getIctUserAvailability()
+    ? $store->getEffectiveIctUserAvailability()
     : array_fill_keys(extractIctUserEmails($ictUsers), true);
+if (!isset($janusLocksByUser) || !is_array($janusLocksByUser)) {
+    $janusLocksByUser = [];
+}
+if (!isset($janusWeekday) || !is_string($janusWeekday) || $janusWeekday === '') {
+    $janusWeekday = strtolower((new DateTimeImmutable('today'))->format('l'));
+}
 $overallStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getOverallStats()
     : [
@@ -519,7 +525,7 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
     $pollOverallStats = $store instanceof TicketStore ? $store->getOverallStats() : [];
     $pollIctStats = $store instanceof TicketStore ? $store->getIctUserStats() : [];
     $pollRequesterStats = $store instanceof TicketStore ? $store->getRequesterStats() : [];
-    $pollAvailability = $store instanceof TicketStore ? $store->getIctUserAvailability() : [];
+    $pollAvailability = $store instanceof TicketStore ? $store->getEffectiveIctUserAvailability() : [];
 
     $pollIctStatsMapped = array_map(
         static fn(array $row): array => mapBigscreenIctStatRow($row, $pollAvailability),

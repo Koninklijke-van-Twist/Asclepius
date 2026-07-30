@@ -124,4 +124,10 @@ if (!defined('APP_TIMEZONE')) {
     define('APP_TIMEZONE', 'Europe/Amsterdam');
 }
 
+// Optional override for Janus hours API (localhost URL preferred for trusted auth).
+// Example: 'http://127.0.0.1/janus/hours_api.php'
+if (!defined('JANUS_HOURS_API_URL')) {
+    define('JANUS_HOURS_API_URL', '');
+}
+
 date_default_timezone_set(APP_TIMEZONE);

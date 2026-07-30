@@ -430,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $currentAssignee = strtolower((string) ($ticket['assigned_email'] ?? ''));
                 $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
                 $templateTicketSelfAssignmentAllowed = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
-                $availabilityByUser = $store->getIctUserAvailability();
+                $availabilityByUser = $store->getEffectiveIctUserAvailability();
                 $isAssigningToSelf = $requestedAssignee !== '' && $requestedAssignee === strtolower($userEmail);
                 if ($requestedAssignee !== '' && !in_array($requestedAssignee, extractIctUserEmails($ictUsers), true)) {
                     $errors[] = __('flash.invalid_employee');
@@ -624,9 +624,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
             $matrix = [];
             $availability = [];
+            $storedAvailability = $store->getIctUserAvailability();
+            $janusLockedUsers = array_fill_keys($store->getForcedAwayEmails(), true);
             foreach ($ictUsers as $ictUser) {
                 $ictUser = strtolower($ictUser);
-                $availability[$ictUser] = !empty($postedAvailability[$ictUser]);
+                if (isset($janusLockedUsers[$ictUser])) {
+                    $availability[$ictUser] = !empty($storedAvailability[$ictUser]);
+                } else {
+                    $availability[$ictUser] = !empty($postedAvailability[$ictUser]);
+                }
                 foreach (TICKET_CATEGORIES as $category) {
                     $matrix[$ictUser][$category] = !empty($postedSettings[$ictUser][$category]) || !empty($enabledLookup[$ictUser][$category]);
                 }

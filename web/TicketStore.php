@@ -18,6 +18,8 @@ class TicketStore
     private string $uploadRoot;
     private array $ictUsers;
     private array $categories;
+    /** @var list<string> */
+    private array $forcedAwayEmails = [];
 
     public function __construct(string $databasePath, string $uploadRoot, array $ictUsers, array $categories)
     {
@@ -61,6 +63,45 @@ class TicketStore
 
         foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $availability[$row['user_email']] = (bool) $row['is_available'];
+        }
+
+        return $availability;
+    }
+
+    /**
+     * @param list<string>|array<string, mixed> $emails
+     */
+    public function setForcedAwayEmails(array $emails): void
+    {
+        $normalized = [];
+        foreach ($emails as $email) {
+            $email = strtolower(trim((string) $email));
+            if ($email !== '') {
+                $normalized[$email] = $email;
+            }
+        }
+
+        $this->forcedAwayEmails = array_values($normalized);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getForcedAwayEmails(): array
+    {
+        return $this->forcedAwayEmails;
+    }
+
+    /**
+     * Stored availability with Janus forced-away overlay applied.
+     *
+     * @return array<string, bool>
+     */
+    public function getEffectiveIctUserAvailability(): array
+    {
+        $availability = $this->getIctUserAvailability();
+        foreach ($this->forcedAwayEmails as $email) {
+            $availability[$email] = false;
         }
 
         return $availability;
@@ -2590,6 +2631,19 @@ class TicketStore
         }
 
         $allowedUsersInClause = implode(', ', $allowedUserPlaceholders);
+        $forcedAwayPlaceholders = [];
+        $forcedAwayParameters = [];
+        foreach ($this->forcedAwayEmails as $index => $forcedAwayEmail) {
+            $placeholder = ':forced_away_' . $index;
+            $forcedAwayPlaceholders[] = $placeholder;
+            $forcedAwayParameters[$placeholder] = $forcedAwayEmail;
+        }
+        $forcedAwaySettingsClause = $forcedAwayPlaceholders !== []
+            ? ' AND lower(settings.user_email) NOT IN (' . implode(', ', $forcedAwayPlaceholders) . ')'
+            : '';
+        $forcedAwayAvailabilityClause = $forcedAwayPlaceholders !== []
+            ? ' AND lower(availability.user_email) NOT IN (' . implode(', ', $forcedAwayPlaceholders) . ')'
+            : '';
 
         if ($category !== null && trim($category) !== '') {
             $parameters = [':category' => $category];
@@ -2611,11 +2665,12 @@ class TicketStore
                    AND settings.is_enabled = 1
                                      AND lower(settings.user_email) IN ($allowedUsersInClause)
                    $excludeSettingsClause
+                   $forcedAwaySettingsClause
                  GROUP BY settings.user_email
                  ORDER BY open_count ASC, settings.user_email ASC
                  LIMIT 1"
             );
-            $statement->execute(array_merge($parameters, $allowedUserParameters));
+            $statement->execute(array_merge($parameters, $allowedUserParameters, $forcedAwayParameters));
 
             $row = $statement->fetch(PDO::FETCH_ASSOC);
             if ($row !== false) {
@@ -2638,11 +2693,12 @@ class TicketStore
              WHERE availability.is_available = 1
                              AND lower(availability.user_email) IN ($allowedUsersInClause)
                $excludeAvailabilityClause
+               $forcedAwayAvailabilityClause
              GROUP BY availability.user_email
              ORDER BY open_count ASC, availability.user_email ASC
              LIMIT 1"
         );
-        $statement->execute(array_merge($parameters, $allowedUserParameters));
+        $statement->execute(array_merge($parameters, $allowedUserParameters, $forcedAwayParameters));
 
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 

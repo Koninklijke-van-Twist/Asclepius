@@ -2728,6 +2728,11 @@
             gap: 8px;
         }
 
+        .vacation-toggle .availability-checkbox:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
         .availability-slot {
             width: 12px;
             align-self: stretch;

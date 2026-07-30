@@ -12,6 +12,7 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'TicketStore.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'constants.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'localization.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'helpers.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'janus_sync.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'TranslationProvider.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'LaraTranslationProvider.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'translation.php';
@@ -858,7 +859,7 @@ function buildBigscreenPollApiPayload(TicketStore $store): array
     $pollOverallStats = $store->getOverallStats();
     $pollIctStats = $store->getIctUserStats();
     $pollRequesterStats = $store->getRequesterStats();
-    $pollAvailability = $store->getIctUserAvailability();
+    $pollAvailability = $store->getEffectiveIctUserAvailability();
 
     $pollIctStatsMapped = array_map(
         static fn(array $row): array => mapBigscreenIctStatRow($row, $pollAvailability),
@@ -1310,6 +1311,7 @@ if (!isTrustedApiRequester() && $apiClient === null && !$hasValidServiceApiKey) 
 
 try {
     $store = new TicketStore(DATABASE_FILE, UPLOAD_DIRECTORY, $ictUsers ?? [], TICKET_CATEGORIES);
+    applyJanusSyncToStore($store, is_array($ictUsers) ? $ictUsers : []);
 } catch (Throwable $exception) {
     sendJson(500, [
         'success' => false,

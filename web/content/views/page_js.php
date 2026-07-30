@@ -976,7 +976,10 @@
                 });
             };
 
-            availabilityCheckbox.addEventListener('change', syncAvailabilityState);
+            if (!availabilityCheckbox.disabled && row.getAttribute('data-janus-locked') !== '1')
+            {
+                availabilityCheckbox.addEventListener('change', syncAvailabilityState);
+            }
             syncAvailabilityState();
         });
 

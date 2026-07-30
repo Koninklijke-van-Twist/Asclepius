@@ -221,7 +221,7 @@ function routeNotificationRecipients(?TicketStore $store, array $ictUsers, array
     $resolvedRecipients = [];
     $notes = [];
     $ictLookup = array_fill_keys(extractIctUserEmails($ictUsers), true);
-    $availabilityByUser = $store instanceof TicketStore ? $store->getIctUserAvailability() : [];
+    $availabilityByUser = $store instanceof TicketStore ? $store->getEffectiveIctUserAvailability() : [];
 
     foreach ($recipients as $recipient) {
         $email = strtolower(trim((string) $recipient));

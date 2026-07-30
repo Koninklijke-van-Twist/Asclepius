@@ -27,15 +27,25 @@
                                 <tbody>
                                     <?php foreach ($ictUsers as $ictUser):
                                         $ictUser = strtolower($ictUser);
-                                        $isAvailable = !empty($availabilityByIctUser[$ictUser]); ?>
+                                        $isAvailable = !empty($availabilityByIctUser[$ictUser]);
+                                        $janusLockReason = (string) ($janusLocksByUser[$ictUser] ?? '');
+                                        $isJanusLocked = $janusLockReason !== '';
+                                        $vacationTooltip = $isJanusLocked
+                                            ? janusAwayLockTooltip($janusLockReason, $janusWeekday ?? null)
+                                            : '';
+                                        ?>
                                         <tr class="settings-row <?= $isAvailable ? '' : 'is-away' ?>" data-settings-row
-                                            data-settings-user="<?= h($ictUser) ?>">
+                                            data-settings-user="<?= h($ictUser) ?>"
+                                            <?= $isJanusLocked ? 'data-janus-locked="1"' : '' ?>>
                                             <td class="user-color-cell settings-user-cell"
                                                 style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
-                                                <label class="vacation-toggle">
+                                                <label class="vacation-toggle"<?= $vacationTooltip !== '' ? ' title="' . h($vacationTooltip) . '"' : '' ?>>
                                                     <span class="availability-slot">
                                                         <input type="checkbox" class="availability-checkbox"
-                                                            name="availability[<?= h($ictUser) ?>]" value="1" <?= $isAvailable ? 'checked' : '' ?>>
+                                                            name="availability[<?= h($ictUser) ?>]" value="1"
+                                                            <?= $isAvailable ? 'checked' : '' ?>
+                                                            <?= $isJanusLocked ? 'disabled aria-disabled="true"' : '' ?>
+                                                            <?= $vacationTooltip !== '' ? ' title="' . h($vacationTooltip) . '" aria-label="' . h($vacationTooltip) . '"' : '' ?>>
                                                     </span>
                                                     <span
                                                         class="assignee-badge vacation-badge <?= $isAvailable ? '' : 'is-away' ?>"
@@ -70,12 +80,19 @@
                                 <tbody>
                                     <?php foreach ($ictUsers as $ictUser):
                                         $ictUser = strtolower($ictUser);
-                                        $isAvailable = !empty($availabilityByIctUser[$ictUser]); ?>
+                                        $isAvailable = !empty($availabilityByIctUser[$ictUser]);
+                                        $janusLockReason = (string) ($janusLocksByUser[$ictUser] ?? '');
+                                        $isJanusLocked = $janusLockReason !== '';
+                                        $vacationTooltip = $isJanusLocked
+                                            ? janusAwayLockTooltip($janusLockReason, $janusWeekday ?? null)
+                                            : '';
+                                        ?>
                                         <tr class="settings-row <?= $isAvailable ? '' : 'is-away' ?>" data-settings-row
-                                            data-settings-user="<?= h($ictUser) ?>">
+                                            data-settings-user="<?= h($ictUser) ?>"
+                                            <?= $isJanusLocked ? 'data-janus-locked="1"' : '' ?>>
                                             <td class="user-color-cell settings-user-cell"
                                                 style="--assignee-color: <?= h(emailToHexColor($ictUser)) ?>;">
-                                                <label class="vacation-toggle">
+                                                <label class="vacation-toggle"<?= $vacationTooltip !== '' ? ' title="' . h($vacationTooltip) . '"' : '' ?>>
                                                     <span
                                                         class="assignee-badge vacation-badge <?= $isAvailable ? '' : 'is-away' ?>"
                                                         style="--assignee-color: <?= h($isAvailable ? emailToHexColor($ictUser) : '#94a3b8') ?>;">

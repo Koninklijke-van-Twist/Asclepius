@@ -106,6 +106,18 @@ try {
     $storeError = $exception->getMessage();
 }
 
+$janusSyncState = [
+    'availability' => array_fill_keys(extractIctUserEmails($ictUsers), true),
+    'locks' => [],
+    'stored' => array_fill_keys(extractIctUserEmails($ictUsers), true),
+    'connected' => false,
+];
+if ($store instanceof TicketStore) {
+    $janusSyncState = applyJanusSyncToStore($store, $ictUsers);
+}
+$janusLocksByUser = $janusSyncState['locks'];
+$janusWeekday = strtolower((new DateTimeImmutable('today'))->format('l'));
+
 $activeCustomStatuses = $store instanceof TicketStore ? $store->getActiveCustomStatuses() : [];
 $activeCustomStatusLabels = array_values(array_map(
     static fn(array $row): string => (string) ($row['display_label'] ?? ''),
