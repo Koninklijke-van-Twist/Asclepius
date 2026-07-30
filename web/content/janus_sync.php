@@ -155,7 +155,13 @@ function mergeIctAvailabilityWithJanus(array $storedAvailability, ?array $janus)
 
         $reason = trim((string) ($status['reason'] ?? ''));
         if ($reason === '') {
-            $reason = !empty($status['holiday']) ? 'janus_holiday' : 'contract_off';
+            if (!empty($status['holiday'])) {
+                $reason = 'janus_holiday';
+            } elseif (!empty($status['sick'])) {
+                $reason = 'janus_sick';
+            } else {
+                $reason = 'contract_off';
+            }
         }
 
         $availability[$email] = false;
@@ -213,6 +219,10 @@ function janusAwayLockTooltip(string $reason, ?string $weekdayEnglish = null): s
 {
     if ($reason === 'janus_holiday') {
         return (string) __('settings.vacation_locked_janus_tooltip');
+    }
+
+    if ($reason === 'janus_sick') {
+        return (string) __('settings.vacation_locked_janus_sick_tooltip');
     }
 
     if ($reason === 'contract_off') {
