@@ -44,11 +44,10 @@ $apiUrl = 'api.php';
     data-presence-unavailable="<?= h(__('presence.unavailable')) ?>"
     data-presence-empty="<?= h(__('presence.empty')) ?>">
     <?php require __DIR__ . '/content/views/update_notify.php'; ?>
-    <div class="page<?= empty($isBigscreen) ? ' page-with-presence' : '' ?>">
-        <?php if (empty($isBigscreen)): ?>
-            <?php require __DIR__ . '/content/views/view_presence.php'; ?>
-        <?php endif; ?>
-        <div class="page-main">
+    <?php if (empty($isBigscreen)): ?>
+        <?php require __DIR__ . '/content/views/view_presence.php'; ?>
+    <?php endif; ?>
+    <div class="page">
         <?php require __DIR__ . '/content/views/header.php'; ?>
 
         <?php if ($flashMessages !== []): ?>
@@ -84,7 +83,6 @@ $apiUrl = 'api.php';
 
             <?php require __DIR__ . '/content/views/view_tickets.php'; ?>
         </main>
-        </div>
     </div>
     <?php require __DIR__ . '/content/views/view_ticket_share_modal.php'; ?>
     <?php require __DIR__ . '/content/views/page_js.php'; ?>

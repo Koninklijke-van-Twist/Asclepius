@@ -112,26 +112,17 @@
             padding: 16px;
         }
 
-        .page.page-with-presence {
-            max-width: 1480px;
-            display: grid;
-            grid-template-columns: 240px minmax(0, 1fr);
-            gap: 16px;
-            align-items: start;
-        }
-
-        .page-main {
-            min-width: 0;
-        }
-
         .presence-sidebar {
-            position: sticky;
-            top: 12px;
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 40;
+            width: 220px;
             background: var(--panel);
             border-radius: 18px;
             padding: 14px;
             box-shadow: var(--shadow);
-            max-height: calc(100vh - 24px);
+            max-height: calc(100vh - 32px);
             overflow: auto;
         }
 
@@ -204,15 +195,15 @@
             color: #94a3b8;
         }
 
-        @media (max-width: 960px) {
-            .page.page-with-presence {
-                grid-template-columns: 1fr;
-            }
-
+        @media (max-width: 1500px) {
             .presence-sidebar {
-                position: static;
-                max-height: none;
-                order: -1;
+                width: 200px;
+            }
+        }
+
+        @media (max-width: 1100px) {
+            .presence-sidebar {
+                display: none;
             }
         }
 
