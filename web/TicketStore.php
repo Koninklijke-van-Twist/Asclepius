@@ -1133,8 +1133,8 @@ class TicketStore
 
         if ($adminList || $allCompletedPublic) {
             $sql .= " ORDER BY CASE WHEN t.status = 'afgehandeld' THEN 1 ELSE 0 END ASC,
-                            datetime(t.created_at) DESC,
-                            t.id DESC";
+                            datetime(t.created_at) ASC,
+                            t.id ASC";
         } else {
             $sql .= ' ORDER BY datetime(t.updated_at) DESC, datetime(t.created_at) DESC, t.id DESC';
         }
@@ -1374,10 +1374,10 @@ class TicketStore
             $leftCreated = strtotime((string) ($left['created_at'] ?? '')) ?: 0;
             $rightCreated = strtotime((string) ($right['created_at'] ?? '')) ?: 0;
             if ($leftCreated !== $rightCreated) {
-                return $rightCreated <=> $leftCreated;
+                return $leftCreated <=> $rightCreated;
             }
 
-            return (int) ($right['id'] ?? 0) <=> (int) ($left['id'] ?? 0);
+            return (int) ($left['id'] ?? 0) <=> (int) ($right['id'] ?? 0);
         });
     }
 

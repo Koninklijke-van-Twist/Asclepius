@@ -1,3 +1,19 @@
+id: 2026-08-04-priority-edge-markers
+date: 2026-08-04
+title: Prioriteitsbolletjes op open tickets
+author: Tim Falken
+
+Op het **ICT-overzicht** tonen open tickets met prioriteit 1 of 2 een bolletje op de linker rand: oranje met `!` bij prioriteit 1, en knipperend rood met `!!` bij prioriteit 2.
+
+---
+id: 2026-08-04-ticket-sort-oldest-first
+date: 2026-08-04
+title: Oudere open tickets bovenaan
+author: Tim Falken
+
+Open tickets staan nog steeds eerst (niet-afgehandeld vóór afgehandeld) en daarna op prioriteit (hoog naar laag). Binnen dezelfde prioriteit komen **oudere tickets nu vóór nieuwere**, zodat langer openstaande tickets eerder in beeld zijn.
+
+---
 id: 2026-08-04-presence-sidebar
 date: 2026-08-04
 title: Aanwezigheid via Janus

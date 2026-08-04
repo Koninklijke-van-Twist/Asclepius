@@ -988,12 +988,27 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
         ? buildTicketShareUrl((int) ($ticket['id'] ?? 0))
         : '';
 
+    $ticketPriority = max(0, min(2, (int) ($ticket['priority'] ?? 0)));
+    $ticketStatus = (string) ($ticket['status'] ?? '');
+    $showPriorityEdgeMarker = $canManageTickets && $isAdminPortal && $view === 'overview'
+        && strtolower($ticketStatus) !== 'afgehandeld'
+        && $ticketPriority > 0;
+
     ob_start();
     ?>
-    <details class="ticket-card" data-ticket-id="<?= (int) ($ticket['id'] ?? 0) ?>"
-        data-needs-translation="<?= $needsTranslation ? '1' : '0' ?>" style="--ticket-color: <?= h($ticketColor) ?>;"
+    <details class="ticket-card<?= $showPriorityEdgeMarker ? ' has-priority-marker' : '' ?>" data-ticket-id="<?= (int) ($ticket['id'] ?? 0) ?>"
+        data-needs-translation="<?= $needsTranslation ? '1' : '0' ?>"
+        data-priority="<?= $ticketPriority ?>"
+        data-status="<?= h($ticketStatus) ?>"
+        style="--ticket-color: <?= h($ticketColor) ?>;"
         <?= $shouldOpen ? 'open' : '' ?>>
         <summary>
+            <?php if ($canManageTickets && $isAdminPortal && $view === 'overview'): ?>
+                <span class="ticket-priority-marker" data-role="ticket-priority-marker"
+                    data-priority="<?= $ticketPriority ?>"
+                    <?= $showPriorityEdgeMarker ? '' : 'hidden' ?>
+                    aria-hidden="<?= $showPriorityEdgeMarker ? 'false' : 'true' ?>"><?= $ticketPriority === 2 ? '!!' : '!' ?></span>
+            <?php endif; ?>
             <div class="ticket-summary">
                 <div>
                     <p class="ticket-main-title"><strong><?php if ($showTicketShareLink && $ticketShareUrl !== ''): ?>

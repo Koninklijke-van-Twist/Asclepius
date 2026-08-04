@@ -3998,6 +3998,24 @@
                 priorityPill.style.setProperty('--ticket-color', ticket.priority_color);
             }
 
+            var priorityMarker = card.querySelector('[data-role="ticket-priority-marker"]');
+            if (priorityMarker)
+            {
+                var markerPriority = Math.max(0, Math.min(2, parseInt(ticket.priority, 10) || 0));
+                var showPriorityMarker = String(ticket.status || '').toLowerCase() !== 'afgehandeld' && markerPriority > 0;
+                priorityMarker.setAttribute('data-priority', String(markerPriority));
+                priorityMarker.textContent = markerPriority === 2 ? '!!' : '!';
+                priorityMarker.hidden = !showPriorityMarker;
+                priorityMarker.setAttribute('aria-hidden', showPriorityMarker ? 'false' : 'true');
+                card.classList.toggle('has-priority-marker', showPriorityMarker);
+                card.setAttribute('data-priority', String(markerPriority));
+            }
+
+            if (ticket.status)
+            {
+                card.setAttribute('data-status', ticket.status);
+            }
+
             var assigneeBadge = card.querySelector('[data-role="assignee-badge"]');
             if (assigneeBadge)
             {

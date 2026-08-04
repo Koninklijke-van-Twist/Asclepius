@@ -1,3 +1,19 @@
+id: 2026-08-04-priority-edge-markers
+date: 2026-08-04
+title: Priority dots on open tickets
+author: Tim Falken
+
+On the **ICT overview**, open tickets with priority 1 or 2 show a dot on the left edge: orange with `!` for priority 1, and blinking red with `!!` for priority 2.
+
+---
+id: 2026-08-04-ticket-sort-oldest-first
+date: 2026-08-04
+title: Older open tickets first
+author: Tim Falken
+
+Open tickets still come first (unresolved before resolved), then by priority (high to low). Within the same priority, **older tickets now appear before newer ones**, so long-running tickets show up earlier in the list.
+
+---
 id: 2026-08-04-presence-sidebar
 date: 2026-08-04
 title: Presence via Janus

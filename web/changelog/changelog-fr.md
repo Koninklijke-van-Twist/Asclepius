@@ -1,3 +1,19 @@
+id: 2026-08-04-priority-edge-markers
+date: 2026-08-04
+title: Pastilles de priorité sur les tickets ouverts
+author: Tim Falken
+
+Dans l’**aperçu ICT**, les tickets ouverts avec priorité 1 ou 2 affichent une pastille sur le bord gauche : orange avec `!` pour la priorité 1, et rouge clignotant avec `!!` pour la priorité 2.
+
+---
+id: 2026-08-04-ticket-sort-oldest-first
+date: 2026-08-04
+title: Anciens tickets ouverts en premier
+author: Tim Falken
+
+Les tickets ouverts restent en premier (non résolus avant résolus), puis par priorité (haute vers basse). À priorité égale, les **tickets plus anciens apparaissent désormais avant les plus récents**, pour que les tickets ouverts depuis plus longtemps soient plus visibles.
+
+---
 id: 2026-08-04-presence-sidebar
 date: 2026-08-04
 title: Présence via Janus

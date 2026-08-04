@@ -1,3 +1,19 @@
+id: 2026-08-04-priority-edge-markers
+date: 2026-08-04
+title: Prioritäts-Punkte an offenen Tickets
+author: Tim Falken
+
+In der **ICT-Übersicht** zeigen offene Tickets mit Priorität 1 oder 2 einen Punkt am linken Rand: orange mit `!` bei Priorität 1 und blinkend rot mit `!!` bei Priorität 2.
+
+---
+id: 2026-08-04-ticket-sort-oldest-first
+date: 2026-08-04
+title: Ältere offene Tickets zuerst
+author: Tim Falken
+
+Offene Tickets stehen weiterhin zuerst (nicht erledigt vor erledigt) und danach nach Priorität (hoch nach niedrig). Innerhalb derselben Priorität erscheinen **ältere Tickets jetzt vor neueren**, damit länger offene Tickets früher in der Liste stehen.
+
+---
 id: 2026-08-04-presence-sidebar
 date: 2026-08-04
 title: Anwesenheit über Janus
