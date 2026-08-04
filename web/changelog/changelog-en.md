@@ -1,3 +1,13 @@
+id: 2026-08-04-presence-sidebar
+date: 2026-08-04
+title: Presence via Janus
+author: Tim Falken
+
+A **presence overview** on the side now shows who is in the office or at home today, or away, sick, or on vacation. The data comes from [Janus](../janus/) and only includes colleagues who use the **full hours tracker** there.
+
+Want to appear in the list? Open [Janus](../janus/), turn on the full hours tracker, and keep using it. Only then will you show up in this overview.
+
+---
 id: 2026-07-22-ghost-messages
 date: 2026-07-22
 title: Ghost messages on ICT overview

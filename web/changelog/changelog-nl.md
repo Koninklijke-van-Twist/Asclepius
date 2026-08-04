@@ -1,3 +1,13 @@
+id: 2026-08-04-presence-sidebar
+date: 2026-08-04
+title: Aanwezigheid via Janus
+author: Tim Falken
+
+Aan de zijkant zie je nu een **aanwezigheidsoverzicht** met wie er vandaag op kantoor of thuis is, afwezig, ziek of op vakantie. De gegevens komen uit [Janus](../janus/) en alleen van collega’s die daar de **volledige urentracker** gebruiken.
+
+Wil je zelf meedoen? Open [Janus](../janus/), zet de volledige urentracker aan en gebruik die voortaan. Alleen dan verschijn je in dit overzicht.
+
+---
 id: 2026-07-22-ghost-messages
 date: 2026-07-22
 title: Ghost-berichten op ICT-overzicht

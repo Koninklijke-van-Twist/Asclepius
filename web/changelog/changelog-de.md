@@ -1,3 +1,13 @@
+id: 2026-08-04-presence-sidebar
+date: 2026-08-04
+title: Anwesenheit über Janus
+author: Tim Falken
+
+Seitlich siehst du jetzt eine **Anwesenheitsübersicht**: wer heute im Büro oder zu Hause ist, abwesend, krank oder im Urlaub. Die Daten kommen aus [Janus](../janus/) und nur von Kolleginnen und Kollegen, die dort den **vollständigen Stundentracker** nutzen.
+
+Möchtest du selbst erscheinen? Öffne [Janus](../janus/), aktiviere den vollständigen Stundentracker und nutze ihn weiter. Nur dann erscheinst du in dieser Übersicht.
+
+---
 id: 2026-07-22-ghost-messages
 date: 2026-07-22
 title: Ghost-Nachrichten in der ICT-Übersicht

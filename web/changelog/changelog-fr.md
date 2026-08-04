@@ -1,3 +1,13 @@
+id: 2026-08-04-presence-sidebar
+date: 2026-08-04
+title: Présence via Janus
+author: Tim Falken
+
+Sur le côté, un **aperçu de présence** montre qui est au bureau ou à domicile aujourd’hui, absent, malade ou en vacances. Les données viennent de [Janus](../janus/) et uniquement des collègues qui y utilisent le **suivi d’heures complet**.
+
+Vous voulez apparaître dans la liste ? Ouvrez [Janus](../janus/), activez le suivi d’heures complet et continuez à l’utiliser. Ce n’est qu’alors que vous figurerez dans cet aperçu.
+
+---
 id: 2026-07-22-ghost-messages
 date: 2026-07-22
 title: Messages fantômes dans l’aperçu ICT
