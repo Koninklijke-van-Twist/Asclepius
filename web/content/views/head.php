@@ -112,6 +112,110 @@
             padding: 16px;
         }
 
+        .page.page-with-presence {
+            max-width: 1480px;
+            display: grid;
+            grid-template-columns: 240px minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+
+        .page-main {
+            min-width: 0;
+        }
+
+        .presence-sidebar {
+            position: sticky;
+            top: 12px;
+            background: var(--panel);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+            max-height: calc(100vh - 24px);
+            overflow: auto;
+        }
+
+        .presence-heading {
+            margin: 0 0 10px;
+            font-size: 16px;
+        }
+
+        .presence-empty {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .presence-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .presence-item {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            padding: 8px;
+            border-radius: 12px;
+            background: #f8fafc;
+        }
+
+        .presence-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-top: 5px;
+            flex: 0 0 auto;
+            background: #94a3b8;
+        }
+
+        .presence-status-present_office .presence-dot { background: #15803d; }
+        .presence-status-present_home .presence-dot { background: #0f766e; }
+        .presence-status-absent .presence-dot { background: #64748b; }
+        .presence-status-unknown .presence-dot { background: #94a3b8; }
+        .presence-status-off_today .presence-dot { background: #a16207; }
+        .presence-status-holiday .presence-dot { background: #c2410c; }
+        .presence-status-sick .presence-dot { background: #b91c1c; }
+
+        .presence-meta {
+            display: grid;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .presence-name {
+            font-weight: 600;
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .presence-status {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .presence-detail {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        @media (max-width: 960px) {
+            .page.page-with-presence {
+                grid-template-columns: 1fr;
+            }
+
+            .presence-sidebar {
+                position: static;
+                max-height: none;
+                order: -1;
+            }
+        }
+
         .hero {
             background: linear-gradient(135deg, #0e2c52, #0b65c2);
             color: #fff;

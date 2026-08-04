@@ -39,9 +39,16 @@ $apiUrl = 'api.php';
     data-webpush-sw-url="<?= h($webPushServiceWorkerUrl) ?>" data-csrf-token="<?= h($csrfToken) ?>"
     data-session-keepalive-url="session_keepalive.php" data-session-keepalive-interval="120000"
     data-max-upload-bytes="<?= (int) MAX_ATTACHMENT_BYTES ?>"
-    data-post-max-bytes="<?= (int) parsePhpIniSize((string) ini_get('post_max_size')) ?>">
+    data-post-max-bytes="<?= (int) parsePhpIniSize((string) ini_get('post_max_size')) ?>"
+    data-presence-poll-interval="60000"
+    data-presence-unavailable="<?= h(__('presence.unavailable')) ?>"
+    data-presence-empty="<?= h(__('presence.empty')) ?>">
     <?php require __DIR__ . '/content/views/update_notify.php'; ?>
-    <div class="page">
+    <div class="page<?= empty($isBigscreen) ? ' page-with-presence' : '' ?>">
+        <?php if (empty($isBigscreen)): ?>
+            <?php require __DIR__ . '/content/views/view_presence.php'; ?>
+        <?php endif; ?>
+        <div class="page-main">
         <?php require __DIR__ . '/content/views/header.php'; ?>
 
         <?php if ($flashMessages !== []): ?>
@@ -77,6 +84,7 @@ $apiUrl = 'api.php';
 
             <?php require __DIR__ . '/content/views/view_tickets.php'; ?>
         </main>
+        </div>
     </div>
     <?php require __DIR__ . '/content/views/view_ticket_share_modal.php'; ?>
     <?php require __DIR__ . '/content/views/page_js.php'; ?>

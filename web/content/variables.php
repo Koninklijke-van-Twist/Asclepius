@@ -117,6 +117,8 @@ if ($store instanceof TicketStore) {
 }
 $janusLocksByUser = $janusSyncState['locks'];
 $janusWeekday = strtolower((new DateTimeImmutable('today'))->format('l'));
+$janusPresenceRows = [];
+$janusPresenceConnected = false;
 
 $activeCustomStatuses = $store instanceof TicketStore ? $store->getActiveCustomStatuses() : [];
 $activeCustomStatusLabels = array_values(array_map(

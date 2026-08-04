@@ -558,3 +558,11 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
 }
 
 $isBigscreen = $canManageTickets && $view === 'stats' && isset($_GET['bigscreen']) && (string) $_GET['bigscreen'] === 'true';
+
+$janusPresenceRows = [];
+$janusPresenceConnected = false;
+if (!$isBigscreen) {
+    $janusPresenceFetched = fetchJanusPresence();
+    $janusPresenceConnected = $janusPresenceFetched !== null;
+    $janusPresenceRows = $janusPresenceFetched ?? [];
+}

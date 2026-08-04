@@ -1356,6 +1356,27 @@ if ($method === 'POST') {
         sendJson(200, buildTicketPollApiPayload($store, $payload, $apiClient));
     }
 
+    if ($action === 'presence_poll') {
+        $rows = fetchJanusPresence();
+        $mapped = [];
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                $mapped[] = [
+                    'email' => (string) ($row['email'] ?? ''),
+                    'name' => (string) ($row['name'] ?? ''),
+                    'status' => (string) ($row['status'] ?? ''),
+                    'label' => janusPresenceStatusLabel((string) ($row['status'] ?? '')),
+                    'detail' => janusPresenceStatusDetail($row),
+                ];
+            }
+        }
+        sendJson(200, [
+            'success' => true,
+            'connected' => $rows !== null,
+            'rows' => $mapped,
+        ]);
+    }
+
     if ($action === 'ticket_thread') {
         $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
         $currentPage = normalizeReturnPage((string) ($payload['current_page'] ?? 'index.php'));

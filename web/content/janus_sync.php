@@ -77,6 +77,17 @@ function fetchJanusAwayStatus(array $emails, ?string $date = null): ?array
         'emails' => implode(',', $normalizedEmails),
     ]);
 
+    $decoded = janusHoursApiRequest($url);
+    $cache[$cacheKey] = $decoded;
+
+    return $decoded;
+}
+
+/**
+ * @return array{ok: bool, date?: string, weekday?: string, users: array<string, array<string, mixed>>}|null
+ */
+function janusHoursApiRequest(string $url): ?array
+{
     $body = null;
     $statusCode = 0;
 
@@ -107,21 +118,130 @@ function fetchJanusAwayStatus(array $emails, ?string $date = null): ?array
     }
 
     if ($body === false || $body === null || $statusCode < 200 || $statusCode >= 300) {
-        $cache[$cacheKey] = null;
-
         return null;
     }
 
     $decoded = json_decode((string) $body, true);
     if (!is_array($decoded) || empty($decoded['ok']) || !is_array($decoded['users'] ?? null)) {
+        return null;
+    }
+
+    return $decoded;
+}
+
+/**
+ * Fetch Janus presence rows for the Asclepius sidebar (visible full-tracker users only).
+ *
+ * @param list<string> $emails Optional filter; empty = all Janus users with data
+ * @return list<array{email: string, name: string, status: string, holidayUntil: string|null, startTime: string|null, endTime: string|null}>|null
+ */
+function fetchJanusPresence(?array $emails = null, ?string $date = null): ?array
+{
+    static $cache = [];
+
+    $normalizedEmails = [];
+    foreach ($emails ?? [] as $email) {
+        $email = strtolower(trim((string) $email));
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $normalizedEmails[$email] = $email;
+        }
+    }
+    $normalizedEmails = array_values($normalizedEmails);
+    sort($normalizedEmails, SORT_STRING);
+
+    $dateKey = trim((string) ($date ?? ''));
+    if ($dateKey === '') {
+        $dateKey = (new DateTimeImmutable('today'))->format('Y-m-d');
+    }
+    $cacheKey = 'presence|' . $dateKey . '|' . implode(',', $normalizedEmails);
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    $query = [
+        'action' => 'presence',
+        'date' => $dateKey,
+    ];
+    if ($normalizedEmails !== []) {
+        $query['emails'] = implode(',', $normalizedEmails);
+    }
+    $decoded = janusHoursApiRequest(resolveJanusHoursApiUrl() . '?' . http_build_query($query));
+    if ($decoded === null) {
         $cache[$cacheKey] = null;
 
         return null;
     }
 
-    $cache[$cacheKey] = $decoded;
+    $rows = [];
+    foreach ($decoded['users'] as $email => $status) {
+        $email = strtolower(trim((string) $email));
+        if ($email === '' || !is_array($status) || empty($status['visible'])) {
+            continue;
+        }
+        $statusKey = trim((string) ($status['status'] ?? ''));
+        if ($statusKey === '') {
+            continue;
+        }
+        $name = trim((string) ($status['name'] ?? ''));
+        if ($name === '' && function_exists('formatUserDisplayName')) {
+            $name = formatUserDisplayName($email);
+        }
+        if ($name === '') {
+            $name = $email;
+        }
+        $rows[] = [
+            'email' => $email,
+            'name' => $name,
+            'status' => $statusKey,
+            'holidayUntil' => isset($status['holidayUntil']) ? (string) $status['holidayUntil'] : null,
+            'startTime' => isset($status['startTime']) ? (string) $status['startTime'] : null,
+            'endTime' => isset($status['endTime']) ? (string) $status['endTime'] : null,
+            'office' => !empty($status['office']),
+        ];
+    }
 
-    return $decoded;
+    usort($rows, static function (array $a, array $b): int {
+        return strcasecmp((string) $a['name'], (string) $b['name']);
+    });
+
+    $cache[$cacheKey] = $rows;
+
+    return $rows;
+}
+
+function janusPresenceStatusLabel(string $status): string
+{
+    $key = 'presence.status.' . $status;
+    $label = __($key);
+
+    return $label === $key ? $status : $label;
+}
+
+function janusPresenceStatusDetail(array $row): string
+{
+    $status = (string) ($row['status'] ?? '');
+    if ($status === 'holiday') {
+        $until = trim((string) ($row['holidayUntil'] ?? ''));
+        if ($until !== '') {
+            try {
+                $dt = new DateTimeImmutable($until);
+                $formatted = $dt->format('d-m-Y');
+
+                return (string) __('presence.holiday_until', $formatted);
+            } catch (Throwable) {
+                return (string) __('presence.holiday_until', $until);
+            }
+        }
+    }
+    if (in_array($status, ['present_office', 'present_home', 'absent'], true)) {
+        $start = trim((string) ($row['startTime'] ?? ''));
+        $end = trim((string) ($row['endTime'] ?? ''));
+        if ($start !== '' && $end !== '') {
+            return $start . ' – ' . $end;
+        }
+    }
+
+    return '';
 }
 
 /**

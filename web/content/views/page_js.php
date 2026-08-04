@@ -4347,6 +4347,119 @@
             });
         }
 
+        (function initPresenceSidebar()
+        {
+            var sidebar = document.getElementById('presence-sidebar');
+            var list = document.getElementById('presence-list');
+            var emptyEl = sidebar ? sidebar.querySelector('[data-presence-empty]') : null;
+            if (!sidebar || !list || typeof apiFetchJson !== 'function')
+            {
+                return;
+            }
+
+            var unavailableText = (document.body && document.body.getAttribute('data-presence-unavailable')) || '';
+            var emptyText = (document.body && document.body.getAttribute('data-presence-empty')) || '';
+            var presenceInFlight = false;
+
+            var renderPresenceRows = function (connected, rows)
+            {
+                sidebar.setAttribute('data-presence-connected', connected ? '1' : '0');
+                list.innerHTML = '';
+                if (!connected)
+                {
+                    if (emptyEl)
+                    {
+                        emptyEl.hidden = false;
+                        emptyEl.textContent = unavailableText;
+                    }
+                    list.hidden = true;
+                    return;
+                }
+                if (!rows || rows.length === 0)
+                {
+                    if (emptyEl)
+                    {
+                        emptyEl.hidden = false;
+                        emptyEl.textContent = emptyText;
+                    }
+                    list.hidden = true;
+                    return;
+                }
+                if (emptyEl)
+                {
+                    emptyEl.hidden = true;
+                }
+                list.hidden = false;
+                rows.forEach(function (row)
+                {
+                    var email = String(row.email || '');
+                    var status = String(row.status || '');
+                    var li = document.createElement('li');
+                    li.className = 'presence-item presence-status-' + status;
+                    li.setAttribute('data-presence-email', email);
+                    var detail = String(row.detail || '');
+                    li.innerHTML = '<span class="presence-dot" aria-hidden="true"></span>'
+                        + '<span class="presence-meta">'
+                        + '<span class="presence-name"></span>'
+                        + '<span class="presence-status"></span>'
+                        + (detail ? '<span class="presence-detail"></span>' : '')
+                        + '</span>';
+                    var nameEl = li.querySelector('.presence-name');
+                    var statusEl = li.querySelector('.presence-status');
+                    var detailEl = li.querySelector('.presence-detail');
+                    if (nameEl)
+                    {
+                        nameEl.textContent = String(row.name || email);
+                        nameEl.title = email;
+                    }
+                    if (statusEl)
+                    {
+                        statusEl.textContent = String(row.label || status);
+                    }
+                    if (detailEl)
+                    {
+                        detailEl.textContent = detail;
+                    }
+                    list.appendChild(li);
+                });
+            };
+
+            var pollPresence = function ()
+            {
+                if (presenceInFlight || document.hidden)
+                {
+                    return;
+                }
+                presenceInFlight = true;
+                apiFetchJson('presence_poll', {})
+                    .then(function (data)
+                    {
+                        presenceInFlight = false;
+                        if (!data || !data.success)
+                        {
+                            renderPresenceRows(false, []);
+                            return;
+                        }
+                        renderPresenceRows(!!data.connected, Array.isArray(data.rows) ? data.rows : []);
+                    })
+                    .catch(function ()
+                    {
+                        presenceInFlight = false;
+                        renderPresenceRows(false, []);
+                    });
+            };
+
+            var presenceIntervalMs = parseInt((document.body && document.body.getAttribute('data-presence-poll-interval')) || '60000', 10);
+            window.setInterval(pollPresence, Math.max(presenceIntervalMs, 15000));
+            document.addEventListener('visibilitychange', function ()
+            {
+                if (!document.hidden)
+                {
+                    pollPresence();
+                }
+            });
+        })();
+
         if (sessionKeepaliveUrl)
         {
             var sessionKeepaliveIntervalMs = parseInt((document.body && document.body.getAttribute('data-session-keepalive-interval')) || '120000', 10);
