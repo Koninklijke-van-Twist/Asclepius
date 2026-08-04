@@ -123,7 +123,8 @@ if ($store instanceof TicketStore && $showTicketListSection) {
         $assignedFilter,
         $effectiveCategoryFilters,
         $searchQuery,
-        $ticketBrowseMode
+        $ticketBrowseMode,
+        ($isLimitedIct && !$isAllTicketsView) ? ($ictAccessCategories ?? []) : null
     );
     $ticketTotalPages = max(1, (int) ceil($ticketTotalCount / $ticketsPerPage));
     if ($ticketPage > $ticketTotalPages) {
@@ -150,7 +151,8 @@ $tickets = $store instanceof TicketStore && $showTicketListSection
         $searchQuery,
         $ticketBrowseMode,
         $ticketsPerPage,
-        $ticketPageOffset
+        $ticketPageOffset,
+        ($isLimitedIct && !$isAllTicketsView) ? ($ictAccessCategories ?? []) : null
     )
     : [];
 $currentLanguage = getCurrentLanguage();
@@ -168,7 +170,14 @@ if ($openTicketId > 0 && $store instanceof TicketStore && ($isAllTicketsView || 
     );
     if (!in_array($openTicketId, $openTicketIdsInList, true)) {
         $includeGhostForOpen = shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view);
-        $linkedOpenTicket = $store->getTicket($openTicketId, $canManageTickets, $userEmail, $ticketBrowseMode, $includeGhostForOpen);
+        $linkedOpenTicket = $store->getTicket(
+            $openTicketId,
+            $canManageTickets,
+            $userEmail,
+            $ticketBrowseMode,
+            $includeGhostForOpen,
+            ($isLimitedIct && !$isAllTicketsView) ? ($ictAccessCategories ?? []) : null
+        );
         if (is_array($linkedOpenTicket)) {
             $tickets = array_merge(
                 [localizeTicketForViewer($linkedOpenTicket, $store, $currentLanguage, true)],
@@ -209,11 +218,30 @@ if ($store instanceof TicketStore) {
         $ticketDetailsById[$ticketId] = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage, true);
     }
 }
-$settingsMatrix = $canManageTickets && $view === 'settings' && $store instanceof TicketStore
+$settingsMatrix = $canManageIctRoles && $view === 'settings' && $store instanceof TicketStore
     ? $store->getCategorySettings()
     : [];
+$roleSettingsEmails = [];
+$roleSettingsCategories = [];
+$roleSettingsMatrix = [];
+$roleSettingsAvailability = [];
+if ($canManageTickets && $isLimitedIct && $view === 'settings' && $store instanceof TicketStore && is_array($ictRole)) {
+    $roleId = (int) ($ictRole['role_id'] ?? 0);
+    $roleSettingsEmails = $store->listIctRoleMemberEmails($roleId);
+    $roleSettingsCategories = $store->getIctRoleCategories($roleId);
+    $roleSettingsMatrix = $store->getCategorySettingsForEmails($roleSettingsEmails, $roleSettingsCategories);
+    $roleSettingsAvailability = $store->getAvailabilityForEmails($roleSettingsEmails);
+    foreach ($roleSettingsEmails as $roleEmail) {
+        if (isset($janusSyncState['availability'][$roleEmail])) {
+            $roleSettingsAvailability[$roleEmail] = !empty($janusSyncState['availability'][$roleEmail]);
+        }
+    }
+}
+$ictRolesList = $canManageIctRoles && $view === 'roles' && $store instanceof TicketStore
+    ? $store->listIctRoles()
+    : [];
 $loadByIctUser = [];
-$availabilityByIctUser = $canManageTickets && in_array($view, ['settings', 'stats'], true) && $store instanceof TicketStore
+$availabilityByIctUser = $canManageTickets && in_array($view, ['settings', 'stats', 'roles'], true) && $store instanceof TicketStore
     ? $store->getEffectiveIctUserAvailability()
     : array_fill_keys(extractIctUserEmails($ictUsers), true);
 if (!isset($janusLocksByUser) || !is_array($janusLocksByUser)) {
@@ -238,10 +266,22 @@ $ictStats = $canManageTickets && $view === 'stats' && $store instanceof TicketSt
 $requesterStats = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
     ? $store->getRequesterStats()
     : [];
-$templateFragments = $canManageTickets && $view === 'template_tickets' && $store instanceof TicketStore
+
+if ($canManageTickets && $isLimitedIct && $view === 'stats' && $store instanceof TicketStore) {
+    $scopedStats = buildLimitedRoleStatsBundle(
+        $store,
+        is_array($ictRole) ? (int) ($ictRole['role_id'] ?? 0) : 0,
+        $ictAccessCategories ?? []
+    );
+    $overallStats = $scopedStats['overall'];
+    $ictStats = $scopedStats['ict'];
+    $requesterStats = $scopedStats['requester'];
+}
+
+$templateFragments = $canManageIctRoles && $view === 'template_tickets' && $store instanceof TicketStore
     ? $store->getTicketTemplates()
     : [];
-$editingTemplateId = $canManageTickets && $view === 'template_tickets' ? max(0, (int) ($_GET['edit_template'] ?? 0)) : 0;
+$editingTemplateId = $canManageIctRoles && $view === 'template_tickets' ? max(0, (int) ($_GET['edit_template'] ?? 0)) : 0;
 $adminEmailPreferences = $canManageTickets && $view === 'email_prefs'
     ? loadAdminEmailPreferences($userEmail)
     : getDefaultAdminEmailPreferences();
@@ -264,7 +304,18 @@ if ($editingTemplateId > 0) {
     }
 }
 $statsOpenTickets = $canManageTickets && $view === 'stats' && $store instanceof TicketStore
-    ? $store->getTickets(true, '', array_filter(TICKET_STATUSES, fn(string $s) => $s !== 'afgehandeld'))
+    ? $store->getTickets(
+        true,
+        '',
+        array_filter(TICKET_STATUSES, fn(string $s) => $s !== 'afgehandeld'),
+        null,
+        [],
+        null,
+        'default',
+        null,
+        null,
+        $isLimitedIct ? ($ictAccessCategories ?? []) : null
+    )
     : [];
 
 $directoryWarmupEmails = collectEmailsForUserDirectoryWarmup(
@@ -441,6 +492,7 @@ if (isset($_GET['_tickets_poll'])) {
         'userIsAdmin' => $userIsAdmin,
         'isAdminPortal' => $isAdminPortal,
         'ictUsers' => $ictUsers,
+        'store' => $store,
         'csrfToken' => $csrfToken,
         'openTicketId' => $openTicketId,
         'view' => $view,
@@ -498,8 +550,14 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_version'])
 }
 
 if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
-    $allTicketsForPoll = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
-    warmUserDirectoryForBigscreenPoll($allTicketsForPoll, $ictUsers);
+    $bigscreenAccessCategories = $isLimitedIct ? ($ictAccessCategories ?? []) : null;
+    $allTicketsForPoll = $store instanceof TicketStore
+        ? $store->getTickets(true, '', [], null, [], null, 'default', null, null, $bigscreenAccessCategories)
+        : [];
+    warmUserDirectoryForBigscreenPoll(
+        $allTicketsForPoll,
+        $store instanceof TicketStore ? $store->getAllIctCapableEmails() : $ictUsers
+    );
 
     $pollMaxId = 0;
     $pollLatest = null;
@@ -522,9 +580,9 @@ if ($canManageTickets && $view === 'stats' && isset($_GET['_bigscreen_poll'])) {
             $pollOpenTickets[] = mapBigscreenOpenTicketRow($t);
         }
     }
-    $pollOverallStats = $store instanceof TicketStore ? $store->getOverallStats() : [];
-    $pollIctStats = $store instanceof TicketStore ? $store->getIctUserStats() : [];
-    $pollRequesterStats = $store instanceof TicketStore ? $store->getRequesterStats() : [];
+    $pollOverallStats = $overallStats;
+    $pollIctStats = $ictStats;
+    $pollRequesterStats = $requesterStats;
     $pollAvailability = $store instanceof TicketStore ? $store->getEffectiveIctUserAvailability() : [];
 
     $pollIctStatsMapped = array_map(

@@ -49,19 +49,27 @@ $currentLang = getCurrentLanguage();
             <?= h(formatUserDisplayName($userEmail)) ?><?= $userIsAdmin ? h(__('header.admin_suffix')) : '' ?>
         </span>
         <a class="nav-link <?= !$isAdminPortal && $view !== 'all_tickets' ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
-        <?php if (!$userIsAdmin): ?>
+        <?php if (!$isFullIctAdmin): ?>
             <a class="nav-link <?= !$isAdminPortal && $view === 'all_tickets' ? 'active' : '' ?>"
                 href="index.php?view=all_tickets"><?= h(__('nav.all_tickets')) ?></a>
         <?php endif; ?>
         <?php if ($userIsAdmin): ?>
             <a class="nav-link <?= $isAdminPortal && $view === 'overview' ? 'active' : '' ?>"
-                href="admin.php"><?= h(__('nav.ict_overview')) ?></a>
+                href="admin.php"><?= h($isLimitedIct && $ictRoleName !== ''
+                    ? formatRoleScopedNavLabel($ictRoleName, 'nav.overview_suffix')
+                    : __('nav.ict_overview')) ?></a>
             <a class="nav-link <?= $isAdminPortal && in_array($view, ['settings', 'api'], true) ? 'active' : '' ?>"
                 href="admin.php?view=settings"><?= h(__('nav.settings')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'stats' ? 'active' : '' ?>"
-                href="admin.php?view=stats"><?= h(__('nav.ict_stats')) ?></a>
-            <a class="nav-link <?= $isAdminPortal && $view === 'template_tickets' ? 'active' : '' ?>"
-                href="admin.php?view=template_tickets"><?= h(__('nav.template_tickets')) ?></a>
+                href="admin.php?view=stats"><?= h($isLimitedIct && $ictRoleName !== ''
+                    ? formatRoleScopedNavLabel($ictRoleName, 'nav.stats_suffix')
+                    : __('nav.ict_stats')) ?></a>
+            <?php if ($canManageIctRoles): ?>
+                <a class="nav-link <?= $isAdminPortal && $view === 'roles' ? 'active' : '' ?>"
+                    href="admin.php?view=roles"><?= h(__('nav.roles')) ?></a>
+                <a class="nav-link <?= $isAdminPortal && $view === 'template_tickets' ? 'active' : '' ?>"
+                    href="admin.php?view=template_tickets"><?= h(__('nav.template_tickets')) ?></a>
+            <?php endif; ?>
             <a class="nav-link <?= $isAdminPortal && $view === 'email_prefs' ? 'active' : '' ?>"
                 href="admin.php?view=email_prefs"><?= h(__('nav.email_preferences')) ?></a>
             <a class="nav-link changelog-nav-link<?= !empty($changelogHasUnread) ? ' has-unread-changelog' : '' ?><?= $isAdminPortal && $view === 'changelog' ? ' active' : '' ?>"

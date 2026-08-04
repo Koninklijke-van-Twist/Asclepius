@@ -4,6 +4,7 @@ require_once __DIR__ . '/content/bootstrap.php';
 require_once __DIR__ . '/content/constants.php';
 require_once __DIR__ . '/content/localization.php';
 require_once __DIR__ . '/content/helpers.php';
+require_once __DIR__ . '/content/ict_roles.php';
 require_once __DIR__ . '/content/janus_sync.php';
 require_once __DIR__ . '/content/TranslationProvider.php';
 require_once __DIR__ . '/content/LaraTranslationProvider.php';
@@ -70,6 +71,10 @@ $apiUrl = 'api.php';
             <?php require __DIR__ . '/content/views/view_new_ticket.php'; ?>
 
             <?php require __DIR__ . '/content/views/view_settings.php'; ?>
+
+            <?php require __DIR__ . '/content/views/view_role_settings.php'; ?>
+
+            <?php require __DIR__ . '/content/views/view_roles.php'; ?>
 
             <?php require __DIR__ . '/content/views/view_api.php'; ?>
 

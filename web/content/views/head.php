@@ -2,7 +2,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Asclepius - ICT tickets</title>
+    <title>Asclepius - tickets</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
@@ -129,6 +129,16 @@
         .presence-heading {
             margin: 0 0 10px;
             font-size: 16px;
+        }
+
+        .presence-sidebar.is-joinable {
+            cursor: pointer;
+        }
+
+        .presence-sidebar.is-joinable:hover,
+        .presence-sidebar.is-joinable:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
         }
 
         .presence-empty {
@@ -469,6 +479,7 @@
 
         input[type="text"],
         input[type="search"],
+        input[type="email"],
         select,
         textarea {
             width: 100%;
@@ -683,6 +694,7 @@
         }
 
         button,
+        .primary-button,
         .secondary-button {
             border: 0;
             border-radius: 12px;
@@ -693,9 +705,16 @@
             text-decoration: none;
         }
 
-        button {
+        button,
+        .primary-button {
             background: var(--accent);
             color: #fff;
+        }
+
+        .primary-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .secondary-button {
@@ -2570,7 +2589,7 @@
         }
 
         .ticket-participants-modal-card {
-            width: min(640px, 100%);
+            width: min(1440px, 100%);
             max-height: min(90vh, 760px);
             overflow: auto;
             background: #fff;
@@ -2594,7 +2613,110 @@
             font-size: 16px;
         }
 
-        .participant-modal-close {
+        .roles-list {
+            display: grid;
+            gap: 14px;
+            margin-top: 16px;
+        }
+
+        .role-card {
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid var(--role-color, #64748b);
+            border-radius: 12px;
+            padding: 14px 16px;
+            background: #fff;
+            display: grid;
+            gap: 10px;
+        }
+
+        .role-card-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .role-color-chip {
+            width: 14px;
+            height: 14px;
+            border-radius: 999px;
+            background: var(--role-color, #64748b);
+            flex: 0 0 auto;
+        }
+
+        .role-card-name {
+            font-size: 16px;
+        }
+
+        .role-card-actions {
+            margin-left: auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .role-categories-summary {
+            margin: 0;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .role-category-checks {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 8px;
+        }
+
+        .role-check-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .roles-add-member-form .form-row,
+        .roles-create-form .form-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .roles-add-member-form .form-row > label,
+        .roles-create-form .form-row > label {
+            flex: 1 1 220px;
+            min-width: 0;
+        }
+
+        .role-modal-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 8px;
+        }
+
+        .role-confirm-copy {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+            .ticket-participants-modal-card.role-confirm-card {
+                width: min(420px, 100%);
+                max-height: none;
+            }
+
+            .ticket-participants-modal[data-role="role-remove-member-modal"],
+            .ticket-participants-modal[data-role="role-delete-modal"],
+            .ticket-participants-modal[data-role="ticket-category-out-of-scope-modal"],
+            .ticket-participants-modal[data-role="presence-join-modal"] {
+                z-index: 1800;
+            }
+
+            .participant-modal-close {
             border: 0;
             background: #eef2f7;
             color: #334155;

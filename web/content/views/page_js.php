@@ -1308,6 +1308,8 @@
         var sessionExpiredHandled = false;
         var sessionExpiredCountdownTimer = null;
         var ticketPollPayload = {};
+        var isLimitedIctViewer = false;
+        var ictAccessCategories = [];
         if (liveTicketSection)
         {
             try
@@ -1317,7 +1319,124 @@
             {
                 ticketPollPayload = {};
             }
+            isLimitedIctViewer = liveTicketSection.getAttribute('data-is-limited-ict') === '1';
+            try
+            {
+                ictAccessCategories = JSON.parse(liveTicketSection.getAttribute('data-ict-access-categories') || '[]') || [];
+            } catch (accessParseError)
+            {
+                ictAccessCategories = [];
+            }
+            if (!Array.isArray(ictAccessCategories))
+            {
+                ictAccessCategories = [];
+            }
         }
+
+        var categoryOutOfScopeWarningTemplate = <?= json_encode(__('ticket.change_category_out_of_scope_warning'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+
+        var isCategoryOutsideViewerAccess = function (category)
+        {
+            if (!isLimitedIctViewer)
+            {
+                return false;
+            }
+
+            var normalized = String(category || '').trim();
+            if (normalized === '')
+            {
+                return false;
+            }
+
+            return ictAccessCategories.indexOf(normalized) === -1;
+        };
+
+        var getSelectedCategoryLabel = function (categorySelect)
+        {
+            if (!categorySelect)
+            {
+                return '';
+            }
+
+            var selectedOption = categorySelect.options[categorySelect.selectedIndex];
+            if (!selectedOption)
+            {
+                return String(categorySelect.value || '');
+            }
+
+            return String(selectedOption.textContent || selectedOption.value || '').trim();
+        };
+
+        var syncCategoryReassignLock = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return false;
+            }
+
+            var categorySelect = ticketCard.querySelector('[data-role="change-category-select"]');
+            var reassignCheckbox = ticketCard.querySelector('[data-role="change-category-reassign"]');
+            if (!categorySelect || !reassignCheckbox)
+            {
+                return false;
+            }
+
+            var outOfScope = isCategoryOutsideViewerAccess(categorySelect.value);
+            if (outOfScope)
+            {
+                reassignCheckbox.checked = true;
+                reassignCheckbox.disabled = true;
+                reassignCheckbox.setAttribute('aria-disabled', 'true');
+            }
+            else
+            {
+                reassignCheckbox.disabled = false;
+                reassignCheckbox.removeAttribute('aria-disabled');
+            }
+
+            return outOfScope;
+        };
+
+        var closeCategoryOutOfScopeModal = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var warningModal = ticketCard.querySelector('[data-role="ticket-category-out-of-scope-modal"]');
+            if (!warningModal)
+            {
+                return;
+            }
+
+            warningModal.hidden = true;
+            warningModal.classList.remove('is-open');
+            if (!ticketCard.querySelector('[data-role="ticket-category-modal"].is-open'))
+            {
+                document.documentElement.style.overflow = '';
+            }
+        };
+
+        var openCategoryOutOfScopeModal = function (ticketCard, categoryLabel)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var warningModal = ticketCard.querySelector('[data-role="ticket-category-out-of-scope-modal"]');
+            var warningCopy = ticketCard.querySelector('[data-role="change-category-out-of-scope-copy"]');
+            if (!warningModal || !warningCopy)
+            {
+                return;
+            }
+
+            warningCopy.textContent = String(categoryOutOfScopeWarningTemplate || '').replace('%s', categoryLabel || '');
+            warningModal.hidden = false;
+            warningModal.classList.add('is-open');
+            document.documentElement.style.overflow = 'hidden';
+        };
 
         var ticketShareModal = document.querySelector('[data-role="ticket-share-modal"]');
         var ticketShareUrlInput = ticketShareModal ? ticketShareModal.querySelector('[data-role="ticket-share-url-input"]') : null;
@@ -1670,8 +1789,11 @@
                     if (reassignCheckbox)
                     {
                         reassignCheckbox.checked = false;
+                        reassignCheckbox.disabled = false;
+                        reassignCheckbox.removeAttribute('aria-disabled');
                     }
                     setCategoryFeedback(categoryCard, '', false);
+                    syncCategoryReassignLock(categoryCard);
                     categoryModal.hidden = false;
                     categoryModal.classList.add('is-open');
                     document.documentElement.style.overflow = 'hidden';
@@ -1759,6 +1881,45 @@
                 return;
             }
 
+            var closeCategoryOutOfScopeButton = event.target.closest('[data-role="change-category-out-of-scope-close"], [data-role="change-category-out-of-scope-cancel"]');
+            if (closeCategoryOutOfScopeButton)
+            {
+                event.preventDefault();
+                closeCategoryOutOfScopeModal(closeCategoryOutOfScopeButton.closest('details.ticket-card'));
+                return;
+            }
+
+            if (event.target.matches('[data-role="ticket-category-out-of-scope-modal"]'))
+            {
+                event.preventDefault();
+                closeCategoryOutOfScopeModal(event.target.closest('details.ticket-card'));
+                return;
+            }
+
+            var confirmCategoryOutOfScopeButton = event.target.closest('[data-role="change-category-out-of-scope-confirm"]');
+            if (confirmCategoryOutOfScopeButton)
+            {
+                event.preventDefault();
+                var confirmCard = confirmCategoryOutOfScopeButton.closest('details.ticket-card');
+                var confirmSelect = confirmCard ? confirmCard.querySelector('[data-role="change-category-select"]') : null;
+                if (!confirmCard || !confirmSelect)
+                {
+                    return;
+                }
+
+                syncCategoryReassignLock(confirmCard);
+                confirmCategoryOutOfScopeButton.disabled = true;
+                syncCategoryChangeViaApi(confirmCard, {
+                    category: confirmSelect.value || '',
+                    reassign: true,
+                    out_of_scope_confirmed: true
+                }).finally(function ()
+                {
+                    confirmCategoryOutOfScopeButton.disabled = false;
+                });
+                return;
+            }
+
             var saveCategoryButton = event.target.closest('[data-role="change-category-save"]');
             if (saveCategoryButton)
             {
@@ -1772,9 +1933,17 @@
 
                 var selectedCategory = saveModal.querySelector('[data-role="change-category-select"]');
                 var reassignInput = saveModal.querySelector('[data-role="change-category-reassign"]');
+                var selectedValue = selectedCategory ? selectedCategory.value : '';
+                if (isCategoryOutsideViewerAccess(selectedValue))
+                {
+                    syncCategoryReassignLock(saveCard);
+                    openCategoryOutOfScopeModal(saveCard, getSelectedCategoryLabel(selectedCategory));
+                    return;
+                }
+
                 saveCategoryButton.disabled = true;
                 syncCategoryChangeViaApi(saveCard, {
-                    category: selectedCategory ? selectedCategory.value : '',
+                    category: selectedValue,
                     reassign: !!(reassignInput && reassignInput.checked)
                 }).finally(function ()
                 {
@@ -1985,6 +2154,13 @@
 
             if (event.key === 'Escape')
             {
+                var openOutOfScopeModal = document.querySelector('[data-role="ticket-category-out-of-scope-modal"].is-open');
+                if (openOutOfScopeModal)
+                {
+                    closeCategoryOutOfScopeModal(openOutOfScopeModal.closest('details.ticket-card'));
+                    return;
+                }
+
                 document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-custom-status-modal"].is-open, [data-role="ticket-share-modal"].is-open, [data-role="ticket-title-modal"].is-open').forEach(function (modal)
                 {
                     modal.hidden = true;
@@ -2734,6 +2910,8 @@
                 return;
             }
 
+            closeCategoryOutOfScopeModal(ticketCard);
+
             var modal = ticketCard.querySelector('[data-role="ticket-category-modal"]');
             if (!modal)
             {
@@ -2902,6 +3080,15 @@
 
                 applyCategoryChangeToCard(ticketCard, data);
                 closeCategoryModal(ticketCard);
+                if (data.lost_access)
+                {
+                    var ticketList = liveTicketSection ? liveTicketSection.querySelector('.ticket-list') : null;
+                    ticketCard.remove();
+                    if (ticketList && !ticketList.querySelector('details.ticket-card'))
+                    {
+                        ticketList.innerHTML = '<div class="empty-state">' + <?= json_encode(__('tickets.empty_admin'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?> + '</div>';
+                    }
+                }
                 return data;
             }).catch(function ()
             {
@@ -3161,6 +3348,19 @@
             {
                 event.stopPropagation();
             }
+        });
+
+        document.addEventListener('change', function (event)
+        {
+            var categorySelect = event.target && event.target.matches && event.target.matches('[data-role="change-category-select"]')
+                ? event.target
+                : null;
+            if (!categorySelect)
+            {
+                return;
+            }
+
+            syncCategoryReassignLock(categorySelect.closest('details.ticket-card'));
         });
 
         document.addEventListener('change', function (event)
@@ -4370,6 +4570,7 @@
             var sidebar = document.getElementById('presence-sidebar');
             var list = document.getElementById('presence-list');
             var emptyEl = sidebar ? sidebar.querySelector('[data-presence-empty]') : null;
+            var joinModal = document.querySelector('[data-role="presence-join-modal"]');
             if (!sidebar || !list || typeof apiFetchJson !== 'function')
             {
                 return;
@@ -4378,6 +4579,73 @@
             var unavailableText = (document.body && document.body.getAttribute('data-presence-unavailable')) || '';
             var emptyText = (document.body && document.body.getAttribute('data-presence-empty')) || '';
             var presenceInFlight = false;
+            var viewerEmail = String(sidebar.getAttribute('data-viewer-email') || '').trim().toLowerCase();
+            var viewerIsIct = sidebar.getAttribute('data-viewer-is-ict') === '1';
+            var joinHintTitle = sidebar.getAttribute('data-join-hint-title') || sidebar.getAttribute('title') || '';
+
+            var syncJoinableState = function (rows)
+            {
+                if (!viewerIsIct)
+                {
+                    sidebar.classList.remove('is-joinable');
+                    sidebar.removeAttribute('role');
+                    sidebar.removeAttribute('tabindex');
+                    sidebar.removeAttribute('title');
+                    sidebar.setAttribute('data-viewer-listed', '0');
+                    return;
+                }
+
+                var listed = false;
+                if (viewerEmail !== '' && Array.isArray(rows))
+                {
+                    listed = rows.some(function (row)
+                    {
+                        return String(row.email || '').trim().toLowerCase() === viewerEmail;
+                    });
+                }
+
+                sidebar.setAttribute('data-viewer-listed', listed ? '1' : '0');
+                if (listed)
+                {
+                    sidebar.classList.remove('is-joinable');
+                    sidebar.removeAttribute('role');
+                    sidebar.removeAttribute('tabindex');
+                    sidebar.removeAttribute('title');
+                    return;
+                }
+
+                sidebar.classList.add('is-joinable');
+                sidebar.setAttribute('role', 'button');
+                sidebar.setAttribute('tabindex', '0');
+                if (joinHintTitle)
+                {
+                    sidebar.setAttribute('title', joinHintTitle);
+                }
+            };
+
+            var openPresenceJoinModal = function ()
+            {
+                if (!joinModal || !viewerIsIct || sidebar.getAttribute('data-viewer-listed') === '1')
+                {
+                    return;
+                }
+
+                joinModal.hidden = false;
+                joinModal.classList.add('is-open');
+                document.documentElement.style.overflow = 'hidden';
+            };
+
+            var closePresenceJoinModal = function ()
+            {
+                if (!joinModal)
+                {
+                    return;
+                }
+
+                joinModal.hidden = true;
+                joinModal.classList.remove('is-open');
+                document.documentElement.style.overflow = '';
+            };
 
             var renderPresenceRows = function (connected, rows)
             {
@@ -4391,6 +4659,7 @@
                         emptyEl.textContent = unavailableText;
                     }
                     list.hidden = true;
+                    syncJoinableState([]);
                     return;
                 }
                 if (!rows || rows.length === 0)
@@ -4401,6 +4670,7 @@
                         emptyEl.textContent = emptyText;
                     }
                     list.hidden = true;
+                    syncJoinableState([]);
                     return;
                 }
                 if (emptyEl)
@@ -4440,6 +4710,7 @@
                     }
                     list.appendChild(li);
                 });
+                syncJoinableState(rows);
             };
 
             var pollPresence = function ()
@@ -4467,6 +4738,53 @@
                     });
             };
 
+            sidebar.addEventListener('click', function (event)
+            {
+                if (!sidebar.classList.contains('is-joinable'))
+                {
+                    return;
+                }
+                if (event.target.closest('a, button'))
+                {
+                    return;
+                }
+                openPresenceJoinModal();
+            });
+
+            sidebar.addEventListener('keydown', function (event)
+            {
+                if (!sidebar.classList.contains('is-joinable'))
+                {
+                    return;
+                }
+                if (event.key !== 'Enter' && event.key !== ' ')
+                {
+                    return;
+                }
+                event.preventDefault();
+                openPresenceJoinModal();
+            });
+
+            if (joinModal)
+            {
+                joinModal.addEventListener('click', function (event)
+                {
+                    if (event.target === joinModal || event.target.closest('[data-role="presence-join-close"]'))
+                    {
+                        event.preventDefault();
+                        closePresenceJoinModal();
+                    }
+                });
+
+                document.addEventListener('keydown', function (event)
+                {
+                    if (event.key === 'Escape' && joinModal.classList.contains('is-open'))
+                    {
+                        closePresenceJoinModal();
+                    }
+                });
+            }
+
             var presenceIntervalMs = parseInt((document.body && document.body.getAttribute('data-presence-poll-interval')) || '60000', 10);
             window.setInterval(pollPresence, Math.max(presenceIntervalMs, 15000));
             document.addEventListener('visibilitychange', function ()
@@ -4477,6 +4795,7 @@
                 }
             });
         })();
+
 
         if (sessionKeepaliveUrl)
         {

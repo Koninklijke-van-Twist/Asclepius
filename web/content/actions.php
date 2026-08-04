@@ -37,7 +37,14 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
 
     $attachmentTicketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
     $attachmentTicket = $attachmentTicketId > 0
-        ? $store->getTicket($attachmentTicketId, $canManageTickets, $userEmail, $ticketBrowseMode)
+        ? $store->getTicket(
+            $attachmentTicketId,
+            $canManageTickets,
+            $userEmail,
+            $ticketBrowseMode,
+            false,
+            resolveTicketAccessCategoriesForActor(!empty($isLimitedIct), $ictAccessCategories ?? null)
+        )
         : null;
     if ($attachmentTicket === null && $attachmentTicketId > 0 && !$canManageTickets) {
         $attachmentTicket = $store->getTicket($attachmentTicketId, false, $userEmail, 'all_completed_public');
@@ -112,6 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
     }
 
     $formAction = trim((string) ($_POST['form_action'] ?? ($_POST['action'] ?? '')));
+    $ticketAccessCategories = resolveTicketAccessCategoriesForActor(!empty($isLimitedIct), $ictAccessCategories ?? null);
 
     try {
         if ($formAction === 'create_ticket') {
@@ -179,7 +187,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             $ticket = $store->getTicket($ticketId, true, $userEmail);
 
             if ($ticket !== null) {
-                $ictRecipients = !empty($result['assigned_email']) ? [$result['assigned_email']] : $ictUsers;
+                $ictRecipients = resolveIctNotifyRecipients(
+                    $store,
+                    (string) ($result['assigned_email'] ?? ''),
+                    (string) ($ticket['category'] ?? $category),
+                    $ictUsers
+                );
                 $ictLang = !empty($result['assigned_email']) ? getUserMailLang((string) $result['assigned_email']) : 'nl';
                 sendTicketNotification(
                     $store,
@@ -224,7 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             }
 
             $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
-            $ticket = $store->getTicket($ticketId, true, $userEmail);
+            $ticket = $store->getTicket($ticketId, true, $userEmail, 'default', false, $ticketAccessCategories);
             if ($ticket === null) {
                 throw new RuntimeException(__('flash.ticket_not_found'));
             }
@@ -313,7 +326,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
             $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
             $participantEmail = strtolower(trim((string) ($_POST['participant_email'] ?? '')));
-            $ticket = $store->getTicket($ticketId, true, $userEmail);
+            $ticket = $store->getTicket($ticketId, true, $userEmail, 'default', false, $ticketAccessCategories);
             if ($ticket === null) {
                 throw new RuntimeException(__('flash.ticket_not_found'));
             }
@@ -368,7 +381,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
         if ($formAction === 'reply_ticket') {
             $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
-            $ticket = $store->getTicket($ticketId, $canManageTickets, $userEmail, $ticketBrowseMode);
+            $ticket = $store->getTicket(
+                $ticketId,
+                $canManageTickets,
+                $userEmail,
+                $ticketBrowseMode,
+                false,
+                $ticketAccessCategories
+            );
             if ($ticket === null) {
                 throw new RuntimeException(__('flash.ticket_not_found'));
             }
@@ -407,7 +427,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                         $prefs = loadUserPrefs($userEmail);
                         $overview = normalizeSavedTicketOverviewFilters(
                             $prefs,
-                            $store->getActiveCustomStatusLabels()
+                            $store->getActiveCustomStatusLabels(),
+                            $store->getAllIctCapableEmails()
                         );
                         // Ensure the new status is treated as "seen" and enabled if filters are active.
                         $activeForDefault = [[
@@ -421,7 +442,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                             array_values(array_filter(
                                 array_map('trim', (array) ($overview['status_filters'] ?? [])),
                                 static fn(string $status): bool => $status !== ''
-                            ))
+                            )),
+                            $store->getAllIctCapableEmails()
                         );
                     }
                 }
@@ -432,7 +454,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $templateTicketSelfAssignmentAllowed = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
                 $availabilityByUser = $store->getEffectiveIctUserAvailability();
                 $isAssigningToSelf = $requestedAssignee !== '' && $requestedAssignee === strtolower($userEmail);
-                if ($requestedAssignee !== '' && !in_array($requestedAssignee, extractIctUserEmails($ictUsers), true)) {
+                $allowedAssignees = $store->getEmailsEligibleForCategory((string) ($ticket['category'] ?? ''));
+                if ($currentAssignee !== '' && !in_array($currentAssignee, $allowedAssignees, true)) {
+                    $allowedAssignees[] = $currentAssignee;
+                }
+                if ($requestedAssignee !== '' && !in_array($requestedAssignee, $allowedAssignees, true)) {
                     $errors[] = __('flash.invalid_employee');
                 } elseif ($requestedAssignee !== '' && $requestedAssignee === $requesterEmail && !$templateTicketSelfAssignmentAllowed && !$isAssigningToSelf) {
                     $errors[] = __('flash.self_assignment_not_allowed');
@@ -518,7 +544,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $visibleMessageForMail = $messageForStorage;
             }
 
-            $updatedTicket = $store->getTicket($ticketId, true, $userEmail);
+            $updatedTicket = $store->getTicket($ticketId, true, $userEmail, 'default', false, $ticketAccessCategories);
             if ($updatedTicket !== null) {
                 if ($canManageTickets) {
                     $shouldNotifyRequester = $statusChanged || $assigneeChanged || $visibleMessageForMail !== ''
@@ -559,7 +585,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                         );
                     }
                 } else {
-                    $recipients = !empty($updatedTicket['assigned_email']) ? [$updatedTicket['assigned_email']] : $ictUsers;
+                    $recipients = resolveIctNotifyRecipients(
+                        $store,
+                        (string) ($updatedTicket['assigned_email'] ?? ''),
+                        (string) ($updatedTicket['category'] ?? ''),
+                        $ictUsers
+                    );
                     $ictLang2 = !empty($updatedTicket['assigned_email']) ? getUserMailLang((string) $updatedTicket['assigned_email']) : 'nl';
                     sendTicketNotification(
                         $store,
@@ -598,7 +629,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
         }
 
         if ($formAction === 'save_settings') {
-            if (!$canManageTickets) {
+            if (!$canManageIctRoles) {
                 throw new RuntimeException(__('flash.settings_admin_only'));
             }
 
@@ -626,7 +657,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             $availability = [];
             $storedAvailability = $store->getIctUserAvailability();
             $janusLockedUsers = array_fill_keys($store->getForcedAwayEmails(), true);
-            foreach ($ictUsers as $ictUser) {
+            foreach (extractIctUserEmails($ictUsers) as $ictUser) {
                 $ictUser = strtolower($ictUser);
                 if (isset($janusLockedUsers[$ictUser])) {
                     $availability[$ictUser] = !empty($storedAvailability[$ictUser]);
@@ -643,8 +674,158 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             redirectToPage('admin.php', ['view' => 'settings']);
         }
 
-        if ($formAction === 'create_ticket_template') {
+        if ($formAction === 'save_role_member_settings') {
             if (!$canManageTickets) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $roleId = max(0, (int) ($_POST['role_id'] ?? 0));
+            $role = $store->getIctRole($roleId);
+            if ($role === null) {
+                throw new RuntimeException(__('flash.roles_unknown_role'));
+            }
+
+            $memberEmails = $store->listIctRoleMemberEmails($roleId);
+            $roleCategories = $store->getIctRoleCategories($roleId);
+            $isFullAdminEditor = !empty($canManageIctRoles);
+            $isOwnRoleEditor = !empty($isLimitedIct)
+                && is_array($ictRole)
+                && (int) ($ictRole['role_id'] ?? 0) === $roleId;
+            if (!$isFullAdminEditor && !$isOwnRoleEditor) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $postedSettings = is_array($_POST['settings'] ?? null) ? $_POST['settings'] : [];
+            $postedAvailability = is_array($_POST['availability'] ?? null) ? $_POST['availability'] : [];
+            $availability = [];
+            $matrix = [];
+            $storedAvailability = $store->getAvailabilityForEmails($memberEmails);
+            $janusLockedUsers = array_fill_keys($store->getForcedAwayEmails(), true);
+
+            foreach ($memberEmails as $memberEmail) {
+                if (isset($janusLockedUsers[$memberEmail])) {
+                    $availability[$memberEmail] = !empty($storedAvailability[$memberEmail]);
+                } else {
+                    $availability[$memberEmail] = !empty($postedAvailability[$memberEmail]);
+                }
+                foreach ($roleCategories as $category) {
+                    $matrix[$memberEmail][$category] = !empty($postedSettings[$memberEmail][$category]);
+                }
+            }
+
+            $store->saveIctRoleMemberSettings($availability, $matrix, $memberEmails, $roleCategories);
+            pushFlash('success', __('flash.settings_saved'));
+            redirectToPage('admin.php', ['view' => $isFullAdminEditor ? 'roles' : 'settings']);
+        }
+
+        if ($formAction === 'create_ict_role') {
+            if (!$canManageIctRoles) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $roleName = trim((string) ($_POST['role_name'] ?? ''));
+            if ($roleName === '') {
+                throw new RuntimeException(__('flash.roles_name_required'));
+            }
+
+            $store->createIctRole($roleName, stringToHexColor($roleName));
+            pushFlash('success', __('flash.roles_created'));
+            redirectToPage('admin.php', ['view' => 'roles']);
+        }
+
+        if ($formAction === 'delete_ict_role') {
+            if (!$canManageIctRoles) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $roleId = max(0, (int) ($_POST['role_id'] ?? 0));
+            if (!$store->deleteIctRole($roleId)) {
+                throw new RuntimeException(__('flash.roles_delete_failed'));
+            }
+
+            pushFlash('success', __('flash.roles_deleted'));
+            redirectToPage('admin.php', ['view' => 'roles']);
+        }
+
+        if ($formAction === 'save_ict_role_categories') {
+            if (!$canManageIctRoles) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $roleId = max(0, (int) ($_POST['role_id'] ?? 0));
+            if ($store->getIctRole($roleId) === null) {
+                throw new RuntimeException(__('flash.roles_unknown_role'));
+            }
+
+            $categories = array_values(array_filter(
+                (array) ($_POST['categories'] ?? []),
+                static fn($category): bool => is_string($category) && in_array($category, TICKET_CATEGORIES, true)
+            ));
+            $store->setIctRoleCategories($roleId, $categories);
+            pushFlash('success', __('flash.roles_categories_saved'));
+            redirectToPage('admin.php', ['view' => 'roles']);
+        }
+
+        if ($formAction === 'add_ict_role_member') {
+            if (!$canManageIctRoles) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $roleId = max(0, (int) ($_POST['role_id'] ?? 0));
+            $memberEmail = strtolower(trim((string) ($_POST['member_email'] ?? '')));
+            if ($store->getIctRole($roleId) === null) {
+                throw new RuntimeException(__('flash.roles_unknown_role'));
+            }
+            if ($memberEmail === '' || !filter_var($memberEmail, FILTER_VALIDATE_EMAIL)) {
+                throw new RuntimeException(__('flash.invalid_email'));
+            }
+            if ($store->isFullIctAdminEmail($memberEmail)) {
+                throw new RuntimeException(__('flash.roles_member_is_full_admin'));
+            }
+
+            $existingMembership = $store->getIctRoleMembership($memberEmail);
+            if ($existingMembership !== null) {
+                $existingRoleId = (int) ($existingMembership['role_id'] ?? 0);
+                if ($existingRoleId === $roleId) {
+                    pushFlash('success', __('flash.roles_member_added'));
+                    redirectToPage('admin.php', ['view' => 'roles']);
+                }
+
+                $existingRoleName = trim((string) ($existingMembership['role_name'] ?? ''));
+                throw new RuntimeException(
+                    $existingRoleName !== ''
+                        ? __('flash.roles_member_already_in_role', $existingRoleName)
+                        : __('flash.roles_add_member_failed')
+                );
+            }
+
+            if (!$store->addIctRoleMember($roleId, $memberEmail)) {
+                throw new RuntimeException(__('flash.roles_add_member_failed'));
+            }
+
+            pushFlash('success', __('flash.roles_member_added'));
+            redirectToPage('admin.php', ['view' => 'roles']);
+        }
+
+        if ($formAction === 'remove_ict_role_member') {
+            if (!$canManageIctRoles) {
+                throw new RuntimeException(__('flash.settings_admin_only'));
+            }
+
+            $memberEmail = strtolower(trim((string) ($_POST['remove_member_email'] ?? ($_POST['member_email'] ?? ''))));
+            if ($memberEmail === '') {
+                throw new RuntimeException(__('flash.invalid_email'));
+            }
+            if (!$store->removeIctRoleMember($memberEmail)) {
+                throw new RuntimeException(__('flash.roles_remove_member_failed'));
+            }
+
+            pushFlash('success', __('flash.roles_member_removed'));
+            redirectToPage('admin.php', ['view' => 'roles']);
+        }
+
+        if ($formAction === 'create_ticket_template') {
+            if (!$canManageIctRoles) {
                 throw new RuntimeException(__('flash.settings_admin_only'));
             }
 
@@ -663,7 +844,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
         }
 
         if ($formAction === 'update_ticket_template') {
-            if (!$canManageTickets) {
+            if (!$canManageIctRoles) {
                 throw new RuntimeException(__('flash.settings_admin_only'));
             }
 
@@ -685,7 +866,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
         }
 
         if ($formAction === 'delete_ticket_template') {
-            if (!$canManageTickets) {
+            if (!$canManageIctRoles) {
                 throw new RuntimeException(__('flash.settings_admin_only'));
             }
 
@@ -699,7 +880,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
         }
 
         if ($formAction === 'create_template_ticket') {
-            if (!$canManageTickets) {
+            if (!$canManageIctRoles) {
                 throw new RuntimeException(__('flash.settings_admin_only'));
             }
 
@@ -754,7 +935,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
             $forcedAssignee = null;
             if ($assignedEmailInput !== '') {
-                $allowedAssignees = extractIctUserEmails($ictUsers);
+                $allowedAssignees = $store->getEmailsEligibleForCategory($category);
                 if (!in_array($assignedEmailInput, $allowedAssignees, true)) {
                     throw new RuntimeException(__('flash.invalid_employee'));
                 }

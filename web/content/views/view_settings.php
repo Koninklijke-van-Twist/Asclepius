@@ -1,4 +1,4 @@
-            <?php if ($canManageTickets && $view === 'settings'): ?>
+            <?php if ($canManageIctRoles && $view === 'settings'): ?>
                 <section class="panel">
                     <h2><?= h(__('settings.heading')) ?></h2>
                     <p class="panel-intro"><?= h(__('settings.intro')) ?></p>
@@ -25,7 +25,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($ictUsers as $ictUser):
+                                    <?php foreach (extractIctUserEmails($ictUsers) as $ictUser):
                                         $ictUser = strtolower($ictUser);
                                         $isAvailable = !empty($availabilityByIctUser[$ictUser]);
                                         $janusLockReason = (string) ($janusLocksByUser[$ictUser] ?? '');
@@ -78,7 +78,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($ictUsers as $ictUser):
+                                    <?php foreach (extractIctUserEmails($ictUsers) as $ictUser):
                                         $ictUser = strtolower($ictUser);
                                         $isAvailable = !empty($availabilityByIctUser[$ictUser]);
                                         $janusLockReason = (string) ($janusLocksByUser[$ictUser] ?? '');

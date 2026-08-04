@@ -1,7 +1,10 @@
 <?php if ($canManageTickets && $view === 'stats'): ?>
     <?php
     $isMockAlert = isset($_GET['mock-alert']);
-    $bsAllTickets = $store instanceof TicketStore ? $store->getTickets(true, '') : [];
+    $bsAccessCategories = !empty($isLimitedIct) ? ($ictAccessCategories ?? []) : null;
+    $bsAllTickets = $store instanceof TicketStore
+        ? $store->getTickets(true, '', [], null, [], null, 'default', null, null, $bsAccessCategories)
+        : [];
     $bsMaxId = 0;
     $bsMockList = [];
     foreach ($bsAllTickets as $t) {

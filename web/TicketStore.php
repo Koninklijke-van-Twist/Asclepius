@@ -58,11 +58,15 @@ class TicketStore
 
     public function getIctUserAvailability(): array
     {
+        $emails = $this->getAllIctCapableEmails();
         $statement = $this->pdo->query('SELECT user_email, is_available FROM ict_user_availability ORDER BY user_email');
-        $availability = array_fill_keys($this->ictUsers, true);
+        $availability = array_fill_keys($emails, true);
 
         foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $availability[$row['user_email']] = (bool) $row['is_available'];
+            $email = strtolower((string) ($row['user_email'] ?? ''));
+            if ($email !== '') {
+                $availability[$email] = (bool) $row['is_available'];
+            }
         }
 
         return $availability;
@@ -264,6 +268,576 @@ class TicketStore
 
             throw $exception;
         }
+    }
+
+    /**
+     * Auth.php ICT users plus limited role members.
+     *
+     * @return list<string>
+     */
+    public function getAllIctCapableEmails(): array
+    {
+        $emails = [];
+        foreach ($this->ictUsers as $email) {
+            $emails[strtolower((string) $email)] = strtolower((string) $email);
+        }
+        foreach ($this->listIctRoleMemberEmails() as $email) {
+            $emails[$email] = $email;
+        }
+
+        return array_values($emails);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getFullIctAdminEmails(): array
+    {
+        return array_values($this->ictUsers);
+    }
+
+    public function isFullIctAdminEmail(string $email): bool
+    {
+        return in_array(strtolower(trim($email)), $this->ictUsers, true);
+    }
+
+    public function isIctRoleMemberEmail(string $email): bool
+    {
+        return $this->getIctRoleMembership(strtolower(trim($email))) !== null;
+    }
+
+    /**
+     * @return array{role_id: int, role_name: string, role_color: string}|null
+     */
+    public function getIctRoleMembership(string $email): ?array
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT m.role_id, r.name AS role_name, r.color AS role_color
+             FROM ict_role_members m
+             INNER JOIN ict_roles r ON r.id = m.role_id
+             WHERE lower(m.user_email) = :email
+             LIMIT 1'
+        );
+        $statement->execute([':email' => $email]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+
+        return [
+            'role_id' => (int) ($row['role_id'] ?? 0),
+            'role_name' => (string) ($row['role_name'] ?? ''),
+            'role_color' => (string) ($row['role_color'] ?? '#64748b'),
+        ];
+    }
+
+    /**
+     * Categories a user may access as ICT. Null means all (full admin).
+     *
+     * @return list<string>|null
+     */
+    public function getIctAccessCategoriesForEmail(string $email): ?array
+    {
+        $email = strtolower(trim($email));
+        if ($this->isFullIctAdminEmail($email)) {
+            return null;
+        }
+
+        $membership = $this->getIctRoleMembership($email);
+        if ($membership === null) {
+            return [];
+        }
+
+        return $this->getIctRoleCategories((int) $membership['role_id']);
+    }
+
+    /**
+     * @return list<array{id: int, name: string, color: string, created_at: string, member_count: int, categories: list<string>}>
+     */
+    public function listIctRoles(): array
+    {
+        $statement = $this->pdo->query(
+            'SELECT r.id, r.name, r.color, r.created_at,
+                    (SELECT COUNT(*) FROM ict_role_members m WHERE m.role_id = r.id) AS member_count
+             FROM ict_roles r
+             ORDER BY lower(r.name) ASC, r.id ASC'
+        );
+        $roles = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $roleId = (int) ($row['id'] ?? 0);
+            $roles[] = [
+                'id' => $roleId,
+                'name' => (string) ($row['name'] ?? ''),
+                'color' => (string) ($row['color'] ?? '#64748b'),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'member_count' => (int) ($row['member_count'] ?? 0),
+                'categories' => $this->getIctRoleCategories($roleId),
+            ];
+        }
+
+        return $roles;
+    }
+
+    /**
+     * @return array{id: int, name: string, color: string, created_at: string}|null
+     */
+    public function getIctRole(int $roleId): ?array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT id, name, color, created_at
+             FROM ict_roles
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $statement->execute([':id' => $roleId]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+
+        return [
+            'id' => (int) ($row['id'] ?? 0),
+            'name' => (string) ($row['name'] ?? ''),
+            'color' => (string) ($row['color'] ?? '#64748b'),
+            'created_at' => (string) ($row['created_at'] ?? ''),
+        ];
+    }
+
+    public function createIctRole(string $name, string $color): int
+    {
+        $name = trim($name);
+        if ($name === '') {
+            throw new InvalidArgumentException('Role name required');
+        }
+        $color = trim($color);
+        if ($color === '' || preg_match('/^#[0-9a-fA-F]{6}$/', $color) !== 1) {
+            $color = function_exists('stringToHexColor') ? stringToHexColor($name) : '#64748b';
+        }
+
+        $statement = $this->pdo->prepare(
+            'INSERT INTO ict_roles (name, color, created_at)
+             VALUES (:name, :color, :created_at)'
+        );
+        $statement->execute([
+            ':name' => $name,
+            ':color' => strtolower($color),
+            ':created_at' => date('c'),
+        ]);
+
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    public function renameIctRole(int $roleId, string $name): bool
+    {
+        $name = trim($name);
+        if ($roleId <= 0 || $name === '') {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'UPDATE ict_roles
+             SET name = :name
+             WHERE id = :id'
+        );
+        $statement->execute([':name' => $name, ':id' => $roleId]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function deleteIctRole(int $roleId): bool
+    {
+        if ($roleId <= 0) {
+            return false;
+        }
+
+        $memberCount = $this->pdo->prepare('SELECT COUNT(*) FROM ict_role_members WHERE role_id = :id');
+        $memberCount->execute([':id' => $roleId]);
+        if ((int) $memberCount->fetchColumn() > 0) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare('DELETE FROM ict_roles WHERE id = :id');
+        $statement->execute([':id' => $roleId]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getIctRoleCategories(int $roleId): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT category
+             FROM ict_role_categories
+             WHERE role_id = :role_id
+             ORDER BY lower(category) ASC'
+        );
+        $statement->execute([':role_id' => $roleId]);
+        $categories = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $category = (string) ($row['category'] ?? '');
+            if ($category !== '') {
+                $categories[] = $category;
+            }
+        }
+
+        return $categories;
+    }
+
+    /**
+     * @param list<string> $categories
+     */
+    public function setIctRoleCategories(int $roleId, array $categories): void
+    {
+        if ($roleId <= 0 || $this->getIctRole($roleId) === null) {
+            throw new InvalidArgumentException('Unknown role');
+        }
+
+        $allowed = [];
+        foreach ($categories as $category) {
+            $category = trim((string) $category);
+            if ($category !== '' && in_array($category, $this->categories, true)) {
+                $allowed[$category] = $category;
+            }
+        }
+        $allowed = array_values($allowed);
+
+        $this->pdo->beginTransaction();
+        try {
+            $delete = $this->pdo->prepare('DELETE FROM ict_role_categories WHERE role_id = :role_id');
+            $delete->execute([':role_id' => $roleId]);
+
+            $insert = $this->pdo->prepare(
+                'INSERT INTO ict_role_categories (role_id, category)
+                 VALUES (:role_id, :category)'
+            );
+            foreach ($allowed as $category) {
+                $insert->execute([':role_id' => $roleId, ':category' => $category]);
+            }
+
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+
+        foreach ($this->listIctRoleMembers($roleId) as $member) {
+            $this->syncIctRoleMemberCategorySettings((string) ($member['user_email'] ?? ''), $allowed);
+        }
+    }
+
+    /**
+     * @return list<array{user_email: string, created_at: string}>
+     */
+    public function listIctRoleMembers(int $roleId): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT user_email, created_at
+             FROM ict_role_members
+             WHERE role_id = :role_id
+             ORDER BY lower(user_email) ASC'
+        );
+        $statement->execute([':role_id' => $roleId]);
+        $rows = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $rows[] = [
+                'user_email' => strtolower((string) ($row['user_email'] ?? '')),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function listIctRoleMemberEmails(?int $roleId = null): array
+    {
+        if ($roleId !== null) {
+            return array_values(array_map(
+                static fn(array $row): string => (string) ($row['user_email'] ?? ''),
+                $this->listIctRoleMembers($roleId)
+            ));
+        }
+
+        $statement = $this->pdo->query('SELECT user_email FROM ict_role_members ORDER BY lower(user_email) ASC');
+        $emails = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $email = strtolower(trim((string) ($row['user_email'] ?? '')));
+            if ($email !== '') {
+                $emails[] = $email;
+            }
+        }
+
+        return $emails;
+    }
+
+    public function addIctRoleMember(int $roleId, string $email): bool
+    {
+        $email = strtolower(trim($email));
+        if ($roleId <= 0 || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+        if ($this->isFullIctAdminEmail($email)) {
+            return false;
+        }
+        if ($this->getIctRole($roleId) === null) {
+            return false;
+        }
+
+        $existing = $this->getIctRoleMembership($email);
+        if ($existing !== null) {
+            return (int) $existing['role_id'] === $roleId;
+        }
+
+        $statement = $this->pdo->prepare(
+            'INSERT INTO ict_role_members (user_email, role_id, created_at)
+             VALUES (:user_email, :role_id, :created_at)'
+        );
+        try {
+            $statement->execute([
+                ':user_email' => $email,
+                ':role_id' => $roleId,
+                ':created_at' => date('c'),
+            ]);
+        } catch (PDOException $exception) {
+            // Primary key on user_email enforces one role per member.
+            return false;
+        }
+
+        $this->syncIctRoleMemberCategorySettings($email, $this->getIctRoleCategories($roleId));
+        $availabilityInsert = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ict_user_availability (user_email, is_available)
+             VALUES (:user_email, 1)'
+        );
+        $availabilityInsert->execute([':user_email' => $email]);
+
+        return true;
+    }
+
+    public function removeIctRoleMember(string $email): bool
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare('DELETE FROM ict_role_members WHERE lower(user_email) = :email');
+        $statement->execute([':email' => $email]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    /**
+     * Ensure category settings exist for a role member: role categories enabled by default;
+     * categories outside the role are disabled/removed from consideration.
+     *
+     * @param list<string> $roleCategories
+     */
+    public function syncIctRoleMemberCategorySettings(string $email, array $roleCategories): void
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') {
+            return;
+        }
+
+        $roleCategories = array_values(array_unique(array_filter(array_map('strval', $roleCategories))));
+        $insert = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ict_user_category_settings (user_email, category, is_enabled)
+             VALUES (:user_email, :category, 1)'
+        );
+        $disableOutside = $this->pdo->prepare(
+            'UPDATE ict_user_category_settings
+             SET is_enabled = 0
+             WHERE lower(user_email) = :user_email
+               AND category = :category'
+        );
+
+        foreach ($roleCategories as $category) {
+            $insert->execute([':user_email' => $email, ':category' => $category]);
+        }
+
+        foreach ($this->categories as $category) {
+            if (!in_array($category, $roleCategories, true)) {
+                $disableOutside->execute([':user_email' => $email, ':category' => $category]);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, bool> $availabilityByEmail
+     * @param array<string, array<string, bool>> $matrix email => category => enabled
+     */
+    public function saveIctRoleMemberSettings(array $availabilityByEmail, array $matrix, array $allowedEmails, array $allowedCategories): void
+    {
+        $allowedEmailMap = [];
+        foreach ($allowedEmails as $email) {
+            $email = strtolower(trim((string) $email));
+            if ($email !== '') {
+                $allowedEmailMap[$email] = $email;
+            }
+        }
+        $allowedCategoryMap = [];
+        foreach ($allowedCategories as $category) {
+            $category = trim((string) $category);
+            if ($category !== '' && in_array($category, $this->categories, true)) {
+                $allowedCategoryMap[$category] = $category;
+            }
+        }
+
+        $insertSetting = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ict_user_category_settings (user_email, category, is_enabled)
+             VALUES (:user_email, :category, :is_enabled)'
+        );
+        $updateSetting = $this->pdo->prepare(
+            'UPDATE ict_user_category_settings
+             SET is_enabled = :is_enabled
+             WHERE user_email = :user_email
+               AND category = :category'
+        );
+        $insertAvailability = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ict_user_availability (user_email, is_available)
+             VALUES (:user_email, :is_available)'
+        );
+        $updateAvailability = $this->pdo->prepare(
+            'UPDATE ict_user_availability
+             SET is_available = :is_available
+             WHERE user_email = :user_email'
+        );
+
+        $this->pdo->beginTransaction();
+        try {
+            foreach ($allowedEmailMap as $email) {
+                if (array_key_exists($email, $availabilityByEmail)) {
+                    $params = [
+                        ':user_email' => $email,
+                        ':is_available' => !empty($availabilityByEmail[$email]) ? 1 : 0,
+                    ];
+                    $insertAvailability->execute($params);
+                    $updateAvailability->execute($params);
+                }
+
+                foreach ($allowedCategoryMap as $category) {
+                    $enabled = !empty($matrix[$email][$category]);
+                    $params = [
+                        ':user_email' => $email,
+                        ':category' => $category,
+                        ':is_enabled' => $enabled ? 1 : 0,
+                    ];
+                    $insertSetting->execute($params);
+                    $updateSetting->execute($params);
+                }
+            }
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    /**
+     * Emails that may be assigned tickets in a category (full admins always if they have settings;
+     * role members only when role includes the category).
+     *
+     * @return list<string>
+     */
+    public function getEmailsEligibleForCategory(string $category): array
+    {
+        $category = trim($category);
+        $eligible = [];
+
+        foreach ($this->ictUsers as $email) {
+            $eligible[$email] = $email;
+        }
+
+        if ($category === '') {
+            return array_values($eligible);
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT lower(m.user_email) AS user_email
+             FROM ict_role_members m
+             INNER JOIN ict_role_categories c ON c.role_id = m.role_id
+             WHERE c.category = :category'
+        );
+        $statement->execute([':category' => $category]);
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $email = strtolower(trim((string) ($row['user_email'] ?? '')));
+            if ($email !== '') {
+                $eligible[$email] = $email;
+            }
+        }
+
+        return array_values($eligible);
+    }
+
+    public function getCategorySettingsForEmails(array $emails, ?array $categories = null): array
+    {
+        $emailMap = [];
+        foreach ($emails as $email) {
+            $email = strtolower(trim((string) $email));
+            if ($email !== '') {
+                $emailMap[$email] = $email;
+            }
+        }
+        $categoryList = $categories !== null ? array_values($categories) : $this->categories;
+        if ($emailMap === [] || $categoryList === []) {
+            return [];
+        }
+
+        $settings = [];
+        $statement = $this->pdo->query('SELECT user_email, category, is_enabled FROM ict_user_category_settings');
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $email = strtolower((string) ($row['user_email'] ?? ''));
+            if (!isset($emailMap[$email])) {
+                continue;
+            }
+            $settings[$email][(string) ($row['category'] ?? '')] = (bool) $row['is_enabled'];
+        }
+
+        foreach ($emailMap as $email) {
+            foreach ($categoryList as $category) {
+                $settings[$email][$category] = $settings[$email][$category] ?? true;
+            }
+        }
+
+        return $settings;
+    }
+
+    public function getAvailabilityForEmails(array $emails): array
+    {
+        $emailMap = [];
+        foreach ($emails as $email) {
+            $email = strtolower(trim((string) $email));
+            if ($email !== '') {
+                $emailMap[$email] = true;
+            }
+        }
+        if ($emailMap === []) {
+            return [];
+        }
+
+        $availability = $emailMap;
+        $statement = $this->pdo->query('SELECT user_email, is_available FROM ict_user_availability');
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $email = strtolower((string) ($row['user_email'] ?? ''));
+            if (isset($emailMap[$email])) {
+                $availability[$email] = (bool) $row['is_available'];
+            }
+        }
+
+        return $availability;
     }
 
     public function getIctUserLoads(): array
@@ -736,9 +1310,10 @@ class TicketStore
     /**
      * Custom statuses currently used on at least one ticket (excluding built-ins).
      *
+     * @param list<string>|null $categoryScope when set, only tickets in these categories count
      * @return list<array{display_label: string, created_by_email: string, created_at: string}>
      */
-    public function getActiveCustomStatuses(): array
+    public function getActiveCustomStatuses(?array $categoryScope = null): array
     {
         $builtInKeys = array_map(static fn(string $status): string => self::unicodeLower($status), TICKET_STATUSES);
         $placeholders = [];
@@ -749,6 +1324,21 @@ class TicketStore
             $parameters[$placeholder] = $key;
         }
 
+        $categoryClause = '';
+        if ($categoryScope !== null) {
+            $categoryScope = array_values(array_filter(array_map('strval', $categoryScope), static fn(string $c): bool => $c !== ''));
+            if ($categoryScope === []) {
+                return [];
+            }
+            $categoryPlaceholders = [];
+            foreach ($categoryScope as $index => $category) {
+                $placeholder = ':cat_scope_' . $index;
+                $categoryPlaceholders[] = $placeholder;
+                $parameters[$placeholder] = $category;
+            }
+            $categoryClause = ' AND t.category IN (' . implode(', ', $categoryPlaceholders) . ')';
+        }
+
         $sql = 'SELECT MIN(t.status) AS ticket_status,
                        MAX(cts.display_label) AS registry_label,
                        MAX(cts.created_by_email) AS created_by_email,
@@ -756,7 +1346,7 @@ class TicketStore
                 FROM tickets t
                 LEFT JOIN custom_ticket_statuses cts
                     ON cts.status_key = mb_lower(t.status)
-                WHERE mb_lower(t.status) NOT IN (' . implode(', ', $placeholders) . ')
+                WHERE mb_lower(t.status) NOT IN (' . implode(', ', $placeholders) . ')' . $categoryClause . '
                 GROUP BY mb_lower(t.status)
                 ORDER BY COALESCE(MAX(cts.display_label), MIN(t.status)) COLLATE NOCASE ASC';
 
@@ -1088,9 +1678,9 @@ class TicketStore
         ]);
     }
 
-    public function countTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default'): int
+    public function countTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default', ?array $accessCategories = null): int
     {
-        $filterState = $this->buildTicketListFilters($isAdmin, $userEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode);
+        $filterState = $this->buildTicketListFilters($isAdmin, $userEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode, $accessCategories);
         $sql = 'SELECT COUNT(*) FROM tickets t';
 
         if ($filterState['conditions'] !== []) {
@@ -1103,9 +1693,9 @@ class TicketStore
         return (int) $statement->fetchColumn();
     }
 
-    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default', ?int $limit = null, ?int $offset = null): array
+    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default', ?int $limit = null, ?int $offset = null, ?array $accessCategories = null): array
     {
-        $filterState = $this->buildTicketListFilters($isAdmin, $userEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode);
+        $filterState = $this->buildTicketListFilters($isAdmin, $userEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode, $accessCategories);
         $conditions = $filterState['conditions'];
         $parameters = $filterState['parameters'];
         $adminList = $filterState['adminList'];
@@ -1213,7 +1803,7 @@ class TicketStore
         return array_values($ids);
     }
 
-    private function buildTicketListFilters(bool $isAdmin, string $userEmail, array $statusFilters, ?string $assignedFilter, array $categoryFilters, ?string $searchQuery, string $browseMode): array
+    private function buildTicketListFilters(bool $isAdmin, string $userEmail, array $statusFilters, ?string $assignedFilter, array $categoryFilters, ?string $searchQuery, string $browseMode, ?array $accessCategories = null): array
     {
         $accessConditions = [];
         $listConditions = [];
@@ -1234,6 +1824,21 @@ class TicketStore
                   AND lower(tp.user_email) = :user_email
             )';
             $parameters[':user_email'] = strtolower(trim($userEmail));
+        }
+
+        if ($adminList && $accessCategories !== null) {
+            $accessCategories = array_values(array_filter(array_map('strval', $accessCategories), static fn(string $c): bool => $c !== ''));
+            if ($accessCategories === []) {
+                $accessConditions[] = '1 = 0';
+            } else {
+                $accessCatPlaceholders = [];
+                foreach ($accessCategories as $index => $category) {
+                    $placeholder = ':access_cat_' . $index;
+                    $accessCatPlaceholders[] = $placeholder;
+                    $parameters[$placeholder] = $category;
+                }
+                $accessConditions[] = 't.category IN (' . implode(', ', $accessCatPlaceholders) . ')';
+            }
         }
 
         if ($statusFilters !== [] && !$allCompletedPublic) {
@@ -1324,8 +1929,8 @@ class TicketStore
         $filteredConditions = array_merge($accessConditions, $listConditions);
         $conditions = $filteredConditions;
 
-        // Exact ticket-number matches always surface, ignoring status/assignee/category filters.
-        // Admins may jump to any ticket by ID; other viewers still keep access restrictions.
+        // Exact ticket-number matches ignore status/assignee/category *UI filters*,
+        // but always keep hard access restrictions (participants / limited ICT categories).
         if ($exactTicketIds !== []) {
             $exactPlaceholders = [];
             foreach ($exactTicketIds as $index => $ticketId) {
@@ -1334,9 +1939,7 @@ class TicketStore
                 $parameters[$placeholder] = $ticketId;
             }
             $exactMatchCondition = 't.id IN (' . implode(', ', $exactPlaceholders) . ')';
-            $exactBranchConditions = $isAdmin
-                ? [$exactMatchCondition]
-                : array_merge($accessConditions, [$exactMatchCondition]);
+            $exactBranchConditions = array_merge($accessConditions, [$exactMatchCondition]);
 
             $filteredSql = $filteredConditions === [] ? '1=1' : implode(' AND ', $filteredConditions);
             $exactSql = implode(' AND ', $exactBranchConditions);
@@ -1381,7 +1984,7 @@ class TicketStore
         });
     }
 
-    public function getTicket(int $ticketId, bool $isAdmin, string $userEmail, string $browseMode = 'default', bool $includeGhostMessages = false): ?array
+    public function getTicket(int $ticketId, bool $isAdmin, string $userEmail, string $browseMode = 'default', bool $includeGhostMessages = false, ?array $accessCategories = null): ?array
     {
         $conditions = ['id = :id'];
         $parameters = [':id' => $ticketId];
@@ -1398,6 +2001,18 @@ class TicketStore
                   AND lower(tp.user_email) = :user_email
             )';
             $parameters[':user_email'] = strtolower(trim($userEmail));
+        } elseif ($accessCategories !== null) {
+            $accessCategories = array_values(array_filter(array_map('strval', $accessCategories), static fn(string $c): bool => $c !== ''));
+            if ($accessCategories === []) {
+                return null;
+            }
+            $accessCatPlaceholders = [];
+            foreach ($accessCategories as $index => $category) {
+                $placeholder = ':access_cat_' . $index;
+                $accessCatPlaceholders[] = $placeholder;
+                $parameters[$placeholder] = $category;
+            }
+            $conditions[] = 'category IN (' . implode(', ', $accessCatPlaceholders) . ')';
         }
 
         $statement = $this->pdo->prepare('SELECT * FROM tickets WHERE ' . implode(' AND ', $conditions) . ' LIMIT 1');
@@ -2177,6 +2792,36 @@ class TicketStore
         );
 
         $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ict_roles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                color TEXT NOT NULL DEFAULT "#64748b",
+                created_at TEXT NOT NULL
+            )'
+        );
+
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ict_role_categories (
+                role_id INTEGER NOT NULL,
+                category TEXT NOT NULL,
+                PRIMARY KEY (role_id, category),
+                FOREIGN KEY(role_id) REFERENCES ict_roles(id) ON DELETE CASCADE
+            )'
+        );
+
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ict_role_members (
+                user_email TEXT NOT NULL PRIMARY KEY,
+                role_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(role_id) REFERENCES ict_roles(id) ON DELETE CASCADE
+            )'
+        );
+
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ict_role_members_role_id ON ict_role_members(role_id)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ict_role_categories_role_id ON ict_role_categories(role_id)');
+
+        $this->pdo->exec(
             'CREATE TABLE IF NOT EXISTS ticket_participants (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ticket_id INTEGER NOT NULL,
@@ -2615,8 +3260,19 @@ class TicketStore
 
     private function pickAssignee(?string $category, ?string $excludeEmail = null): ?string
     {
-        if ($this->ictUsers === []) {
+        $capableEmails = $this->getAllIctCapableEmails();
+        if ($capableEmails === []) {
             return null;
+        }
+
+        if ($category !== null && trim($category) !== '') {
+            $capableEmails = array_values(array_intersect(
+                $capableEmails,
+                $this->getEmailsEligibleForCategory($category)
+            ));
+            if ($capableEmails === []) {
+                return null;
+            }
         }
 
         $excludeEmail = strtolower(trim((string) $excludeEmail));
@@ -2624,7 +3280,7 @@ class TicketStore
         $excludeAvailabilityClause = $excludeEmail !== '' ? ' AND lower(availability.user_email) <> :exclude_email' : '';
         $allowedUserPlaceholders = [];
         $allowedUserParameters = [];
-        foreach ($this->ictUsers as $index => $ictUser) {
+        foreach ($capableEmails as $index => $ictUser) {
             $placeholder = ':ict_user_' . $index;
             $allowedUserPlaceholders[] = $placeholder;
             $allowedUserParameters[$placeholder] = $ictUser;

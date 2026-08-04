@@ -1,3 +1,13 @@
+id: 2026-08-04-ict-roles-afas
+date: 2026-08-04
+title: ICT-Rollen und Kategorie AFAS
+author: Tim Falken
+
+Es gibt eine neue Ticketkategorie **AFAS**. Vollständige ICT-Admins können unter **Rollen** eingeschränkte Rollen verwalten: Rollenname, verknüpfte Kategorien und Mitglieder (E-Mail-Adressen).
+
+Rollenmitglieder sehen nur Tickets in den Kategorien ihrer Rolle, mit Navigation wie `<Rolle>-Übersicht` und `<Rolle>-Statistiken`. Unter Einstellungen verwalten sie Urlaub und automatische Zuweisung für ihre Rollenkategorien. Bearbeiterauswahl und Benachrichtigungen folgen, wer für die Kategorie infrage kommt. Suche nach Ticketnummer und Ticketlinks respektieren dieselbe Kategorieberechtigung. Ein Benutzer darf nur **einer Rolle** angehören; beim Hinzufügen gibt es Vorschläge aus der bekannten Benutzerliste. Live-Aktualisierungen (Stats/Ticket-Poll) bleiben innerhalb derselben Rollenbeschränkungen. Beim Wechsel in eine Kategorie außerhalb der eigenen Rolle erscheint eine Warnung und die Neuvergabe wird erzwungen. Eingeschränkte ICT-Nutzer behalten zusätzlich den Tab **Alle Tickets** (gleiche Rechte wie normale Nutzer); vollständige ICT-Admins brauchen ihn nicht. Der Filter **Zugewiesen an** merkt sich auch Rollenmitglieder korrekt (nicht nur Full-Admins).
+
+---
 id: 2026-08-04-priority-edge-markers
 date: 2026-08-04
 title: Prioritäts-Punkte an offenen Tickets
@@ -21,7 +31,7 @@ author: Tim Falken
 
 Seitlich siehst du jetzt eine **Anwesenheitsübersicht**: wer heute im Büro oder zu Hause ist, abwesend, krank oder im Urlaub. Die Daten kommen aus [Janus](../janus/) und nur von Kolleginnen und Kollegen, die dort den **vollständigen Stundentracker** nutzen.
 
-Möchtest du selbst erscheinen? Öffne [Janus](../janus/), aktiviere den vollständigen Stundentracker und nutze ihn weiter. Nur dann erscheinst du in dieser Übersicht.
+Stehst du selbst noch nicht darin (als ICT-Admin)? Klicke auf die Übersicht für eine Erklärung, oder öffne [Janus](../janus/), aktiviere den vollständigen Stundentracker und nutze ihn weiter — danach erscheinst du automatisch.
 
 ---
 id: 2026-07-22-ghost-messages

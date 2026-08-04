@@ -4,9 +4,28 @@ if (!empty($isBigscreen)) {
 }
 $presenceRows = is_array($janusPresenceRows ?? null) ? $janusPresenceRows : [];
 $presenceConnected = !empty($janusPresenceConnected);
+$presenceViewerEmail = strtolower(trim((string) ($userEmail ?? '')));
+$presenceViewerIsIct = !empty($userIsAdmin);
+$presenceViewerListed = false;
+if ($presenceViewerEmail !== '') {
+    foreach ($presenceRows as $presenceRow) {
+        if (strtolower(trim((string) ($presenceRow['email'] ?? ''))) === $presenceViewerEmail) {
+            $presenceViewerListed = true;
+            break;
+        }
+    }
+}
+$janusPresenceUrl = '../janus/';
 ?>
-<aside class="presence-sidebar" id="presence-sidebar" aria-label="<?= h(__('presence.heading')) ?>"
-    data-presence-connected="<?= $presenceConnected ? '1' : '0' ?>">
+<aside class="presence-sidebar<?= ($presenceViewerIsIct && !$presenceViewerListed) ? ' is-joinable' : '' ?>"
+    id="presence-sidebar"
+    aria-label="<?= h(__('presence.heading')) ?>"
+    data-presence-connected="<?= $presenceConnected ? '1' : '0' ?>"
+    data-viewer-email="<?= h($presenceViewerEmail) ?>"
+    data-viewer-is-ict="<?= $presenceViewerIsIct ? '1' : '0' ?>"
+    data-viewer-listed="<?= $presenceViewerListed ? '1' : '0' ?>"
+    data-join-hint-title="<?= h(__('presence.join_hint_title')) ?>"
+    <?= ($presenceViewerIsIct && !$presenceViewerListed) ? ' role="button" tabindex="0" title="' . h(__('presence.join_hint_title')) . '"' : '' ?>>
     <h2 class="presence-heading"><?= h(__('presence.heading')) ?></h2>
     <?php if (!$presenceConnected): ?>
         <p class="presence-empty" data-presence-empty><?= h(__('presence.unavailable')) ?></p>
@@ -38,3 +57,21 @@ $presenceConnected = !empty($janusPresenceConnected);
         </ul>
     <?php endif; ?>
 </aside>
+
+<?php if ($presenceViewerIsIct): ?>
+    <div class="ticket-participants-modal" data-role="presence-join-modal" hidden>
+        <div class="ticket-participants-modal-card role-confirm-card">
+            <div class="ticket-participants-modal-head">
+                <h3><?= h(__('presence.join_modal_title')) ?></h3>
+                <button type="button" class="participant-modal-close" data-role="presence-join-close"
+                    aria-label="<?= h(__('ticket.preview_close')) ?>">&times;</button>
+            </div>
+            <p class="role-confirm-copy"><?= h(__('presence.join_modal_intro')) ?></p>
+            <p class="role-confirm-copy"><?= h(__('presence.join_modal_how')) ?></p>
+            <div class="role-modal-actions">
+                <button type="button" class="secondary-button" data-role="presence-join-close"><?= h(__('presence.join_modal_close')) ?></button>
+                <a class="primary-button" href="<?= h($janusPresenceUrl) ?>" target="_blank" rel="noopener noreferrer"><?= h(__('presence.join_modal_open_janus')) ?></a>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>

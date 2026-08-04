@@ -1,3 +1,13 @@
+id: 2026-08-04-ict-roles-afas
+date: 2026-08-04
+title: ICT roles and AFAS category
+author: Tim Falken
+
+There is a new ticket category **AFAS**. Full ICT admins can also manage limited roles under **Roles**: a role name, linked categories, and members (email addresses).
+
+Role members only see tickets in their role's categories, with navigation like `<role>-overview` and `<role>-stats`. Under Settings they manage vacation and auto-assignment for their role categories. Assignee choices and notifications follow who is eligible for that category. Ticket-number search and ticket links respect the same category access. A user can belong to **one role** only; when adding members you get suggestions from the known user list. Live refreshes (stats/ticket poll) stay within the same role restrictions. Changing a ticket to a category outside your role shows a warning and forces reassignment. Limited ICT users also keep the **All tickets** tab (same rights as a regular user); full ICT admins do not need it. The **Assigned to** filter also correctly remembers role members (not only full admins).
+
+---
 id: 2026-08-04-priority-edge-markers
 date: 2026-08-04
 title: Priority dots on open tickets
@@ -21,7 +31,7 @@ author: Tim Falken
 
 A **presence overview** on the side now shows who is in the office or at home today, or away, sick, or on vacation. The data comes from [Janus](../janus/) and only includes colleagues who use the **full hours tracker** there.
 
-Want to appear in the list? Open [Janus](../janus/), turn on the full hours tracker, and keep using it. Only then will you show up in this overview.
+Not listed yet (as an ICT admin)? Click the overview for an explanation, or open [Janus](../janus/), turn on the full hours tracker, and keep using it — you will then appear automatically.
 
 ---
 id: 2026-07-22-ghost-messages

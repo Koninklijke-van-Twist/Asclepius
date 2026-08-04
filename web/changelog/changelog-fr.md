@@ -1,3 +1,13 @@
+id: 2026-08-04-ict-roles-afas
+date: 2026-08-04
+title: Rôles ICT et catégorie AFAS
+author: Tim Falken
+
+Il existe une nouvelle catégorie de tickets **AFAS**. Les administrateurs ICT complets peuvent aussi gérer des rôles limités sous **Rôles** : nom du rôle, catégories liées et membres (adresses e-mail).
+
+Les membres d'un rôle ne voient que les tickets des catégories de leur rôle, avec une navigation du type `<rôle>-aperçu` et `<rôle>-statistiques`. Sous Paramètres, ils gèrent les congés et l'attribution automatique pour les catégories de leur rôle. Les choix d'assignation et les notifications suivent qui est éligible pour cette catégorie. La recherche par numéro de ticket et les liens de ticket respectent le même accès par catégorie. Un utilisateur ne peut appartenir qu'à **un seul rôle** ; à l'ajout, des suggestions provenant de la liste d'utilisateurs connue sont proposées. Les rafraîchissements en direct (stats/poll tickets) restent dans les mêmes restrictions de rôle. Changer vers une catégorie hors rôle affiche un avertissement et force la réassignation. Les utilisateurs ICT limités conservent aussi l'onglet **Tous les tickets** (mêmes droits qu'un utilisateur normal) ; les administrateurs ICT complets n'en ont pas besoin. Le filtre **Assigné à** mémorise aussi correctement les membres de rôle (pas seulement les admins complets).
+
+---
 id: 2026-08-04-priority-edge-markers
 date: 2026-08-04
 title: Pastilles de priorité sur les tickets ouverts
@@ -21,7 +31,7 @@ author: Tim Falken
 
 Sur le côté, un **aperçu de présence** montre qui est au bureau ou à domicile aujourd’hui, absent, malade ou en vacances. Les données viennent de [Janus](../janus/) et uniquement des collègues qui y utilisent le **suivi d’heures complet**.
 
-Vous voulez apparaître dans la liste ? Ouvrez [Janus](../janus/), activez le suivi d’heures complet et continuez à l’utiliser. Ce n’est qu’alors que vous figurerez dans cet aperçu.
+Vous n’y figurez pas encore (en tant qu’admin ICT) ? Cliquez sur l’aperçu pour une explication, ou ouvrez [Janus](../janus/), activez le suivi d’heures complet et continuez à l’utiliser — vous apparaîtrez ensuite automatiquement.
 
 ---
 id: 2026-07-22-ghost-messages

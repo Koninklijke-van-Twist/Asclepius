@@ -967,10 +967,23 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     if ($currentTicketStatus !== '' && !in_array($currentTicketStatus, $statusSelectOptions, true)) {
         $statusSelectOptions[] = $currentTicketStatus;
     }
+    $store = ($context['store'] ?? null) instanceof TicketStore ? $context['store'] : null;
+    $ticketCategory = (string) ($ticket['category'] ?? '');
+    $eligibleForCategory = [];
+    if ($store instanceof TicketStore) {
+        $eligibleForCategory = array_fill_keys($store->getEmailsEligibleForCategory($ticketCategory), true);
+    } else {
+        foreach (extractIctUserEmails($ictUsers) as $email) {
+            $eligibleForCategory[$email] = true;
+        }
+    }
+    $assignableSource = $store instanceof TicketStore
+        ? $store->getAllIctCapableEmails()
+        : extractIctUserEmails($ictUsers);
     $assignableIctUsers = array_values(array_unique(array_filter(
-        extractIctUserEmails($ictUsers),
-        static function (string $ictUser) use ($canAssignToRequester, $requesterEmail, $viewerEmail): bool {
-            if ($ictUser === '') {
+        $assignableSource,
+        static function (string $ictUser) use ($canAssignToRequester, $requesterEmail, $viewerEmail, $eligibleForCategory): bool {
+            if ($ictUser === '' || empty($eligibleForCategory[$ictUser])) {
                 return false;
             }
 
@@ -981,6 +994,11 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
             return $canAssignToRequester || $ictUser !== $requesterEmail;
         }
     )));
+    // Keep current assignee visible even if no longer eligible.
+    $currentAssignee = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
+    if ($currentAssignee !== '' && !in_array($currentAssignee, $assignableIctUsers, true)) {
+        $assignableIctUsers[] = $currentAssignee;
+    }
     $showTicketShareLink = ($canManageTickets && $isAdminPortal)
         || $isReadOnlyTicket
         || (!$isAdminPortal && $view === 'overview');
@@ -1273,6 +1291,25 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                     </div>
                 </div>
 
+                <div class="ticket-participants-modal" data-role="ticket-category-out-of-scope-modal" hidden>
+                    <div class="ticket-participants-modal-card role-confirm-card">
+                        <div class="ticket-participants-modal-head">
+                            <h3><?= h(__('ticket.change_category_heading')) ?></h3>
+                            <button type="button" class="participant-modal-close" data-role="change-category-out-of-scope-close"
+                                aria-label="<?= h(__('ticket.preview_close')) ?>">&times;</button>
+                        </div>
+                        <p class="role-confirm-copy" data-role="change-category-out-of-scope-copy"></p>
+                        <div class="role-modal-actions">
+                            <button type="button" class="secondary-button" data-role="change-category-out-of-scope-cancel">
+                                <?= h(__('ticket.change_category_cancel')) ?>
+                            </button>
+                            <button type="button" class="danger-button" data-role="change-category-out-of-scope-confirm">
+                                <?= h(__('ticket.change_category_save')) ?>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="ticket-participants-modal" data-role="ticket-custom-status-modal" hidden>
                     <div class="ticket-participants-modal-card">
                         <div class="ticket-participants-modal-head">
@@ -1465,7 +1502,11 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
     ];
 }
 
-function normalizeSavedTicketOverviewFilters(array $prefs, array $activeCustomStatusLabels = []): array
+function normalizeSavedTicketOverviewFilters(
+    array $prefs,
+    array $activeCustomStatusLabels = [],
+    array $validAssigneeEmails = []
+): array
 {
     $savedFilters = $prefs['ticket_overview_filters'] ?? null;
     if (!is_array($savedFilters)) {
@@ -1489,7 +1530,17 @@ function normalizeSavedTicketOverviewFilters(array $prefs, array $activeCustomSt
     ));
     $assignedFilter = trim((string) ($savedFilters['assigned_filter'] ?? ''));
     $searchQuery = trim((string) ($savedFilters['search_query'] ?? ''));
-    $validAssignedValues = array_merge(['', '__unassigned__'], array_map('strtolower', $GLOBALS['ictUsers'] ?? []));
+    $assigneeEmails = array_values(array_filter(array_map(
+        static fn(mixed $email): string => strtolower(trim((string) $email)),
+        $validAssigneeEmails
+    ), static fn(string $email): bool => $email !== ''));
+    if ($assigneeEmails === []) {
+        $assigneeEmails = extractIctUserEmails(is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : []);
+    }
+    $validAssignedValues = array_merge(['', '__unassigned__'], $assigneeEmails);
+    if ($assignedFilter !== '' && $assignedFilter !== '__unassigned__') {
+        $assignedFilter = strtolower($assignedFilter);
+    }
 
     if (!in_array($assignedFilter, $validAssignedValues, true)) {
         $assignedFilter = '';
@@ -1917,6 +1968,7 @@ function translateCategory(string $dbCategory): string
         'software bestellen' => 'category.software_bestellen',
         'licentie aanvragen' => 'category.licentie_aanvragen',
         'Business Central' => 'category.business_central',
+        'AFAS' => 'category.afas',
         'Hardwareproblemen' => 'category.hardwareproblemen',
         'Softwareproblemen' => 'category.softwareproblemen',
         'sleutels.kvt.nl web-applicatieproblemen' => 'category.web_app_problemen',
@@ -2066,13 +2118,15 @@ function pushRecentCustomStatusForUser(string $email, string $status): void
  *
  * @param list<array{display_label?: string, created_by_email?: string}> $activeCustomStatuses
  * @param list<string> $statusFilters
+ * @param list<string> $validAssigneeEmails
  * @return list<string>
  */
 function applyDefaultEnabledOwnCustomStatusFilters(
     string $userEmail,
     array $activeCustomStatuses,
     bool $statusFilterActive,
-    array $statusFilters
+    array $statusFilters,
+    array $validAssigneeEmails = []
 ): array {
     $userEmail = strtolower(trim($userEmail));
     if ($userEmail === '' || $activeCustomStatuses === []) {
@@ -2116,7 +2170,11 @@ function applyDefaultEnabledOwnCustomStatusFilters(
     }
 
     if ($changedFilters) {
-        $overview = normalizeSavedTicketOverviewFilters($prefs, array_column($activeCustomStatuses, 'display_label'));
+        $overview = normalizeSavedTicketOverviewFilters(
+            $prefs,
+            array_column($activeCustomStatuses, 'display_label'),
+            $validAssigneeEmails
+        );
         $overview['status_filter_active'] = true;
         $overview['status_filters'] = array_values(array_unique($statusFilters));
         saveUserPref($userEmail, 'ticket_overview_filters', $overview);
@@ -2634,10 +2692,15 @@ function isOpenTicketNavigationRequest(): bool
     return true;
 }
 
-function resolveTicketForOpenLinkRouting(TicketStore $store, int $ticketId, bool $userIsAdmin, string $userEmail): ?array
-{
+function resolveTicketForOpenLinkRouting(
+    TicketStore $store,
+    int $ticketId,
+    bool $userIsAdmin,
+    string $userEmail,
+    ?array $accessCategories = null
+): ?array {
     if ($userIsAdmin) {
-        $ticket = $store->getTicket($ticketId, true, $userEmail);
+        $ticket = $store->getTicket($ticketId, true, $userEmail, 'default', false, $accessCategories);
         if ($ticket !== null) {
             return $ticket;
         }
@@ -2662,13 +2725,20 @@ function maybeRedirectForOpenTicketLink(
     bool $isAdminPortal,
     int $openTicketId,
     string $userEmail,
-    string $requestedView
+    string $requestedView,
+    ?array $accessCategories = null
 ): void {
     if ($openTicketId <= 0 || !isOpenTicketNavigationRequest()) {
         return;
     }
 
-    $ticketForRouting = resolveTicketForOpenLinkRouting($store, $openTicketId, $userIsAdmin, $userEmail);
+    $ticketForRouting = resolveTicketForOpenLinkRouting(
+        $store,
+        $openTicketId,
+        $userIsAdmin,
+        $userEmail,
+        $accessCategories
+    );
     if ($ticketForRouting === null) {
         return;
     }
@@ -2681,21 +2751,34 @@ function maybeRedirectForOpenTicketLink(
         return;
     }
 
-    if ($userIsAdmin) {
+    $hasIctAccess = $userIsAdmin && $store->getTicket(
+        $openTicketId,
+        true,
+        $userEmail,
+        'default',
+        false,
+        $accessCategories
+    ) !== null;
+
+    if ($hasIctAccess) {
+        // On the public "all tickets" tab, keep completed public tickets there (same as a normal user).
+        // Other ICT-accessible tickets still go to the ICT overview.
         if (!$isAdminPortal) {
+            if ($requestedView === 'all_tickets'
+                && $store->getTicket($openTicketId, false, $userEmail, 'all_completed_public') !== null) {
+                return;
+            }
+
             redirectToPage('admin.php', ['open' => $openTicketId]);
         }
 
         return;
     }
 
-    if ($isAdminPortal) {
-        redirectToPage('index.php', ['open' => $openTicketId]);
-    }
-
+    // No ICT category access (e.g. limited role): route like a normal user.
     $publicTicket = $store->getTicket($openTicketId, false, $userEmail, 'all_completed_public');
     if ($publicTicket !== null) {
-        if ($requestedView !== 'all_tickets') {
+        if ($isAdminPortal || $requestedView !== 'all_tickets') {
             redirectToPage('index.php', [
                 'view' => 'all_tickets',
                 'open' => $openTicketId,
@@ -2707,7 +2790,7 @@ function maybeRedirectForOpenTicketLink(
 
     $participantTicket = $store->getTicket($openTicketId, false, $userEmail);
     if ($participantTicket !== null) {
-        if ($requestedView === 'all_tickets') {
+        if ($isAdminPortal || $requestedView === 'all_tickets') {
             redirectToPage('index.php', ['open' => $openTicketId]);
         }
 
@@ -2722,14 +2805,15 @@ function validateOpenTicketLinkAccess(
     bool $isAdminPortal,
     bool $isAllTicketsView,
     string $userEmail,
-    string $ticketBrowseMode
+    string $ticketBrowseMode,
+    ?array $accessCategories = null
 ): bool {
     if ($openTicketId <= 0) {
         return true;
     }
 
     if ($userIsAdmin && $isAdminPortal) {
-        return $store->getTicket($openTicketId, true, $userEmail) !== null;
+        return $store->getTicket($openTicketId, true, $userEmail, 'default', false, $accessCategories) !== null;
     }
 
     if ($isAllTicketsView) {
@@ -2802,7 +2886,7 @@ function buildNotificationBody(array $ticket, string $introKey, string $messageT
     $html = '<!DOCTYPE html><html lang="' . htmlspecialchars($lang, ENT_QUOTES, 'UTF-8') . '"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#10233f;">'
         . '<div style="max-width:600px;margin:32px auto;padding:0 16px;">'
         . '<div style="background:linear-gradient(135deg,#0e2c52,#0b65c2);border-radius:16px 16px 0 0;padding:24px 28px;">'
-        . '<p style="margin:0 0 2px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.7);">Asclepius · ICT Tickets</p>'
+        . '<p style="margin:0 0 2px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.7);">Asclepius · Tickets</p>'
         . '<h1 style="margin:0;font-size:20px;">Ticket #' . (int) $ticket['id'] . '</h1>'
         . '</div>'
         . '<div style="background:#fff;border-radius:0 0 16px 16px;padding:24px 28px;box-shadow:0 8px 24px rgba(15,35,63,.08);">'
@@ -2822,7 +2906,7 @@ function buildNotificationBody(array $ticket, string $introKey, string $messageT
         . '<a href="' . htmlspecialchars($ticketUrl, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:#0b65c2;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">' . htmlspecialchars($t('email.btn_view'), ENT_QUOTES, 'UTF-8') . '</a>'
         . '</div>'
         . '</div>'
-        . '<p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px;">Asclepius · KVT ICT</p>'
+        . '<p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px;">Asclepius · KVT</p>'
         . '</div></body></html>';
 
     return "ASCLEPIUS_HTML_MAIL\x00" . $plain . "\x00" . $html;

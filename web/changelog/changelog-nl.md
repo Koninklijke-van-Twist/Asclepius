@@ -1,3 +1,13 @@
+id: 2026-08-04-ict-roles-afas
+date: 2026-08-04
+title: ICT-rollen en categorie AFAS
+author: Tim Falken
+
+Er is een nieuwe ticketcategorie **AFAS**. Daarnaast kunnen volledige ICT-admins onder **Rollen** beperkte rollen aanmaken: een rolnaam, gekoppelde categorieën en leden (e-mailadressen).
+
+Leden van een rol zien alleen tickets in de categorieën van hun rol, met navigatie zoals `<rol>-overzicht` en `<rol>-statistieken`. Onder Instellingen beheren zij vakantie en automatisch toewijzen voor hun rolcategorieën. Behandelaar-keuzes en meldingen volgen wie voor die categorie in aanmerking komt. Zoeken op ticketnummer en ticketlinks respecteren dezelfde categorietoegang. Een gebruiker kan tot **één rol** behoren; bij toevoegen krijg je suggesties uit de bekende gebruikerslijst. Live-verversingen (stats/ticketpoll) blijven binnen dezelfde rolrestricties. Bij categorie wijzigen naar een categorie buiten je rol krijg je een waarschuwing en wordt hertoewijzen verplicht. Beperkte ICT-gebruikers houden daarnaast de tab **Alle tickets** (zelfde rechten als een gewone gebruiker); volledige ICT-admins hebben die niet nodig. De filter **Toegewezen aan** onthoudt ook rolleden correct (niet alleen full-admins).
+
+---
 id: 2026-08-04-priority-edge-markers
 date: 2026-08-04
 title: Prioriteitsbolletjes op open tickets
@@ -21,7 +31,7 @@ author: Tim Falken
 
 Aan de zijkant zie je nu een **aanwezigheidsoverzicht** met wie er vandaag op kantoor of thuis is, afwezig, ziek of op vakantie. De gegevens komen uit [Janus](../janus/) en alleen van collega’s die daar de **volledige urentracker** gebruiken.
 
-Wil je zelf meedoen? Open [Janus](../janus/), zet de volledige urentracker aan en gebruik die voortaan. Alleen dan verschijn je in dit overzicht.
+Sta je er zelf nog niet tussen (als ICT-admin)? Klik op het overzicht voor uitleg, of open [Janus](../janus/), zet de volledige urentracker aan en gebruik die voortaan — daarna verschijn je automatisch.
 
 ---
 id: 2026-07-22-ghost-messages

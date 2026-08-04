@@ -12,6 +12,7 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'TicketStore.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'constants.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'localization.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'helpers.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'ict_roles.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'janus_sync.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'TranslationProvider.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'LaraTranslationProvider.php';
@@ -231,11 +232,19 @@ function merge_api_request_payload(array $payload): array
 
 function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
 {
+    global $ictUsers;
+
     $currentPage = normalizeReturnPage((string) ($payload['current_page'] ?? 'index.php'));
     $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
-    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
+    $ictAccess = resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true);
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin'])
+        || !empty($ictAccess['is_full_ict_admin']) || !empty($ictAccess['is_limited_ict']);
     $isAdminPortal = !empty($payload['is_admin_portal']);
     $canManageTickets = $isAdminPortal && $userIsAdmin;
+    $accessCategories = ($canManageTickets && !empty($ictAccess['is_limited_ict']))
+        ? ($ictAccess['access_categories'] ?? [])
+        : null;
     $csrfToken = (string) ($payload['csrf_token'] ?? '');
     $openTicketId = max(0, (int) ($payload['open_ticket_id'] ?? 0));
     $view = trim((string) ($payload['view'] ?? 'overview'));
@@ -256,11 +265,15 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         array_map('trim', (array) ($payload['status_filters'] ?? [])),
         static fn(string $status): bool => $status !== ''
     ));
+    $activeCustomStatuses = $store->getActiveCustomStatuses($accessCategories);
     $statusFiltersSelected = array_values(array_filter(
         array_map('trim', (array) ($payload['status_filters_selected'] ?? [])),
         static fn(string $status): bool => isAllowedTicketStatusValue(
             $status,
-            $store->getActiveCustomStatusLabels()
+            array_values(array_map(
+                static fn(array $row): string => (string) ($row['display_label'] ?? ''),
+                $activeCustomStatuses
+            ))
         )
     ));
     $categoryFilters = array_values(array_filter(
@@ -277,7 +290,16 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     $ticketPage = max(1, (int) ($payload['page'] ?? 1));
     $perPage = normalizeTicketsPerPage((int) ($payload['per_page'] ?? DEFAULT_TICKETS_PER_PAGE));
 
-    $ticketTotalCount = $store->countTickets($canManageTickets, $viewerEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode);
+    $ticketTotalCount = $store->countTickets(
+        $canManageTickets,
+        $viewerEmail,
+        $statusFilters,
+        $assignedFilter,
+        $categoryFilters,
+        $searchQuery,
+        $browseMode,
+        $accessCategories
+    );
     $ticketTotalPages = max(1, (int) ceil($ticketTotalCount / $perPage));
     if ($ticketPage > $ticketTotalPages) {
         $ticketPage = $ticketTotalPages;
@@ -293,7 +315,8 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         $searchQuery,
         $browseMode,
         $perPage,
-        $ticketPageOffset
+        $ticketPageOffset,
+        $accessCategories
     );
     $signature = buildTicketSnapshotSignature($tickets);
     if ($lastSignature !== '' && hash_equals($lastSignature, $signature)) {
@@ -313,13 +336,14 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         'canManageTickets' => $canManageTickets,
         'userIsAdmin' => $userIsAdmin,
         'isAdminPortal' => $isAdminPortal,
-        'ictUsers' => $GLOBALS['ictUsers'] ?? [],
+        'ictUsers' => $ictUsersList,
+        'store' => $store,
         'csrfToken' => $csrfToken,
         'openTicketId' => $openTicketId,
         'view' => $view,
         'isReadOnlyTicket' => $browseMode === 'all_completed_public',
         'viewerEmail' => $viewerEmail,
-        'activeCustomStatuses' => $store->getActiveCustomStatuses(),
+        'activeCustomStatuses' => $activeCustomStatuses,
         'recentCustomStatuses' => $canManageTickets ? getRecentCustomStatusesForUser($viewerEmail) : [],
         'includeGhostMessages' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
         'showGhostToggle' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
@@ -596,8 +620,13 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
 
 function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload, ?array $apiClient): array
 {
+    global $ictUsers;
+
     $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
-    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
+    $ictAccess = resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true);
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin'])
+        || !empty($ictAccess['is_full_ict_admin']) || !empty($ictAccess['is_limited_ict']);
     if (!$userIsAdmin && !isTrustedApiRequester()) {
         return [
             'success' => false,
@@ -609,6 +638,9 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
     $category = trim((string) ($payload['category'] ?? ''));
     $reassign = !empty($payload['reassign']);
     $currentPage = normalizeReturnPage((string) ($payload['current_page'] ?? 'admin.php'));
+    $accessCategories = !empty($ictAccess['is_limited_ict'])
+        ? ($ictAccess['access_categories'] ?? [])
+        : null;
 
     if (!in_array($category, TICKET_CATEGORIES, true)) {
         return [
@@ -617,12 +649,17 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
         ];
     }
 
-    $ticket = $store->getTicket($ticketId, true, $viewerEmail);
+    $ticket = $store->getTicket($ticketId, true, $viewerEmail, 'default', false, $accessCategories);
     if ($ticket === null) {
         return [
             'success' => false,
             'error' => __('flash.ticket_not_found'),
         ];
+    }
+
+    $losesAccess = $accessCategories !== null && !in_array($category, $accessCategories, true);
+    if ($losesAccess) {
+        $reassign = true;
     }
 
     try {
@@ -657,6 +694,7 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
     );
     $messageId = $store->addMessage($ticketId, $actorEmail, 'admin', $categoryChangeNote);
 
+    // After an out-of-scope move, limited ICT may no longer read the ticket via access filters.
     $updatedTicket = $store->getTicket($ticketId, true, $actorEmail);
     if ($updatedTicket === null) {
         return [
@@ -720,6 +758,7 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
         'assigned_color' => emailToHexColor($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'),
         'message_id' => $messageId,
         'message_html' => renderTicketMessageHtml($messageForRender, $currentPage),
+        'lost_access' => $losesAccess,
     ];
 }
 
@@ -824,12 +863,29 @@ function handleUpdateTicketPrivateApiAction(TicketStore $store, array $payload, 
     ];
 }
 
-function buildBigscreenPollApiPayload(TicketStore $store): array
+function buildBigscreenPollApiPayload(TicketStore $store, ?array $apiClient = null): array
 {
     global $ictUsers;
 
-    $allTicketsForPoll = $store->getTickets(true, '');
-    warmUserDirectoryForBigscreenPoll($allTicketsForPoll, is_array($ictUsers ?? null) ? $ictUsers : []);
+    $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? '')));
+    $ictAccess = $viewerEmail !== ''
+        ? resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true)
+        : [
+            'is_full_ict_admin' => true,
+            'is_limited_ict' => false,
+            'role' => null,
+            'access_categories' => null,
+        ];
+    $accessCategories = !empty($ictAccess['is_limited_ict'])
+        ? ($ictAccess['access_categories'] ?? [])
+        : null;
+
+    $allTicketsForPoll = $store->getTickets(true, '', [], null, [], null, 'default', null, null, $accessCategories);
+    $warmupEmails = $accessCategories !== null && is_array($ictAccess['role'] ?? null)
+        ? $store->listIctRoleMemberEmails((int) ($ictAccess['role']['role_id'] ?? 0))
+        : $store->getAllIctCapableEmails();
+    warmUserDirectoryForBigscreenPoll($allTicketsForPoll, $warmupEmails);
 
     $pollMaxId = 0;
     $pollLatest = null;
@@ -856,9 +912,21 @@ function buildBigscreenPollApiPayload(TicketStore $store): array
         }
     }
 
-    $pollOverallStats = $store->getOverallStats();
-    $pollIctStats = $store->getIctUserStats();
-    $pollRequesterStats = $store->getRequesterStats();
+    if (!empty($ictAccess['is_limited_ict'])) {
+        $scopedStats = buildLimitedRoleStatsBundle(
+            $store,
+            is_array($ictAccess['role'] ?? null) ? (int) ($ictAccess['role']['role_id'] ?? 0) : 0,
+            is_array($accessCategories) ? $accessCategories : []
+        );
+        $pollOverallStats = $scopedStats['overall'];
+        $pollIctStats = $scopedStats['ict'];
+        $pollRequesterStats = $scopedStats['requester'];
+    } else {
+        $pollOverallStats = $store->getOverallStats();
+        $pollIctStats = $store->getIctUserStats();
+        $pollRequesterStats = $store->getRequesterStats();
+    }
+
     $pollAvailability = $store->getEffectiveIctUserAvailability();
 
     $pollIctStatsMapped = array_map(
@@ -961,14 +1029,17 @@ function handleSaveTicketOverviewSearchApiAction(array $payload, ?array $apiClie
 
     $userPrefs = loadUserPrefs($userEmail);
     $activeCustomLabels = [];
+    $validAssigneeEmails = [];
     try {
         global $ictUsers;
         $store = new TicketStore(DATABASE_FILE, UPLOAD_DIRECTORY, is_array($ictUsers) ? $ictUsers : [], TICKET_CATEGORIES);
         $activeCustomLabels = $store->getActiveCustomStatusLabels();
+        $validAssigneeEmails = $store->getAllIctCapableEmails();
     } catch (Throwable) {
         $activeCustomLabels = [];
+        $validAssigneeEmails = extractIctUserEmails(is_array($ictUsers ?? null) ? $ictUsers : []);
     }
-    $savedFilters = normalizeSavedTicketOverviewFilters($userPrefs, $activeCustomLabels);
+    $savedFilters = normalizeSavedTicketOverviewFilters($userPrefs, $activeCustomLabels, $validAssigneeEmails);
     $savedFilters['search_query'] = trim((string) ($payload['search_query'] ?? ''));
     saveUserPref($userEmail, 'ticket_overview_filters', $savedFilters);
 
@@ -1246,9 +1317,12 @@ function handleRequestPageAccessApiAction(TicketStore $store, array $payload, ?a
         $createdTicket = $store->getTicket($ticketId, true, $userEmail);
         if ($createdTicket !== null) {
             $assignedEmail = trim((string) ($result['assigned_email'] ?? ''));
-            $ictRecipients = $assignedEmail !== ''
-                ? [$assignedEmail]
-                : extractIctUserEmails(is_array($ictUsers) ? $ictUsers : []);
+            $ictRecipients = resolveIctNotifyRecipients(
+                $store,
+                $assignedEmail,
+                (string) ($createdTicket['category'] ?? $category),
+                is_array($ictUsers) ? $ictUsers : []
+            );
             $ictLang = $assignedEmail !== '' ? getUserMailLang($assignedEmail) : 'nl';
             sendTicketNotification(
                 $store,
@@ -1378,12 +1452,20 @@ if ($method === 'POST') {
     }
 
     if ($action === 'ticket_thread') {
+        global $ictUsers;
+
         $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
         $currentPage = normalizeReturnPage((string) ($payload['current_page'] ?? 'index.php'));
         $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
-        $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+        $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
+        $ictAccess = resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true);
+        $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin'])
+            || !empty($ictAccess['is_full_ict_admin']) || !empty($ictAccess['is_limited_ict']);
         $isAdminPortal = !empty($payload['is_admin_portal']);
         $canManageTickets = $isAdminPortal && $userIsAdmin;
+        $accessCategories = ($canManageTickets && !empty($ictAccess['is_limited_ict']))
+            ? ($ictAccess['access_categories'] ?? [])
+            : null;
         $currentLanguage = strtolower(trim((string) ($payload['current_language'] ?? 'nl')));
         if (!array_key_exists($currentLanguage, SUPPORTED_LANGUAGES)) {
             $currentLanguage = 'nl';
@@ -1402,7 +1484,8 @@ if ($method === 'POST') {
             $canManageTickets,
             $viewerEmail,
             $browseMode,
-            shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view)
+            shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
+            $accessCategories
         );
         if (!is_array($ticketDetail)) {
             sendJson(404, ['success' => false, 'error' => 'ticket_not_found']);
@@ -1568,7 +1651,7 @@ if ($method === 'POST') {
                 'error' => 'forbidden',
             ]);
         }
-        sendJson(200, buildBigscreenPollApiPayload($store));
+        sendJson(200, buildBigscreenPollApiPayload($store, $apiClient));
     }
 
     if ($action === 'bigscreen_version') {

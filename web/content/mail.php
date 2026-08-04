@@ -195,7 +195,7 @@ function sendTicketEmail(array $recipients, string $subject, string $message, ?s
 
     $fromEmail = (string) ($mailSettings['from_email'] ?? 'kvtbot@kvt.nl');
     $fromName = (string) ($mailSettings['from_name'] ?? 'KVT Bot');
-    $prefix = trim((string) ($mailSettings['subject_prefix'] ?? 'ICT Tickets'));
+    $prefix = trim((string) ($mailSettings['subject_prefix'] ?? 'Tickets'));
     $fullSubject = $prefix !== '' ? $prefix . ' - ' . $subject : $subject;
     $smtp = (array) ($mailSettings['smtp'] ?? []);
 

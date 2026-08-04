@@ -11,6 +11,7 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
         'userIsAdmin' => $userIsAdmin,
         'isAdminPortal' => $isAdminPortal,
         'ictUsers' => $ictUsers,
+        'store' => $store ?? null,
         'csrfToken' => $csrfToken,
         'openTicketId' => $openTicketId,
         'view' => $view,
@@ -55,7 +56,14 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
     ?>
     <section class="panel" data-live-ticket-section data-ticket-signature="<?= h($ticketSnapshotSignature) ?>"
         data-ticket-poll-payload="<?= h((string) json_encode($ticketPollPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
-        data-ticket-poll-interval="15000">
+        data-ticket-poll-interval="15000"
+        data-is-limited-ict="<?= (!empty($isLimitedIct) && empty($isAllTicketsView)) ? '1' : '0' ?>"
+        data-ict-access-categories="<?= h((string) json_encode(
+            (!empty($isLimitedIct) && empty($isAllTicketsView) && is_array($ictAccessCategories ?? null))
+                ? array_values($ictAccessCategories)
+                : [],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        )) ?>">
         <h2><?= h($ticketHeading) ?></h2>
         <?php if ($isAllTicketsView): ?>
             <p class="panel-intro"><?= h(__('tickets.intro_all')) ?></p>
@@ -112,7 +120,14 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                 <div>
                     <label><?= h(__('filter.category_label')) ?></label>
                     <div class="checkbox-group">
-                        <?php foreach (TICKET_CATEGORIES as $category): ?>
+                        <?php
+                        $filterCategories = (!empty($isLimitedIct) && empty($isAllTicketsView) && is_array($ictAccessCategories))
+                            ? array_values(array_filter(
+                                TICKET_CATEGORIES,
+                                static fn(string $category): bool => in_array($category, $ictAccessCategories, true)
+                            ))
+                            : TICKET_CATEGORIES;
+                        foreach ($filterCategories as $category): ?>
                             <?php $categorySelected = isCategoryFilterSelected($category, $categoryFilters, $categoryFilterRequestActive); ?>
                             <label class="checkbox-chip <?= $categorySelected ? 'is-active' : 'is-inactive' ?>"
                                 style="--status-color: <?= h(getCategoryColor($category)) ?>;">
@@ -136,9 +151,19 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                         <option value="__unassigned__" <?= $assignedFilter === '__unassigned__' ? 'selected' : '' ?>>
                             <?= h(__('filter.unassigned')) ?>
                         </option>
-                        <?php foreach ($ictUsers as $ictUser):
-                            $ictUser = strtolower($ictUser); ?>
-                            <option value="<?= h($ictUser) ?>" <?= $assignedFilter === $ictUser ? 'selected' : '' ?>><?= h($ictUser) ?>
+                        <?php
+                        $filterAssigneeEmails = (!empty($isLimitedIct) && empty($isAllTicketsView) && $store instanceof TicketStore && is_array($ictRole))
+                            ? $store->listIctRoleMemberEmails((int) ($ictRole['role_id'] ?? 0))
+                            : ($store instanceof TicketStore
+                                ? $store->getAllIctCapableEmails()
+                                : extractIctUserEmails($ictUsers));
+                        foreach ($filterAssigneeEmails as $ictUser):
+                            $ictUser = strtolower((string) $ictUser);
+                            if ($ictUser === '') {
+                                continue;
+                            }
+                            ?>
+                            <option value="<?= h($ictUser) ?>" <?= $assignedFilter === $ictUser ? 'selected' : '' ?>><?= h(formatUserDisplayName($ictUser)) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
