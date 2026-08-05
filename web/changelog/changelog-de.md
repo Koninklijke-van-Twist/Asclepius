@@ -1,3 +1,19 @@
+id: 2026-08-05-date-format
+date: 2026-08-05
+title: Daten als 15 Jun 2026
+author: Tim Falken
+
+Daten auf den Ticketing-Seiten (Erstellt/Aktualisiert, Fälligkeit, Diagrammachsen, Urlaubsdetail) erscheinen jetzt im lesbaren Format **15 Jun 2026** (mit Uhrzeit wo relevant: **15 Jun 2026 14:30**), in der Sprache der Oberfläche.
+
+---
+id: 2026-08-05-open-tickets-trend
+date: 2026-08-05
+title: Offene Tickets im Zeitverlauf je Kategorie
+author: Tim Falken
+
+Unter **ICT-Statistiken** gibt es jetzt den Untertab **Offene Tickets im Zeitverlauf**: ein scharfes SVG-Diagramm offener Tickets pro Kategorie. Standard ist der letzte Monat bis heute; mit den Datumsfeldern kannst du den Zeitraum live anpassen. Klicke auf eine Kategorie in der Legende, um die Linie ein- oder auszublenden. Jede Nacht um 02:00 speichert `nightly.php` einen Snapshot der nicht erledigten Tickets pro Kategorie.
+
+---
 id: 2026-08-05-ticket-appearance-prefs
 date: 2026-08-05
 title: Einstellungen mit Darstellung

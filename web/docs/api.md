@@ -140,6 +140,41 @@ Antwoord (`200`):
 
 Als er al een open ticket met dezelfde titel bestaat, is `created` `false` en wordt dat ticket teruggegeven.
 
+## Openstaande tickets over tijd (per categorie)
+
+Haal snapshot-datapunten op voor de grafiek “open tickets over tijd”. Bron: nachtelijke snapshots (`nightly.php`); voor vandaag kan de actuele stand worden meegenomen als er nog geen snapshot is.
+
+- **GET** `api.php?action=category_open_snapshots&from_date=YYYY-MM-DD[&to_date=YYYY-MM-DD]`
+- **POST** JSON met `action: "category_open_snapshots"`
+
+Parameters:
+
+| Veld | Verplicht | Toelichting |
+|------|-----------|-------------|
+| `from_date` | ja | Startdatum (`YYYY-MM-DD`). Aliassen: `start_date`, `from`, `start` |
+| `to_date` | nee | Einddatum (`YYYY-MM-DD`). Ontbreekt → vandaag. Aliassen: `end_date`, `to`, `end` |
+
+Voorbeeldrespons:
+
+```json
+{
+  "success": true,
+  "from_date": "2026-07-05",
+  "to_date": "2026-08-05",
+  "dates": ["2026-07-05", "2026-07-06"],
+  "series": [
+    {
+      "category": "AFAS",
+      "label": "AFAS",
+      "color": "#c2410c",
+      "points": [3, 4]
+    }
+  ]
+}
+```
+
+`points[i]` hoort bij `dates[i]` (`null` = geen snapshot op die dag).
+
 ## Geldige categorieën
 
 - `hardware bestellen`
@@ -201,6 +236,13 @@ Ticket ophalen:
 
 ```bash
 curl "https://sleutels.kvt.nl/asclepius/api.php?id=123" \
+  -H "X-API-Key: JOUW_KEY"
+```
+
+Open tickets per categorie over tijd:
+
+```bash
+curl "https://sleutels.kvt.nl/asclepius/api.php?action=category_open_snapshots&from_date=2026-07-01" \
   -H "X-API-Key: JOUW_KEY"
 ```
 

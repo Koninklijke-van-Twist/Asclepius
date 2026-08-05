@@ -219,7 +219,7 @@ function merge_api_request_payload(array $payload): array
         parse_str($queryString, $queryParams);
     }
 
-    foreach (['action', 'page_name', 'viewer_email', 'user_email'] as $key) {
+    foreach (['action', 'page_name', 'viewer_email', 'user_email', 'from_date', 'to_date', 'start_date', 'end_date', 'from', 'to', 'start', 'end'] as $key) {
         $currentValue = trim((string) ($payload[$key] ?? ''));
         $queryValue = trim((string) ($queryParams[$key] ?? ''));
         if ($currentValue === '' && $queryValue !== '') {
@@ -1044,6 +1044,87 @@ function handleSaveTicketAppearancePreferencesApiAction(array $payload, ?array $
     ];
 }
 
+function handleCategoryOpenSnapshotsApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    global $ictUsers;
+
+    $fromDate = trim((string) (
+        $payload['from_date']
+        ?? $payload['start_date']
+        ?? $payload['from']
+        ?? $payload['start']
+        ?? ''
+    ));
+    $toDate = trim((string) (
+        $payload['to_date']
+        ?? $payload['end_date']
+        ?? $payload['to']
+        ?? $payload['end']
+        ?? ''
+    ));
+
+    if ($fromDate === '') {
+        return [
+            'success' => false,
+            'error' => 'from_date_required',
+            'message' => 'from_date is verplicht (YYYY-MM-DD).',
+        ];
+    }
+
+    if ($toDate === '') {
+        $toDate = (new DateTimeImmutable('today'))->format('Y-m-d');
+    }
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $toDate)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_date_range',
+            'message' => 'Datums moeten YYYY-MM-DD zijn.',
+        ];
+    }
+
+    if ($fromDate > $toDate) {
+        [$fromDate, $toDate] = [$toDate, $fromDate];
+    }
+
+    $viewerEmail = strtolower(trim((string) (
+        $apiClient['email'] ?? ($payload['viewer_email'] ?? '')
+    )));
+    $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
+    $ictAccess = $viewerEmail !== ''
+        ? resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true)
+        : null;
+    $categories = null;
+    if (is_array($ictAccess) && !empty($ictAccess['is_limited_ict'])) {
+        $categories = is_array($ictAccess['access_categories'] ?? null)
+            ? array_values($ictAccess['access_categories'])
+            : [];
+    }
+
+    $snapshot = $store->getCategoryOpenSnapshots($fromDate, $toDate, $categories);
+    $series = [];
+    foreach ($snapshot['series'] as $row) {
+        $category = (string) ($row['category'] ?? '');
+        $series[] = [
+            'category' => $category,
+            'label' => translateCategory($category),
+            'color' => (string) ($row['color'] ?? '#64748b'),
+            'points' => array_values(array_map(
+                static fn($point) => $point === null ? null : (int) $point,
+                is_array($row['points'] ?? null) ? $row['points'] : []
+            )),
+        ];
+    }
+
+    return [
+        'success' => true,
+        'from_date' => $fromDate,
+        'to_date' => $toDate,
+        'dates' => $snapshot['dates'],
+        'series' => $series,
+    ];
+}
+
 function handleSaveTicketOverviewSearchApiAction(array $payload, ?array $apiClient): array
 {
     ensureApiSessionStarted();
@@ -1436,6 +1517,12 @@ try {
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 
 if ($method === 'GET') {
+    $getAction = trim((string) ($_GET['action'] ?? ''));
+    if ($getAction === 'category_open_snapshots') {
+        $snapshotResponse = handleCategoryOpenSnapshotsApiAction($store, $_GET, $apiClient);
+        sendJson(!empty($snapshotResponse['success']) ? 200 : 422, $snapshotResponse);
+    }
+
     $ticketId = max(0, (int) ($_GET['id'] ?? 0));
 
     if ($ticketId > 0) {
@@ -1695,6 +1782,11 @@ if ($method === 'POST') {
             ]);
         }
         sendJson(200, buildBigscreenPollApiPayload($store, $apiClient));
+    }
+
+    if ($action === 'category_open_snapshots') {
+        $snapshotResponse = handleCategoryOpenSnapshotsApiAction($store, $payload, $apiClient);
+        sendJson(!empty($snapshotResponse['success']) ? 200 : 422, $snapshotResponse);
     }
 
     if ($action === 'bigscreen_version') {

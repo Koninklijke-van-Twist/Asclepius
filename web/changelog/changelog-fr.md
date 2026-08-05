@@ -1,3 +1,19 @@
+id: 2026-08-05-date-format
+date: 2026-08-05
+title: Dates au format 15 juin 2026
+author: Tim Falken
+
+Les dates sur les pages de tickets (création/mise à jour, échéance, axes du graphique, détail congé) utilisent désormais le format lisible **15 juin 2026** (avec l’heure si besoin : **15 juin 2026 14:30**), dans la langue de l’interface.
+
+---
+id: 2026-08-05-open-tickets-trend
+date: 2026-08-05
+title: Tickets ouverts dans le temps par catégorie
+author: Tim Falken
+
+Dans **Statistiques ICT**, un sous-onglet **Tickets ouverts dans le temps** montre un graphique SVG net des tickets ouverts par catégorie. Par défaut : le mois dernier jusqu’à aujourd’hui ; les sélecteurs de date permettent d’ajuster la période en direct. Cliquez sur une catégorie dans la légende pour afficher ou masquer cette ligne. Chaque nuit à 02:00, `nightly.php` enregistre un instantané du nombre de tickets non résolus par catégorie.
+
+---
 id: 2026-08-05-ticket-appearance-prefs
 date: 2026-08-05
 title: Préférences avec apparence

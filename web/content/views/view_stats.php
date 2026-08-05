@@ -1,142 +1,179 @@
-<?php if ($canManageTickets && $view === 'stats'): ?>
-    <section class="panel">
+<?php if ($canManageTickets && $view === 'stats'):
+    $statsTrendFrom = (new DateTimeImmutable('today'))->modify('-1 month')->format('Y-m-d');
+    $statsTrendTo = (new DateTimeImmutable('today'))->format('Y-m-d');
+    $statsTrendCategories = (!empty($isLimitedIct) && is_array($ictAccessCategories ?? null))
+        ? array_values($ictAccessCategories)
+        : TICKET_CATEGORIES;
+    ?>
+    <section class="panel" data-stats-section
+        data-stats-trend-from="<?= h($statsTrendFrom) ?>"
+        data-stats-trend-to="<?= h($statsTrendTo) ?>"
+        data-stats-trend-categories="<?= h((string) json_encode(array_values($statsTrendCategories), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
         <h2><?= h(__('stats.heading')) ?></h2>
         <p class="panel-intro"><?= __('stats.intro') ?></p>
 
-        <div class="stats-layout">
-            <div class="stats-main">
+        <div class="stats-subtabs" role="tablist" aria-label="<?= h(__('stats.subtabs_label')) ?>">
+            <button type="button" class="stats-subtab is-active" role="tab" aria-selected="true"
+                data-stats-tab="overview"><?= h(__('stats.tab_overview')) ?></button>
+            <button type="button" class="stats-subtab" role="tab" aria-selected="false"
+                data-stats-tab="open-trend"><?= h(__('stats.tab_open_trend')) ?></button>
+        </div>
 
-                <div class="stats-grid">
-                    <div class="stats-card">
-                        <span><?= h(__('stats.total_tickets')) ?></span>
-                        <strong id="stat-total"><?= (int) ($overallStats['total_tickets'] ?? 0) ?></strong>
-                    </div>
-                    <div class="stats-card">
-                        <span><?= h(__('stats.open_tickets')) ?></span>
-                        <strong id="stat-open"><?= (int) ($overallStats['open_tickets'] ?? 0) ?></strong>
-                    </div>
-                    <div class="stats-card">
-                        <span><?= h(__('stats.resolved_tickets')) ?></span>
-                        <strong id="stat-resolved"><?= (int) ($overallStats['resolved_tickets'] ?? 0) ?></strong>
-                    </div>
-                    <div class="stats-card">
-                        <span><?= h(__('stats.waiting_order')) ?></span>
-                        <strong id="stat-waiting-order"><?= (int) ($overallStats['waiting_order_tickets'] ?? 0) ?></strong>
-                    </div>
-                    <div class="stats-card">
-                        <span><?= h(__('stats.waiting_user')) ?></span>
-                        <strong id="stat-waiting-user"><?= (int) ($overallStats['waiting_user_tickets'] ?? 0) ?></strong>
-                    </div>
-                    <div class="stats-card">
-                        <span><?= h(__('stats.waiting_third_party')) ?></span>
-                        <strong id="stat-waiting-third-party"><?= (int) ($overallStats['waiting_third_party_tickets'] ?? 0) ?></strong>
-                    </div>
-                </div>
+        <div class="stats-tab-panel" data-stats-panel="overview">
+            <div class="stats-layout">
+                <div class="stats-main">
 
-                <h3 class="stats-section-title"><?= h(__('stats.per_ict')) ?></h3>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th><?= h(__('stats.col_ict_employee')) ?></th>
-                                <th><?= h(__('stats.col_handled')) ?></th>
-                                <th><?= h(__('stats.col_avg_open')) ?></th>
-                                <th><?= h(__('stats.col_max_open')) ?></th>
-                                <th><?= h(__('stats.col_outstanding')) ?></th>
-                                <th><?= h(__('stats.col_waiting_order')) ?></th>
-                                <th><?= h(__('stats.col_waiting_user')) ?></th>
-                                <th><?= h(__('stats.col_waiting_third_party')) ?></th>
-                            </tr>
-                        </thead>
-                        <tbody id="stats-ict-tbody">
-                            <?php foreach ($ictStats as $statsRow): ?>
-                                <tr>
-                                    <td class="user-color-cell"
-                                        style="--assignee-color: <?= h(emailToHexColor((string) $statsRow['user_email'])) ?>;">
-                                        <?php $statsUserEmail = strtolower((string) $statsRow['user_email']); ?>
-                                        <span
-                                            class="assignee-badge <?= empty($availabilityByIctUser[$statsUserEmail]) ? 'vacation-badge is-away' : '' ?>"
-                                            style="--assignee-color: <?= h(!empty($availabilityByIctUser[$statsUserEmail]) ? emailToHexColor($statsUserEmail) : '#94a3b8') ?>;">
-                                            <?= renderUserDisplayLabel($statsUserEmail) ?>
-                                            <?= empty($availabilityByIctUser[$statsUserEmail]) ? ' 🌴' : '' ?>
-                                        </span>
-                                    </td>
-                                    <td><?= (int) ($statsRow['handled_count'] ?? 0) ?></td>
-                                    <td><?= h(formatDurationSeconds($statsRow['average_open_seconds'] ?? null)) ?>
-                                    </td>
-                                    <td><?= h(formatDurationSeconds($statsRow['max_open_seconds'] ?? null)) ?></td>
-                                    <td><?= (int) ($statsRow['open_count'] ?? 0) ?></td>
-                                    <td><?= (int) ($statsRow['waiting_order_count'] ?? 0) ?></td>
-                                    <td><?= (int) ($statsRow['waiting_user_count'] ?? 0) ?></td>
-                                    <td><?= (int) ($statsRow['waiting_third_party_count'] ?? 0) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-
-                <h3 class="stats-section-title"><?= h(__('stats.per_user')) ?></h3>
-                <div id="stats-requester-wrap">
-                    <?php if ($requesterStats === []): ?>
-                        <div class="empty-state"><?= h(__('stats.no_user_stats')) ?></div>
-                    <?php else: ?>
-                        <div class="table-wrap">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th><?= h(__('stats.col_user')) ?></th>
-                                        <th><?= h(__('stats.col_submitted')) ?></th>
-                                        <th><?= h(__('stats.col_avg_wait')) ?>*</th>
-                                        <th><?= h(__('stats.col_max_wait')) ?>*</th>
-                                        <th><?= h(__('stats.col_avg_response')) ?></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="stats-requester-tbody">
-                                    <?php foreach ($requesterStats as $statsRow): ?>
-                                        <tr>
-                                            <td><?= renderUserDisplayLabel((string) $statsRow['user_email']) ?></td>
-                                            <td><?= (int) ($statsRow['submitted_count'] ?? 0) ?></td>
-                                            <td><?= h(formatDurationSeconds($statsRow['average_wait_seconds'] ?? null)) ?>
-                                            </td>
-                                            <td><?= h(formatDurationSeconds($statsRow['max_wait_seconds'] ?? null)) ?>
-                                            </td>
-                                            <td><?= h(formatDurationSeconds($statsRow['average_response_seconds'] ?? null)) ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
+                    <div class="stats-grid">
+                        <div class="stats-card">
+                            <span><?= h(__('stats.total_tickets')) ?></span>
+                            <strong id="stat-total"><?= (int) ($overallStats['total_tickets'] ?? 0) ?></strong>
                         </div>
-                        <p class="stats-note"><?= __('stats.wait_note') ?></p>
-                    <?php endif; ?>
-                </div><!-- /#stats-requester-wrap -->
-
-            </div><!-- /.stats-main -->
-            <aside class="stats-sidebar" id="stats-sidebar">
-                    <h3><?= h(__('stats.sidebar_heading')) ?></h3>
-                    <div id="stats-sidebar-list">
-                        <?php if ($statsOpenTickets === []): ?>
-                            <p style="color:var(--muted);font-size:13px;"><?= h(__('stats.sidebar_empty')) ?></p>
-                        <?php else: ?>
-                            <?php foreach ($statsOpenTickets as $sideTicket): ?>
-                                <?php $sideColor = getStatusColor((string) $sideTicket['status']); ?>
-                                <?php $sidePrio = (int) ($sideTicket['priority'] ?? 0); ?>
-                                <div class="stats-ticket-item" style="--ticket-color: <?= h($sideColor) ?>;">
-                                    <div class="sti-body">
-                                        <span class="sti-title">#<?= (int) $sideTicket['id'] ?>
-                                            <?= h((string) $sideTicket['title']) ?></span>
-                                        <span class="sti-meta"><?= h(translateStatus((string) $sideTicket['status'])) ?> &middot;
-                                            <?= renderUserDisplayLabel((string) $sideTicket['user_email']) ?></span>
-                                        <span
-                                            class="sti-meta"><?= ($sideTicket['assigned_email'] ?? '') !== '' ? renderUserDisplayLabel((string) $sideTicket['assigned_email']) : h(__('stats.no_assigned')) ?></span>
-                                    </div>
-                                    <span class="sti-prio sti-prio-<?= $sidePrio ?>"><?= $sidePrio ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                        <div class="stats-card">
+                            <span><?= h(__('stats.open_tickets')) ?></span>
+                            <strong id="stat-open"><?= (int) ($overallStats['open_tickets'] ?? 0) ?></strong>
+                        </div>
+                        <div class="stats-card">
+                            <span><?= h(__('stats.resolved_tickets')) ?></span>
+                            <strong id="stat-resolved"><?= (int) ($overallStats['resolved_tickets'] ?? 0) ?></strong>
+                        </div>
+                        <div class="stats-card">
+                            <span><?= h(__('stats.waiting_order')) ?></span>
+                            <strong id="stat-waiting-order"><?= (int) ($overallStats['waiting_order_tickets'] ?? 0) ?></strong>
+                        </div>
+                        <div class="stats-card">
+                            <span><?= h(__('stats.waiting_user')) ?></span>
+                            <strong id="stat-waiting-user"><?= (int) ($overallStats['waiting_user_tickets'] ?? 0) ?></strong>
+                        </div>
+                        <div class="stats-card">
+                            <span><?= h(__('stats.waiting_third_party')) ?></span>
+                            <strong id="stat-waiting-third-party"><?= (int) ($overallStats['waiting_third_party_tickets'] ?? 0) ?></strong>
+                        </div>
                     </div>
-            </aside>
-        </div><!-- /.stats-layout -->
+
+                    <h3 class="stats-section-title"><?= h(__('stats.per_ict')) ?></h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th><?= h(__('stats.col_ict_employee')) ?></th>
+                                    <th><?= h(__('stats.col_handled')) ?></th>
+                                    <th><?= h(__('stats.col_avg_open')) ?></th>
+                                    <th><?= h(__('stats.col_max_open')) ?></th>
+                                    <th><?= h(__('stats.col_outstanding')) ?></th>
+                                    <th><?= h(__('stats.col_waiting_order')) ?></th>
+                                    <th><?= h(__('stats.col_waiting_user')) ?></th>
+                                    <th><?= h(__('stats.col_waiting_third_party')) ?></th>
+                                </tr>
+                            </thead>
+                            <tbody id="stats-ict-tbody">
+                                <?php foreach ($ictStats as $statsRow): ?>
+                                    <tr>
+                                        <td class="user-color-cell"
+                                            style="--assignee-color: <?= h(emailToHexColor((string) $statsRow['user_email'])) ?>;">
+                                            <?php $statsUserEmail = strtolower((string) $statsRow['user_email']); ?>
+                                            <span
+                                                class="assignee-badge <?= empty($availabilityByIctUser[$statsUserEmail]) ? 'vacation-badge is-away' : '' ?>"
+                                                style="--assignee-color: <?= h(!empty($availabilityByIctUser[$statsUserEmail]) ? emailToHexColor($statsUserEmail) : '#94a3b8') ?>;">
+                                                <?= renderUserDisplayLabel($statsUserEmail) ?>
+                                                <?= empty($availabilityByIctUser[$statsUserEmail]) ? ' 🌴' : '' ?>
+                                            </span>
+                                        </td>
+                                        <td><?= (int) ($statsRow['handled_count'] ?? 0) ?></td>
+                                        <td><?= h(formatDurationSeconds($statsRow['average_open_seconds'] ?? null)) ?>
+                                        </td>
+                                        <td><?= h(formatDurationSeconds($statsRow['max_open_seconds'] ?? null)) ?></td>
+                                        <td><?= (int) ($statsRow['open_count'] ?? 0) ?></td>
+                                        <td><?= (int) ($statsRow['waiting_order_count'] ?? 0) ?></td>
+                                        <td><?= (int) ($statsRow['waiting_user_count'] ?? 0) ?></td>
+                                        <td><?= (int) ($statsRow['waiting_third_party_count'] ?? 0) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="stats-section-title"><?= h(__('stats.per_user')) ?></h3>
+                    <div id="stats-requester-wrap">
+                        <?php if ($requesterStats === []): ?>
+                            <div class="empty-state"><?= h(__('stats.no_user_stats')) ?></div>
+                        <?php else: ?>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th><?= h(__('stats.col_user')) ?></th>
+                                            <th><?= h(__('stats.col_submitted')) ?></th>
+                                            <th><?= h(__('stats.col_avg_wait')) ?>*</th>
+                                            <th><?= h(__('stats.col_max_wait')) ?>*</th>
+                                            <th><?= h(__('stats.col_avg_response')) ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="stats-requester-tbody">
+                                        <?php foreach ($requesterStats as $statsRow): ?>
+                                            <tr>
+                                                <td><?= renderUserDisplayLabel((string) $statsRow['user_email']) ?></td>
+                                                <td><?= (int) ($statsRow['submitted_count'] ?? 0) ?></td>
+                                                <td><?= h(formatDurationSeconds($statsRow['average_wait_seconds'] ?? null)) ?>
+                                                </td>
+                                                <td><?= h(formatDurationSeconds($statsRow['max_wait_seconds'] ?? null)) ?>
+                                                </td>
+                                                <td><?= h(formatDurationSeconds($statsRow['average_response_seconds'] ?? null)) ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="stats-note"><?= __('stats.wait_note') ?></p>
+                        <?php endif; ?>
+                    </div><!-- /#stats-requester-wrap -->
+
+                </div><!-- /.stats-main -->
+                <aside class="stats-sidebar" id="stats-sidebar">
+                        <h3><?= h(__('stats.sidebar_heading')) ?></h3>
+                        <div id="stats-sidebar-list">
+                            <?php if ($statsOpenTickets === []): ?>
+                                <p style="color:var(--muted);font-size:13px;"><?= h(__('stats.sidebar_empty')) ?></p>
+                            <?php else: ?>
+                                <?php foreach ($statsOpenTickets as $sideTicket): ?>
+                                    <?php $sideColor = getStatusColor((string) $sideTicket['status']); ?>
+                                    <?php $sidePrio = (int) ($sideTicket['priority'] ?? 0); ?>
+                                    <div class="stats-ticket-item" style="--ticket-color: <?= h($sideColor) ?>;">
+                                        <div class="sti-body">
+                                            <span class="sti-title">#<?= (int) $sideTicket['id'] ?>
+                                                <?= h((string) $sideTicket['title']) ?></span>
+                                            <span class="sti-meta"><?= h(translateStatus((string) $sideTicket['status'])) ?> &middot;
+                                                <?= renderUserDisplayLabel((string) $sideTicket['user_email']) ?></span>
+                                            <span
+                                                class="sti-meta"><?= ($sideTicket['assigned_email'] ?? '') !== '' ? renderUserDisplayLabel((string) $sideTicket['assigned_email']) : h(__('stats.no_assigned')) ?></span>
+                                        </div>
+                                        <span class="sti-prio sti-prio-<?= $sidePrio ?>"><?= $sidePrio ?></span>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                </aside>
+            </div><!-- /.stats-layout -->
+        </div>
+
+        <div class="stats-tab-panel" data-stats-panel="open-trend" hidden>
+            <div class="stats-trend-toolbar">
+                <label class="stats-trend-date">
+                    <span><?= h(__('stats.open_trend_from')) ?></span>
+                    <input type="date" data-stats-trend-from value="<?= h($statsTrendFrom) ?>">
+                </label>
+                <label class="stats-trend-date">
+                    <span><?= h(__('stats.open_trend_to')) ?></span>
+                    <input type="date" data-stats-trend-to value="<?= h($statsTrendTo) ?>">
+                </label>
+                <p class="hint stats-trend-feedback" data-stats-trend-feedback hidden></p>
+            </div>
+            <div class="stats-trend-chart-wrap">
+                <svg class="stats-trend-svg" data-stats-trend-svg viewBox="0 0 960 420" role="img"
+                    aria-label="<?= h(__('stats.open_trend_chart_label')) ?>"></svg>
+            </div>
+            <div class="stats-trend-legend" data-stats-trend-legend></div>
+        </div>
     </section>
 <?php endif; ?>
 

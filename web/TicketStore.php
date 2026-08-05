@@ -887,6 +887,189 @@ class TicketStore
         ];
     }
 
+    /**
+     * Count currently open tickets (not afgehandeld) per category.
+     *
+     * @param list<string>|null $categories
+     * @return array<string, int>
+     */
+    public function countOpenTicketsByCategory(?array $categories = null): array
+    {
+        $categoryList = $categories !== null
+            ? array_values(array_filter(array_map('strval', $categories), static fn(string $c): bool => $c !== ''))
+            : $this->categories;
+
+        $counts = array_fill_keys($categoryList, 0);
+        if ($counts === []) {
+            return [];
+        }
+
+        $placeholders = [];
+        $parameters = [];
+        foreach ($categoryList as $index => $category) {
+            $placeholder = ':category_' . $index;
+            $placeholders[] = $placeholder;
+            $parameters[$placeholder] = $category;
+        }
+
+        $statement = $this->pdo->prepare(
+            "SELECT category, COUNT(*) AS open_count
+             FROM tickets
+             WHERE status <> 'afgehandeld'
+               AND category IN (" . implode(', ', $placeholders) . ")
+             GROUP BY category"
+        );
+        $statement->execute($parameters);
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $category = (string) ($row['category'] ?? '');
+            if ($category !== '' && array_key_exists($category, $counts)) {
+                $counts[$category] = (int) ($row['open_count'] ?? 0);
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Persist tonight's open-ticket counts per category (idempotent per date).
+     *
+     * @return array{snapshot_date: string, counts: array<string, int>}
+     */
+    public function snapshotOpenTicketCountsByCategory(?string $snapshotDate = null): array
+    {
+        $snapshotDate = trim((string) $snapshotDate);
+        if ($snapshotDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $snapshotDate)) {
+            $snapshotDate = (new DateTimeImmutable('now'))->format('Y-m-d');
+        }
+
+        $counts = $this->countOpenTicketsByCategory();
+        $createdAt = date('c');
+        $statement = $this->pdo->prepare(
+            'INSERT INTO category_open_snapshots (snapshot_date, category, open_count, created_at)
+             VALUES (:snapshot_date, :category, :open_count, :created_at)
+             ON CONFLICT(snapshot_date, category) DO UPDATE SET
+                open_count = excluded.open_count,
+                created_at = excluded.created_at'
+        );
+
+        foreach ($counts as $category => $openCount) {
+            $statement->execute([
+                ':snapshot_date' => $snapshotDate,
+                ':category' => (string) $category,
+                ':open_count' => (int) $openCount,
+                ':created_at' => $createdAt,
+            ]);
+        }
+
+        // Keep historical categories that disappeared from config at 0 for this date? Skip.
+        return [
+            'snapshot_date' => $snapshotDate,
+            'counts' => $counts,
+        ];
+    }
+
+    /**
+     * @param list<string>|null $categories
+     * @return array{
+     *   dates: list<string>,
+     *   series: list<array{category: string, color: string, points: list<int|null>}>
+     * }
+     */
+    public function getCategoryOpenSnapshots(string $fromDate, string $toDate, ?array $categories = null): array
+    {
+        $fromDate = trim($fromDate);
+        $toDate = trim($toDate);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $toDate)) {
+            return ['dates' => [], 'series' => []];
+        }
+        if ($fromDate > $toDate) {
+            [$fromDate, $toDate] = [$toDate, $fromDate];
+        }
+
+        $categoryList = $categories !== null
+            ? array_values(array_filter(array_map('strval', $categories), static fn(string $c): bool => $c !== ''))
+            : $this->categories;
+        if ($categoryList === []) {
+            return ['dates' => [], 'series' => []];
+        }
+
+        $dates = [];
+        try {
+            $cursor = new DateTimeImmutable($fromDate);
+            $end = new DateTimeImmutable($toDate);
+        } catch (Throwable) {
+            return ['dates' => [], 'series' => []];
+        }
+        while ($cursor <= $end) {
+            $dates[] = $cursor->format('Y-m-d');
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        $values = [];
+        foreach ($categoryList as $category) {
+            $values[$category] = array_fill_keys($dates, null);
+        }
+
+        $catPlaceholders = [];
+        $parameters = [
+            ':from_date' => $fromDate,
+            ':to_date' => $toDate,
+        ];
+        foreach ($categoryList as $index => $category) {
+            $placeholder = ':category_' . $index;
+            $catPlaceholders[] = $placeholder;
+            $parameters[$placeholder] = $category;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT snapshot_date, category, open_count
+             FROM category_open_snapshots
+             WHERE snapshot_date >= :from_date
+               AND snapshot_date <= :to_date
+               AND category IN (' . implode(', ', $catPlaceholders) . ')
+             ORDER BY snapshot_date ASC, category ASC'
+        );
+        $statement->execute($parameters);
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $date = (string) ($row['snapshot_date'] ?? '');
+            $category = (string) ($row['category'] ?? '');
+            if ($date === '' || $category === '' || !isset($values[$category][$date])) {
+                continue;
+            }
+            $values[$category][$date] = (int) ($row['open_count'] ?? 0);
+        }
+
+        $today = (new DateTimeImmutable('now'))->format('Y-m-d');
+        if ($today >= $fromDate && $today <= $toDate) {
+            $liveCounts = $this->countOpenTicketsByCategory($categoryList);
+            foreach ($categoryList as $category) {
+                if (array_key_exists($today, $values[$category]) && $values[$category][$today] === null) {
+                    $values[$category][$today] = (int) ($liveCounts[$category] ?? 0);
+                }
+            }
+        }
+
+        $series = [];
+        foreach ($categoryList as $category) {
+            $points = [];
+            foreach ($dates as $date) {
+                $points[] = $values[$category][$date];
+            }
+            $series[] = [
+                'category' => $category,
+                'color' => (defined('CATEGORY_COLORS') && is_array(CATEGORY_COLORS))
+                    ? (string) (CATEGORY_COLORS[$category] ?? '#64748b')
+                    : '#64748b',
+                'points' => $points,
+            ];
+        }
+
+        return [
+            'dates' => $dates,
+            'series' => $series,
+        ];
+    }
+
     public function getIctUserStats(): array
     {
         if ($this->ictUsers === []) {
@@ -2860,6 +3043,20 @@ class TicketStore
                 UNIQUE(entity_type, entity_id, target_language),
                 FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
             )'
+        );
+
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS category_open_snapshots (
+                snapshot_date TEXT NOT NULL,
+                category TEXT NOT NULL,
+                open_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (snapshot_date, category)
+            )'
+        );
+        $this->pdo->exec(
+            'CREATE INDEX IF NOT EXISTS idx_category_open_snapshots_date
+             ON category_open_snapshots(snapshot_date)'
         );
 
         $this->ensureColumn('tickets', 'title', 'TEXT NOT NULL DEFAULT ""');

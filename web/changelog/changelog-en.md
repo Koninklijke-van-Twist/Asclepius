@@ -1,3 +1,19 @@
+id: 2026-08-05-date-format
+date: 2026-08-05
+title: Dates as 15 Jun 2026
+author: Tim Falken
+
+Dates on the ticketing pages (created/updated, due date, chart axes, holiday details) now use the readable format **15 Jun 2026** (with time where relevant: **15 Jun 2026 14:30**), in the interface language.
+
+---
+id: 2026-08-05-open-tickets-trend
+date: 2026-08-05
+title: Open tickets over time by category
+author: Tim Falken
+
+**ICT stats** now has a subtab **Open tickets over time**: a sharp SVG chart of open tickets per category. By default you see the past month through today; the date pickers let you change the range live. Click a category in the legend to show or hide that line. Every night at 02:00, `nightly.php` stores a snapshot of unresolved ticket counts per category.
+
+---
 id: 2026-08-05-ticket-appearance-prefs
 date: 2026-08-05
 title: Preferences with appearance

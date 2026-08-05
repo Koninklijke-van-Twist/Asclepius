@@ -1003,6 +1003,130 @@
             align-items: flex-start;
         }
 
+        .stats-subtabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 16px;
+        }
+
+        .stats-subtab {
+            border: 1px solid var(--line);
+            background: #fff;
+            color: #334155;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .stats-subtab.is-active {
+            background: var(--accent-soft);
+            border-color: transparent;
+            color: var(--accent);
+        }
+
+        .stats-trend-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 16px;
+            align-items: end;
+            margin-bottom: 14px;
+        }
+
+        .stats-trend-date {
+            display: grid;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .stats-trend-date input[type="date"] {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font: inherit;
+            color: var(--text);
+            background: #fff;
+        }
+
+        .stats-trend-chart-wrap {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fff;
+            padding: 12px;
+            overflow: auto;
+        }
+
+        .stats-trend-chart-wrap canvas,
+        .stats-trend-chart-wrap .stats-trend-svg {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .stats-trend-svg text {
+            font-family: inherit;
+            font-size: 12px;
+            fill: #64748b;
+        }
+
+        .stats-trend-svg .stats-trend-empty {
+            font-size: 14px;
+            fill: #5b6b82;
+        }
+
+        .stats-trend-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            margin-top: 12px;
+        }
+
+        .stats-trend-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #334155;
+            margin: 0;
+            padding: 2px 4px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            cursor: pointer;
+            font: inherit;
+            line-height: 1.3;
+        }
+
+        .stats-trend-legend-item:hover,
+        .stats-trend-legend-item:focus-visible {
+            background: #f1f5f9;
+            outline: none;
+        }
+
+        .stats-trend-legend-item.is-off {
+            color: #94a3b8;
+            opacity: 0.72;
+        }
+
+        .stats-trend-legend-item.is-off .stats-trend-legend-swatch {
+            background: #cbd5e1 !important;
+        }
+
+        .stats-trend-legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            flex: 0 0 auto;
+        }
+
+        .stats-trend-feedback.is-error {
+            color: var(--danger);
+        }
+
         .stats-main {
             flex: 1 1 0;
             min-width: 0;

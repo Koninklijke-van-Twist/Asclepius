@@ -1698,12 +1698,7 @@ function formatDueDateLabel(?string $dueDate): string
         return '';
     }
 
-    try {
-        $date = new DateTimeImmutable($normalized);
-        return $date->format('d-m-Y');
-    } catch (Throwable) {
-        return $normalized;
-    }
+    return formatDisplayDate($normalized, false);
 }
 
 function formatPriorityLabel($priority): string
@@ -1926,17 +1921,29 @@ function detectOversizedUploadRequest(): bool
         && empty($_FILES);
 }
 
-function formatDateTime(string $value): string
+function formatDisplayDate(string $value, bool $includeTime = false): string
 {
     if ($value === '') {
         return __('datetime.unknown');
     }
 
     try {
-        return (new DateTimeImmutable($value))->format('d-m-Y H:i');
+        $date = new DateTimeImmutable($value);
+        $month = __('datetime.month.' . (int) $date->format('n'));
+        $formatted = ((int) $date->format('j')) . ' ' . $month . ' ' . $date->format('Y');
+        if ($includeTime) {
+            $formatted .= ' ' . $date->format('H:i');
+        }
+
+        return $formatted;
     } catch (Throwable) {
         return $value;
     }
+}
+
+function formatDateTime(string $value): string
+{
+    return formatDisplayDate($value, true);
 }
 
 function formatDurationSeconds($seconds): string

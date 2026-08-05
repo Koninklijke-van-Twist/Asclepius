@@ -223,14 +223,7 @@ function janusPresenceStatusDetail(array $row): string
     if ($status === 'holiday') {
         $until = trim((string) ($row['holidayUntil'] ?? ''));
         if ($until !== '') {
-            try {
-                $dt = new DateTimeImmutable($until);
-                $formatted = $dt->format('d-m-Y');
-
-                return (string) __('presence.holiday_until', $formatted);
-            } catch (Throwable) {
-                return (string) __('presence.holiday_until', $until);
-            }
+            return (string) __('presence.holiday_until', formatDisplayDate($until));
         }
     }
     if (in_array($status, ['present_office', 'present_home', 'absent'], true)) {

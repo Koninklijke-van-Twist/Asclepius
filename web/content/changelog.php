@@ -179,26 +179,9 @@ function markAllChangelogEntriesRead(string $email, array $entryIds): array
 
 function formatChangelogDate(string $isoDate, string $lang): string
 {
-    $timestamp = strtotime($isoDate);
-    if ($timestamp === false) {
-        return $isoDate;
-    }
+    unset($lang);
 
-    $day = (int) date('j', $timestamp);
-    $year = (int) date('Y', $timestamp);
-    $monthIndex = (int) date('n', $timestamp) - 1;
-
-    $monthNames = [
-        'nl' => ['jan.', 'feb.', 'mrt.', 'apr.', 'mei', 'jun.', 'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'],
-        'en' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-        'de' => ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'],
-        'fr' => ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'],
-    ];
-
-    $months = $monthNames[$lang] ?? $monthNames['en'];
-    $month = $months[$monthIndex] ?? $months[0];
-
-    return $day . ' ' . $month . ' ' . $year;
+    return formatDisplayDate($isoDate);
 }
 
 function linkifyChangelogText(string $escapedText): string

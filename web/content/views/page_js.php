@@ -1221,6 +1221,436 @@
             });
         }
 
+        (function initStatsOpenTrend()
+        {
+            var statsSection = document.querySelector('[data-stats-section]');
+            if (!statsSection)
+            {
+                return;
+            }
+
+            var tabButtons = statsSection.querySelectorAll('[data-stats-tab]');
+            var panels = statsSection.querySelectorAll('[data-stats-panel]');
+            var fromInput = statsSection.querySelector('[data-stats-trend-from]');
+            var toInput = statsSection.querySelector('[data-stats-trend-to]');
+            var chartSvg = statsSection.querySelector('[data-stats-trend-svg]');
+            var legend = statsSection.querySelector('[data-stats-trend-legend]');
+            var feedback = statsSection.querySelector('[data-stats-trend-feedback]');
+            var trendLoaded = false;
+            var trendInFlight = false;
+            var trendReloadTimer = null;
+            var latestTrendData = null;
+            var hiddenTrendSeries = {};
+            var svgNs = 'http://www.w3.org/2000/svg';
+            var shortMonthLabels = <?= json_encode([
+                __('datetime.month.1'),
+                __('datetime.month.2'),
+                __('datetime.month.3'),
+                __('datetime.month.4'),
+                __('datetime.month.5'),
+                __('datetime.month.6'),
+                __('datetime.month.7'),
+                __('datetime.month.8'),
+                __('datetime.month.9'),
+                __('datetime.month.10'),
+                __('datetime.month.11'),
+                __('datetime.month.12'),
+            ], JSON_UNESCAPED_UNICODE) ?>;
+
+            var setActiveStatsTab = function (tabName)
+            {
+                tabButtons.forEach(function (button)
+                {
+                    var isActive = button.getAttribute('data-stats-tab') === tabName;
+                    button.classList.toggle('is-active', isActive);
+                    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+                panels.forEach(function (panel)
+                {
+                    panel.hidden = panel.getAttribute('data-stats-panel') !== tabName;
+                });
+                if (tabName === 'open-trend')
+                {
+                    loadTrendData(false);
+                }
+            };
+
+            var showTrendFeedback = function (message, isError)
+            {
+                if (!feedback)
+                {
+                    return;
+                }
+                feedback.textContent = message || '';
+                feedback.hidden = !message;
+                feedback.classList.toggle('is-error', !!isError);
+            };
+
+            var formatTrendDateLabel = function (isoDate)
+            {
+                var parts = String(isoDate || '').split('-');
+                if (parts.length !== 3)
+                {
+                    return String(isoDate || '');
+                }
+                var year = parseInt(parts[0], 10);
+                var month = parseInt(parts[1], 10);
+                var day = parseInt(parts[2], 10);
+                if (!year || !month || !day || month < 1 || month > 12)
+                {
+                    return String(isoDate || '');
+                }
+                var monthLabel = shortMonthLabels[month - 1] || parts[1];
+                return day + ' ' + monthLabel + ' ' + year;
+            };
+
+            var trendSeriesKey = function (row)
+            {
+                return String((row && (row.category || row.label)) || '');
+            };
+
+            var svgEl = function (name, attrs)
+            {
+                var node = document.createElementNS(svgNs, name);
+                if (attrs)
+                {
+                    Object.keys(attrs).forEach(function (key)
+                    {
+                        node.setAttribute(key, String(attrs[key]));
+                    });
+                }
+                return node;
+            };
+
+            var drawTrendChart = function (data)
+            {
+                if (!chartSvg || !data)
+                {
+                    return;
+                }
+
+                var width = 960;
+                var height = 420;
+                var padding = { top: 18, right: 18, bottom: 42, left: 46 };
+                var plotWidth = width - padding.left - padding.right;
+                var plotHeight = height - padding.top - padding.bottom;
+                var dates = Array.isArray(data.dates) ? data.dates : [];
+                var series = Array.isArray(data.series) ? data.series : [];
+                var knownKeys = {};
+                series.forEach(function (row)
+                {
+                    var key = trendSeriesKey(row);
+                    if (key)
+                    {
+                        knownKeys[key] = true;
+                    }
+                });
+                Object.keys(hiddenTrendSeries).forEach(function (key)
+                {
+                    if (!knownKeys[key])
+                    {
+                        delete hiddenTrendSeries[key];
+                    }
+                });
+                var visibleSeries = series.filter(function (row)
+                {
+                    var key = trendSeriesKey(row);
+                    return key && !hiddenTrendSeries[key];
+                });
+
+                while (chartSvg.firstChild)
+                {
+                    chartSvg.removeChild(chartSvg.firstChild);
+                }
+                chartSvg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+
+                var background = svgEl('rect', {
+                    x: 0,
+                    y: 0,
+                    width: width,
+                    height: height,
+                    fill: '#ffffff'
+                });
+                chartSvg.appendChild(background);
+
+                if (dates.length === 0 || series.length === 0)
+                {
+                    var emptyText = svgEl('text', {
+                        x: padding.left,
+                        y: padding.top + 24,
+                        class: 'stats-trend-empty'
+                    });
+                    emptyText.textContent = <?= json_encode(__('stats.open_trend_empty'), JSON_UNESCAPED_UNICODE) ?>;
+                    chartSvg.appendChild(emptyText);
+                    if (legend)
+                    {
+                        legend.innerHTML = '';
+                    }
+                    return;
+                }
+
+                var maxValue = 0;
+                visibleSeries.forEach(function (row)
+                {
+                    (row.points || []).forEach(function (point)
+                    {
+                        if (point !== null && point !== undefined && Number(point) > maxValue)
+                        {
+                            maxValue = Number(point);
+                        }
+                    });
+                });
+                if (maxValue < 1)
+                {
+                    maxValue = 1;
+                }
+
+                var yTicks = 4;
+                for (var tick = 0; tick <= yTicks; tick += 1)
+                {
+                    var value = Math.round((maxValue / yTicks) * tick);
+                    var y = padding.top + plotHeight - ((value / maxValue) * plotHeight);
+                    chartSvg.appendChild(svgEl('line', {
+                        x1: padding.left,
+                        y1: y,
+                        x2: padding.left + plotWidth,
+                        y2: y,
+                        stroke: '#e2e8f0',
+                        'stroke-width': 1
+                    }));
+                    var yLabel = svgEl('text', {
+                        x: 8,
+                        y: y + 4
+                    });
+                    yLabel.textContent = String(value);
+                    chartSvg.appendChild(yLabel);
+                }
+
+                var xStep = dates.length > 1 ? (plotWidth / (dates.length - 1)) : 0;
+                var labelEvery = Math.max(1, Math.ceil(dates.length / 10));
+                dates.forEach(function (date, index)
+                {
+                    if (index % labelEvery !== 0 && index !== dates.length - 1)
+                    {
+                        return;
+                    }
+                    var x = padding.left + (index * xStep);
+                    var xLabel = svgEl('text', {
+                        x: x,
+                        y: height - 14,
+                        'text-anchor': 'middle'
+                    });
+                    xLabel.textContent = formatTrendDateLabel(date);
+                    chartSvg.appendChild(xLabel);
+                });
+
+                visibleSeries.forEach(function (row)
+                {
+                    var points = Array.isArray(row.points) ? row.points : [];
+                    var color = row.color || '#64748b';
+                    var pathChunks = [];
+                    var currentChunk = [];
+
+                    points.forEach(function (point, index)
+                    {
+                        if (point === null || point === undefined)
+                        {
+                            if (currentChunk.length > 0)
+                            {
+                                pathChunks.push(currentChunk);
+                                currentChunk = [];
+                            }
+                            return;
+                        }
+                        var x = padding.left + (index * xStep);
+                        var y = padding.top + plotHeight - ((Number(point) / maxValue) * plotHeight);
+                        currentChunk.push({ x: x, y: y });
+                    });
+                    if (currentChunk.length > 0)
+                    {
+                        pathChunks.push(currentChunk);
+                    }
+
+                    pathChunks.forEach(function (chunk)
+                    {
+                        if (chunk.length === 0)
+                        {
+                            return;
+                        }
+                        var d = chunk.map(function (point, index)
+                        {
+                            return (index === 0 ? 'M' : 'L') + point.x.toFixed(2) + ' ' + point.y.toFixed(2);
+                        }).join(' ');
+                        chartSvg.appendChild(svgEl('path', {
+                            d: d,
+                            fill: 'none',
+                            stroke: color,
+                            'stroke-width': 2,
+                            'stroke-linejoin': 'round',
+                            'stroke-linecap': 'round'
+                        }));
+                    });
+
+                    points.forEach(function (point, index)
+                    {
+                        if (point === null || point === undefined)
+                        {
+                            return;
+                        }
+                        var x = padding.left + (index * xStep);
+                        var y = padding.top + plotHeight - ((Number(point) / maxValue) * plotHeight);
+                        chartSvg.appendChild(svgEl('circle', {
+                            cx: x.toFixed(2),
+                            cy: y.toFixed(2),
+                            r: 2.5,
+                            fill: color
+                        }));
+                    });
+                });
+
+                if (legend)
+                {
+                    legend.innerHTML = '';
+                    series.forEach(function (row)
+                    {
+                        var key = trendSeriesKey(row);
+                        if (!key)
+                        {
+                            return;
+                        }
+                        var isVisible = !hiddenTrendSeries[key];
+                        var item = document.createElement('button');
+                        item.type = 'button';
+                        item.className = 'stats-trend-legend-item' + (isVisible ? '' : ' is-off');
+                        item.setAttribute('aria-pressed', isVisible ? 'true' : 'false');
+                        item.title = <?= json_encode(__('stats.open_trend_legend_toggle'), JSON_UNESCAPED_UNICODE) ?>;
+                        var swatch = document.createElement('span');
+                        swatch.className = 'stats-trend-legend-swatch';
+                        swatch.style.background = String(row.color || '#64748b');
+                        var label = document.createElement('span');
+                        label.textContent = row.label || row.category || '';
+                        item.appendChild(swatch);
+                        item.appendChild(label);
+                        item.addEventListener('click', function ()
+                        {
+                            if (hiddenTrendSeries[key])
+                            {
+                                delete hiddenTrendSeries[key];
+                            }
+                            else
+                            {
+                                hiddenTrendSeries[key] = true;
+                            }
+                            drawTrendChart(latestTrendData || data);
+                        });
+                        legend.appendChild(item);
+                    });
+                }
+            };
+
+            var loadTrendData = function (force)
+            {
+                if (trendInFlight)
+                {
+                    return;
+                }
+                if (trendLoaded && !force)
+                {
+                    drawTrendChart(latestTrendData);
+                    return;
+                }
+
+                var fromDate = fromInput ? String(fromInput.value || '') : '';
+                var toDate = toInput ? String(toInput.value || '') : '';
+                if (!fromDate || !toDate)
+                {
+                    return;
+                }
+                if (fromDate > toDate)
+                {
+                    var swap = fromDate;
+                    fromDate = toDate;
+                    toDate = swap;
+                    if (fromInput)
+                    {
+                        fromInput.value = fromDate;
+                    }
+                    if (toInput)
+                    {
+                        toInput.value = toDate;
+                    }
+                }
+
+                trendInFlight = true;
+                showTrendFeedback('');
+                if (typeof apiFetchJson !== 'function')
+                {
+                    trendInFlight = false;
+                    showTrendFeedback(<?= json_encode(__('stats.open_trend_load_failed'), JSON_UNESCAPED_UNICODE) ?>, true);
+                    return;
+                }
+                apiFetchJson('category_open_snapshots', {
+                    from_date: fromDate,
+                    to_date: toDate,
+                    user_is_admin: true,
+                    is_admin_portal: true
+                }).then(function (data)
+                {
+                    trendInFlight = false;
+                    if (!data || !data.success)
+                    {
+                        showTrendFeedback(<?= json_encode(__('stats.open_trend_load_failed'), JSON_UNESCAPED_UNICODE) ?>, true);
+                        return;
+                    }
+                    trendLoaded = true;
+                    latestTrendData = data;
+                    drawTrendChart(data);
+                }).catch(function ()
+                {
+                    trendInFlight = false;
+                    showTrendFeedback(<?= json_encode(__('stats.open_trend_load_failed'), JSON_UNESCAPED_UNICODE) ?>, true);
+                });
+            };
+
+            var scheduleTrendReload = function ()
+            {
+                if (trendReloadTimer)
+                {
+                    clearTimeout(trendReloadTimer);
+                }
+                trendReloadTimer = setTimeout(function ()
+                {
+                    trendLoaded = false;
+                    loadTrendData(true);
+                }, 180);
+            };
+
+            tabButtons.forEach(function (button)
+            {
+                button.addEventListener('click', function ()
+                {
+                    setActiveStatsTab(button.getAttribute('data-stats-tab') || 'overview');
+                });
+            });
+
+            if (fromInput)
+            {
+                fromInput.addEventListener('change', scheduleTrendReload);
+            }
+            if (toInput)
+            {
+                toInput.addEventListener('change', scheduleTrendReload);
+            }
+
+            window.addEventListener('resize', function ()
+            {
+                if (latestTrendData && !statsSection.querySelector('[data-stats-panel="open-trend"][hidden]'))
+                {
+                    drawTrendChart(latestTrendData);
+                }
+            });
+        })();
+
         var changelogSection = document.querySelector('[data-changelog-section]');
         if (changelogSection)
         {

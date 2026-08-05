@@ -1,3 +1,19 @@
+id: 2026-08-05-date-format
+date: 2026-08-05
+title: Datums als 15 jun 2026
+author: Tim Falken
+
+Datums op de ticketingpagina (aanmaak-/wijzigingsdatum, deadline, grafiekassen, vakantiedetail) staan nu in het leesbare formaat **15 jun 2026** (met tijd waar relevant: **15 jun 2026 14:30**), in de taal van de interface.
+
+---
+id: 2026-08-05-open-tickets-trend
+date: 2026-08-05
+title: Open tickets over tijd per categorie
+author: Tim Falken
+
+Op **ICT-stats** staat nu een subtabel **Open tickets over tijd**: een scherpe SVG-grafiek met openstaande tickets per categorie. Standaard zie je de afgelopen maand tot vandaag; met de datums kun je live een andere periode kiezen. Klik op een categorie in de legenda om die lijn aan of uit te zetten. Elke nacht om 02:00 schrijft `nightly.php` een snapshot van het aantal niet-afgehandelde tickets per categorie.
+
+---
 id: 2026-08-05-ticket-appearance-prefs
 date: 2026-08-05
 title: Voorkeuren met uiterlijk
