@@ -288,19 +288,22 @@ if ($canUseTicketOverviewFilters) {
     }
 }
 if ($canManageIctRoles) {
-    $view = in_array($requestedView, ['settings', 'stats', 'template_tickets', 'email_prefs', 'changelog', 'api', 'roles'], true)
+    $view = in_array($requestedView, ['settings', 'stats', 'template_tickets', 'email_prefs', 'preferences', 'changelog', 'api', 'roles'], true)
         ? $requestedView
         : 'overview';
 } elseif ($canManageTickets && $isLimitedIct) {
-    $view = in_array($requestedView, ['settings', 'stats', 'email_prefs', 'changelog'], true)
+    $view = in_array($requestedView, ['settings', 'stats', 'email_prefs', 'preferences', 'changelog'], true)
         ? $requestedView
         : 'overview';
 } elseif ($canManageTickets) {
-    $view = in_array($requestedView, ['settings', 'stats', 'template_tickets', 'email_prefs', 'changelog', 'api'], true) ? $requestedView : 'overview';
+    $view = in_array($requestedView, ['settings', 'stats', 'template_tickets', 'email_prefs', 'preferences', 'changelog', 'api'], true) ? $requestedView : 'overview';
 } elseif ($isAllTicketsView) {
     $view = 'all_tickets';
 } else {
     $view = 'overview';
+}
+if ($view === 'email_prefs') {
+    $view = 'preferences';
 }
 $ticketBrowseMode = resolveTicketBrowseMode($canManageTickets, $isAllTicketsView);
 $showTicketListSection = ($isAdminPortal && $view === 'overview')

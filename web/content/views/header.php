@@ -70,8 +70,8 @@ $currentLang = getCurrentLanguage();
                 <a class="nav-link <?= $isAdminPortal && $view === 'template_tickets' ? 'active' : '' ?>"
                     href="admin.php?view=template_tickets"><?= h(__('nav.template_tickets')) ?></a>
             <?php endif; ?>
-            <a class="nav-link <?= $isAdminPortal && $view === 'email_prefs' ? 'active' : '' ?>"
-                href="admin.php?view=email_prefs"><?= h(__('nav.email_preferences')) ?></a>
+            <a class="nav-link <?= $isAdminPortal && $view === 'preferences' ? 'active' : '' ?>"
+                href="admin.php?view=preferences"><?= h(__('nav.preferences')) ?></a>
             <a class="nav-link changelog-nav-link<?= !empty($changelogHasUnread) ? ' has-unread-changelog' : '' ?><?= $isAdminPortal && $view === 'changelog' ? ' active' : '' ?>"
                 href="admin.php?view=changelog" data-changelog-nav-link><?= h(__('nav.changelog')) ?></a>
         <?php endif; ?>

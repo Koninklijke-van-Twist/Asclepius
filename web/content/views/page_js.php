@@ -1083,6 +1083,144 @@
             });
         }
 
+        var appearancePrefsRoot = document.querySelector('[data-appearance-prefs]');
+        if (appearancePrefsRoot && document.body)
+        {
+            var appearancePrefsFeedback = document.querySelector('[data-appearance-prefs-feedback]');
+            var appearancePrefsFeedbackTimer = null;
+            var appearancePrefsViewerEmail = (document.querySelector('[data-preferences-section]') || appearancePrefsRoot)
+                .getAttribute('data-viewer-email') || '';
+            var appearancePrefsUserIsAdmin = (document.querySelector('[data-preferences-section]') || appearancePrefsRoot)
+                .getAttribute('data-user-is-admin') === '1';
+            var appearanceSaveInFlight = false;
+            var appearanceSaveQueued = false;
+
+            var showAppearancePrefsFeedback = function (message, isError)
+            {
+                if (!appearancePrefsFeedback)
+                {
+                    return;
+                }
+
+                appearancePrefsFeedback.textContent = message;
+                appearancePrefsFeedback.hidden = false;
+                appearancePrefsFeedback.classList.toggle('is-error', !!isError);
+                if (appearancePrefsFeedbackTimer)
+                {
+                    clearTimeout(appearancePrefsFeedbackTimer);
+                }
+
+                appearancePrefsFeedbackTimer = setTimeout(function ()
+                {
+                    if (appearancePrefsFeedback)
+                    {
+                        appearancePrefsFeedback.hidden = true;
+                    }
+                }, 2200);
+            };
+
+            var readAppearancePreferencesFromUi = function ()
+            {
+                var priorityMarkersInput = appearancePrefsRoot.querySelector('[data-appearance-key="show_priority_markers"]');
+                var timeOpenInput = appearancePrefsRoot.querySelector('[data-appearance-key="show_time_open"]');
+                var borderInput = appearancePrefsRoot.querySelector('[data-appearance-key="border_color"]');
+                var closedInput = appearancePrefsRoot.querySelector('[data-appearance-key="closed_style"]');
+
+                return {
+                    show_priority_markers: !!(priorityMarkersInput && priorityMarkersInput.checked),
+                    show_time_open: !!(timeOpenInput && timeOpenInput.checked),
+                    border_color: borderInput ? String(borderInput.value || 'status') : 'status',
+                    closed_style: closedInput ? String(closedInput.value || 'normal') : 'normal'
+                };
+            };
+
+            var applyAppearancePreferencesToDocument = function (appearance)
+            {
+                document.body.setAttribute('data-appearance-priority-markers', appearance.show_priority_markers ? '1' : '0');
+                document.body.setAttribute('data-appearance-time-open', appearance.show_time_open ? '1' : '0');
+                document.body.setAttribute('data-appearance-border', appearance.border_color || 'status');
+                document.body.setAttribute('data-appearance-closed', appearance.closed_style || 'normal');
+            };
+
+            var saveAppearancePreferences = function ()
+            {
+                if (appearanceSaveInFlight)
+                {
+                    appearanceSaveQueued = true;
+                    return;
+                }
+
+                appearanceSaveInFlight = true;
+                appearanceSaveQueued = false;
+                var appearance = readAppearancePreferencesFromUi();
+                applyAppearancePreferencesToDocument(appearance);
+
+                fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        action: 'save_ticket_appearance_preferences',
+                        csrf_token: csrfToken,
+                        viewer_email: appearancePrefsViewerEmail,
+                        user_is_admin: appearancePrefsUserIsAdmin,
+                        is_admin_portal: true,
+                        appearance: appearance
+                    })
+                }).then(function (response)
+                {
+                    if (!response.ok)
+                    {
+                        throw new Error('appearance-prefs-request-failed');
+                    }
+
+                    return response.json();
+                }).then(function (data)
+                {
+                    appearanceSaveInFlight = false;
+                    if (!data || !data.success)
+                    {
+                        showAppearancePrefsFeedback(EMAIL_PREFS_SAVE_FAILED_LABEL, true);
+                        if (appearanceSaveQueued)
+                        {
+                            saveAppearancePreferences();
+                        }
+                        return;
+                    }
+
+                    if (data.appearance)
+                    {
+                        applyAppearancePreferencesToDocument(data.appearance);
+                    }
+                    showAppearancePrefsFeedback(EMAIL_PREFS_SAVED_LABEL, false);
+                    if (appearanceSaveQueued)
+                    {
+                        saveAppearancePreferences();
+                    }
+                }).catch(function ()
+                {
+                    appearanceSaveInFlight = false;
+                    showAppearancePrefsFeedback(EMAIL_PREFS_SAVE_FAILED_LABEL, true);
+                    if (appearanceSaveQueued)
+                    {
+                        saveAppearancePreferences();
+                    }
+                });
+            };
+
+            appearancePrefsRoot.querySelectorAll('[data-appearance-key]').forEach(function (control)
+            {
+                control.addEventListener('change', function ()
+                {
+                    applyAppearancePreferencesToDocument(readAppearancePreferencesFromUi());
+                    saveAppearancePreferences();
+                });
+            });
+        }
+
         var changelogSection = document.querySelector('[data-changelog-section]');
         if (changelogSection)
         {
@@ -4247,7 +4385,11 @@
                 syncPrivateToggleState(privateToggleLabelCard, !!ticket.is_private);
             }
 
-            card.style.setProperty('--ticket-color', ticket.status_color);
+            card.style.setProperty('--ticket-color-status', ticket.status_color || '');
+            card.style.setProperty('--ticket-color-assignee', ticket.assigned_color || '');
+            card.style.setProperty('--ticket-color-priority', ticket.priority_color || '');
+            card.style.setProperty('--ticket-color-category', ticket.category_color || ticket.status_color || '');
+            card.style.setProperty('--ticket-color', ticket.status_color || '');
         };
 
         var appendNewMessages = function (card, ticket)

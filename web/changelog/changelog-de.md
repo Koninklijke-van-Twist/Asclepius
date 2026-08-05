@@ -1,3 +1,11 @@
+id: 2026-08-05-ticket-appearance-prefs
+date: 2026-08-05
+title: Einstellungen mit Darstellung
+author: Tim Falken
+
+Der Tab **E-Mail-Einstellungen** heißt jetzt **Präferenzen**. Oben bleiben die E-Mail-Benachrichtigungen; darunter kannst du unter **Darstellung** festlegen, wie Tickets aussehen: Prioritätspunkte, Offen-seit, obere Randfarbe (Status/Zugewiesen/Priorität/Kategorie) und ob erledigte Tickets dezenter wirken. Rechts aktualisieren sich Beispieltickets live; die Wahl gilt überall im System.
+
+---
 id: 2026-08-04-ict-roles-afas
 date: 2026-08-04
 title: ICT-Rollen und Kategorie AFAS

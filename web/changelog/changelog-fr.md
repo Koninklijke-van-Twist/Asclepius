@@ -1,3 +1,11 @@
+id: 2026-08-05-ticket-appearance-prefs
+date: 2026-08-05
+title: Préférences avec apparence
+author: Tim Falken
+
+L’onglet **Préférences e-mail** s’appelle désormais **Préférences**. Les notifications e-mail restent en haut ; en dessous, **Apparence** permet de choisir l’aspect des tickets : pastilles de priorité, temps ouvert, couleur du bord supérieur (statut/assigné/priorité/catégorie) et si les tickets clôturés sont plus discrets. À droite, des tickets d’exemple se mettent à jour en direct ; les choix s’appliquent partout dans le système.
+
+---
 id: 2026-08-04-ict-roles-afas
 date: 2026-08-04
 title: Rôles ICT et catégorie AFAS

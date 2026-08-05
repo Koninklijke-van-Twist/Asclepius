@@ -282,9 +282,12 @@ $templateFragments = $canManageIctRoles && $view === 'template_tickets' && $stor
     ? $store->getTicketTemplates()
     : [];
 $editingTemplateId = $canManageIctRoles && $view === 'template_tickets' ? max(0, (int) ($_GET['edit_template'] ?? 0)) : 0;
-$adminEmailPreferences = $canManageTickets && $view === 'email_prefs'
+$adminEmailPreferences = $canManageTickets && $view === 'preferences'
     ? loadAdminEmailPreferences($userEmail)
     : getDefaultAdminEmailPreferences();
+$ticketAppearancePreferences = $userIsAdmin
+    ? loadTicketAppearancePreferences($userEmail)
+    : getDefaultTicketAppearancePreferences();
 $changelogEntries = $canManageTickets && $view === 'changelog'
     ? loadChangelogEntries(getCurrentLanguage())
     : [];

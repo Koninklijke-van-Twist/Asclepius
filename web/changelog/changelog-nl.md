@@ -1,3 +1,11 @@
+id: 2026-08-05-ticket-appearance-prefs
+date: 2026-08-05
+title: Voorkeuren met uiterlijk
+author: Tim Falken
+
+De tab **E-mailvoorkeuren** heet nu **Voorkeuren**. Bovenaan staan nog steeds de e-mailmeldingen; daaronder kun je onder **Uiterlijk** kiezen hoe tickets eruitzien: statusbolletjes, tijd open, bovenrandkleur (status/toegewezen/prioriteit/categorie) en of afgehandelde tickets subtieler worden getoond. Rechts zie je voorbeeldtickets die live meebewegen; de keuzes gelden overal in het systeem.
+
+---
 id: 2026-08-04-ict-roles-afas
 date: 2026-08-04
 title: ICT-rollen en categorie AFAS

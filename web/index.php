@@ -43,7 +43,11 @@ $apiUrl = 'api.php';
     data-post-max-bytes="<?= (int) parsePhpIniSize((string) ini_get('post_max_size')) ?>"
     data-presence-poll-interval="60000"
     data-presence-unavailable="<?= h(__('presence.unavailable')) ?>"
-    data-presence-empty="<?= h(__('presence.empty')) ?>">
+    data-presence-empty="<?= h(__('presence.empty')) ?>"
+    data-appearance-priority-markers="<?= !empty($ticketAppearancePreferences['show_priority_markers']) ? '1' : '0' ?>"
+    data-appearance-time-open="<?= !empty($ticketAppearancePreferences['show_time_open']) ? '1' : '0' ?>"
+    data-appearance-border="<?= h((string) ($ticketAppearancePreferences['border_color'] ?? 'status')) ?>"
+    data-appearance-closed="<?= h((string) ($ticketAppearancePreferences['closed_style'] ?? 'normal')) ?>">
     <?php require __DIR__ . '/content/views/update_notify.php'; ?>
     <?php if (empty($isBigscreen)): ?>
         <?php require __DIR__ . '/content/views/view_presence.php'; ?>

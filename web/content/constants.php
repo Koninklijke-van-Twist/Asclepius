@@ -50,6 +50,8 @@ const ADMIN_EMAIL_NOTIFICATION_TYPES = [
     'user_reply',
     'escalation',
 ];
+const TICKET_APPEARANCE_BORDER_OPTIONS = ['status', 'assignee', 'priority', 'category'];
+const TICKET_APPEARANCE_CLOSED_OPTIONS = ['normal', 'subtle'];
 const PRIORITY_LABELS = [
     0 => 'Normaal',
     1 => 'Belemmerd',

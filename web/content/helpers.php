@@ -922,11 +922,15 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $includeMessages = !array_key_exists('includeMessages', $context) || !empty($context['includeMessages']);
     $lazyMessages = !empty($context['lazyMessages']);
     $isReadOnlyTicket = !empty($context['isReadOnlyTicket']);
-    $ticketColor = getStatusColor((string) ($ticket['status'] ?? ''));
+    $statusColor = getStatusColor((string) ($ticket['status'] ?? ''));
+    $priorityColor = getPriorityColor((int) ($ticket['priority'] ?? 0));
+    $categoryColor = getCategoryColor((string) ($ticket['category'] ?? ''));
+    $assignedEmail = (string) ($ticket['assigned_email'] ?? '');
+    $assignedColor = emailToHexColor($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl');
+    $ticketColor = $statusColor;
     $shouldOpen = $openTicketId > 0 && (int) ($ticket['id'] ?? 0) === $openTicketId;
     $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
     $replyFormId = 'reply-form-' . (int) ($ticket['id'] ?? 0);
-    $assignedEmail = (string) ($ticket['assigned_email'] ?? '');
     $assignedLabel = $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : __('ticket.unassigned');
     $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
     $participantEmails = is_array($ticketDetail['participant_emails'] ?? null) ? $ticketDetail['participant_emails'] : [$requesterEmail];
@@ -1018,7 +1022,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
         data-needs-translation="<?= $needsTranslation ? '1' : '0' ?>"
         data-priority="<?= $ticketPriority ?>"
         data-status="<?= h($ticketStatus) ?>"
-        style="--ticket-color: <?= h($ticketColor) ?>;"
+        style="--ticket-color-status: <?= h($statusColor) ?>; --ticket-color-assignee: <?= h($assignedColor) ?>; --ticket-color-priority: <?= h($priorityColor) ?>; --ticket-color-category: <?= h($categoryColor) ?>; --ticket-color: <?= h($ticketColor) ?>;"
         <?= $shouldOpen ? 'open' : '' ?>>
         <summary>
             <?php if ($canManageTickets && $isAdminPortal && $view === 'overview'): ?>
@@ -1063,16 +1067,16 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 <div class="ticket-subtitle">
                     <?php if ($isAdminPortal || $isReadOnlyTicket): ?>
                         <span class="status-pill" data-role="status-pill"
-                            style="--ticket-color: <?= h($ticketColor) ?>;"><?= h(translateStatus((string) ($ticket['status'] ?? ''))) ?></span>
+                            style="--ticket-color: <?= h($statusColor) ?>;"><?= h(translateStatus((string) ($ticket['status'] ?? ''))) ?></span>
                     <?php endif; ?>
                     <span class="assignee-badge" data-role="assignee-badge"
-                        style="--assignee-color: <?= h(emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'))) ?>;"
+                        style="--assignee-color: <?= h($assignedColor) ?>;"
                         title="<?= h($assignedEmail !== '' && $assignedLabel !== $assignedEmail ? $assignedEmail : '') ?>">
                         <?= h($assignedLabel) ?>
                     </span>
                     <?php if ($userIsAdmin && $isAdminPortal): ?>
                         <span class="status-pill" data-role="priority-pill"
-                            style="--ticket-color: <?= h(getPriorityColor((int) ($ticket['priority'] ?? 0))) ?>;"><?= h(__('ticket.meta_priority')) ?>
+                            style="--ticket-color: <?= h($priorityColor) ?>;"><?= h(__('ticket.meta_priority')) ?>
                             <?= (int) ($ticket['priority'] ?? 0) ?> ·
                             <?= h(formatPriorityLabel((int) ($ticket['priority'] ?? 0))) ?></span>
                     <?php endif; ?>
@@ -1483,6 +1487,7 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
         'priority' => (int) ($ticket['priority'] ?? 0),
         'priority_label' => formatPriorityLabel((int) ($ticket['priority'] ?? 0)),
         'priority_color' => getPriorityColor((int) ($ticket['priority'] ?? 0)),
+        'category_color' => getCategoryColor((string) ($ticket['category'] ?? '')),
         'assigned_email' => $assignedEmail,
         'assigned_label' => $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : __('ticket.unassigned'),
         'assigned_color' => emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl')),
@@ -1711,6 +1716,74 @@ function getPriorityColor($priority): string
 {
     $priority = max(0, min(2, (int) $priority));
     return PRIORITY_COLORS[$priority] ?? PRIORITY_COLORS[0];
+}
+
+function getDefaultTicketAppearancePreferences(): array
+{
+    return [
+        'show_priority_markers' => true,
+        'show_time_open' => true,
+        'border_color' => 'status',
+        'closed_style' => 'normal',
+    ];
+}
+
+/**
+ * @param array<string, mixed> $raw
+ * @return array{
+ *   show_priority_markers: bool,
+ *   show_time_open: bool,
+ *   border_color: string,
+ *   closed_style: string
+ * }
+ */
+function normalizeTicketAppearancePreferences(array $raw): array
+{
+    $defaults = getDefaultTicketAppearancePreferences();
+    $borderColor = trim((string) ($raw['border_color'] ?? $defaults['border_color']));
+    if (!in_array($borderColor, TICKET_APPEARANCE_BORDER_OPTIONS, true)) {
+        $borderColor = $defaults['border_color'];
+    }
+    $closedStyle = trim((string) ($raw['closed_style'] ?? $defaults['closed_style']));
+    if (!in_array($closedStyle, TICKET_APPEARANCE_CLOSED_OPTIONS, true)) {
+        $closedStyle = $defaults['closed_style'];
+    }
+
+    return [
+        'show_priority_markers' => array_key_exists('show_priority_markers', $raw)
+            ? !empty($raw['show_priority_markers'])
+            : (bool) $defaults['show_priority_markers'],
+        'show_time_open' => array_key_exists('show_time_open', $raw)
+            ? !empty($raw['show_time_open'])
+            : (bool) $defaults['show_time_open'],
+        'border_color' => $borderColor,
+        'closed_style' => $closedStyle,
+    ];
+}
+
+function loadTicketAppearancePreferences(string $email): array
+{
+    $prefs = loadUserPrefs($email);
+    $raw = is_array($prefs['ticket_appearance'] ?? null) ? $prefs['ticket_appearance'] : [];
+
+    return normalizeTicketAppearancePreferences($raw);
+}
+
+/**
+ * @param array<string, mixed> $appearance
+ * @return array{
+ *   show_priority_markers: bool,
+ *   show_time_open: bool,
+ *   border_color: string,
+ *   closed_style: string
+ * }
+ */
+function saveTicketAppearancePreferences(string $email, array $appearance): array
+{
+    $normalized = normalizeTicketAppearancePreferences($appearance);
+    saveUserPref($email, 'ticket_appearance', $normalized);
+
+    return $normalized;
 }
 
 function getCategoryColor(string $category): string

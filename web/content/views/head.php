@@ -1386,7 +1386,63 @@
             border: 1px solid var(--line);
             overflow: hidden;
             box-shadow: 0 8px 25px rgba(15, 35, 63, 0.04);
-            border-top: 8px solid var(--ticket-color, #2563eb);
+            border-top: 8px solid var(--ticket-border-color, var(--ticket-color-status, var(--ticket-color, #2563eb)));
+        }
+
+        body[data-appearance-border="status"] .ticket-card {
+            --ticket-border-color: var(--ticket-color-status, var(--ticket-color, #2563eb));
+        }
+
+        body[data-appearance-border="assignee"] .ticket-card {
+            --ticket-border-color: var(--ticket-color-assignee, #475569);
+        }
+
+        body[data-appearance-border="priority"] .ticket-card {
+            --ticket-border-color: var(--ticket-color-priority, #0f766e);
+        }
+
+        body[data-appearance-border="category"] .ticket-card {
+            --ticket-border-color: var(--ticket-color-category, #334155);
+        }
+
+        body[data-appearance-priority-markers="0"] .ticket-priority-marker {
+            display: none !important;
+        }
+
+        body[data-appearance-time-open="0"] [data-role="time-open-badge"] {
+            display: none !important;
+        }
+
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] {
+            background: #f8fafc;
+            box-shadow: none;
+            border-color: #e2e8f0;
+            --ticket-border-color: #cbd5e1;
+        }
+
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] .ticket-main-title,
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] .ticket-main-title strong,
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] .ticket-subtitle,
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] .ticket-subtitle span {
+            color: #94a3b8;
+        }
+
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] .ticket-main-title {
+            text-decoration: line-through;
+        }
+
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] .status-pill,
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] .assignee-badge,
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] .count-badge {
+            opacity: 0.55;
+            filter: grayscale(0.35);
+        }
+
+        body[data-appearance-closed="subtle"] .ticket-card[data-status="afgehandeld"] .ticket-priority-marker {
+            opacity: 0.45;
+            filter: grayscale(0.5);
+            animation: none;
+            background: #94a3b8;
         }
 
         .ticket-card.has-priority-marker {
@@ -1931,6 +1987,94 @@
 
         .email-prefs-label input {
             margin-top: 2px;
+        }
+
+        .appearance-prefs {
+            margin-top: 28px;
+            padding-top: 22px;
+            border-top: 1px solid var(--line);
+        }
+
+        .appearance-prefs-heading {
+            margin: 0 0 8px;
+        }
+
+        .appearance-prefs-layout {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) minmax(280px, 1.15fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        .appearance-prefs-options {
+            display: grid;
+            gap: 10px;
+        }
+
+        .appearance-pref-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 14px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .appearance-pref-row-select {
+            cursor: default;
+        }
+
+        .appearance-pref-copy {
+            display: grid;
+            gap: 4px;
+        }
+
+        .appearance-pref-copy strong {
+            font-size: 14px;
+            color: #10233f;
+        }
+
+        .appearance-pref-copy span {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.35;
+        }
+
+        .appearance-pref-row input[type="checkbox"] {
+            margin-top: 3px;
+            flex: 0 0 auto;
+        }
+
+        .appearance-pref-row select {
+            min-width: 150px;
+            max-width: 180px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font: inherit;
+            background: #fff;
+        }
+
+        .appearance-prefs-preview {
+            display: grid;
+            gap: 10px;
+        }
+
+        .appearance-preview-card {
+            pointer-events: none;
+        }
+
+        .appearance-preview-card > summary {
+            cursor: default;
+        }
+
+        @media (max-width: 900px) {
+            .appearance-prefs-layout {
+                grid-template-columns: 1fr;
+            }
         }
 
         .changelog-toolbar {

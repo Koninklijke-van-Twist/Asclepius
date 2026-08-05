@@ -1,3 +1,11 @@
+id: 2026-08-05-ticket-appearance-prefs
+date: 2026-08-05
+title: Preferences with appearance
+author: Tim Falken
+
+The **Email preferences** tab is now called **Preferences**. Email notifications remain at the top; below that, **Appearance** lets you choose how tickets look: priority dots, time open, top border color (status/assignee/priority/category), and whether closed tickets look subtler. Preview tickets on the right update live; the choices apply everywhere in the system.
+
+---
 id: 2026-08-04-ict-roles-afas
 date: 2026-08-04
 title: ICT roles and AFAS category

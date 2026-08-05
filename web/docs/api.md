@@ -169,6 +169,7 @@ Deze acties gebruikt Asclepius zelf in de browser. Ze vereisen vaak een sessie-c
 - `change_ticket_title` — titel wijzigen
 - `update_ticket_private` — privé-markering
 - `save_admin_email_preferences` — e-mailvoorkeuren
+- `save_ticket_appearance_preferences` — uiterlijkvoorkeuren (ticketweergave)
 - `save_ticket_overview_search` — zoekterm in gebruikersvoorkeuren
 - `mark_changelog_read` / `mark_all_changelogs_read` — changelog gelezen
 - `manage_ticket_template` — sjablonen beheren
