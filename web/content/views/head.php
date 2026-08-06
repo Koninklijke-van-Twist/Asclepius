@@ -314,6 +314,22 @@
             align-items: center;
         }
 
+        .brand-logo-button {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 14px;
+            line-height: 0;
+        }
+
+        .brand-logo-button:hover .brand-logo,
+        .brand-logo-button:focus-visible .brand-logo {
+            background: rgba(255, 255, 255, 0.16);
+            outline: none;
+        }
+
         .brand-logo {
             width: 64px;
             height: 64px;
@@ -321,6 +337,255 @@
             background: rgba(255, 255, 255, 0.08);
             object-fit: contain;
             padding: 8px;
+            display: block;
+        }
+
+        .theevraagje-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: rgba(15, 35, 63, 0.45);
+        }
+
+        .theevraagje-dialog {
+            width: min(1040px, 96vw);
+            max-height: min(88vh, 820px);
+            min-height: min(78vh, 720px);
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 24px 60px rgba(15, 35, 63, 0.22);
+            overflow: hidden;
+            --kvt-line: var(--line);
+            --kvt-perkins-blue: #0a4d8c;
+            --kvt-main-blue: var(--accent);
+            --kvt-muted: var(--muted);
+            --kvt-text: var(--text);
+            --kvt-danger: var(--danger);
+        }
+
+        .theevraagje-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--kvt-line);
+            flex: 0 0 auto;
+        }
+
+        .theevraagje-head h2 {
+            margin: 0;
+            font-size: 1.15rem;
+            color: var(--kvt-perkins-blue);
+        }
+
+        .theevraagje-close {
+            border: 0;
+            background: transparent;
+            font-size: 1.6rem;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--kvt-muted);
+            padding: 2px 8px;
+            border-radius: 8px;
+        }
+
+        .theevraagje-close:hover,
+        .theevraagje-close:focus-visible {
+            background: #f1f5f9;
+            color: var(--kvt-text);
+            outline: none;
+        }
+
+        .theevraagje-body {
+            display: grid;
+            grid-template-columns: minmax(240px, 0.95fr) minmax(280px, 1.15fr);
+            min-height: 0;
+            flex: 1 1 auto;
+            overflow: hidden;
+        }
+
+        .theevraagje-image-pane {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            border-right: 1px solid var(--kvt-line);
+            background: #f8fafc;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .theevraagje-image {
+            display: block;
+            max-width: 100%;
+            max-height: min(68vh, 620px);
+            width: auto;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(15, 35, 63, 0.12);
+        }
+
+        .theevraagje-image-fallback {
+            margin: 0;
+            text-align: center;
+            padding: 12px;
+        }
+
+        .theevraagje-chat.ponos-detail-chat {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            max-height: 100%;
+            overflow: hidden;
+            padding: 18px 20px 20px;
+            background: linear-gradient(180deg, #f8fbff 0%, #f3f7fc 100%);
+        }
+
+        .theevraagje-dialog .ponos-detail-chat-title {
+            margin: 0 0 12px;
+            flex: 0 0 auto;
+            font-size: 1rem;
+            color: var(--kvt-perkins-blue);
+        }
+
+        .theevraagje-dialog .ponos-messages {
+            display: grid;
+            gap: 10px;
+            flex: 1 1 0;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: visible;
+            padding: 0 4px 0 12px;
+            align-content: start;
+        }
+
+        .theevraagje-dialog .ponos-message-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 0;
+            overflow: visible;
+        }
+
+        .theevraagje-dialog .ponos-message-avatar-wrap {
+            flex: 0 0 30px;
+            margin-right: -9px;
+            margin-top: 6px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .theevraagje-dialog .ponos-message-row .ponos-message {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .theevraagje-dialog .ponos-message {
+            border: 1px solid var(--kvt-line);
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+
+        .theevraagje-dialog .ponos-message-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 0.82rem;
+        }
+
+        .theevraagje-dialog .ponos-message-email {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 700;
+        }
+
+        .theevraagje-dialog .ponos-user-avatar {
+            width: 30px;
+            height: 30px;
+            flex: 0 0 30px;
+            display: block;
+            border: 1px solid;
+            border-radius: 4px;
+            background: #fff;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            object-fit: none;
+        }
+
+        .theevraagje-dialog .ponos-message-compose {
+            display: grid;
+            gap: 8px;
+            flex: 0 0 auto;
+            flex-shrink: 0;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--kvt-line);
+            background: linear-gradient(180deg, #f8fbff 0%, #f3f7fc 100%);
+        }
+
+        .theevraagje-dialog .ponos-compose-label {
+            display: block;
+            font-weight: 700;
+            color: var(--kvt-perkins-blue);
+            font-size: 0.9rem;
+        }
+
+        .theevraagje-dialog .ponos-message-input {
+            width: 100%;
+            min-height: 2.75rem;
+            max-height: min(32vh, 280px);
+            resize: none;
+            overflow-y: hidden;
+            font: inherit;
+            border-radius: 10px;
+            border: 1px solid var(--kvt-line);
+            padding: 10px 12px;
+            box-sizing: border-box;
+            line-height: 1.45;
+        }
+
+        .theevraagje-dialog .ponos-text-link {
+            color: var(--kvt-main-blue);
+        }
+
+        .theevraagje-empty {
+            margin: 0 0 8px;
+            flex: 0 0 auto;
+        }
+
+        .theevraagje-feedback {
+            margin: 0;
+            padding: 8px 18px 14px;
+            flex: 0 0 auto;
+        }
+
+        .theevraagje-feedback.is-error {
+            color: var(--danger);
+        }
+
+        @media (max-width: 860px) {
+            .theevraagje-body {
+                grid-template-columns: 1fr;
+            }
+
+            .theevraagje-image-pane {
+                border-right: 0;
+                border-bottom: 1px solid var(--kvt-line);
+                max-height: 36vh;
+            }
+
+            .theevraagje-image {
+                max-height: 32vh;
+            }
         }
 
         .eyebrow {

@@ -66,6 +66,16 @@ const TRANSLATIONS = [
         'changelog.saved' => 'Als gelezen gemarkeerd',
         'changelog.save_failed' => 'Opslaan mislukt',
 
+        'theevraagje.title' => 'Theevraagje',
+        'theevraagje.messages' => 'Berichten',
+        'theevraagje.message_label' => 'Bericht',
+        'theevraagje.empty' => 'Nog geen berichten. Deel je antwoord op het theevraagje.',
+        'theevraagje.image_missing' => 'Nog geen theevraagje beschikbaar.',
+        'theevraagje.load_failed' => 'Kon het theevraagje niet laden.',
+        'theevraagje.send_failed' => 'Bericht kon niet worden verstuurd.',
+        'theevraagje.close' => 'Sluiten',
+        'theevraagje.open_hint' => 'Open het theevraagje van vandaag',
+
         // Ticket list
         'tickets.heading_admin' => 'Ticketoverzicht',
         'tickets.heading_user' => 'Mijn tickets',
@@ -566,6 +576,16 @@ const TRANSLATIONS = [
         'changelog.author' => 'By: %s',
         'changelog.saved' => 'Marked as read',
         'changelog.save_failed' => 'Save failed',
+
+        'theevraagje.title' => 'Tea question',
+        'theevraagje.messages' => 'Messages',
+        'theevraagje.message_label' => 'Message',
+        'theevraagje.empty' => 'No messages yet. Share your answer to today’s tea question.',
+        'theevraagje.image_missing' => 'No tea question available yet.',
+        'theevraagje.load_failed' => 'Could not load the tea question.',
+        'theevraagje.send_failed' => 'Could not send the message.',
+        'theevraagje.close' => 'Close',
+        'theevraagje.open_hint' => 'Open today’s tea question',
 
         // Ticket list
         'tickets.heading_admin' => 'Ticket overview',
@@ -1068,6 +1088,16 @@ const TRANSLATIONS = [
         'changelog.saved' => 'Als gelesen markiert',
         'changelog.save_failed' => 'Speichern fehlgeschlagen',
 
+        'theevraagje.title' => 'Tee-Frage',
+        'theevraagje.messages' => 'Nachrichten',
+        'theevraagje.message_label' => 'Nachricht',
+        'theevraagje.empty' => 'Noch keine Nachrichten. Teile deine Antwort auf die Tee-Frage.',
+        'theevraagje.image_missing' => 'Noch keine Tee-Frage verfügbar.',
+        'theevraagje.load_failed' => 'Tee-Frage konnte nicht geladen werden.',
+        'theevraagje.send_failed' => 'Nachricht konnte nicht gesendet werden.',
+        'theevraagje.close' => 'Schließen',
+        'theevraagje.open_hint' => 'Heutige Tee-Frage öffnen',
+
         // Ticket list
         'tickets.heading_admin' => 'Ticketübersicht',
         'tickets.heading_user' => 'Meine Tickets',
@@ -1568,6 +1598,16 @@ const TRANSLATIONS = [
         'changelog.author' => 'Par : %s',
         'changelog.saved' => 'Marqué comme lu',
         'changelog.save_failed' => 'Échec de l\'enregistrement',
+
+        'theevraagje.title' => 'Question du thé',
+        'theevraagje.messages' => 'Messages',
+        'theevraagje.message_label' => 'Message',
+        'theevraagje.empty' => 'Pas encore de messages. Partagez votre réponse à la question du thé.',
+        'theevraagje.image_missing' => 'Pas encore de question du thé.',
+        'theevraagje.load_failed' => 'Impossible de charger la question du thé.',
+        'theevraagje.send_failed' => 'Impossible d’envoyer le message.',
+        'theevraagje.close' => 'Fermer',
+        'theevraagje.open_hint' => 'Ouvrir la question du thé du jour',
 
         // Ticket list
         'tickets.heading_admin' => 'Vue d\'ensemble des tickets',

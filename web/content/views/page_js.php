@@ -1651,6 +1651,440 @@
             });
         })();
 
+        (function initTheevraagjeModal()
+        {
+            var openButton = document.querySelector('[data-role="theevraagje-open"]');
+            var modal = document.querySelector('[data-role="theevraagje-modal"]');
+            if (!openButton || !modal)
+            {
+                return;
+            }
+
+            var closeButton = modal.querySelector('[data-role="theevraagje-close"]');
+            var imageEl = modal.querySelector('[data-role="theevraagje-image"]');
+            var imageFallback = modal.querySelector('[data-role="theevraagje-image-fallback"]');
+            var messagesEl = modal.querySelector('[data-role="theevraagje-messages"]');
+            var emptyEl = modal.querySelector('[data-role="theevraagje-empty"]');
+            var inputEl = modal.querySelector('[data-role="theevraagje-input"]');
+            var feedbackEl = modal.querySelector('[data-role="theevraagje-feedback"]');
+            var viewerEmail = String(openButton.getAttribute('data-viewer-email') || '').toLowerCase().trim();
+            var knownMessageIds = {};
+            var pollTimer = null;
+            var sendInFlight = false;
+            var loadInFlight = false;
+            var usersByEmail = {};
+            var usersLoaded = false;
+
+            var loadUsers = function ()
+            {
+                if (usersLoaded)
+                {
+                    return Promise.resolve();
+                }
+                return fetch('getusers.php', { credentials: 'same-origin', cache: 'no-store' })
+                    .then(function (response)
+                    {
+                        return response.json();
+                    })
+                    .then(function (data)
+                    {
+                        usersByEmail = {};
+                        (Array.isArray(data) ? data : []).forEach(function (user)
+                        {
+                            var email = String((user && user.Email) || '').toLowerCase().trim();
+                            if (email !== '')
+                            {
+                                usersByEmail[email] = user;
+                            }
+                        });
+                        usersLoaded = true;
+                    })
+                    .catch(function ()
+                    {
+                        usersByEmail = {};
+                    });
+            };
+
+            var userNameByEmail = function (email)
+            {
+                var user = usersByEmail[String(email || '').toLowerCase().trim()];
+                if (user && user.Naam)
+                {
+                    return String(user.Naam);
+                }
+                return '';
+            };
+
+            var hashTextForColor = function (value)
+            {
+                var hash = 0;
+                var text = String(value || '');
+                for (var i = 0; i < text.length; i += 1)
+                {
+                    hash = text.charCodeAt(i) + ((hash << 5) - hash);
+                    hash = hash & 0x7fffffff;
+                }
+                return hash;
+            };
+
+            var colorFromText = function (text)
+            {
+                var normalized = String(text || '').toLowerCase().trim();
+                if (normalized === '')
+                {
+                    return {
+                        border: '#cbd5e1',
+                        chipBackground: '#e2e8f0',
+                        cardBackground: '#ffffff',
+                        chipTextColor: '#334155'
+                    };
+                }
+                var hash = hashTextForColor(normalized);
+                var hue = Math.abs(hash) % 360;
+                var saturation = 72 + (Math.abs(hash >> 8) % 14);
+                var lightness = 56 + (Math.abs(hash >> 16) % 10);
+                var chipTextColor = lightness >= 58 ? '#1e293b' : '#ffffff';
+                return {
+                    border: 'hsl(' + hue + ', ' + saturation + '%, ' + Math.max(lightness - 6, 48) + '%)',
+                    chipBackground: 'hsl(' + hue + ', ' + saturation + '%, ' + lightness + '%)',
+                    cardBackground: 'hsl(' + hue + ', ' + Math.min(saturation, 48) + '%, 96%)',
+                    chipTextColor: chipTextColor
+                };
+            };
+
+            var escapeAttr = function (value)
+            {
+                return escapeHtml(value).replace(/'/g, '&#039;');
+            };
+
+            var trimLinkTrailingPunctuation = function (value)
+            {
+                return String(value || '').replace(/[.,;:!?)\]]+$/, '');
+            };
+
+            var linkifyEscapedHtml = function (escaped)
+            {
+                var pattern = /\b((?:https?:\/\/|www\.)[^\s<]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+                return escaped.replace(pattern, function (match)
+                {
+                    if (match.indexOf('@') >= 0)
+                    {
+                        return '<a class="ponos-text-link" href="mailto:' + escapeAttr(match) + '">' + match + '</a>';
+                    }
+                    var trimmed = trimLinkTrailingPunctuation(match);
+                    var suffix = match.slice(trimmed.length);
+                    var href = trimmed;
+                    if (/^www\./i.test(href))
+                    {
+                        href = 'https://' + href;
+                    }
+                    if (!/^https?:\/\//i.test(href))
+                    {
+                        return match;
+                    }
+                    return '<a class="ponos-text-link" href="' + escapeAttr(href) + '" target="_blank" rel="noopener noreferrer">'
+                        + trimmed + '</a>' + suffix;
+                });
+            };
+
+            var formatDescriptionHtml = function (value)
+            {
+                return linkifyEscapedHtml(escapeHtml(value).replace(/\r\n|\r|\n/g, '<br/>'));
+            };
+
+            var userAvatarUrl = function (email)
+            {
+                var normalized = String(email || '').toLowerCase().trim();
+                if (normalized === '')
+                {
+                    return '';
+                }
+                return 'user_avatar.php?email=' + encodeURIComponent(normalized);
+            };
+
+            var renderUserAvatarHtml = function (email, colors)
+            {
+                var normalized = String(email || '').toLowerCase().trim();
+                if (normalized === '')
+                {
+                    return '';
+                }
+                var url = userAvatarUrl(normalized);
+                if (url === '')
+                {
+                    return '';
+                }
+                return '<img class="ponos-user-avatar" src="' + escapeHtml(url) + '" width="30" height="30" alt="" style="border-color:'
+                    + escapeHtml(colors.border) + '">';
+            };
+
+            var renderMessageHtml = function (message)
+            {
+                var email = String(message.user_email || '').toLowerCase().trim();
+                var authorName = userNameByEmail(email) || String(message.user_label || '').trim() || email;
+                var colors = (message.colors && typeof message.colors === 'object')
+                    ? message.colors
+                    : colorFromText(email);
+                var html = '';
+                html += '<div class="ponos-message-row" data-message-id="' + escapeAttr(String(message.id || '')) + '">';
+                html += '<div class="ponos-message-avatar-wrap">' + renderUserAvatarHtml(email, colors) + '</div>';
+                html += '<article class="ponos-message" style="border-color:' + escapeHtml(colors.border)
+                    + ';background:' + escapeHtml(colors.cardBackground) + '">';
+                html += '<div class="ponos-message-meta"><span class="ponos-message-email" style="background:'
+                    + escapeHtml(colors.chipBackground) + ';color:' + escapeHtml(colors.chipTextColor) + '">'
+                    + escapeHtml(authorName) + '</span><span>' + escapeHtml(String(message.created_at_label || ''))
+                    + '</span></div>';
+                html += '<div>' + formatDescriptionHtml(message.message_text || '') + '</div>';
+                html += '</article></div>';
+                return html;
+            };
+
+            var scrollMessagesToEnd = function ()
+            {
+                if (!messagesEl)
+                {
+                    return;
+                }
+                window.requestAnimationFrame(function ()
+                {
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                });
+            };
+
+            var resizeInput = function ()
+            {
+                if (!inputEl)
+                {
+                    return;
+                }
+                var maxHeight = Math.min(window.innerHeight * 0.32, 280);
+                inputEl.style.height = 'auto';
+                var nextHeight = Math.min(inputEl.scrollHeight, maxHeight);
+                inputEl.style.height = nextHeight + 'px';
+                inputEl.style.overflowY = inputEl.scrollHeight > maxHeight ? 'auto' : 'hidden';
+            };
+
+            var showFeedback = function (message, isError)
+            {
+                if (!feedbackEl)
+                {
+                    return;
+                }
+                feedbackEl.textContent = message || '';
+                feedbackEl.hidden = !message;
+                feedbackEl.classList.toggle('is-error', !!isError);
+            };
+
+            var setMessages = function (messages, appendOnly)
+            {
+                if (!messagesEl)
+                {
+                    return;
+                }
+                var list = Array.isArray(messages) ? messages : [];
+                if (!appendOnly)
+                {
+                    messagesEl.innerHTML = '';
+                    knownMessageIds = {};
+                }
+                var added = false;
+                list.forEach(function (message)
+                {
+                    var id = String(message.id || '');
+                    if (id === '' || knownMessageIds[id])
+                    {
+                        return;
+                    }
+                    knownMessageIds[id] = true;
+                    messagesEl.insertAdjacentHTML('beforeend', renderMessageHtml(message));
+                    added = true;
+                });
+                if (emptyEl)
+                {
+                    emptyEl.hidden = Object.keys(knownMessageIds).length > 0;
+                }
+                if (added || !appendOnly)
+                {
+                    scrollMessagesToEnd();
+                }
+            };
+
+            var applyState = function (data)
+            {
+                if (!data || !data.success)
+                {
+                    showFeedback(<?= json_encode(__('theevraagje.load_failed'), JSON_UNESCAPED_UNICODE) ?>, true);
+                    return;
+                }
+                showFeedback('');
+                if (imageEl)
+                {
+                    if (data.has_image && data.image_url)
+                    {
+                        imageEl.hidden = false;
+                        imageEl.src = String(data.image_url);
+                        if (imageFallback)
+                        {
+                            imageFallback.hidden = true;
+                        }
+                    }
+                    else
+                    {
+                        imageEl.hidden = true;
+                        imageEl.removeAttribute('src');
+                        if (imageFallback)
+                        {
+                            imageFallback.hidden = false;
+                        }
+                    }
+                }
+                setMessages(data.messages || [], false);
+            };
+
+            var loadState = function (appendOnly)
+            {
+                if (loadInFlight || typeof apiFetchJson !== 'function')
+                {
+                    return Promise.resolve();
+                }
+                loadInFlight = true;
+                return apiFetchJson('theevraagje_state', {
+                    viewer_email: viewerEmail
+                }).then(function (data)
+                {
+                    loadInFlight = false;
+                    if (appendOnly && data && data.success)
+                    {
+                        setMessages(data.messages || [], true);
+                        return;
+                    }
+                    applyState(data);
+                }).catch(function ()
+                {
+                    loadInFlight = false;
+                    if (!appendOnly)
+                    {
+                        showFeedback(<?= json_encode(__('theevraagje.load_failed'), JSON_UNESCAPED_UNICODE) ?>, true);
+                    }
+                });
+            };
+
+            var stopPolling = function ()
+            {
+                if (pollTimer)
+                {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                }
+            };
+
+            var startPolling = function ()
+            {
+                stopPolling();
+                pollTimer = setInterval(function ()
+                {
+                    if (!modal.hidden)
+                    {
+                        loadState(true);
+                    }
+                }, 12000);
+            };
+
+            var closeModal = function ()
+            {
+                modal.hidden = true;
+                modal.setAttribute('aria-hidden', 'true');
+                stopPolling();
+            };
+
+            var openModal = function ()
+            {
+                modal.hidden = false;
+                modal.setAttribute('aria-hidden', 'false');
+                showFeedback('');
+                loadUsers().then(function ()
+                {
+                    return loadState(false);
+                }).then(function ()
+                {
+                    resizeInput();
+                    if (inputEl)
+                    {
+                        inputEl.focus();
+                    }
+                });
+                startPolling();
+            };
+
+            var sendMessage = function ()
+            {
+                if (!inputEl || sendInFlight || typeof apiFetchJson !== 'function')
+                {
+                    return;
+                }
+                var text = String(inputEl.value || '').trim();
+                if (text === '')
+                {
+                    return;
+                }
+                sendInFlight = true;
+                showFeedback('');
+                apiFetchJson('theevraagje_send', {
+                    csrf_token: csrfToken,
+                    viewer_email: viewerEmail,
+                    message_text: text
+                }).then(function (data)
+                {
+                    sendInFlight = false;
+                    if (!data || !data.success || !data.message)
+                    {
+                        showFeedback(<?= json_encode(__('theevraagje.send_failed'), JSON_UNESCAPED_UNICODE) ?>, true);
+                        return;
+                    }
+                    inputEl.value = '';
+                    resizeInput();
+                    setMessages([data.message], true);
+                }).catch(function ()
+                {
+                    sendInFlight = false;
+                    showFeedback(<?= json_encode(__('theevraagje.send_failed'), JSON_UNESCAPED_UNICODE) ?>, true);
+                });
+            };
+
+            openButton.addEventListener('click', openModal);
+            if (closeButton)
+            {
+                closeButton.addEventListener('click', closeModal);
+            }
+            modal.addEventListener('click', function (event)
+            {
+                if (event.target === modal)
+                {
+                    closeModal();
+                }
+            });
+            document.addEventListener('keydown', function (event)
+            {
+                if (event.key === 'Escape' && !modal.hidden)
+                {
+                    closeModal();
+                }
+            });
+            if (inputEl)
+            {
+                inputEl.addEventListener('input', resizeInput);
+                inputEl.addEventListener('keydown', function (event)
+                {
+                    if (event.key === 'Enter' && !event.shiftKey)
+                    {
+                        event.preventDefault();
+                        sendMessage();
+                    }
+                });
+                resizeInput();
+            }
+        })();
+
         var changelogSection = document.querySelector('[data-changelog-section]');
         if (changelogSection)
         {

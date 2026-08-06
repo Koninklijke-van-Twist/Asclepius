@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'user_directory.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'user_avatars.php';
 
 function shouldIncludeGhostMessages(bool $canManageTickets, bool $isAdminPortal, string $view): bool
 {

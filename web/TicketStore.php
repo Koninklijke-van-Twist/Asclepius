@@ -1070,6 +1070,214 @@ class TicketStore
         ];
     }
 
+    public function theevraagjeImagePath(): string
+    {
+        return THEEVRAAGJE_IMAGE_FILE;
+    }
+
+    public function hasTheevraagjeImage(): bool
+    {
+        $path = $this->theevraagjeImagePath();
+
+        return is_file($path) && filesize($path) > 0;
+    }
+
+    public function clearTheevraagjeMessages(): void
+    {
+        $this->pdo->exec('DELETE FROM theevraagje_messages');
+    }
+
+    public function clearTheevraagjeImage(): void
+    {
+        $path = $this->theevraagjeImagePath();
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    /**
+     * Fetch a fresh theevraagje PNG and clear chat messages for the new day.
+     *
+     * @return array{success: bool, fetched: bool, cleared_messages: bool, error?: string}
+     */
+    public function refreshTheevraagje(): array
+    {
+        $this->clearTheevraagjeMessages();
+        $this->clearTheevraagjeImage();
+
+        $fetch = $this->fetchTheevraagjeImage();
+        return [
+            'success' => !empty($fetch['success']),
+            'fetched' => !empty($fetch['success']),
+            'cleared_messages' => true,
+            'error' => (string) ($fetch['error'] ?? ''),
+        ];
+    }
+
+    /**
+     * Ensure an image exists; fetch if missing (does not clear messages).
+     *
+     * @return array{success: bool, fetched: bool, error?: string}
+     */
+    public function ensureTheevraagjeImage(): array
+    {
+        if ($this->hasTheevraagjeImage()) {
+            return [
+                'success' => true,
+                'fetched' => false,
+            ];
+        }
+
+        $fetch = $this->fetchTheevraagjeImage();
+        return [
+            'success' => !empty($fetch['success']),
+            'fetched' => !empty($fetch['success']),
+            'error' => (string) ($fetch['error'] ?? ''),
+        ];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    private function fetchTheevraagjeImage(): array
+    {
+        $directory = THEEVRAAGJE_DIRECTORY;
+        if (!is_dir($directory) && !@mkdir($directory, 0750, true) && !is_dir($directory)) {
+            return [
+                'success' => false,
+                'error' => 'directory_unwritable',
+            ];
+        }
+
+        $binary = null;
+        if (function_exists('curl_init')) {
+            $curl = curl_init(THEEVRAAGJE_SOURCE_URL);
+            if ($curl !== false) {
+                curl_setopt_array($curl, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                    CURLOPT_TIMEOUT => 30,
+                    CURLOPT_USERAGENT => 'AsclepiusTheevraagje/1.0',
+                ]);
+                $caInfo = ini_get('curl.cainfo');
+                if ($caInfo === false || trim((string) $caInfo) === '' || !is_file((string) $caInfo)) {
+                    curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
+                }
+                $response = curl_exec($curl);
+                $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+                $contentType = strtolower((string) curl_getinfo($curl, CURLINFO_CONTENT_TYPE));
+                curl_close($curl);
+                if ($response !== false && $status >= 200 && $status < 300) {
+                    $binary = (string) $response;
+                    if ($contentType !== '' && strpos($contentType, 'image/') === false && !$this->looksLikePng($binary)) {
+                        $binary = null;
+                    }
+                }
+            }
+        }
+
+        if ($binary === null) {
+            $context = stream_context_create([
+                'http' => [
+                    'timeout' => 30,
+                    'header' => "User-Agent: AsclepiusTheevraagje/1.0\r\n",
+                ],
+            ]);
+            $response = @file_get_contents(THEEVRAAGJE_SOURCE_URL, false, $context);
+            if ($response !== false) {
+                $binary = (string) $response;
+            }
+        }
+
+        if ($binary === null || $binary === '' || !$this->looksLikePng($binary)) {
+            return [
+                'success' => false,
+                'error' => 'fetch_failed',
+            ];
+        }
+
+        $target = $this->theevraagjeImagePath();
+        $tmp = $target . '.tmp';
+        if (@file_put_contents($tmp, $binary, LOCK_EX) === false) {
+            return [
+                'success' => false,
+                'error' => 'write_failed',
+            ];
+        }
+        if (!@rename($tmp, $target)) {
+            @unlink($tmp);
+            return [
+                'success' => false,
+                'error' => 'write_failed',
+            ];
+        }
+
+        return ['success' => true];
+    }
+
+    private function looksLikePng(string $binary): bool
+    {
+        return strncmp($binary, "\x89PNG\r\n\x1a\n", 8) === 0;
+    }
+
+    /**
+     * @return list<array{id: int, user_email: string, message_text: string, created_at: string}>
+     */
+    public function getTheevraagjeMessages(): array
+    {
+        $statement = $this->pdo->query(
+            'SELECT id, user_email, message_text, created_at
+             FROM theevraagje_messages
+             ORDER BY id ASC'
+        );
+        $rows = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $rows[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'user_email' => strtolower(trim((string) ($row['user_email'] ?? ''))),
+                'message_text' => (string) ($row['message_text'] ?? ''),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{id: int, user_email: string, message_text: string, created_at: string}|null
+     */
+    public function addTheevraagjeMessage(string $userEmail, string $messageText): ?array
+    {
+        $userEmail = strtolower(trim($userEmail));
+        $messageText = trim($messageText);
+        if ($userEmail === '' || $messageText === '') {
+            return null;
+        }
+        if (mb_strlen($messageText) > 4000) {
+            $messageText = mb_substr($messageText, 0, 4000);
+        }
+
+        $createdAt = date('c');
+        $statement = $this->pdo->prepare(
+            'INSERT INTO theevraagje_messages (user_email, message_text, created_at)
+             VALUES (:user_email, :message_text, :created_at)'
+        );
+        $statement->execute([
+            ':user_email' => $userEmail,
+            ':message_text' => $messageText,
+            ':created_at' => $createdAt,
+        ]);
+
+        return [
+            'id' => (int) $this->pdo->lastInsertId(),
+            'user_email' => $userEmail,
+            'message_text' => $messageText,
+            'created_at' => $createdAt,
+        ];
+    }
+
     public function getIctUserStats(): array
     {
         if ($this->ictUsers === []) {
@@ -3057,6 +3265,19 @@ class TicketStore
         $this->pdo->exec(
             'CREATE INDEX IF NOT EXISTS idx_category_open_snapshots_date
              ON category_open_snapshots(snapshot_date)'
+        );
+
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS theevraagje_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_email TEXT NOT NULL,
+                message_text TEXT NOT NULL DEFAULT "",
+                created_at TEXT NOT NULL
+            )'
+        );
+        $this->pdo->exec(
+            'CREATE INDEX IF NOT EXISTS idx_theevraagje_messages_created
+             ON theevraagje_messages(created_at)'
         );
 
         $this->ensureColumn('tickets', 'title', 'TEXT NOT NULL DEFAULT ""');

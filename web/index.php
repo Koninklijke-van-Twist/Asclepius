@@ -94,6 +94,7 @@ $apiUrl = 'api.php';
         </main>
     </div>
     <?php require __DIR__ . '/content/views/view_ticket_share_modal.php'; ?>
+    <?php require __DIR__ . '/content/views/view_theevraagje_modal.php'; ?>
     <?php require __DIR__ . '/content/views/page_js.php'; ?>
     <?php require __DIR__ . '/content/views/bigscreen_js.php'; ?>
     </body>

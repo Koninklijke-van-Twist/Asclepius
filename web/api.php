@@ -1125,6 +1125,95 @@ function handleCategoryOpenSnapshotsApiAction(TicketStore $store, array $payload
     ];
 }
 
+function mapTheevraagjeMessageForApi(array $message): array
+{
+    $email = strtolower(trim((string) ($message['user_email'] ?? '')));
+
+    return [
+        'id' => (int) ($message['id'] ?? 0),
+        'user_email' => $email,
+        'user_label' => $email !== '' ? formatUserDisplayName($email) : '',
+        'message_text' => (string) ($message['message_text'] ?? ''),
+        'created_at' => (string) ($message['created_at'] ?? ''),
+        'created_at_label' => formatDateTime((string) ($message['created_at'] ?? '')),
+        'colors' => asclepius_chat_colors_for_email($email),
+        'user_color' => emailToHexColor($email),
+    ];
+}
+
+function handleTheevraagjeStateApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $viewerEmail = strtolower(trim((string) (
+        $apiClient['email'] ?? ($payload['viewer_email'] ?? '')
+    )));
+    if ($viewerEmail === '' || !filter_var($viewerEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_user',
+        ];
+    }
+
+    $ensure = $store->ensureTheevraagjeImage();
+    $messages = array_map('mapTheevraagjeMessageForApi', $store->getTheevraagjeMessages());
+    $hasImage = $store->hasTheevraagjeImage();
+
+    return [
+        'success' => true,
+        'has_image' => $hasImage,
+        'image_url' => $hasImage
+            ? ('theevraagje_image.php?t=' . (string) filemtime(THEEVRAAGJE_IMAGE_FILE))
+            : '',
+        'fetched' => !empty($ensure['fetched']),
+        'image_error' => $hasImage ? '' : (string) ($ensure['error'] ?? 'missing'),
+        'messages' => $messages,
+    ];
+}
+
+function handleTheevraagjeSendApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    ensureApiSessionStarted();
+    $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+    $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+    if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+        return [
+            'success' => false,
+            'error' => 'csrf',
+        ];
+    }
+
+    $viewerEmail = strtolower(trim((string) (
+        $apiClient['email'] ?? ($payload['viewer_email'] ?? ($_SESSION['user']['email'] ?? ''))
+    )));
+    if ($viewerEmail === '' || !filter_var($viewerEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_user',
+        ];
+    }
+
+    $text = trim((string) ($payload['message_text'] ?? ($payload['text'] ?? '')));
+    if ($text === '') {
+        return [
+            'success' => false,
+            'error' => 'empty_message',
+        ];
+    }
+
+    $store->ensureTheevraagjeImage();
+    $message = $store->addTheevraagjeMessage($viewerEmail, $text);
+    if ($message === null) {
+        return [
+            'success' => false,
+            'error' => 'save_failed',
+        ];
+    }
+
+    return [
+        'success' => true,
+        'message' => mapTheevraagjeMessageForApi($message),
+    ];
+}
+
 function handleSaveTicketOverviewSearchApiAction(array $payload, ?array $apiClient): array
 {
     ensureApiSessionStarted();
@@ -1787,6 +1876,15 @@ if ($method === 'POST') {
     if ($action === 'category_open_snapshots') {
         $snapshotResponse = handleCategoryOpenSnapshotsApiAction($store, $payload, $apiClient);
         sendJson(!empty($snapshotResponse['success']) ? 200 : 422, $snapshotResponse);
+    }
+
+    if ($action === 'theevraagje_state') {
+        sendJson(200, handleTheevraagjeStateApiAction($store, $payload, $apiClient));
+    }
+
+    if ($action === 'theevraagje_send') {
+        $sendResponse = handleTheevraagjeSendApiAction($store, $payload, $apiClient);
+        sendJson(!empty($sendResponse['success']) ? 200 : 422, $sendResponse);
     }
 
     if ($action === 'bigscreen_version') {

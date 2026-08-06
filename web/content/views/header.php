@@ -31,7 +31,11 @@ $currentLang = getCurrentLanguage();
     </div>
 
     <div class="brand">
-        <img class="brand-logo" src="kvtlogo.png" alt="KVT logo">
+        <button type="button" class="brand-logo-button" data-role="theevraagje-open"
+            data-viewer-email="<?= h($userEmail) ?>"
+            title="<?= h(__('theevraagje.open_hint')) ?>" aria-label="<?= h(__('theevraagje.open_hint')) ?>">
+            <img class="brand-logo" src="kvtlogo.png" alt="KVT logo">
+        </button>
         <div>
             <p class="eyebrow">Asclepius</p>
             <h1><?= h(__('header.title')) ?></h1>

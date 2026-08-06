@@ -31,6 +31,7 @@ try {
 
     $store = new TicketStore(DATABASE_FILE, UPLOAD_DIRECTORY, $ictUsers, TICKET_CATEGORIES);
     $result = $store->snapshotOpenTicketCountsByCategory();
+    $theevraagje = $store->refreshTheevraagje();
 
     echo json_encode([
         'success' => true,
@@ -38,6 +39,12 @@ try {
         'counts' => $result['counts'],
         'total_open' => array_sum(array_map('intval', $result['counts'])),
         'recorded_at' => date('c'),
+        'theevraagje' => [
+            'success' => !empty($theevraagje['success']),
+            'fetched' => !empty($theevraagje['fetched']),
+            'cleared_messages' => !empty($theevraagje['cleared_messages']),
+            'error' => (string) ($theevraagje['error'] ?? ''),
+        ],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $exception) {
     http_response_code(500);
