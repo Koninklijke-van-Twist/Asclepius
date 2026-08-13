@@ -1288,20 +1288,38 @@
 
             var formatTrendDateLabel = function (isoDate)
             {
-                var parts = String(isoDate || '').split('-');
+                var raw = String(isoDate || '');
+                var dayPart = raw.indexOf(' ') >= 0 ? raw.split(' ')[0] : raw;
+                var parts = dayPart.split('-');
                 if (parts.length !== 3)
                 {
-                    return String(isoDate || '');
+                    return raw;
                 }
                 var year = parseInt(parts[0], 10);
                 var month = parseInt(parts[1], 10);
                 var day = parseInt(parts[2], 10);
                 if (!year || !month || !day || month < 1 || month > 12)
                 {
-                    return String(isoDate || '');
+                    return raw;
                 }
                 var monthLabel = shortMonthLabels[month - 1] || parts[1];
                 return day + ' ' + monthLabel + ' ' + year;
+            };
+
+            var trendTimestampDay = function (value)
+            {
+                var raw = String(value || '');
+                return raw.indexOf(' ') >= 0 ? raw.split(' ')[0] : raw;
+            };
+
+            var trendTimestampIsDayStart = function (value)
+            {
+                var raw = String(value || '');
+                if (/^\d{4}-\d{2}-\d{2}$/.test(raw))
+                {
+                    return true;
+                }
+                return / \d{2}:00:00$/.test(raw) && raw.slice(11, 13) === '00';
             };
 
             var trendSeriesKey = function (row)
@@ -1334,7 +1352,9 @@
                 var padding = { top: 18, right: 18, bottom: 42, left: 46 };
                 var plotWidth = width - padding.left - padding.right;
                 var plotHeight = height - padding.top - padding.bottom;
-                var dates = Array.isArray(data.dates) ? data.dates : [];
+                var dates = Array.isArray(data.timestamps)
+                    ? data.timestamps
+                    : (Array.isArray(data.dates) ? data.dates : []);
                 var series = Array.isArray(data.series) ? data.series : [];
                 var knownKeys = {};
                 series.forEach(function (row)
@@ -1427,10 +1447,25 @@
                 }
 
                 var xStep = dates.length > 1 ? (plotWidth / (dates.length - 1)) : 0;
-                var labelEvery = Math.max(1, Math.ceil(dates.length / 10));
+                var dayLabelIndexes = [];
+                var lastLabeledDay = '';
                 dates.forEach(function (date, index)
                 {
-                    if (index % labelEvery !== 0 && index !== dates.length - 1)
+                    var day = trendTimestampDay(date);
+                    if (day !== lastLabeledDay && (trendTimestampIsDayStart(date) || index === 0))
+                    {
+                        dayLabelIndexes.push(index);
+                        lastLabeledDay = day;
+                    }
+                });
+                if (dayLabelIndexes.length === 0 || dayLabelIndexes[dayLabelIndexes.length - 1] !== dates.length - 1)
+                {
+                    dayLabelIndexes.push(dates.length - 1);
+                }
+                var labelEvery = Math.max(1, Math.ceil(dayLabelIndexes.length / 10));
+                dayLabelIndexes.forEach(function (index, labelIndex)
+                {
+                    if (labelIndex % labelEvery !== 0 && labelIndex !== dayLabelIndexes.length - 1)
                     {
                         return;
                     }
@@ -1440,7 +1475,7 @@
                         y: height - 14,
                         'text-anchor': 'middle'
                     });
-                    xLabel.textContent = formatTrendDateLabel(date);
+                    xLabel.textContent = formatTrendDateLabel(dates[index]);
                     chartSvg.appendChild(xLabel);
                 });
 

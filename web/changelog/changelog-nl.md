@@ -1,3 +1,11 @@
+id: 2026-08-13-hourly-open-tickets-trend
+date: 2026-08-13
+title: Open-ticketsgrafiek per uur
+author: Tim Falken
+
+De trendgrafiek op **ICT-stats** haalt openstaande tickets nu uit **uurlijkse** snapshots (`hourly.php`), niet meer uit de nightly. Onveranderde uren worden niet opnieuw opgeslagen; de lijn vult die uren met de laatste bekende stand. Op de as blijven dagen zichtbaar, met uurlijkse detail in de lijn. `nightly.php` doet alleen nog het theevraagje.
+
+---
 id: 2026-08-05-date-format
 date: 2026-08-05
 title: Datums als 15 jun 2026
@@ -7,11 +15,11 @@ Datums op de ticketingpagina (aanmaak-/wijzigingsdatum, deadline, grafiekassen, 
 
 ---
 id: 2026-08-05-open-tickets-trend
-date: 2026-08-05
+date: 2026-08-13
 title: Open tickets over tijd per categorie
 author: Tim Falken
 
-Op **ICT-stats** staat nu een subtabel **Open tickets over tijd**: een scherpe SVG-grafiek met openstaande tickets per categorie. Standaard zie je de afgelopen maand tot vandaag; met de datums kun je live een andere periode kiezen. Klik op een categorie in de legenda om die lijn aan of uit te zetten. Elke nacht om 02:00 schrijft `nightly.php` een snapshot van het aantal niet-afgehandelde tickets per categorie.
+Op **ICT-stats** staat een subtabel **Open tickets over tijd**: een scherpe SVG-grafiek met openstaande tickets per categorie. Standaard zie je de afgelopen maand tot vandaag; met de datums kun je live een andere periode kiezen. Klik op een categorie in de legenda om die lijn aan of uit te zetten. Snapshots worden **uurlijks** opgeslagen wanneer het aantal open tickets per categorie verandert (`hourly.php`).
 
 ---
 id: 2026-08-05-ticket-appearance-prefs

@@ -1,3 +1,11 @@
+id: 2026-08-13-hourly-open-tickets-trend
+date: 2026-08-13
+title: Graphique tickets ouverts à l’heure
+author: Tim Falken
+
+Le graphique de tendance dans **Statistiques ICT** utilise désormais des instantanés **horaires** (`hourly.php`) au lieu des nocturnes. Les heures inchangées ne sont pas réenregistrées ; la ligne les remplit avec la dernière valeur connue. L’axe montre toujours les jours, avec le détail horaire dans la ligne. `nightly.php` ne gère plus que la question du thé.
+
+---
 id: 2026-08-05-date-format
 date: 2026-08-05
 title: Dates au format 15 juin 2026
@@ -7,11 +15,11 @@ Les dates sur les pages de tickets (création/mise à jour, échéance, axes du 
 
 ---
 id: 2026-08-05-open-tickets-trend
-date: 2026-08-05
+date: 2026-08-13
 title: Tickets ouverts dans le temps par catégorie
 author: Tim Falken
 
-Dans **Statistiques ICT**, un sous-onglet **Tickets ouverts dans le temps** montre un graphique SVG net des tickets ouverts par catégorie. Par défaut : le mois dernier jusqu’à aujourd’hui ; les sélecteurs de date permettent d’ajuster la période en direct. Cliquez sur une catégorie dans la légende pour afficher ou masquer cette ligne. Chaque nuit à 02:00, `nightly.php` enregistre un instantané du nombre de tickets non résolus par catégorie.
+Dans **Statistiques ICT**, un sous-onglet **Tickets ouverts dans le temps** montre un graphique SVG net des tickets ouverts par catégorie. Par défaut : le mois dernier jusqu’à aujourd’hui ; les sélecteurs de date permettent d’ajuster la période en direct. Cliquez sur une catégorie dans la légende pour afficher ou masquer cette ligne. Les instantanés sont enregistrés **chaque heure** lorsque le nombre de tickets ouverts par catégorie change (`hourly.php`).
 
 ---
 id: 2026-08-05-ticket-appearance-prefs

@@ -1116,11 +1116,14 @@ function handleCategoryOpenSnapshotsApiAction(TicketStore $store, array $payload
         ];
     }
 
+    $timestamps = array_values(array_map('strval', $snapshot['timestamps'] ?? ($snapshot['dates'] ?? [])));
+
     return [
         'success' => true,
         'from_date' => $fromDate,
         'to_date' => $toDate,
-        'dates' => $snapshot['dates'],
+        'timestamps' => $timestamps,
+        'dates' => $timestamps,
         'series' => $series,
     ];
 }

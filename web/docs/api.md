@@ -142,7 +142,7 @@ Als er al een open ticket met dezelfde titel bestaat, is `created` `false` en wo
 
 ## Openstaande tickets over tijd (per categorie)
 
-Haal snapshot-datapunten op voor de grafiek “open tickets over tijd”. Bron: nachtelijke snapshots (`nightly.php`); voor vandaag kan de actuele stand worden meegenomen als er nog geen snapshot is.
+Haal snapshot-datapunten op voor de grafiek “open tickets over tijd”. Bron: uurlijkse sparse snapshots (`hourly.php`); ontbrekende uren worden vooruitgevuld met de laatste bekende stand. Het huidige uur kan de actuele stand tonen.
 
 - **GET** `api.php?action=category_open_snapshots&from_date=YYYY-MM-DD[&to_date=YYYY-MM-DD]`
 - **POST** JSON met `action: "category_open_snapshots"`
@@ -161,19 +161,30 @@ Voorbeeldrespons:
   "success": true,
   "from_date": "2026-07-05",
   "to_date": "2026-08-05",
-  "dates": ["2026-07-05", "2026-07-06"],
+  "timestamps": ["2026-07-05 00:00:00", "2026-07-05 01:00:00"],
+  "dates": ["2026-07-05 00:00:00", "2026-07-05 01:00:00"],
   "series": [
     {
       "category": "AFAS",
       "label": "AFAS",
       "color": "#c2410c",
-      "points": [3, 4]
+      "points": [3, 3]
     }
   ]
 }
 ```
 
-`points[i]` hoort bij `dates[i]` (`null` = geen snapshot op die dag).
+`points[i]` hoort bij `timestamps[i]` (`null` = nog geen eerdere snapshot om vooruit te vullen). De grafiekas toont dagen; de lijn heeft uurlijkse resolutie.
+
+### Uurlijkse snapshot (`hourly.php`)
+
+Externe scheduler (GET, elk uur):
+
+- **GET** `hourly.php`
+
+Slaat per categorie alleen een rij op als het aantal open tickets is veranderd t.o.v. de laatste snapshot (sparse). Response bevat o.a. `snapshot_at`, `counts`, `written`, `skipped`.
+
+`nightly.php` doet geen ticket-snapshots meer (alleen theevraagje).
 
 ## Geldige categorieën
 

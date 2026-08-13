@@ -1,3 +1,11 @@
+id: 2026-08-13-hourly-open-tickets-trend
+date: 2026-08-13
+title: Offene-Tickets-Diagramm stündlich
+author: Tim Falken
+
+Das Trenddiagramm unter **ICT-Statistiken** nutzt jetzt **stündliche** Snapshots (`hourly.php`) statt nächtlicher. Unveränderte Stunden werden nicht erneut gespeichert; die Linie füllt sie mit dem letzten bekannten Wert. Die Achse zeigt weiter Tage, die Linie den Stundenverlauf. `nightly.php` erledigt nur noch die Tee-Frage.
+
+---
 id: 2026-08-05-date-format
 date: 2026-08-05
 title: Daten als 15 Jun 2026
@@ -7,11 +15,11 @@ Daten auf den Ticketing-Seiten (Erstellt/Aktualisiert, Fälligkeit, Diagrammachs
 
 ---
 id: 2026-08-05-open-tickets-trend
-date: 2026-08-05
+date: 2026-08-13
 title: Offene Tickets im Zeitverlauf je Kategorie
 author: Tim Falken
 
-Unter **ICT-Statistiken** gibt es jetzt den Untertab **Offene Tickets im Zeitverlauf**: ein scharfes SVG-Diagramm offener Tickets pro Kategorie. Standard ist der letzte Monat bis heute; mit den Datumsfeldern kannst du den Zeitraum live anpassen. Klicke auf eine Kategorie in der Legende, um die Linie ein- oder auszublenden. Jede Nacht um 02:00 speichert `nightly.php` einen Snapshot der nicht erledigten Tickets pro Kategorie.
+Unter **ICT-Statistiken** gibt es den Untertab **Offene Tickets im Zeitverlauf**: ein scharfes SVG-Diagramm offener Tickets pro Kategorie. Standard ist der letzte Monat bis heute; mit den Datumsfeldern kannst du den Zeitraum live anpassen. Klicke auf eine Kategorie in der Legende, um die Linie ein- oder auszublenden. Snapshots werden **stündlich** gespeichert, wenn sich die offenen Tickets pro Kategorie ändern (`hourly.php`).
 
 ---
 id: 2026-08-05-ticket-appearance-prefs

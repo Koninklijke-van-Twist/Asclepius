@@ -1,9 +1,8 @@
 <?php
 
 /**
- * Nightly endpoint (GET).
- * Called by an external scheduler around 01:00 for daily maintenance tasks (theevraagje).
- * Open-ticket trend snapshots are collected hourly via hourly.php.
+ * Hourly snapshot endpoint (GET).
+ * Called by an external scheduler every hour to store sparse open-ticket counts per category.
  */
 
 declare(strict_types=1);
@@ -31,23 +30,22 @@ try {
     }
 
     $store = new TicketStore(DATABASE_FILE, UPLOAD_DIRECTORY, $ictUsers, TICKET_CATEGORIES);
-    $theevraagje = $store->refreshTheevraagje();
+    $result = $store->snapshotOpenTicketCountsHourly();
 
     echo json_encode([
         'success' => true,
+        'snapshot_at' => $result['snapshot_at'],
+        'counts' => $result['counts'],
+        'written' => $result['written'],
+        'skipped' => $result['skipped'],
+        'total_open' => array_sum(array_map('intval', $result['counts'])),
         'recorded_at' => date('c'),
-        'theevraagje' => [
-            'success' => !empty($theevraagje['success']),
-            'fetched' => !empty($theevraagje['fetched']),
-            'cleared_messages' => !empty($theevraagje['cleared_messages']),
-            'error' => (string) ($theevraagje['error'] ?? ''),
-        ],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $exception) {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'nightly_failed',
+        'error' => 'snapshot_failed',
         'details' => $exception->getMessage(),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }

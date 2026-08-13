@@ -1,3 +1,11 @@
+id: 2026-08-13-hourly-open-tickets-trend
+date: 2026-08-13
+title: Open-tickets chart by the hour
+author: Tim Falken
+
+The **ICT stats** trend chart now uses **hourly** snapshots (`hourly.php`) instead of nightly ones. Unchanged hours are not stored again; the line fills those hours with the last known value. The axis still shows days, with hourly detail in the line. `nightly.php` now only handles the tea question.
+
+---
 id: 2026-08-05-date-format
 date: 2026-08-05
 title: Dates as 15 Jun 2026
@@ -7,11 +15,11 @@ Dates on the ticketing pages (created/updated, due date, chart axes, holiday det
 
 ---
 id: 2026-08-05-open-tickets-trend
-date: 2026-08-05
+date: 2026-08-13
 title: Open tickets over time by category
 author: Tim Falken
 
-**ICT stats** now has a subtab **Open tickets over time**: a sharp SVG chart of open tickets per category. By default you see the past month through today; the date pickers let you change the range live. Click a category in the legend to show or hide that line. Every night at 02:00, `nightly.php` stores a snapshot of unresolved ticket counts per category.
+**ICT stats** has a subtab **Open tickets over time**: a sharp SVG chart of open tickets per category. By default you see the past month through today; the date pickers let you change the range live. Click a category in the legend to show or hide that line. Snapshots are stored **hourly** when open-ticket counts per category change (`hourly.php`).
 
 ---
 id: 2026-08-05-ticket-appearance-prefs
