@@ -1,3 +1,11 @@
+id: 2026-08-13-open-trend-hover
+date: 2026-08-13
+title: Graphique tendance : valeur au survol
+author: Tim Falken
+
+Dans le graphique **Tickets ouverts dans le temps**, les points fixes sur les lignes ont disparu. Au survol (ou au toucher), seul le point le plus proche affiche une pastille avec le nombre actuel.
+
+---
 id: 2026-08-13-hourly-open-tickets-trend
 date: 2026-08-13
 title: Graphique tickets ouverts à l’heure

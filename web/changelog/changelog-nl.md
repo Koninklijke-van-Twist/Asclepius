@@ -1,3 +1,11 @@
+id: 2026-08-13-open-trend-hover
+date: 2026-08-13
+title: Trendgrafiek: waarde bij hover
+author: Tim Falken
+
+In de grafiek **Open tickets over tijd** staan geen vaste bolletjes meer op de lijnen. Bij hoveren (of aanraken) verschijnt alleen bij het dichtstbijzijnde punt een bol met het actuele aantal.
+
+---
 id: 2026-08-13-hourly-open-tickets-trend
 date: 2026-08-13
 title: Open-ticketsgrafiek per uur

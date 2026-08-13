@@ -1479,6 +1479,7 @@
                     chartSvg.appendChild(xLabel);
                 });
 
+                var hoverPoints = [];
                 visibleSeries.forEach(function (row)
                 {
                     var points = Array.isArray(row.points) ? row.points : [];
@@ -1500,6 +1501,13 @@
                         var x = padding.left + (index * xStep);
                         var y = padding.top + plotHeight - ((Number(point) / maxValue) * plotHeight);
                         currentChunk.push({ x: x, y: y });
+                        hoverPoints.push({
+                            x: x,
+                            y: y,
+                            value: Number(point),
+                            color: color,
+                            label: String(row.label || row.category || '')
+                        });
                     });
                     if (currentChunk.length > 0)
                     {
@@ -1522,26 +1530,115 @@
                             stroke: color,
                             'stroke-width': 2,
                             'stroke-linejoin': 'round',
-                            'stroke-linecap': 'round'
-                        }));
-                    });
-
-                    points.forEach(function (point, index)
-                    {
-                        if (point === null || point === undefined)
-                        {
-                            return;
-                        }
-                        var x = padding.left + (index * xStep);
-                        var y = padding.top + plotHeight - ((Number(point) / maxValue) * plotHeight);
-                        chartSvg.appendChild(svgEl('circle', {
-                            cx: x.toFixed(2),
-                            cy: y.toFixed(2),
-                            r: 2.5,
-                            fill: color
+                            'stroke-linecap': 'round',
+                            'pointer-events': 'none'
                         }));
                     });
                 });
+
+                var hoverGroup = svgEl('g', {
+                    class: 'stats-trend-hover',
+                    visibility: 'hidden',
+                    'pointer-events': 'none'
+                });
+                var hoverCircle = svgEl('circle', {
+                    class: 'stats-trend-hover-dot',
+                    cx: 0,
+                    cy: 0,
+                    r: 12,
+                    fill: '#64748b',
+                    stroke: '#ffffff',
+                    'stroke-width': 2
+                });
+                var hoverValue = svgEl('text', {
+                    class: 'stats-trend-hover-value',
+                    x: 0,
+                    y: 0,
+                    'text-anchor': 'middle',
+                    'dominant-baseline': 'central'
+                });
+                hoverGroup.appendChild(hoverCircle);
+                hoverGroup.appendChild(hoverValue);
+                chartSvg.appendChild(hoverGroup);
+
+                var hitArea = svgEl('rect', {
+                    x: padding.left,
+                    y: padding.top,
+                    width: plotWidth,
+                    height: plotHeight,
+                    fill: 'transparent',
+                    class: 'stats-trend-hit'
+                });
+                chartSvg.appendChild(hitArea);
+
+                var svgPointFromEvent = function (event)
+                {
+                    var rect = chartSvg.getBoundingClientRect();
+                    if (!rect.width || !rect.height)
+                    {
+                        return null;
+                    }
+                    return {
+                        x: ((event.clientX - rect.left) / rect.width) * width,
+                        y: ((event.clientY - rect.top) / rect.height) * height
+                    };
+                };
+
+                var hideTrendHover = function ()
+                {
+                    hoverGroup.setAttribute('visibility', 'hidden');
+                };
+
+                var showNearestTrendHover = function (event)
+                {
+                    if (hoverPoints.length === 0)
+                    {
+                        hideTrendHover();
+                        return;
+                    }
+                    var cursor = svgPointFromEvent(event);
+                    if (!cursor)
+                    {
+                        hideTrendHover();
+                        return;
+                    }
+
+                    var nearest = null;
+                    var nearestDistance = Infinity;
+                    hoverPoints.forEach(function (point)
+                    {
+                        var dx = point.x - cursor.x;
+                        var dy = point.y - cursor.y;
+                        var distance = (dx * dx) + (dy * dy);
+                        if (distance < nearestDistance)
+                        {
+                            nearestDistance = distance;
+                            nearest = point;
+                        }
+                    });
+                    if (!nearest)
+                    {
+                        hideTrendHover();
+                        return;
+                    }
+
+                    var valueText = String(Math.round(nearest.value));
+                    var radius = valueText.length >= 3 ? 14 : 12;
+                    hoverCircle.setAttribute('cx', nearest.x.toFixed(2));
+                    hoverCircle.setAttribute('cy', nearest.y.toFixed(2));
+                    hoverCircle.setAttribute('r', String(radius));
+                    hoverCircle.setAttribute('fill', nearest.color);
+                    hoverValue.setAttribute('x', nearest.x.toFixed(2));
+                    hoverValue.setAttribute('y', nearest.y.toFixed(2));
+                    hoverValue.textContent = valueText;
+                    hoverGroup.setAttribute('visibility', 'visible');
+                };
+
+                hitArea.addEventListener('mousemove', showNearestTrendHover);
+                hitArea.addEventListener('mouseleave', hideTrendHover);
+                hitArea.addEventListener('touchstart', showNearestTrendHover, { passive: true });
+                hitArea.addEventListener('touchmove', showNearestTrendHover, { passive: true });
+                hitArea.addEventListener('touchend', hideTrendHover);
 
                 if (legend)
                 {

@@ -1343,6 +1343,17 @@
             fill: #5b6b82;
         }
 
+        .stats-trend-svg .stats-trend-hit {
+            cursor: crosshair;
+        }
+
+        .stats-trend-svg .stats-trend-hover-value {
+            font-size: 11px;
+            font-weight: 700;
+            fill: #ffffff;
+            pointer-events: none;
+        }
+
         .stats-trend-legend {
             display: flex;
             flex-wrap: wrap;

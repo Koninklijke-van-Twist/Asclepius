@@ -1,3 +1,11 @@
+id: 2026-08-13-open-trend-hover
+date: 2026-08-13
+title: Trend chart: value on hover
+author: Tim Falken
+
+In the **Open tickets over time** chart, fixed dots on the lines are gone. On hover (or touch), only the nearest point shows a dot with the current count.
+
+---
 id: 2026-08-13-hourly-open-tickets-trend
 date: 2026-08-13
 title: Open-tickets chart by the hour

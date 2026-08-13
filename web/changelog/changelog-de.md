@@ -1,3 +1,11 @@
+id: 2026-08-13-open-trend-hover
+date: 2026-08-13
+title: Trenddiagramm: Wert beim Hover
+author: Tim Falken
+
+Im Diagramm **Offene Tickets im Zeitverlauf** gibt es keine festen Punkte mehr auf den Linien. Beim Hover (oder Tippen) erscheint nur am nächsten Punkt ein Punkt mit der aktuellen Anzahl.
+
+---
 id: 2026-08-13-hourly-open-tickets-trend
 date: 2026-08-13
 title: Offene-Tickets-Diagramm stündlich
