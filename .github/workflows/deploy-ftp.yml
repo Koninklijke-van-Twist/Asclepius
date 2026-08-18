@@ -128,6 +128,10 @@ jobs:
             --exclude-glob index.php \
             --exclude-glob admin.php \
             ./web .
+
+          set cmd:fail-exit false
+          chmod 777 analytics
+
           bye
           EOF
 
