@@ -1094,6 +1094,72 @@
                 .getAttribute('data-user-is-admin') === '1';
             var appearanceSaveInFlight = false;
             var appearanceSaveQueued = false;
+            var appearanceSorter = appearancePrefsRoot.querySelector('[data-appearance-sorter]');
+            var appearanceSorterList = appearancePrefsRoot.querySelector('[data-appearance-sorter-list]');
+            var appearanceSorterAddButton = appearancePrefsRoot.querySelector('[data-appearance-sorter-add]');
+            var appearanceSorterResetButton = appearancePrefsRoot.querySelector('[data-appearance-sorter-reset]');
+            var appearanceSorterConfirm = appearancePrefsRoot.querySelector('[data-appearance-sorter-confirm]');
+            var appearanceSorterCancelButton = appearancePrefsRoot.querySelector('[data-appearance-sorter-cancel]');
+            var appearanceSorterConfirmDeleteButton = appearancePrefsRoot.querySelector('[data-appearance-sorter-confirm-delete]');
+            var appearancePreviewCards = Array.prototype.slice.call(appearancePrefsRoot.querySelectorAll('[data-preview-ticket]'));
+            var appearanceSortOptions = {};
+            var appearanceSortHelp = {};
+            var appearanceSortDirections = {};
+            var appearanceCurrentSortRules = [];
+            var appearanceDefaultSortRules = [];
+            var appearancePendingRemoveIndex = -1;
+            var appearanceDragIndex = -1;
+            var appearanceDropIndex = -1;
+            var appearanceDropSide = 'after';
+            var booleanSortFields = {
+                open_state: true,
+                in_progress_started: true
+            };
+            var ticketStatusOrder = {
+                'ingediend': 0,
+                'in behandeling': 1,
+                'afwachtende op gebruiker': 2,
+                'afwachtende op bestelling': 3,
+                'afwachtende op derde partij': 4,
+                'afgehandeld': 5
+            };
+
+            var parseAppearanceJsonAttribute = function (value, fallback)
+            {
+                try
+                {
+                    var parsed = JSON.parse(String(value || ''));
+                    return parsed && typeof parsed === 'object' ? parsed : fallback;
+                }
+                catch (error)
+                {
+                    return fallback;
+                }
+            };
+
+            if (appearanceSorter)
+            {
+                appearanceSortOptions = parseAppearanceJsonAttribute(
+                    appearanceSorter.getAttribute('data-sort-options'),
+                    {}
+                );
+                appearanceSortHelp = parseAppearanceJsonAttribute(
+                    appearanceSorter.getAttribute('data-sort-help'),
+                    {}
+                );
+                appearanceSortDirections = parseAppearanceJsonAttribute(
+                    appearanceSorter.getAttribute('data-sort-directions'),
+                    {}
+                );
+                appearanceCurrentSortRules = parseAppearanceJsonAttribute(
+                    appearanceSorter.getAttribute('data-sort-rules'),
+                    []
+                );
+                appearanceDefaultSortRules = parseAppearanceJsonAttribute(
+                    appearanceSorter.getAttribute('data-sort-default'),
+                    []
+                );
+            }
 
             var showAppearancePrefsFeedback = function (message, isError)
             {
@@ -1119,6 +1185,370 @@
                 }, 2200);
             };
 
+            var normalizeSortDirection = function (direction)
+            {
+                return String(direction || '').toLowerCase() === 'desc' ? 'desc' : 'asc';
+            };
+
+            var isBooleanSortField = function (field)
+            {
+                return !!booleanSortFields[String(field || '')];
+            };
+
+            var getSortDirectionLabel = function (field, direction)
+            {
+                var normalizedField = String(field || '');
+                var normalizedDirection = normalizeSortDirection(direction);
+                if (
+                    appearanceSortDirections
+                    && appearanceSortDirections[normalizedField]
+                    && appearanceSortDirections[normalizedField][normalizedDirection]
+                )
+                {
+                    return String(appearanceSortDirections[normalizedField][normalizedDirection]);
+                }
+
+                if (isBooleanSortField(normalizedField))
+                {
+                    return normalizedDirection === 'desc' ? 'Waar' : 'Niet waar';
+                }
+
+                return normalizedDirection === 'desc' ? 'Aflopend' : 'Oplopend';
+            };
+
+            var normalizeAppearanceSortRules = function (rules)
+            {
+                var rows = Array.isArray(rules) ? rules : [];
+                var allowedFields = Object.keys(appearanceSortOptions || {});
+                var allowedMap = {};
+                var normalized = [];
+                var seen = {};
+                allowedFields.forEach(function (field)
+                {
+                    allowedMap[String(field)] = true;
+                });
+                rows.forEach(function (row)
+                {
+                    if (!row || typeof row !== 'object')
+                    {
+                        return;
+                    }
+                    var field = String(row.field || '');
+                    if (!allowedMap[field] || seen[field])
+                    {
+                        return;
+                    }
+                    normalized.push({
+                        field: field,
+                        direction: normalizeSortDirection(row.direction)
+                    });
+                    seen[field] = true;
+                });
+
+                return normalized.length ? normalized : (Array.isArray(appearanceDefaultSortRules) ? appearanceDefaultSortRules.slice() : []);
+            };
+
+            appearanceCurrentSortRules = normalizeAppearanceSortRules(appearanceCurrentSortRules);
+            appearanceDefaultSortRules = normalizeAppearanceSortRules(appearanceDefaultSortRules);
+
+            var parsePreviewTicketSortData = function (card)
+            {
+                return parseAppearanceJsonAttribute(card.getAttribute('data-preview-sort'), {});
+            };
+
+            var ticketSortTimestamp = function (value)
+            {
+                var timestamp = Date.parse(String(value || ''));
+                return isNaN(timestamp) ? 0 : timestamp;
+            };
+
+            var ticketDueDateSortRank = function (value)
+            {
+                var raw = String(value || '').trim();
+                if (!raw)
+                {
+                    return Number.MAX_SAFE_INTEGER;
+                }
+                var timestamp = Date.parse(raw + 'T00:00:00');
+                return isNaN(timestamp) ? Number.MAX_SAFE_INTEGER : timestamp;
+            };
+
+            var compareTicketSortStrings = function (left, right)
+            {
+                return String(left || '').localeCompare(String(right || ''), undefined, { sensitivity: 'base' });
+            };
+
+            var comparePreviewTicketsByField = function (left, right, field, direction)
+            {
+                var multiplier = normalizeSortDirection(direction) === 'desc' ? -1 : 1;
+                var leftStatus = String(left.status || '').toLowerCase();
+                var rightStatus = String(right.status || '').toLowerCase();
+                var leftValue = 0;
+                var rightValue = 0;
+
+                switch (String(field || ''))
+                {
+                    case 'open_state':
+                        leftValue = leftStatus === 'afgehandeld' ? 1 : 0;
+                        rightValue = rightStatus === 'afgehandeld' ? 1 : 0;
+                        return (leftValue - rightValue) * multiplier;
+                    case 'in_progress_started':
+                        leftValue = leftStatus === 'ingediend' ? 0 : 1;
+                        rightValue = rightStatus === 'ingediend' ? 0 : 1;
+                        return (leftValue - rightValue) * multiplier;
+                    case 'priority':
+                        return (((Number(left.priority || 0)) - (Number(right.priority || 0))) || 0) * multiplier;
+                    case 'ticket_age':
+                        return (ticketSortTimestamp(left.created_at) - ticketSortTimestamp(right.created_at)) * multiplier;
+                    case 'category':
+                        return compareTicketSortStrings(left.category, right.category) * multiplier;
+                    case 'status':
+                        leftValue = Object.prototype.hasOwnProperty.call(ticketStatusOrder, leftStatus) ? ticketStatusOrder[leftStatus] : 999;
+                        rightValue = Object.prototype.hasOwnProperty.call(ticketStatusOrder, rightStatus) ? ticketStatusOrder[rightStatus] : 999;
+                        return (leftValue - rightValue) * multiplier;
+                    case 'assignee':
+                        return compareTicketSortStrings(left.assigned_email, right.assigned_email) * multiplier;
+                    case 'updated_at':
+                        return (ticketSortTimestamp(left.updated_at) - ticketSortTimestamp(right.updated_at)) * multiplier;
+                    case 'due_date':
+                        return (ticketDueDateSortRank(left.due_date) - ticketDueDateSortRank(right.due_date)) * multiplier;
+                    case 'title':
+                        return compareTicketSortStrings(left.title, right.title) * multiplier;
+                    case 'ticket_number':
+                        return (((Number(left.ticket_number || 0)) - (Number(right.ticket_number || 0))) || 0) * multiplier;
+                    case 'requester':
+                        return compareTicketSortStrings(left.user_email, right.user_email) * multiplier;
+                    case 'message_count':
+                        return (((Number(left.message_count || 0)) - (Number(right.message_count || 0))) || 0) * multiplier;
+                    case 'attachment_count':
+                        return (((Number(left.attachment_count || 0)) - (Number(right.attachment_count || 0))) || 0) * multiplier;
+                }
+
+                return 0;
+            };
+
+            var applyAppearanceSortPreview = function ()
+            {
+                if (!appearancePreviewCards.length)
+                {
+                    return;
+                }
+                var orderedCards = appearancePreviewCards.slice();
+                orderedCards.sort(function (leftCard, rightCard)
+                {
+                    var left = parsePreviewTicketSortData(leftCard);
+                    var right = parsePreviewTicketSortData(rightCard);
+                    for (var i = 0; i < appearanceCurrentSortRules.length; i += 1)
+                    {
+                        var rule = appearanceCurrentSortRules[i];
+                        var comparison = comparePreviewTicketsByField(left, right, rule.field, rule.direction);
+                        if (comparison !== 0)
+                        {
+                            return comparison;
+                        }
+                    }
+
+                    return comparePreviewTicketsByField(left, right, 'ticket_number', 'asc');
+                });
+                orderedCards.forEach(function (card)
+                {
+                    if (card.parentNode)
+                    {
+                        card.parentNode.appendChild(card);
+                    }
+                });
+            };
+
+            var clearAppearanceSortDropState = function ()
+            {
+                if (!appearanceSorterList)
+                {
+                    return;
+                }
+                appearanceSorterList.querySelectorAll('.appearance-sorter-row').forEach(function (row)
+                {
+                    row.classList.remove('is-drop-before');
+                    row.classList.remove('is-drop-after');
+                    row.classList.remove('is-dragging');
+                });
+            };
+
+            var persistAppearanceSortRules = function ()
+            {
+                appearanceCurrentSortRules = normalizeAppearanceSortRules(appearanceCurrentSortRules);
+                renderAppearanceSortRules();
+                applyAppearanceSortPreview();
+                saveAppearancePreferences();
+            };
+
+            var getAvailableAppearanceSortField = function ()
+            {
+                var used = {};
+                appearanceCurrentSortRules.forEach(function (rule)
+                {
+                    used[String(rule.field || '')] = true;
+                });
+                var fields = Object.keys(appearanceSortOptions || {});
+                for (var i = 0; i < fields.length; i += 1)
+                {
+                    if (!used[fields[i]])
+                    {
+                        return fields[i];
+                    }
+                }
+
+                return fields[0] || 'status';
+            };
+
+            var closeAppearanceSortRemoveModal = function ()
+            {
+                appearancePendingRemoveIndex = -1;
+                if (appearanceSorterConfirm)
+                {
+                    appearanceSorterConfirm.hidden = true;
+                }
+            };
+
+            var openAppearanceSortRemoveModal = function (index)
+            {
+                appearancePendingRemoveIndex = index;
+                if (appearanceSorterConfirm)
+                {
+                    appearanceSorterConfirm.hidden = false;
+                }
+            };
+
+            var renderAppearanceSortRules = function ()
+            {
+                if (!appearanceSorterList)
+                {
+                    return;
+                }
+                appearanceSorterList.innerHTML = '';
+                var usedFields = {};
+                appearanceCurrentSortRules.forEach(function (rule)
+                {
+                    usedFields[String(rule.field || '')] = true;
+                });
+
+                appearanceCurrentSortRules.forEach(function (rule, index)
+                {
+                    var row = document.createElement('div');
+                    row.className = 'appearance-sorter-row';
+                    row.setAttribute('draggable', 'true');
+                    row.setAttribute('data-sort-index', String(index));
+
+                    var handle = document.createElement('button');
+                    handle.type = 'button';
+                    handle.className = 'appearance-sorter-handle';
+                    handle.textContent = '::';
+                    handle.title = <?= json_encode(__('appearance.sort_drag_handle'), JSON_UNESCAPED_UNICODE) ?>;
+
+                    var select = document.createElement('select');
+                    Object.keys(appearanceSortOptions).forEach(function (field)
+                    {
+                        var option = document.createElement('option');
+                        option.value = field;
+                        option.textContent = appearanceSortOptions[field];
+                        option.title = String(appearanceSortHelp[field] || '');
+                        option.selected = field === rule.field;
+                        option.disabled = field !== rule.field && usedFields[field];
+                        select.appendChild(option);
+                    });
+                    select.title = String(appearanceSortHelp[rule.field] || '');
+                    select.addEventListener('change', function ()
+                    {
+                        appearanceCurrentSortRules[index].field = String(select.value || getAvailableAppearanceSortField());
+                        appearanceCurrentSortRules = normalizeAppearanceSortRules(appearanceCurrentSortRules);
+                        persistAppearanceSortRules();
+                    });
+
+                    var direction = document.createElement('button');
+                    direction.type = 'button';
+                    direction.className = 'appearance-sorter-direction';
+                    direction.textContent = getSortDirectionLabel(rule.field, rule.direction);
+                    direction.addEventListener('click', function ()
+                    {
+                        appearanceCurrentSortRules[index].direction = normalizeSortDirection(rule.direction) === 'asc' ? 'desc' : 'asc';
+                        persistAppearanceSortRules();
+                    });
+
+                    var removeButton = document.createElement('button');
+                    removeButton.type = 'button';
+                    removeButton.className = 'appearance-sorter-remove';
+                    removeButton.textContent = '×';
+                    removeButton.title = <?= json_encode(__('appearance.sort_remove_rule'), JSON_UNESCAPED_UNICODE) ?>;
+                    removeButton.disabled = appearanceCurrentSortRules.length <= 1;
+                    removeButton.addEventListener('click', function ()
+                    {
+                        openAppearanceSortRemoveModal(index);
+                    });
+
+                    var help = document.createElement('div');
+                    help.className = 'appearance-sorter-help';
+                    help.textContent = String(appearanceSortHelp[rule.field] || '');
+
+                    row.addEventListener('dragstart', function ()
+                    {
+                        appearanceDragIndex = index;
+                        row.classList.add('is-dragging');
+                    });
+                    row.addEventListener('dragend', function ()
+                    {
+                        appearanceDragIndex = -1;
+                        appearanceDropIndex = -1;
+                        appearanceDropSide = 'after';
+                        clearAppearanceSortDropState();
+                    });
+                    row.addEventListener('dragover', function (event)
+                    {
+                        event.preventDefault();
+                        clearAppearanceSortDropState();
+                        var bounds = row.getBoundingClientRect();
+                        var before = event.clientY < (bounds.top + (bounds.height / 2));
+                        appearanceDropIndex = index;
+                        appearanceDropSide = before ? 'before' : 'after';
+                        row.classList.add(before ? 'is-drop-before' : 'is-drop-after');
+                    });
+                    row.addEventListener('drop', function (event)
+                    {
+                        event.preventDefault();
+                        if (appearanceDragIndex < 0 || appearanceDropIndex < 0 || appearanceDragIndex === appearanceDropIndex)
+                        {
+                            clearAppearanceSortDropState();
+                            return;
+                        }
+                        var moved = appearanceCurrentSortRules.splice(appearanceDragIndex, 1)[0];
+                        var insertIndex = appearanceDropIndex;
+                        if (appearanceDropSide === 'after')
+                        {
+                            insertIndex += 1;
+                        }
+                        if (appearanceDragIndex < insertIndex)
+                        {
+                            insertIndex -= 1;
+                        }
+                        appearanceCurrentSortRules.splice(insertIndex, 0, moved);
+                        appearanceDragIndex = -1;
+                        appearanceDropIndex = -1;
+                        clearAppearanceSortDropState();
+                        persistAppearanceSortRules();
+                    });
+
+                    row.appendChild(handle);
+                    row.appendChild(select);
+                    row.appendChild(direction);
+                    row.appendChild(removeButton);
+                    row.appendChild(help);
+                    appearanceSorterList.appendChild(row);
+                });
+
+                if (appearanceSorterAddButton)
+                {
+                    appearanceSorterAddButton.disabled = appearanceCurrentSortRules.length >= Object.keys(appearanceSortOptions).length;
+                }
+            };
+
             var readAppearancePreferencesFromUi = function ()
             {
                 var priorityMarkersInput = appearancePrefsRoot.querySelector('[data-appearance-key="show_priority_markers"]');
@@ -1130,7 +1560,8 @@
                     show_priority_markers: !!(priorityMarkersInput && priorityMarkersInput.checked),
                     show_time_open: !!(timeOpenInput && timeOpenInput.checked),
                     border_color: borderInput ? String(borderInput.value || 'status') : 'status',
-                    closed_style: closedInput ? String(closedInput.value || 'normal') : 'normal'
+                    closed_style: closedInput ? String(closedInput.value || 'normal') : 'normal',
+                    sort_rules: normalizeAppearanceSortRules(appearanceCurrentSortRules)
                 };
             };
 
@@ -1193,6 +1624,12 @@
 
                     if (data.appearance)
                     {
+                        if (Array.isArray(data.appearance.sort_rules))
+                        {
+                            appearanceCurrentSortRules = normalizeAppearanceSortRules(data.appearance.sort_rules);
+                            renderAppearanceSortRules();
+                            applyAppearanceSortPreview();
+                        }
                         applyAppearancePreferencesToDocument(data.appearance);
                     }
                     showAppearancePrefsFeedback(EMAIL_PREFS_SAVED_LABEL, false);
@@ -1219,6 +1656,59 @@
                     saveAppearancePreferences();
                 });
             });
+
+            if (appearanceSorterAddButton)
+            {
+                appearanceSorterAddButton.addEventListener('click', function ()
+                {
+                    appearanceCurrentSortRules.push({
+                        field: getAvailableAppearanceSortField(),
+                        direction: 'asc'
+                    });
+                    persistAppearanceSortRules();
+                });
+            }
+
+            if (appearanceSorterResetButton)
+            {
+                appearanceSorterResetButton.addEventListener('click', function ()
+                {
+                    appearanceCurrentSortRules = normalizeAppearanceSortRules(appearanceDefaultSortRules.slice());
+                    persistAppearanceSortRules();
+                });
+            }
+
+            if (appearanceSorterCancelButton)
+            {
+                appearanceSorterCancelButton.addEventListener('click', closeAppearanceSortRemoveModal);
+            }
+            if (appearanceSorterConfirmDeleteButton)
+            {
+                appearanceSorterConfirmDeleteButton.addEventListener('click', function ()
+                {
+                    if (appearancePendingRemoveIndex >= 0 && appearanceCurrentSortRules.length > 1)
+                    {
+                        appearanceCurrentSortRules.splice(appearancePendingRemoveIndex, 1);
+                        closeAppearanceSortRemoveModal();
+                        persistAppearanceSortRules();
+                        return;
+                    }
+                    closeAppearanceSortRemoveModal();
+                });
+            }
+            if (appearanceSorterConfirm)
+            {
+                appearanceSorterConfirm.addEventListener('click', function (event)
+                {
+                    if (event.target === appearanceSorterConfirm)
+                    {
+                        closeAppearanceSortRemoveModal();
+                    }
+                });
+            }
+
+            renderAppearanceSortRules();
+            applyAppearanceSortPreview();
         }
 
         (function initStatsOpenTrend()

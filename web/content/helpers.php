@@ -1721,6 +1721,43 @@ function getDefaultTicketAppearancePreferences(): array
         'show_time_open' => true,
         'border_color' => 'status',
         'closed_style' => 'normal',
+        'sort_rules' => getDefaultTicketSortPreferences(),
+    ];
+}
+
+/**
+ * @return list<array{field: string, direction: string}>
+ */
+function getDefaultTicketSortPreferences(): array
+{
+    return [
+        ['field' => 'open_state', 'direction' => 'asc'],
+        ['field' => 'priority', 'direction' => 'desc'],
+        ['field' => 'updated_at', 'direction' => 'asc'],
+        ['field' => 'ticket_number', 'direction' => 'asc'],
+    ];
+}
+
+/**
+ * @return list<string>
+ */
+function getAllowedTicketSortFields(): array
+{
+    return [
+        'status',
+        'priority',
+        'ticket_age',
+        'category',
+        'open_state',
+        'in_progress_started',
+        'assignee',
+        'updated_at',
+        'due_date',
+        'title',
+        'ticket_number',
+        'requester',
+        'message_count',
+        'attachment_count',
     ];
 }
 
@@ -1730,7 +1767,8 @@ function getDefaultTicketAppearancePreferences(): array
  *   show_priority_markers: bool,
  *   show_time_open: bool,
  *   border_color: string,
- *   closed_style: string
+ *   closed_style: string,
+ *   sort_rules: list<array{field: string, direction: string}>
  * }
  */
 function normalizeTicketAppearancePreferences(array $raw): array
@@ -1744,6 +1782,9 @@ function normalizeTicketAppearancePreferences(array $raw): array
     if (!in_array($closedStyle, TICKET_APPEARANCE_CLOSED_OPTIONS, true)) {
         $closedStyle = $defaults['closed_style'];
     }
+    $sortRules = normalizeTicketSortPreferences(
+        is_array($raw['sort_rules'] ?? null) ? $raw['sort_rules'] : ($defaults['sort_rules'] ?? [])
+    );
 
     return [
         'show_priority_markers' => array_key_exists('show_priority_markers', $raw)
@@ -1754,7 +1795,59 @@ function normalizeTicketAppearancePreferences(array $raw): array
             : (bool) $defaults['show_time_open'],
         'border_color' => $borderColor,
         'closed_style' => $closedStyle,
+        'sort_rules' => $sortRules,
     ];
+}
+
+/**
+ * @param mixed $raw
+ * @return list<array{field: string, direction: string}>
+ */
+function normalizeTicketSortPreferences($raw): array
+{
+    $defaultRules = getDefaultTicketSortPreferences();
+    $allowedFields = array_fill_keys(getAllowedTicketSortFields(), true);
+    $rows = is_array($raw) ? array_values($raw) : [];
+    $normalized = [];
+    $seen = [];
+
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $field = trim((string) ($row['field'] ?? ''));
+        $direction = strtolower(trim((string) ($row['direction'] ?? 'asc')));
+        if (!isset($allowedFields[$field])) {
+            continue;
+        }
+        if ($direction !== 'asc' && $direction !== 'desc') {
+            $direction = 'asc';
+        }
+        if (isset($seen[$field])) {
+            continue;
+        }
+
+        $normalized[] = [
+            'field' => $field,
+            'direction' => $direction,
+        ];
+        $seen[$field] = true;
+
+        if (count($normalized) >= 8) {
+            break;
+        }
+    }
+
+    return $normalized !== [] ? $normalized : $defaultRules;
+}
+
+/**
+ * @return list<array{field: string, direction: string}>
+ */
+function loadTicketSortPreferences(string $email): array
+{
+    return normalizeTicketSortPreferences(loadTicketAppearancePreferences($email)['sort_rules'] ?? []);
 }
 
 function loadTicketAppearancePreferences(string $email): array
@@ -1771,7 +1864,8 @@ function loadTicketAppearancePreferences(string $email): array
  *   show_priority_markers: bool,
  *   show_time_open: bool,
  *   border_color: string,
- *   closed_style: string
+ *   closed_style: string,
+ *   sort_rules: list<array{field: string, direction: string}>
  * }
  */
 function saveTicketAppearancePreferences(string $email, array $appearance): array

@@ -306,6 +306,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
     }
     $ticketPageOffset = ($ticketPage - 1) * $perPage;
 
+    $sortRules = $canManageTickets ? loadTicketSortPreferences($viewerEmail) : null;
     $tickets = $store->getTickets(
         $canManageTickets,
         $viewerEmail,
@@ -316,7 +317,8 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         $browseMode,
         $perPage,
         $ticketPageOffset,
-        $accessCategories
+        $accessCategories,
+        $sortRules
     );
     $signature = buildTicketSnapshotSignature($tickets);
     if ($lastSignature !== '' && hash_equals($lastSignature, $signature)) {

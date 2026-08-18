@@ -1,3 +1,11 @@
+id: 2026-08-18-ticket-sort-preferences
+date: 2026-08-18
+title: Eigen ticketsortering instellen
+author: Tim Falken
+
+Onder **Voorkeuren > Uiterlijk** kun je nu zelf de volgorde van tickets samenstellen met meerdere sorteerregels. Regels zijn sleepbaar, uit te breiden, te verwijderen met bevestiging en terug te zetten naar de standaardvolgorde. Rechts zie je direct in een grotere previewset met meer dan tien tickets, inclusief extra afgehandelde voorbeelden, wat de gekozen sortering doet. De standaardvolgorde is nu **Openstaand eerst**, **Hoge prioriteit eerst**, daarna **Langst niet bijgewerkt eerst** en vervolgens **Laagste nummer eerst**. Per optie verschijnt ook een korte uitleg.
+
+---
 id: 2026-08-13-open-trend-hover
 date: 2026-08-13
 title: Trendgrafiek: waarde bij hover
