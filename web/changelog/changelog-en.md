@@ -1,3 +1,11 @@
+id: 2026-08-18-ticket-sort-preferences
+date: 2026-08-18
+title: Set your own ticket sorting
+author: Tim Falken
+
+Under **Preferences > Appearance**, you can now build your own ticket order with multiple sorting rules. Rules can be dragged, added, removed with confirmation, and reset to the default order. The preview on the right now uses a larger set of more than ten tickets, including extra resolved examples, so you can immediately see what your chosen sorting does. The default order is now **Open first**, **High priority first**, then **Stale first** and **Lowest number first**. Each option also has a short explanation.
+
+---
 id: 2026-08-13-open-trend-hover
 date: 2026-08-13
 title: Trend chart: value on hover

@@ -2292,7 +2292,7 @@ class TicketStore
         return (int) $statement->fetchColumn();
     }
 
-    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default', ?int $limit = null, ?int $offset = null, ?array $accessCategories = null): array
+    public function getTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default', ?int $limit = null, ?int $offset = null, ?array $accessCategories = null, ?array $sortRules = null): array
     {
         $filterState = $this->buildTicketListFilters($isAdmin, $userEmail, $statusFilters, $assignedFilter, $categoryFilters, $searchQuery, $browseMode, $accessCategories);
         $conditions = $filterState['conditions'];
@@ -2336,15 +2336,6 @@ class TicketStore
         $tickets = $statement->fetchAll(PDO::FETCH_ASSOC);
         $tickets = array_map(fn(array $ticket): array => $this->applyDerivedPriorityForDueDate($ticket), $tickets);
 
-        if ($adminList) {
-            $this->sortAdminTicketList($tickets);
-        }
-
-        if ($limit !== null) {
-            $offset = max(0, $offset ?? 0);
-            $tickets = array_slice($tickets, $offset, max(0, $limit));
-        }
-
         foreach ($tickets as &$ticket) {
             $assignedEmail = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
             if ($assignedEmail !== '' || strtolower((string) ($ticket['status'] ?? '')) === 'afgehandeld') {
@@ -2362,6 +2353,15 @@ class TicketStore
             }
         }
         unset($ticket);
+
+        if ($adminList) {
+            $this->sortAdminTicketList($tickets, $sortRules);
+        }
+
+        if ($limit !== null) {
+            $offset = max(0, $offset ?? 0);
+            $tickets = array_slice($tickets, $offset, max(0, $limit));
+        }
 
         return $tickets;
     }
@@ -2556,20 +2556,26 @@ class TicketStore
     /**
      * @param list<array<string, mixed>> $tickets
      */
-    private function sortAdminTicketList(array &$tickets): void
+    private function sortAdminTicketList(array &$tickets, ?array $sortRules = null): void
     {
-        usort($tickets, static function (array $left, array $right): int {
-            $leftResolved = (string) ($left['status'] ?? '') === 'afgehandeld';
-            $rightResolved = (string) ($right['status'] ?? '') === 'afgehandeld';
-            if ($leftResolved !== $rightResolved) {
-                return $leftResolved ? 1 : -1;
-            }
+        $rules = [];
+        if (function_exists('normalizeTicketSortPreferences')) {
+            $rules = normalizeTicketSortPreferences(
+                is_array($sortRules)
+                    ? $sortRules
+                    : (function_exists('getDefaultTicketSortPreferences') ? getDefaultTicketSortPreferences() : [])
+            );
+        }
 
-            if (!$leftResolved) {
-                $leftPriority = (int) ($left['priority'] ?? 0);
-                $rightPriority = (int) ($right['priority'] ?? 0);
-                if ($leftPriority !== $rightPriority) {
-                    return $rightPriority <=> $leftPriority;
+        usort($tickets, function (array $left, array $right) use ($rules): int {
+            if ($rules !== []) {
+                foreach ($rules as $rule) {
+                    $field = (string) ($rule['field'] ?? '');
+                    $direction = strtolower((string) ($rule['direction'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
+                    $comparison = $this->compareTicketsByField($left, $right, $field, $direction);
+                    if ($comparison !== 0) {
+                        return $comparison;
+                    }
                 }
             }
 
@@ -2581,6 +2587,96 @@ class TicketStore
 
             return (int) ($left['id'] ?? 0) <=> (int) ($right['id'] ?? 0);
         });
+    }
+
+    private function compareTicketsByField(array $left, array $right, string $field, string $direction): int
+    {
+        $multiplier = $direction === 'desc' ? -1 : 1;
+
+        switch ($field) {
+            case 'open_state':
+                $leftValue = strtolower((string) ($left['status'] ?? '')) === 'afgehandeld' ? 1 : 0;
+                $rightValue = strtolower((string) ($right['status'] ?? '')) === 'afgehandeld' ? 1 : 0;
+                return ($leftValue <=> $rightValue) * $multiplier;
+
+            case 'in_progress_started':
+                $leftValue = strtolower((string) ($left['status'] ?? '')) === 'ingediend' ? 0 : 1;
+                $rightValue = strtolower((string) ($right['status'] ?? '')) === 'ingediend' ? 0 : 1;
+                return ($leftValue <=> $rightValue) * $multiplier;
+
+            case 'priority':
+                return (((int) ($left['priority'] ?? 0)) <=> ((int) ($right['priority'] ?? 0))) * $multiplier;
+
+            case 'ticket_age':
+                return ($this->ticketSortTimestamp($left['created_at'] ?? '') <=> $this->ticketSortTimestamp($right['created_at'] ?? '')) * $multiplier;
+
+            case 'category':
+                return $this->compareTicketStrings((string) ($left['category'] ?? ''), (string) ($right['category'] ?? '')) * $multiplier;
+
+            case 'status':
+                return ($this->ticketStatusSortRank((string) ($left['status'] ?? '')) <=> $this->ticketStatusSortRank((string) ($right['status'] ?? ''))) * $multiplier;
+
+            case 'assignee':
+                return $this->compareTicketStrings((string) ($left['assigned_email'] ?? ''), (string) ($right['assigned_email'] ?? '')) * $multiplier;
+
+            case 'updated_at':
+                return ($this->ticketSortTimestamp($left['updated_at'] ?? '') <=> $this->ticketSortTimestamp($right['updated_at'] ?? '')) * $multiplier;
+
+            case 'due_date':
+                return ($this->ticketDueDateSortRank((string) ($left['due_date'] ?? '')) <=> $this->ticketDueDateSortRank((string) ($right['due_date'] ?? ''))) * $multiplier;
+
+            case 'title':
+                return $this->compareTicketStrings((string) ($left['title'] ?? ''), (string) ($right['title'] ?? '')) * $multiplier;
+
+            case 'ticket_number':
+                return (((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0))) * $multiplier;
+
+            case 'requester':
+                return $this->compareTicketStrings((string) ($left['user_email'] ?? ''), (string) ($right['user_email'] ?? '')) * $multiplier;
+
+            case 'message_count':
+                return (((int) ($left['message_count'] ?? 0)) <=> ((int) ($right['message_count'] ?? 0))) * $multiplier;
+
+            case 'attachment_count':
+                return (((int) ($left['attachment_count'] ?? 0)) <=> ((int) ($right['attachment_count'] ?? 0))) * $multiplier;
+        }
+
+        return 0;
+    }
+
+    private function ticketSortTimestamp($value): int
+    {
+        return strtotime(trim((string) $value)) ?: 0;
+    }
+
+    private function ticketDueDateSortRank(string $dueDate): int
+    {
+        $dueDate = trim($dueDate);
+        if ($dueDate === '') {
+            return PHP_INT_MAX;
+        }
+
+        return strtotime($dueDate . ' 00:00:00') ?: PHP_INT_MAX;
+    }
+
+    private function compareTicketStrings(string $left, string $right): int
+    {
+        return strcasecmp(trim($left), trim($right));
+    }
+
+    private function ticketStatusSortRank(string $status): int
+    {
+        $order = array_flip([
+            'ingediend',
+            'in behandeling',
+            'afwachtende op gebruiker',
+            'afwachtende op bestelling',
+            'afwachtende op derde partij',
+            'afgehandeld',
+        ]);
+        $status = strtolower(trim($status));
+
+        return isset($order[$status]) ? (int) $order[$status] : 999;
     }
 
     public function getTicket(int $ticketId, bool $isAdmin, string $userEmail, string $browseMode = 'default', bool $includeGhostMessages = false, ?array $accessCategories = null): ?array

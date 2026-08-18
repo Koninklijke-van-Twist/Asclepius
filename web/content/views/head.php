@@ -2411,6 +2411,160 @@
             gap: 10px;
         }
 
+        .appearance-sorter {
+            display: grid;
+            gap: 12px;
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #f8fbff;
+        }
+
+        .appearance-sorter-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .appearance-sorter-row {
+            display: grid;
+            grid-template-columns: 36px minmax(0, 1fr) 140px 42px;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+            position: relative;
+        }
+
+        .appearance-sorter-help {
+            grid-column: 2 / 5;
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.35;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity .16s ease, max-height .16s ease;
+        }
+
+        .appearance-sorter-row:hover .appearance-sorter-help,
+        .appearance-sorter-row:focus-within .appearance-sorter-help {
+            max-height: 48px;
+            opacity: 1;
+        }
+
+        .appearance-sorter-row.is-drop-before::before,
+        .appearance-sorter-row.is-drop-after::after {
+            content: "";
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            height: 3px;
+            border-radius: 999px;
+            background: var(--accent);
+        }
+
+        .appearance-sorter-row.is-drop-before::before {
+            top: -2px;
+        }
+
+        .appearance-sorter-row.is-drop-after::after {
+            bottom: -2px;
+        }
+
+        .appearance-sorter-row.is-dragging {
+            opacity: 0.55;
+        }
+
+        .appearance-sorter-handle,
+        .appearance-sorter-remove {
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+            color: #475569;
+            font: inherit;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .appearance-sorter-handle {
+            cursor: grab;
+        }
+
+        .appearance-sorter-handle:active {
+            cursor: grabbing;
+        }
+
+        .appearance-sorter-row select,
+        .appearance-sorter-direction {
+            min-width: 0;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font: inherit;
+            background: #fff;
+            color: var(--text);
+        }
+
+        .appearance-sorter-direction {
+            width: 100%;
+            text-align: center;
+        }
+
+        .appearance-sorter-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .appearance-sorter-add {
+            min-width: 44px;
+            font-size: 20px;
+            line-height: 1;
+            padding-top: 6px;
+            padding-bottom: 6px;
+        }
+
+        .appearance-sorter-confirm {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            background: rgba(15, 23, 42, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .appearance-sorter-confirm-card {
+            width: min(100%, 420px);
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: #fff;
+            padding: 18px;
+            box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+        }
+
+        .appearance-sorter-confirm-card h3 {
+            margin: 0 0 8px;
+        }
+
+        .appearance-sorter-confirm-card p {
+            margin: 0;
+            color: var(--muted);
+        }
+
+        .appearance-sorter-confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
         .appearance-pref-row {
             display: flex;
             align-items: flex-start;

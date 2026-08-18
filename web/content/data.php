@@ -140,6 +140,9 @@ $ticketListNavigationQuery = buildTicketListLocationQuery(
     $openTicketId,
     1
 );
+$ticketSortPreferences = $userIsAdmin
+    ? loadTicketSortPreferences($userEmail)
+    : getDefaultTicketSortPreferences();
 
 $tickets = $store instanceof TicketStore && $showTicketListSection
     ? $store->getTickets(
@@ -152,7 +155,8 @@ $tickets = $store instanceof TicketStore && $showTicketListSection
         $ticketBrowseMode,
         $ticketsPerPage,
         $ticketPageOffset,
-        ($isLimitedIct && !$isAllTicketsView) ? ($ictAccessCategories ?? []) : null
+        ($isLimitedIct && !$isAllTicketsView) ? ($ictAccessCategories ?? []) : null,
+        $canManageTickets ? $ticketSortPreferences : null
     )
     : [];
 $currentLanguage = getCurrentLanguage();

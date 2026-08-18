@@ -1,3 +1,11 @@
+id: 2026-08-18-ticket-sort-preferences
+date: 2026-08-18
+title: Définir son propre tri des tickets
+author: Tim Falken
+
+Sous **Préférences > Apparence**, vous pouvez maintenant composer l’ordre des tickets avec plusieurs règles de tri. Les règles peuvent être déplacées, ajoutées, supprimées avec confirmation et remises à l’ordre par défaut. L’aperçu à droite utilise maintenant plus de dix tickets, avec davantage d’exemples résolus, pour montrer immédiatement l’effet du tri choisi. L’ordre par défaut est maintenant **Ouverts d’abord**, **Priorité haute d’abord**, puis **Les moins récents d’abord** et **Numéro le plus bas d’abord**. Chaque option a aussi une courte explication.
+
+---
 id: 2026-08-13-open-trend-hover
 date: 2026-08-13
 title: Graphique tendance : valeur au survol
