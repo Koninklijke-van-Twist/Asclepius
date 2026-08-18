@@ -78,6 +78,28 @@
 
     {
 
+        try
+
+        {
+
+            var url = new URL(window.location.href);
+
+            url.searchParams.set('_auto_refresh', '1');
+
+            window.location.replace(url.pathname + url.search + url.hash);
+
+            return;
+
+        }
+
+        catch (error)
+
+        {
+
+            // Fall through to a regular reload.
+
+        }
+
         window.location.reload();
 
     }

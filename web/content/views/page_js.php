@@ -998,6 +998,36 @@
         var webPushServiceWorkerUrl = document.body ? (document.body.getAttribute('data-webpush-sw-url') || '') : '';
         var csrfToken = document.body ? (document.body.getAttribute('data-csrf-token') || '') : '';
         var sessionKeepaliveUrl = document.body ? (document.body.getAttribute('data-session-keepalive-url') || 'session_keepalive.php') : 'session_keepalive.php';
+        var withAutoRefreshFlag = function (href)
+        {
+            try
+            {
+                var url = new URL(href || window.location.href, window.location.origin);
+                url.searchParams.set('_auto_refresh', '1');
+                return url.pathname + url.search + url.hash;
+            }
+            catch (error)
+            {
+                return href || window.location.href;
+            }
+        };
+        var reloadWithAutoRefreshFlag = function ()
+        {
+            window.location.replace(withAutoRefreshFlag(window.location.href));
+        };
+        try
+        {
+            var currentUrl = new URL(window.location.href);
+            if (currentUrl.searchParams.get('_auto_refresh') === '1')
+            {
+                currentUrl.searchParams.delete('_auto_refresh');
+                window.history.replaceState({}, '', currentUrl.pathname + currentUrl.search + currentUrl.hash);
+            }
+        }
+        catch (error)
+        {
+            // Ignore URL parsing issues; the analytics skip still applied for this load.
+        }
 
             var emailPrefsSection = document.querySelector('[data-email-prefs-section]');
         if (emailPrefsSection)
@@ -3897,7 +3927,7 @@
                 if (secondsRemaining <= 0)
                 {
                     window.clearInterval(sessionExpiredCountdownTimer);
-                    window.location.replace(window.location.href);
+                    window.location.replace(withAutoRefreshFlag(window.location.href));
                 }
             }, 1000);
         };
@@ -5726,7 +5756,7 @@
                         return;
                     }
 
-                    window.location.reload();
+                    reloadWithAutoRefreshFlag();
                 })
                 .finally(function ()
                 {

@@ -50,10 +50,13 @@ if (!is_trusted_requester()) {
         $_SESSION['user']['admin'] = true;
     }
 
+    $skipAnalytics = (defined('ASCLEPIUS_SESSION_KEEPALIVE') && ASCLEPIUS_SESSION_KEEPALIVE)
+        || (string) ($_GET['_auto_refresh'] ?? $_POST['_auto_refresh'] ?? '') === '1';
+
     $analyticsEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
     $analyticsApiKey = trim((string) ($_SESSION['user']['api_key'] ?? ''));
     $analyticsOid = strtolower(trim((string) ($_SESSION['user']['oid'] ?? '')));
-    if ($analyticsEmail !== '' && $analyticsApiKey !== '' && $analyticsOid !== '') {
+    if (!$skipAnalytics && $analyticsEmail !== '' && $analyticsApiKey !== '' && $analyticsOid !== '') {
         $analyticsScheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $analyticsHost = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
         $analyticsBase = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'))), '/');

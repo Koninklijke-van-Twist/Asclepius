@@ -77,7 +77,18 @@
             {
                 if (reloadScheduled) { return; }
                 reloadScheduled = true;
-                setTimeout(function () { location.reload(); }, delayMs || 60000);
+                setTimeout(function () {
+                    try
+                    {
+                        var url = new URL(window.location.href);
+                        url.searchParams.set('_auto_refresh', '1');
+                        location.replace(url.pathname + url.search + url.hash);
+                    }
+                    catch (error)
+                    {
+                        location.reload();
+                    }
+                }, delayMs || 60000);
             }
 
             /* Vang onverwachte JS-fouten op de pagina zelf op */
