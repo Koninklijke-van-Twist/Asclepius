@@ -3,7 +3,7 @@ date: 2026-08-18
 title: Eigene Ticketsortierung festlegen
 author: Tim Falken
 
-Unter **Einstellungen > Darstellung** kannst du die Reihenfolge der Tickets jetzt mit mehreren Sortierregeln selbst festlegen. Regeln lassen sich ziehen, hinzufügen, mit Bestätigung entfernen und auf die Standardsortierung zurücksetzen. Rechts zeigt eine größere Vorschau mit mehr als zehn Tickets, darunter zusätzliche erledigte Beispiele, sofort, was die gewählte Sortierung bewirkt. Die Standardsortierung ist jetzt **Offene zuerst**, **Hohe Priorität zuerst**, danach **Am längsten nicht aktualisiert zuerst** und **Niedrigste Nummer zuerst**. Zu jeder Option erscheint außerdem eine kurze Erklärung.
+Unter **Einstellungen > Darstellung** kannst du die Reihenfolge der Tickets jetzt mit mehreren Sortierregeln selbst festlegen. Regeln lassen sich ziehen, hinzufügen, mit Bestätigung entfernen und auf die Standardsortierung zurücksetzen. Rechts zeigt eine größere Vorschau mit mehr als zehn Tickets, darunter zusätzliche erledigte Beispiele, sofort, was die gewählte Sortierung bewirkt. Die Standardsortierung ist jetzt **Offene zuerst**, **Hohe Priorität zuerst**, danach **Am längsten nicht aktualisiert zuerst** und **Niedrigste Nummer zuerst**. **Ticketalter** stellt die ältesten oder neuesten Tickets nach vorn; **Status** folgt der Workflow-Reihenfolge. Zu jeder Option erscheint außerdem eine kurze Erklärung.
 
 ---
 id: 2026-08-13-open-trend-hover

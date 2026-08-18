@@ -2608,7 +2608,8 @@ class TicketStore
                 return (((int) ($left['priority'] ?? 0)) <=> ((int) ($right['priority'] ?? 0))) * $multiplier;
 
             case 'ticket_age':
-                return ($this->ticketSortTimestamp($left['created_at'] ?? '') <=> $this->ticketSortTimestamp($right['created_at'] ?? '')) * $multiplier;
+                // Older tickets have a smaller created_at; invert so "Oudste eerst" (desc) puts them first.
+                return ($this->ticketSortTimestamp($right['created_at'] ?? '') <=> $this->ticketSortTimestamp($left['created_at'] ?? '')) * $multiplier;
 
             case 'category':
                 return $this->compareTicketStrings((string) ($left['category'] ?? ''), (string) ($right['category'] ?? '')) * $multiplier;
@@ -2623,7 +2624,19 @@ class TicketStore
                 return ($this->ticketSortTimestamp($left['updated_at'] ?? '') <=> $this->ticketSortTimestamp($right['updated_at'] ?? '')) * $multiplier;
 
             case 'due_date':
-                return ($this->ticketDueDateSortRank((string) ($left['due_date'] ?? '')) <=> $this->ticketDueDateSortRank((string) ($right['due_date'] ?? ''))) * $multiplier;
+                $leftDue = trim((string) ($left['due_date'] ?? ''));
+                $rightDue = trim((string) ($right['due_date'] ?? ''));
+                if ($leftDue === '' && $rightDue === '') {
+                    return 0;
+                }
+                if ($leftDue === '') {
+                    return 1;
+                }
+                if ($rightDue === '') {
+                    return -1;
+                }
+
+                return ($this->ticketDueDateSortRank($leftDue) <=> $this->ticketDueDateSortRank($rightDue)) * $multiplier;
 
             case 'title':
                 return $this->compareTicketStrings((string) ($left['title'] ?? ''), (string) ($right['title'] ?? '')) * $multiplier;

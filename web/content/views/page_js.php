@@ -1299,7 +1299,7 @@
                     case 'priority':
                         return (((Number(left.priority || 0)) - (Number(right.priority || 0))) || 0) * multiplier;
                     case 'ticket_age':
-                        return (ticketSortTimestamp(left.created_at) - ticketSortTimestamp(right.created_at)) * multiplier;
+                        return (ticketSortTimestamp(right.created_at) - ticketSortTimestamp(left.created_at)) * multiplier;
                     case 'category':
                         return compareTicketSortStrings(left.category, right.category) * multiplier;
                     case 'status':
@@ -1311,7 +1311,21 @@
                     case 'updated_at':
                         return (ticketSortTimestamp(left.updated_at) - ticketSortTimestamp(right.updated_at)) * multiplier;
                     case 'due_date':
-                        return (ticketDueDateSortRank(left.due_date) - ticketDueDateSortRank(right.due_date)) * multiplier;
+                        var leftDue = String(left.due_date || '').trim();
+                        var rightDue = String(right.due_date || '').trim();
+                        if (!leftDue && !rightDue)
+                        {
+                            return 0;
+                        }
+                        if (!leftDue)
+                        {
+                            return 1;
+                        }
+                        if (!rightDue)
+                        {
+                            return -1;
+                        }
+                        return (ticketDueDateSortRank(leftDue) - ticketDueDateSortRank(rightDue)) * multiplier;
                     case 'title':
                         return compareTicketSortStrings(left.title, right.title) * multiplier;
                     case 'ticket_number':
