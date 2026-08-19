@@ -5,7 +5,7 @@ author: Tim Falken
 
 Bij het aanmaken van een nieuw ticket verschijnt rechts een tip zodra je een bestand uploadt als bijlage: je kunt schermafdrukken ook direct vanuit het klembord in de berichttekst plakken met **Ctrl+V**. De tip verdwijnt automatisch als je dit al een keer doet, of je kan hem permanent wegklikken met "Niet meer tonen". Dit is de basis van een generiek tips-systeem waaraan later meer contextuele tips toegevoegd kunnen worden.
 
-Er zijn nu ook extra slimme tips toegevoegd voor een mogelijk beter passende categorie, een te hoge prioriteit en het herkennen van een mogelijk dubbel openstaand ticket van dezelfde aanvrager.
+Er zijn nu ook extra slimme tips toegevoegd voor een mogelijk beter passende categorie, een te hoge prioriteit en het herkennen van een mogelijk dubbel openstaand ticket van dezelfde aanvrager. Bij de categorie-tip worden ook afkortingen in hoofdletters (zoals BC) herkend.
 
 In Voorkeuren staat onderaan een knopje **"Verborgen tips weer tonen"** waarmee je alle weggeklikte tips in één keer terugzet.
 

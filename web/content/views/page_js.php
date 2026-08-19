@@ -4638,12 +4638,74 @@
                 }
 
                 var selectedCategoryValue = String(categorySelect.value || '').trim();
-                var combinedText = normalizeTipText((titleInput.value || '') + ' ' + (descriptionInput.value || ''));
+                var rawCombinedText = String(titleInput.value || '') + ' ' + String(descriptionInput.value || '');
+                var combinedText = normalizeTipText(rawCombinedText);
                 if (!selectedCategoryValue || combinedText.length < 3)
                 {
                     hideTip(CATEGORY_MATCH_TIP_ID);
                     return;
                 }
+
+                // Allow acronym matches typed in uppercase (e.g. "BC" for "Business Central")
+                // even when the full category name is not present.
+                // We must ensure it is NOT part of a larger word (e.g. "BCe" must not match "BC").
+                var uppercaseTokens = [];
+                try
+                {
+                    var re = /(^|[^\p{L}\p{N}_])([A-Z]{2,8})(?=$|[^\p{L}\p{N}_])/gu;
+                    var match = null;
+                    while ((match = re.exec(rawCombinedText)) !== null)
+                    {
+                        uppercaseTokens.push(match[2]);
+                    }
+                } catch (regexError)
+                {
+                    // Fallback: ASCII word boundaries
+                    uppercaseTokens = rawCombinedText.match(/\b[A-Z]{2,8}\b/g) || [];
+                }
+                var uppercaseTokenSet = {};
+                uppercaseTokens.forEach(function (token)
+                {
+                    uppercaseTokenSet[String(token).toLowerCase()] = 1;
+                });
+
+                var extractCategoryAcronyms = function (label)
+                {
+                    var value = String(label || '').trim();
+                    if (!value)
+                    {
+                        return [];
+                    }
+
+                    var set = {};
+
+                    // If the label already looks like an acronym (e.g. "AFAS")
+                    if (/^[A-Z]{2,10}$/.test(value))
+                    {
+                        set[value.toLowerCase()] = 1;
+                    }
+
+                    // Camel-case / spaced titles: take all uppercase letters (e.g. Business Central -> BC)
+                    var upperChars = (value.match(/[A-Z]/g) || []).join('');
+                    if (upperChars.length >= 2)
+                    {
+                        set[upperChars.toLowerCase()] = 1;
+                    }
+
+                    // Fallback: word initials
+                    var words = value.split(/[^A-Za-z0-9]+/).filter(Boolean);
+                    var initials = '';
+                    words.forEach(function (w)
+                    {
+                        initials += (String(w)[0] || '').toUpperCase();
+                    });
+                    if (initials.length >= 2)
+                    {
+                        set[initials.toLowerCase()] = 1;
+                    }
+
+                    return Object.keys(set);
+                };
 
                 var bestMatch = null;
                 Array.from(categorySelect.options || []).forEach(function (option)
@@ -4670,6 +4732,13 @@
                         }
                         score += countOccurrences(combinedText, part) * Math.min(part.length, 12);
                     });
+
+                    var categoryAcronyms = extractCategoryAcronyms(optionLabel);
+                    var matched = categoryAcronyms.some(function (acr)
+                    {
+                        return !!uppercaseTokenSet[String(acr).toLowerCase()];
+                    });
+                    score += matched ? 5000 : 0;
 
                     if (score <= 0)
                     {
