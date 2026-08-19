@@ -142,14 +142,9 @@
             z-index: 35;
             width: 240px;
             max-height: calc(100vh - 32px);
-            overflow: auto;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            background: var(--panel);
-            border-radius: 18px;
-            padding: 14px;
-            box-shadow: var(--shadow);
         }
 
         .tips-sidebar[hidden] {
@@ -168,53 +163,25 @@
         .tip-card {
             display: grid;
             gap: 8px;
-            position: relative;
-            overflow: visible;
-            background: #f8fafc;
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 12px;
-            box-shadow: none;
+            background: var(--panel);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+            animation: tips-sidebar-pulse 1.8s ease-in-out infinite;
         }
 
         .tip-card[hidden] {
             display: none !important;
         }
 
-        .tip-card::after {
-            content: '';
-            position: absolute;
-            inset: -3px;
-            border-radius: inherit;
-            border: 2px solid rgba(147, 197, 253, 0.55);
-            opacity: 0;
-            pointer-events: none;
-            transform: scale(0.98);
-        }
-
-        .tip-card:not([hidden])::after {
-            animation: tip-card-pulse-ring 1.8s ease-in-out infinite;
-        }
-
-        @keyframes tip-card-pulse-ring {
+        @keyframes tips-sidebar-pulse {
             0%, 100% {
-                opacity: 0;
-                transform: scale(0.98);
+                box-shadow: var(--shadow), 0 0 0 0 rgba(147, 197, 253, 0);
             }
 
             50% {
-                opacity: 1;
-                transform: scale(1);
+                box-shadow: var(--shadow), 0 0 0 5px rgba(147, 197, 253, 0.5);
             }
-        }
-
-        .tip-card-heading {
-            margin: 0 0 2px;
-            font-size: 12px;
-            color: var(--muted);
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
         }
 
         .tip-card-body {
