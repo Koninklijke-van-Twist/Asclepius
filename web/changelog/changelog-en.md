@@ -1,3 +1,15 @@
+id: 2026-08-19-tips-sidebar
+date: 2026-08-19
+title: Tip when uploading an attachment — paste screenshots with Ctrl+V
+author: Tim Falken
+
+When creating a new ticket, a tip appears on the right as soon as you upload a file attachment: you can also paste screenshots directly from your clipboard into the message text with **Ctrl+V**. The tip disappears automatically if you already do this, or you can permanently dismiss it with "Don't show again". This is the foundation of a generic tips system to which more contextual tips can be added in the future.
+
+Additional smart tips now also help point to a better-fitting category, warn about setting the priority too high, and detect a possible duplicate open ticket from the same requester.
+
+In Preferences, a **"Show hidden tips again"** button at the bottom lets you re-enable all dismissed tips at once.
+
+---
 id: 2026-08-19-presence-ict-role-groups
 date: 2026-08-19
 title: Presence grouped by ICT and roles

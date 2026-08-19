@@ -466,6 +466,18 @@ function buildRelatedTicketPreviewApiPayload(TicketStore $store, array $payload,
     ];
 }
 
+function buildOpenTicketDuplicateTipApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $title = trim((string) ($payload['title'] ?? ''));
+    $match = $store->findSimilarOpenTicketForRequester($viewerEmail, $title, 80.0);
+
+    return [
+        'success' => true,
+        'match' => $match,
+    ];
+}
+
 function buildBrowserNotificationsApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
 {
     $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
@@ -1742,6 +1754,10 @@ if ($method === 'POST') {
 
     if ($action === 'related_ticket_preview') {
         sendJson(200, buildRelatedTicketPreviewApiPayload($store, $payload, $apiClient));
+    }
+
+    if ($action === 'open_ticket_duplicate_tip') {
+        sendJson(200, buildOpenTicketDuplicateTipApiPayload($store, $payload, $apiClient));
     }
 
     if ($action === 'presence_poll') {

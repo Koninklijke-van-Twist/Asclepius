@@ -400,5 +400,12 @@
                 </div>
             </div>
         </div>
+
+        <div class="prefs-reset-tips">
+            <button type="button" class="secondary-button" id="reset-tips-btn" data-reset-tips>
+                <?= h(__('tips.reset_btn')) ?>
+            </button>
+            <span class="hint" id="reset-tips-feedback" hidden><?= h(__('tips.reset_feedback')) ?></span>
+        </div>
     </section>
 <?php endif; ?>

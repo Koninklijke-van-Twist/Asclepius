@@ -15,7 +15,7 @@
                 </label>
                 <label>
                     <?= h(__('new_ticket.category_label')) ?>
-                    <select name="category" required>
+                    <select id="category" name="category" required>
                         <option value=""><?= h(__('new_ticket.category_option')) ?></option>
                         <?php foreach (getSelectableTicketCategories() as $category): ?>
                             <option value="<?= h($category) ?>"><?= h(translateCategory($category)) ?></option>
@@ -80,6 +80,28 @@
             </div>
         </form>
     </section>
+    <aside class="tips-sidebar" id="new-ticket-tips-sidebar" hidden>
+        <div class="tip-card" id="tip-clipboard-paste" data-tip-id="clipboard_paste" hidden>
+            <p class="tip-card-heading"><?= h(__('tips.heading')) ?></p>
+            <p class="tip-card-body"><?= __('tips.clipboard_paste') ?></p>
+            <button type="button" class="tip-dismiss-btn" data-tip-dismiss="clipboard_paste"><?= h(__('tips.dismiss')) ?></button>
+        </div>
+        <div class="tip-card" id="tip-category-match" data-tip-id="category_match" hidden>
+            <p class="tip-card-heading"><?= h(__('tips.heading')) ?></p>
+            <p class="tip-card-body" data-tip-template="<?= h(__('tips.category_match')) ?>"></p>
+            <button type="button" class="tip-dismiss-btn" data-tip-dismiss="category_match"><?= h(__('tips.dismiss')) ?></button>
+        </div>
+        <div class="tip-card" id="tip-priority-high" data-tip-id="priority_high" hidden>
+            <p class="tip-card-heading"><?= h(__('tips.heading')) ?></p>
+            <p class="tip-card-body"><?= h(__('tips.priority_high')) ?></p>
+            <button type="button" class="tip-dismiss-btn" data-tip-dismiss="priority_high"><?= h(__('tips.dismiss')) ?></button>
+        </div>
+        <div class="tip-card" id="tip-possible-duplicate" data-tip-id="possible_duplicate" hidden>
+            <p class="tip-card-heading"><?= h(__('tips.heading')) ?></p>
+            <p class="tip-card-body"><?= h(__('tips.possible_duplicate')) ?></p>
+            <button type="button" class="tip-dismiss-btn" data-tip-dismiss="possible_duplicate"><?= h(__('tips.dismiss')) ?></button>
+        </div>
+    </aside>
     <aside class="related-tickets-sidebar" id="related-tickets-sidebar" hidden>
         <h2 class="related-tickets-heading"><?= h(__('new_ticket.related_heading')) ?></h2>
         <p class="related-tickets-intro"><?= h(__('new_ticket.related_intro')) ?></p>

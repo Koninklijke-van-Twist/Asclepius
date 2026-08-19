@@ -1,3 +1,15 @@
+id: 2026-08-19-tips-sidebar
+date: 2026-08-19
+title: Conseil lors du téléversement d'une pièce jointe — coller avec Ctrl+V
+author: Tim Falken
+
+Lors de la création d'un nouveau ticket, un conseil apparaît à droite dès que vous téléversez un fichier en pièce jointe : vous pouvez également coller des captures d'écran directement depuis votre presse-papiers dans le texte du message avec **Ctrl+V**. Le conseil disparaît automatiquement si vous le faites déjà, ou vous pouvez le masquer définitivement avec "Ne plus afficher". C'est la base d'un système de conseils génériques auquel d'autres conseils contextuels pourront être ajoutés à l'avenir.
+
+D'autres conseils intelligents aident désormais aussi à repérer une catégorie plus adaptée, avertissent lorsqu'une priorité semble trop élevée et détectent un possible ticket ouvert en double du même demandeur.
+
+Dans les Préférences, un bouton **"Réafficher les conseils masqués"** en bas de page permet de réactiver tous les conseils ignorés en une seule action.
+
+---
 id: 2026-08-19-presence-ict-role-groups
 date: 2026-08-19
 title: Présence groupée par ICT et rôles

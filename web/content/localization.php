@@ -321,6 +321,14 @@ const TRANSLATIONS = [
         'new_ticket.related_heading' => 'Mogelijk gerelateerd',
         'new_ticket.related_intro' => 'Mogelijk is uw vraag eerder beantwoord',
         'new_ticket.related_loading' => 'Ticket wordt geladen…',
+        'tips.heading' => 'Tip',
+        'tips.dismiss' => 'Niet meer tonen',
+        'tips.clipboard_paste' => 'Wist je dat je schermafdrukken in je klembord direct in de berichttekst kan plakken met <kbd>Ctrl</kbd>+<kbd>V</kbd>?',
+        'tips.category_match' => 'Voor snellere afhandeling, selecteer de juiste categorie bij het indienen van een ticket. Past %category% misschien beter?',
+        'tips.priority_high' => 'Selecteer een passende prioriteit voor je ticket. Kan het even wachten? Zet de prioriteit dan niet te hoog.',
+        'tips.possible_duplicate' => 'Voorkom het insturen van dubbele tickets. Als je een vraag al in een ticket gestuurd hebt, kan het aanmaken van een tweede ticket over datzelfde probleem het proces vertragen. Je kunt in bestaande tickets extra berichten versturen als je extra informatie wilt aanbieden.',
+        'tips.reset_btn' => 'Verborgen tips weer tonen',
+        'tips.reset_feedback' => 'Tips zijn opnieuw ingeschakeld.',
 
         // Template tickets
         'template_ticket.heading' => 'Template-ticket aanmaken',
@@ -915,6 +923,14 @@ const TRANSLATIONS = [
         'new_ticket.related_heading' => 'Possibly related',
         'new_ticket.related_intro' => 'Your question may already have been answered',
         'new_ticket.related_loading' => 'Loading ticket…',
+        'tips.heading' => 'Tip',
+        'tips.dismiss' => 'Don\'t show again',
+        'tips.clipboard_paste' => 'Did you know you can paste screenshots from your clipboard directly into the message text with <kbd>Ctrl</kbd>+<kbd>V</kbd>?',
+        'tips.category_match' => 'For faster handling, choose the right category when submitting a ticket. Might %category% fit better?',
+        'tips.priority_high' => 'Choose an appropriate priority for your ticket. Can it wait a bit? Then do not set the priority too high.',
+        'tips.possible_duplicate' => 'Avoid submitting duplicate tickets. If you already sent your question in another ticket, creating a second ticket about the same problem can slow the process down. You can send extra messages in existing tickets if you want to provide additional information.',
+        'tips.reset_btn' => 'Show hidden tips again',
+        'tips.reset_feedback' => 'Tips have been re-enabled.',
 
         // Template tickets
         'template_ticket.heading' => 'Create template ticket',
@@ -1509,6 +1525,14 @@ const TRANSLATIONS = [
         'new_ticket.related_heading' => 'Möglicherweise verwandt',
         'new_ticket.related_intro' => 'Ihre Frage wurde möglicherweise schon beantwortet',
         'new_ticket.related_loading' => 'Ticket wird geladen…',
+        'tips.heading' => 'Tipp',
+        'tips.dismiss' => 'Nicht mehr anzeigen',
+        'tips.clipboard_paste' => 'Wussten Sie, dass Sie Screenshots aus Ihrer Zwischenablage mit <kbd>Strg</kbd>+<kbd>V</kbd> direkt in den Nachrichtentext einfügen können?',
+        'tips.category_match' => 'Für eine schnellere Bearbeitung wählen Sie beim Einreichen eines Tickets die richtige Kategorie. Passt %category% vielleicht besser?',
+        'tips.priority_high' => 'Wählen Sie eine passende Priorität für Ihr Ticket. Kann es noch etwas warten? Setzen Sie die Priorität dann nicht zu hoch.',
+        'tips.possible_duplicate' => 'Vermeiden Sie das Einreichen doppelter Tickets. Wenn Sie Ihre Frage bereits in einem Ticket gestellt haben, kann das Erstellen eines zweiten Tickets zum selben Problem den Prozess verlangsamen. Sie können in bestehenden Tickets zusätzliche Nachrichten senden, wenn Sie weitere Informationen ergänzen möchten.',
+        'tips.reset_btn' => 'Ausgeblendete Tipps wieder anzeigen',
+        'tips.reset_feedback' => 'Tipps wurden wieder aktiviert.',
 
         // Template tickets
         'template_ticket.heading' => 'Template-Ticket erstellen',
@@ -2103,6 +2127,14 @@ const TRANSLATIONS = [
         'new_ticket.related_heading' => 'Peut-être lié',
         'new_ticket.related_intro' => 'Votre question a peut-être déjà une réponse',
         'new_ticket.related_loading' => 'Chargement du ticket…',
+        'tips.heading' => 'Conseil',
+        'tips.dismiss' => 'Ne plus afficher',
+        'tips.clipboard_paste' => 'Saviez-vous que vous pouvez coller des captures d\'écran de votre presse-papiers directement dans le texte du message avec <kbd>Ctrl</kbd>+<kbd>V</kbd>&nbsp;?',
+        'tips.category_match' => 'Pour un traitement plus rapide, sélectionnez la bonne catégorie lors de l\'envoi d\'un ticket. %category% conviendrait-il peut-être mieux ?',
+        'tips.priority_high' => 'Sélectionnez une priorité adaptée pour votre ticket. Cela peut-il attendre un peu ? Dans ce cas, ne mettez pas la priorité trop haut.',
+        'tips.possible_duplicate' => 'Évitez d\'envoyer des tickets en double. Si vous avez déjà envoyé votre question dans un ticket, créer un deuxième ticket sur le même problème peut ralentir le processus. Vous pouvez ajouter des messages supplémentaires dans les tickets existants si vous souhaitez fournir plus d\'informations.',
+        'tips.reset_btn' => 'Réafficher les conseils masqués',
+        'tips.reset_feedback' => 'Les conseils ont été réactivés.',
 
         // Template tickets
         'template_ticket.heading' => 'Créer un ticket modèle',

@@ -2470,6 +2470,56 @@ class TicketStore
     }
 
     /**
+     * Best matching unresolved ticket previously created by this requester.
+     *
+     * @return array{id: int, title: string, similarity: float}|null
+     */
+    public function findSimilarOpenTicketForRequester(string $userEmail, string $title, float $minimumSimilarity = 80.0): ?array
+    {
+        $userEmail = strtolower(trim($userEmail));
+        $normalizedTitle = $this->normalizeTitleForSimilarity($title);
+        if ($userEmail === '' || $normalizedTitle === '' || mb_strlen($normalizedTitle) < 8) {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            "SELECT id, title
+             FROM tickets
+             WHERE lower(user_email) = :user_email
+               AND status <> 'afgehandeld'
+               AND trim(COALESCE(title, '')) <> ''
+             ORDER BY datetime(updated_at) DESC, id DESC
+             LIMIT 50"
+        );
+        $statement->execute([':user_email' => $userEmail]);
+
+        $bestMatch = null;
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $ticketId = (int) ($row['id'] ?? 0);
+            $ticketTitle = (string) ($row['title'] ?? '');
+            $normalizedCandidate = $this->normalizeTitleForSimilarity($ticketTitle);
+            if ($ticketId <= 0 || $normalizedCandidate === '') {
+                continue;
+            }
+
+            similar_text($normalizedTitle, $normalizedCandidate, $similarity);
+            if ($similarity < $minimumSimilarity) {
+                continue;
+            }
+
+            if ($bestMatch === null || $similarity > (float) $bestMatch['similarity']) {
+                $bestMatch = [
+                    'id' => $ticketId,
+                    'title' => $ticketTitle,
+                    'similarity' => (float) $similarity,
+                ];
+            }
+        }
+
+        return $bestMatch;
+    }
+
+    /**
      * @return list<string>
      */
     private function extractRelatedSearchTerms(string $title, string $description): array
@@ -2506,6 +2556,15 @@ class TicketStore
         }
 
         return array_values($terms);
+    }
+
+    private function normalizeTitleForSimilarity(string $value): string
+    {
+        $value = self::unicodeLower($value);
+        $value = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $value) ?? '';
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? '';
+
+        return trim($value);
     }
 
     /**

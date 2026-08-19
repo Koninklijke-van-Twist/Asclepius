@@ -1,3 +1,15 @@
+id: 2026-08-19-tips-sidebar
+date: 2026-08-19
+title: Tipp beim Hochladen eines Anhangs — Screenshots mit Strg+V einfügen
+author: Tim Falken
+
+Beim Erstellen eines neuen Tickets erscheint rechts ein Tipp, sobald Sie eine Datei als Anhang hochladen: Sie können Screenshots auch direkt aus der Zwischenablage mit **Strg+V** in den Nachrichtentext einfügen. Der Tipp verschwindet automatisch, wenn Sie dies bereits getan haben, oder Sie können ihn dauerhaft mit "Nicht mehr anzeigen" ausblenden. Dies ist die Grundlage eines generischen Tipps-Systems, dem später weitere kontextbezogene Tipps hinzugefügt werden können.
+
+Zusätzliche intelligente Tipps weisen jetzt auch auf eine möglicherweise besser passende Kategorie hin, warnen vor einer zu hohen Priorität und erkennen ein mögliches doppeltes offenes Ticket desselben Anfragenden.
+
+In den Einstellungen gibt es unten die Schaltfläche **"Ausgeblendete Tipps wieder anzeigen"**, mit der alle ausgeblendeten Tipps auf einmal zurückgesetzt werden können.
+
+---
 id: 2026-08-19-presence-ict-role-groups
 date: 2026-08-19
 title: Anwesenheit nach ICT und Rollen gruppiert

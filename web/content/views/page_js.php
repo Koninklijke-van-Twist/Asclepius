@@ -1029,6 +1029,32 @@
             // Ignore URL parsing issues; the analytics skip still applied for this load.
         }
 
+        var resetTipsBtn = document.getElementById('reset-tips-btn');
+        if (resetTipsBtn)
+        {
+            var resetTipsFeedback = document.getElementById('reset-tips-feedback');
+            var resetTipsFeedbackTimer = null;
+            resetTipsBtn.addEventListener('click', function ()
+            {
+                try
+                {
+                    localStorage.removeItem('asclepius_tips_dismissed');
+                } catch (storageError)
+                {
+                    /* Intentionally ignored */
+                }
+                if (resetTipsFeedback)
+                {
+                    resetTipsFeedback.hidden = false;
+                    clearTimeout(resetTipsFeedbackTimer);
+                    resetTipsFeedbackTimer = setTimeout(function ()
+                    {
+                        resetTipsFeedback.hidden = true;
+                    }, 4000);
+                }
+            });
+        }
+
             var emailPrefsSection = document.querySelector('[data-email-prefs-section]');
         if (emailPrefsSection)
         {
@@ -4362,6 +4388,399 @@
                 }
             });
         }
+
+        /**
+         * Generic contextual tips system
+         *
+         * Each tip has a unique string id. Dismissed tips are stored in
+         * localStorage under the key 'asclepius_tips_dismissed' (JSON array).
+         * Tips can be shown programmatically and auto-dismissed when the user
+         * already performs the action the tip describes.
+         */
+        (function initTipsSidebar()
+        {
+            var STORAGE_KEY = 'asclepius_tips_dismissed';
+            var tipsSidebar = document.getElementById('new-ticket-tips-sidebar');
+            if (!tipsSidebar)
+            {
+                return;
+            }
+
+            var getDismissed = function ()
+            {
+                try
+                {
+                    var raw = localStorage.getItem(STORAGE_KEY);
+                    return raw ? JSON.parse(raw) : {};
+                } catch (storageError)
+                {
+                    return {};
+                }
+            };
+
+            var setDismissed = function (id)
+            {
+                try
+                {
+                    var current = getDismissed();
+                    current[String(id)] = 1;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+                } catch (storageError)
+                {
+                    /* Intentionally ignored: localStorage unavailable */
+                }
+            };
+
+            var isTipDismissed = function (id)
+            {
+                return !!getDismissed()[String(id)];
+            };
+
+            var setTipVisible = function (id, visible)
+            {
+                var card = tipsSidebar.querySelector('[data-tip-id="' + id + '"]');
+                if (!card)
+                {
+                    syncSidebarVisibility();
+                    return;
+                }
+
+                if (visible && isTipDismissed(id))
+                {
+                    card.hidden = true;
+                    syncSidebarVisibility();
+                    return;
+                }
+
+                card.hidden = !visible;
+                syncSidebarVisibility();
+            };
+
+            var hideTip = function (id)
+            {
+                setTipVisible(id, false);
+            };
+
+            var setTipTemplateValue = function (id, replacements)
+            {
+                var card = tipsSidebar.querySelector('[data-tip-id="' + id + '"]');
+                var body = card ? card.querySelector('[data-tip-template]') : null;
+                if (!body)
+                {
+                    return;
+                }
+
+                var template = body.getAttribute('data-tip-template') || '';
+                Object.keys(replacements || {}).forEach(function (key)
+                {
+                    template = template.split('%' + key + '%').join(replacements[key]);
+                });
+                body.innerHTML = template;
+            };
+
+            var positionTipsSidebar = function ()
+            {
+                if (!tipsSidebar || tipsSidebar.hidden)
+                {
+                    return;
+                }
+
+                var page = document.querySelector('.page');
+                var sidebarWidth = tipsSidebar.offsetWidth || 240;
+                var pageRight = page ? page.getBoundingClientRect().right : (window.innerWidth - 16);
+                var left = Math.round(pageRight + 16);
+
+                if (left + sidebarWidth > window.innerWidth - 8)
+                {
+                    left = window.innerWidth - sidebarWidth - 8;
+                }
+                if (left < 8)
+                {
+                    left = 8;
+                }
+
+                var formPanel = document.querySelector('.layout > .panel');
+                var top = formPanel
+                    ? Math.max(16, Math.round(formPanel.getBoundingClientRect().top))
+                    : 16;
+
+                tipsSidebar.style.left = left + 'px';
+                tipsSidebar.style.top = top + 'px';
+            };
+
+            var syncSidebarVisibility = function ()
+            {
+                var anyVisible = Array.from(
+                    tipsSidebar.querySelectorAll('.tip-card')
+                ).some(function (card)
+                {
+                    return !card.hidden;
+                });
+                tipsSidebar.hidden = !anyVisible;
+                if (anyVisible)
+                {
+                    positionTipsSidebar();
+                }
+            };
+
+            var showTip = function (id)
+            {
+                setTipVisible(id, true);
+            };
+
+            var dismissTip = function (id)
+            {
+                setDismissed(id);
+                setTipVisible(id, false);
+            };
+
+            /* Wire dismiss buttons */
+            tipsSidebar.addEventListener('click', function (event)
+            {
+                var btn = event.target.closest('[data-tip-dismiss]');
+                if (!btn)
+                {
+                    return;
+                }
+                dismissTip(btn.getAttribute('data-tip-dismiss') || '');
+            });
+
+            window.addEventListener('resize', positionTipsSidebar);
+            window.addEventListener('scroll', positionTipsSidebar, { passive: true });
+
+            /* ---- Tip: clipboard_paste ---- */
+            var CLIPBOARD_TIP_ID = 'clipboard_paste';
+            var CATEGORY_MATCH_TIP_ID = 'category_match';
+            var PRIORITY_HIGH_TIP_ID = 'priority_high';
+            var POSSIBLE_DUPLICATE_TIP_ID = 'possible_duplicate';
+
+            /* Show when the user adds a file via the file input in the new-ticket form */
+            var newTicketForm = tipsSidebar.closest('.layout')
+                ? tipsSidebar.closest('.layout').querySelector('form.form-grid')
+                : null;
+            if (!newTicketForm)
+            {
+                newTicketForm = document.querySelector('form.form-grid');
+            }
+
+            var titleInput = newTicketForm ? newTicketForm.querySelector('#title') : null;
+            var descriptionInput = newTicketForm ? newTicketForm.querySelector('#description') : null;
+            var categorySelect = newTicketForm ? newTicketForm.querySelector('#category') : null;
+            var tipFileInput = newTicketForm ? newTicketForm.querySelector('input[type="file"][data-accumulate-files="1"]') : null;
+
+            if (newTicketForm)
+            {
+                if (tipFileInput)
+                {
+                    tipFileInput.addEventListener('change', function ()
+                    {
+                        if ((tipFileInput.files || []).length > 0)
+                        {
+                            showTip(CLIPBOARD_TIP_ID);
+                        }
+                    });
+                }
+            }
+
+            /* Auto-dismiss when the user pastes an image from clipboard */
+            document.addEventListener('paste', function (event)
+            {
+                var items = event.clipboardData ? Array.from(event.clipboardData.items) : [];
+                var hasImage = items.some(function (item)
+                {
+                    return item.kind === 'file' && item.type.indexOf('image/') === 0;
+                });
+                if (hasImage)
+                {
+                    dismissTip(CLIPBOARD_TIP_ID);
+                }
+            });
+
+            var countOccurrences = function (haystack, needle)
+            {
+                if (!haystack || !needle)
+                {
+                    return 0;
+                }
+
+                var count = 0;
+                var startIndex = 0;
+                while (true)
+                {
+                    var index = haystack.indexOf(needle, startIndex);
+                    if (index === -1)
+                    {
+                        break;
+                    }
+                    count++;
+                    startIndex = index + needle.length;
+                }
+
+                return count;
+            };
+
+            var normalizeTipText = function (value)
+            {
+                return String(value || '')
+                    .toLowerCase()
+                    .replace(/\r\n?/g, '\n')
+                    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            };
+
+            var evaluateCategoryMatchTip = function ()
+            {
+                if (!categorySelect || !titleInput || !descriptionInput)
+                {
+                    hideTip(CATEGORY_MATCH_TIP_ID);
+                    return;
+                }
+
+                var selectedCategoryValue = String(categorySelect.value || '').trim();
+                var combinedText = normalizeTipText((titleInput.value || '') + ' ' + (descriptionInput.value || ''));
+                if (!selectedCategoryValue || combinedText.length < 3)
+                {
+                    hideTip(CATEGORY_MATCH_TIP_ID);
+                    return;
+                }
+
+                var bestMatch = null;
+                Array.from(categorySelect.options || []).forEach(function (option)
+                {
+                    var optionValue = String(option.value || '').trim();
+                    var optionLabel = String(option.textContent || '').trim();
+                    if (!optionValue || optionValue === selectedCategoryValue || !optionLabel)
+                    {
+                        return;
+                    }
+
+                    var normalizedLabel = normalizeTipText(optionLabel);
+                    if (!normalizedLabel)
+                    {
+                        return;
+                    }
+
+                    var score = countOccurrences(combinedText, normalizedLabel) * 100;
+                    normalizedLabel.split(' ').forEach(function (part)
+                    {
+                        if (part.length < 4)
+                        {
+                            return;
+                        }
+                        score += countOccurrences(combinedText, part) * Math.min(part.length, 12);
+                    });
+
+                    if (score <= 0)
+                    {
+                        return;
+                    }
+
+                    if (!bestMatch || score > bestMatch.score)
+                    {
+                        bestMatch = {
+                            label: optionLabel,
+                            score: score
+                        };
+                    }
+                });
+
+                if (!bestMatch)
+                {
+                    hideTip(CATEGORY_MATCH_TIP_ID);
+                    return;
+                }
+
+                setTipTemplateValue(CATEGORY_MATCH_TIP_ID, {
+                    category: '<strong>' + escapeHtml(bestMatch.label) + '</strong>'
+                });
+                showTip(CATEGORY_MATCH_TIP_ID);
+            };
+
+            var evaluatePriorityHighTip = function ()
+            {
+                if (!fullyBlockedCheckbox)
+                {
+                    hideTip(PRIORITY_HIGH_TIP_ID);
+                    return;
+                }
+
+                setTipVisible(PRIORITY_HIGH_TIP_ID, !!fullyBlockedCheckbox.checked);
+            };
+
+            var duplicateTipRequestId = 0;
+            var duplicateTipTimer = 0;
+            var evaluateDuplicateTicketTip = function ()
+            {
+                if (!titleInput)
+                {
+                    hideTip(POSSIBLE_DUPLICATE_TIP_ID);
+                    return;
+                }
+
+                var title = String(titleInput.value || '').trim();
+                if (title.length < 8)
+                {
+                    hideTip(POSSIBLE_DUPLICATE_TIP_ID);
+                    return;
+                }
+
+                var requestId = ++duplicateTipRequestId;
+                apiFetchJson('open_ticket_duplicate_tip', {
+                    title: title
+                }).then(function (data)
+                {
+                    if (requestId !== duplicateTipRequestId)
+                    {
+                        return;
+                    }
+
+                    if (data && data.match)
+                    {
+                        showTip(POSSIBLE_DUPLICATE_TIP_ID);
+                        return;
+                    }
+
+                    hideTip(POSSIBLE_DUPLICATE_TIP_ID);
+                }).catch(function ()
+                {
+                    if (requestId !== duplicateTipRequestId)
+                    {
+                        return;
+                    }
+
+                    hideTip(POSSIBLE_DUPLICATE_TIP_ID);
+                });
+            };
+
+            var scheduleDuplicateTicketTip = function ()
+            {
+                window.clearTimeout(duplicateTipTimer);
+                duplicateTipTimer = window.setTimeout(evaluateDuplicateTicketTip, 350);
+            };
+
+            if (titleInput)
+            {
+                titleInput.addEventListener('input', evaluateCategoryMatchTip);
+                titleInput.addEventListener('input', scheduleDuplicateTicketTip);
+            }
+            if (descriptionInput)
+            {
+                descriptionInput.addEventListener('input', evaluateCategoryMatchTip);
+            }
+            if (categorySelect)
+            {
+                categorySelect.addEventListener('change', evaluateCategoryMatchTip);
+            }
+            if (fullyBlockedCheckbox)
+            {
+                fullyBlockedCheckbox.addEventListener('change', evaluatePriorityHighTip);
+                evaluatePriorityHighTip();
+            }
+
+            evaluateCategoryMatchTip();
+            evaluateDuplicateTicketTip();
+        })();
 
         /**
          * Template-fragment modal

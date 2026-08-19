@@ -128,6 +128,140 @@
             display: none !important;
         }
 
+        .prefs-reset-tips {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--line);
+        }
+
+        .tips-sidebar {
+            position: fixed;
+            z-index: 35;
+            width: 240px;
+            max-height: calc(100vh - 32px);
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: var(--panel);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .tips-sidebar[hidden] {
+            display: none !important;
+        }
+
+        .tips-sidebar-heading {
+            margin: 0 0 2px;
+            font-size: 14px;
+            color: var(--muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .tip-card {
+            display: grid;
+            gap: 8px;
+            position: relative;
+            overflow: visible;
+            background: #f8fafc;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: none;
+        }
+
+        .tip-card[hidden] {
+            display: none !important;
+        }
+
+        .tip-card::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: inherit;
+            border: 2px solid rgba(147, 197, 253, 0.55);
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.98);
+        }
+
+        .tip-card:not([hidden])::after {
+            animation: tip-card-pulse-ring 1.8s ease-in-out infinite;
+        }
+
+        @keyframes tip-card-pulse-ring {
+            0%, 100% {
+                opacity: 0;
+                transform: scale(0.98);
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .tip-card-heading {
+            margin: 0 0 2px;
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .tip-card-body {
+            font-size: 13px;
+            line-height: 1.45;
+            color: var(--text);
+            margin: 0;
+        }
+
+        .tip-card-body kbd {
+            display: inline-block;
+            background: #e8ecf2;
+            border: 1px solid #c4cdda;
+            border-bottom-width: 2px;
+            border-radius: 5px;
+            padding: 1px 6px;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.6;
+            color: var(--text);
+        }
+
+        .tip-dismiss-btn {
+            align-self: start;
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            font: inherit;
+            font-size: 12px;
+            color: var(--muted);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .tip-dismiss-btn:hover,
+        .tip-dismiss-btn:focus-visible {
+            color: var(--text);
+        }
+
+        @media (max-width: 700px) {
+            .tips-sidebar {
+                display: none;
+            }
+        }
+
         .related-tickets-heading {
             margin: 0 0 4px;
             font-size: 16px;
