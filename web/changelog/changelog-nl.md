@@ -1,3 +1,11 @@
+id: 2026-08-19-email-autocomplete-new-ticket-users
+date: 2026-08-19
+title: E-mailsuggesties bij nieuw ticket en gebruikers beheren
+author: Tim Falken
+
+Bij **Nieuw ticket** (voor admins) en in **Gebruikers beheren** op het ICT-overzicht krijg je nu tijdens het typen dezelfde e-mailsuggesties als op de Rollen-pagina. Daardoor kun je bekende gebruikers sneller toevoegen zonder hun volledige adres uit het hoofd te hoeven typen.
+
+---
 id: 2026-08-19-tips-sidebar
 date: 2026-08-19
 title: Tip bij bijlage uploaden — direct plakken met Ctrl+V
@@ -5,7 +13,7 @@ author: Tim Falken
 
 Bij het aanmaken van een nieuw ticket verschijnt rechts een tip zodra je een bestand uploadt als bijlage: je kunt schermafdrukken ook direct vanuit het klembord in de berichttekst plakken met **Ctrl+V**. De tip verdwijnt automatisch als je dit al een keer doet, of je kan hem permanent wegklikken met "Niet meer tonen". Dit is de basis van een generiek tips-systeem waaraan later meer contextuele tips toegevoegd kunnen worden.
 
-Er zijn nu ook extra slimme tips toegevoegd voor een mogelijk beter passende categorie, een te hoge prioriteit en het herkennen van een mogelijk dubbel openstaand ticket van dezelfde aanvrager. Bij de categorie-tip worden ook afkortingen in hoofdletters (zoals BC) herkend.
+Er zijn nu ook extra slimme tips toegevoegd voor een mogelijk beter passende categorie, een te hoge prioriteit en het herkennen van een mogelijk dubbel openstaand ticket van dezelfde aanvrager. Bij de categorie-tip worden ook afkortingen in hoofdletters (zoals BC) herkend. Op het **ICT-overzicht** verschijnt daarnaast een tip bij een antwoord waarin je een andere admin of rol-lid noemt, zodat je interne afstemming desnoods als paars 👻-bericht kan plaatsen.
 
 In Voorkeuren staat onderaan een knopje **"Verborgen tips weer tonen"** waarmee je alle weggeklikte tips in één keer terugzet.
 

@@ -1,3 +1,11 @@
+id: 2026-08-19-email-autocomplete-new-ticket-users
+date: 2026-08-19
+title: Suggestions d’e-mail pour nouveau ticket et gestion des utilisateurs
+author: Tim Falken
+
+Dans **Nouveau ticket** (pour les admins) et dans **Gérer les utilisateurs** sur l’aperçu ICT, la saisie affiche désormais les mêmes suggestions d’e-mail que sur la page des Rôles. Cela permet d’ajouter plus vite des utilisateurs connus sans devoir taper ou mémoriser l’adresse complète.
+
+---
 id: 2026-08-19-tips-sidebar
 date: 2026-08-19
 title: Conseil lors du téléversement d'une pièce jointe — coller avec Ctrl+V
@@ -5,7 +13,7 @@ author: Tim Falken
 
 Lors de la création d'un nouveau ticket, un conseil apparaît à droite dès que vous téléversez un fichier en pièce jointe : vous pouvez également coller des captures d'écran directement depuis votre presse-papiers dans le texte du message avec **Ctrl+V**. Le conseil disparaît automatiquement si vous le faites déjà, ou vous pouvez le masquer définitivement avec "Ne plus afficher". C'est la base d'un système de conseils génériques auquel d'autres conseils contextuels pourront être ajoutés à l'avenir.
 
-D'autres conseils intelligents aident désormais aussi à repérer une catégorie plus adaptée, avertissent lorsqu'une priorité semble trop élevée et détectent un possible ticket ouvert en double du même demandeur. Les suggestions de catégorie reconnaissent aussi les abréviations en majuscules (comme BC).
+D'autres conseils intelligents aident désormais aussi à repérer une catégorie plus adaptée, avertissent lorsqu'une priorité semble trop élevée et détectent un possible ticket ouvert en double du même demandeur. Les suggestions de catégorie reconnaissent aussi les abréviations en majuscules (comme BC). Dans l’**aperçu ICT**, un conseil supplémentaire apparaît maintenant lorsque votre réponse mentionne un autre admin ou membre de rôle, afin que vous puissiez publier cette coordination comme message interne violet 👻 si nécessaire.
 
 Dans les Préférences, un bouton **"Réafficher les conseils masqués"** en bas de page permet de réactiver tous les conseils ignorés en une seule action.
 

@@ -208,4 +208,13 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
             <div data-role="ticket-pagination"><?= $ticketPaginationHtml ?></div>
         <?php endif; ?>
     </section>
+    <?php if ($showAdminOverviewSection): ?>
+        <aside class="tips-sidebar" id="internal-reply-tips-sidebar" hidden>
+            <div class="tip-card" data-role="reply-internal-tip" data-tip-id="internal_reply_hint" hidden>
+                <p class="tips-sidebar-heading"><?= h(__('tips.heading')) ?></p>
+                <p class="tip-card-body"><?= h(__('tips.internal_reply_hint')) ?></p>
+                <button type="button" class="tip-dismiss-btn" data-tip-dismiss="internal_reply_hint"><?= h(__('tips.dismiss')) ?></button>
+            </div>
+        </aside>
+    <?php endif; ?>
 <?php endif; ?>

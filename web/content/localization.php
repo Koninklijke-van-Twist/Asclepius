@@ -327,6 +327,7 @@ const TRANSLATIONS = [
         'tips.category_match' => 'Voor snellere afhandeling, selecteer de juiste categorie bij het indienen van een ticket. Past %category% misschien beter?',
         'tips.priority_high' => 'Selecteer een passende prioriteit voor je ticket. Kan het even wachten? Zet de prioriteit dan niet te hoog.',
         'tips.possible_duplicate' => 'Voorkom het insturen van dubbele tickets. Als je een vraag al in een ticket gestuurd hebt, kan het aanmaken van een tweede ticket over datzelfde probleem het proces vertragen. Je kunt in bestaande tickets extra berichten versturen als je extra informatie wilt aanbieden.',
+        'tips.internal_reply_hint' => 'Wil je een bericht plaatsen die enkel intern zichtbaar is, en niet voor de gebruiker? Druk dan op het 👻 knopje rechtsonder het invoervenster om het bericht als intern te markeren. Een paars bericht is dan alleen intern te zien.',
         'tips.reset_btn' => 'Verborgen tips weer tonen',
         'tips.reset_feedback' => 'Tips zijn opnieuw ingeschakeld.',
 
@@ -929,6 +930,7 @@ const TRANSLATIONS = [
         'tips.category_match' => 'For faster handling, choose the right category when submitting a ticket. Might %category% fit better?',
         'tips.priority_high' => 'Choose an appropriate priority for your ticket. Can it wait a bit? Then do not set the priority too high.',
         'tips.possible_duplicate' => 'Avoid submitting duplicate tickets. If you already sent your question in another ticket, creating a second ticket about the same problem can slow the process down. You can send extra messages in existing tickets if you want to provide additional information.',
+        'tips.internal_reply_hint' => 'Do you want to place a message that is only visible internally and not to the user? Then press the 👻 button at the bottom right of the input field to mark the message as internal. A purple message is then only visible internally.',
         'tips.reset_btn' => 'Show hidden tips again',
         'tips.reset_feedback' => 'Tips have been re-enabled.',
 
@@ -1531,6 +1533,7 @@ const TRANSLATIONS = [
         'tips.category_match' => 'Für eine schnellere Bearbeitung wählen Sie beim Einreichen eines Tickets die richtige Kategorie. Passt %category% vielleicht besser?',
         'tips.priority_high' => 'Wählen Sie eine passende Priorität für Ihr Ticket. Kann es noch etwas warten? Setzen Sie die Priorität dann nicht zu hoch.',
         'tips.possible_duplicate' => 'Vermeiden Sie das Einreichen doppelter Tickets. Wenn Sie Ihre Frage bereits in einem Ticket gestellt haben, kann das Erstellen eines zweiten Tickets zum selben Problem den Prozess verlangsamen. Sie können in bestehenden Tickets zusätzliche Nachrichten senden, wenn Sie weitere Informationen ergänzen möchten.',
+        'tips.internal_reply_hint' => 'Möchten Sie eine Nachricht platzieren, die nur intern sichtbar ist und nicht für den Benutzer? Drücken Sie dann auf die 👻-Schaltfläche unten rechts am Eingabefeld, um die Nachricht als intern zu markieren. Eine violette Nachricht ist dann nur intern sichtbar.',
         'tips.reset_btn' => 'Ausgeblendete Tipps wieder anzeigen',
         'tips.reset_feedback' => 'Tipps wurden wieder aktiviert.',
 
@@ -2133,6 +2136,7 @@ const TRANSLATIONS = [
         'tips.category_match' => 'Pour un traitement plus rapide, sélectionnez la bonne catégorie lors de l\'envoi d\'un ticket. %category% conviendrait-il peut-être mieux ?',
         'tips.priority_high' => 'Sélectionnez une priorité adaptée pour votre ticket. Cela peut-il attendre un peu ? Dans ce cas, ne mettez pas la priorité trop haut.',
         'tips.possible_duplicate' => 'Évitez d\'envoyer des tickets en double. Si vous avez déjà envoyé votre question dans un ticket, créer un deuxième ticket sur le même problème peut ralentir le processus. Vous pouvez ajouter des messages supplémentaires dans les tickets existants si vous souhaitez fournir plus d\'informations.',
+        'tips.internal_reply_hint' => 'Voulez-vous publier un message qui ne soit visible qu\'en interne, et pas pour l\'utilisateur ? Appuyez alors sur le bouton 👻 en bas à droite du champ de saisie pour marquer le message comme interne. Un message violet ne sera alors visible qu\'en interne.',
         'tips.reset_btn' => 'Réafficher les conseils masqués',
         'tips.reset_feedback' => 'Les conseils ont été réactivés.',
 

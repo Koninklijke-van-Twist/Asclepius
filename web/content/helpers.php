@@ -159,6 +159,38 @@ function findInvalidEmailListTokens(string $input): array
     return array_values(array_unique($invalid));
 }
 
+/**
+ * @param list<string> $excludeEmails
+ * @return array<string, string>
+ */
+function buildKnownUserEmailSuggestions(array $excludeEmails = []): array
+{
+    $excludeLookup = [];
+    foreach ($excludeEmails as $email) {
+        $normalized = strtolower(trim((string) $email));
+        if ($normalized !== '') {
+            $excludeLookup[$normalized] = true;
+        }
+    }
+
+    $suggestions = [];
+    foreach (getUserDisplayNameMap() as $suggestionEmail => $suggestionName) {
+        $suggestionEmail = strtolower(trim((string) $suggestionEmail));
+        if ($suggestionEmail === ''
+            || !filter_var($suggestionEmail, FILTER_VALIDATE_EMAIL)
+            || isset($excludeLookup[$suggestionEmail])
+        ) {
+            continue;
+        }
+
+        $label = trim((string) $suggestionName);
+        $suggestions[$suggestionEmail] = $label !== '' ? $label : $suggestionEmail;
+    }
+
+    asort($suggestions, SORT_NATURAL | SORT_FLAG_CASE);
+    return $suggestions;
+}
+
 function buildRequesterSummary(array $participantEmails, string $fallbackEmail): array
 {
     $normalizedParticipants = [];
@@ -986,6 +1018,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $requesterTooltip = (string) ($requesterSummary['tooltip'] ?? $requesterEmail);
     $requesterParticipants = is_array($requesterSummary['participants'] ?? null) ? $requesterSummary['participants'] : [$requesterEmail];
     $requesterExtraCount = (int) ($requesterSummary['extra_count'] ?? 0);
+    $participantEmailSuggestions = buildKnownUserEmailSuggestions($requesterParticipants);
     $rawTitle = (string) ($ticket['title_raw'] ?? ($ticket['title'] ?? ''));
     $displayTitle = (string) ($ticket['title'] ?? '');
     $titleIsTranslated = !empty($ticket['title_is_translated']) && $rawTitle !== '' && $displayTitle !== '' && $rawTitle !== $displayTitle;
@@ -1031,6 +1064,10 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $assignableSource = $store instanceof TicketStore
         ? $store->getAllIctCapableEmails()
         : extractIctUserEmails($ictUsers);
+    $internalMentionTargets = array_values(array_unique(array_filter(array_map(
+        static fn(mixed $email): string => strtolower(trim((string) $email)),
+        $assignableSource
+    ), static fn(string $email): bool => $email !== '')));
     $assignableIctUsers = array_values(array_unique(array_filter(
         $assignableSource,
         static function (string $ictUser) use ($canAssignToRequester, $requesterEmail, $viewerEmail, $eligibleForCategory): bool {
@@ -1268,7 +1305,9 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                             <label>
                                 <?= h(__('ticket.participants_add_label')) ?>
                                 <input type="text" name="participant_emails"
-                                    placeholder="<?= h(__('ticket.participants_add_placeholder')) ?>" data-email-chip-input="1">
+                                    placeholder="<?= h(__('ticket.participants_add_placeholder')) ?>" data-email-chip-input="1"
+                                    data-email-suggestions="<?= h((string) json_encode($participantEmailSuggestions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                    autocomplete="off" spellcheck="false">
                             </label>
                             <div class="button-row">
                                 <button type="submit"
@@ -1454,7 +1493,10 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
 
                 <label>
                     <?= h(__('ticket.new_message')) ?>
-                    <div class="textarea-wrapper<?= $showGhostToggle ? ' has-ghost-toggle' : '' ?>" data-role="reply-textarea-wrap">
+                    <div class="textarea-wrapper<?= $showGhostToggle ? ' has-ghost-toggle' : '' ?>" data-role="reply-textarea-wrap"
+                        <?= ($showGhostToggle && $canManageTickets && $isAdminPortal && $view === 'overview')
+                            ? ' data-internal-mention-targets="' . h((string) json_encode($internalMentionTargets, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '"'
+                            : '' ?>>
                         <textarea name="message" placeholder="<?= h(__('ticket.new_message_placeholder')) ?>" data-role="reply-message-input"></textarea>
                         <?php if ($showGhostToggle): ?>
                             <input type="hidden" name="ghost_mode" value="0" data-role="ghost-mode-input">

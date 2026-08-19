@@ -157,6 +157,7 @@
 
         var initializeEmailChipInputs = function (scope)
         {
+            var emailChipSuggestionCounter = initializeEmailChipInputs._suggestionCounter || 0;
             (scope || document).querySelectorAll('input[data-email-chip-input="1"]').forEach(function (input)
             {
                 if (input.dataset.emailChipReady === '1')
@@ -178,6 +179,48 @@
                 chipInput.className = 'email-chip-input';
                 chipInput.placeholder = input.getAttribute('placeholder') || '';
                 chipInput.setAttribute('aria-label', input.getAttribute('aria-label') || chipInput.placeholder || 'Email');
+                chipInput.setAttribute('autocomplete', input.getAttribute('autocomplete') || 'off');
+                chipInput.setAttribute('spellcheck', input.getAttribute('spellcheck') || 'false');
+
+                var rawSuggestions = input.getAttribute('data-email-suggestions') || '';
+                if (rawSuggestions !== '')
+                {
+                    try
+                    {
+                        var parsedSuggestions = JSON.parse(rawSuggestions) || {};
+                        var entries = Object.keys(parsedSuggestions).map(function (email)
+                        {
+                            return {
+                                email: String(email || '').trim().toLowerCase(),
+                                label: String(parsedSuggestions[email] || '').trim()
+                            };
+                        }).filter(function (entry)
+                        {
+                            return entry.email !== '';
+                        });
+
+                        if (entries.length > 0)
+                        {
+                            emailChipSuggestionCounter += 1;
+                            var datalistId = 'email-chip-suggestions-' + emailChipSuggestionCounter;
+                            var datalist = document.createElement('datalist');
+                            datalist.id = datalistId;
+                            entries.forEach(function (entry)
+                            {
+                                var option = document.createElement('option');
+                                option.value = entry.email;
+                                option.label = entry.label !== '' ? entry.label : entry.email;
+                                option.textContent = option.label;
+                                datalist.appendChild(option);
+                            });
+                            chipInput.setAttribute('list', datalistId);
+                            input.parentNode.insertBefore(datalist, input.nextSibling);
+                        }
+                    } catch (suggestionParseError)
+                    {
+                        /* Ignore invalid suggestion payloads */
+                    }
+                }
 
                 var chips = [];
                 var addChip = function (value)
@@ -291,6 +334,7 @@
 
                 renderChips();
             });
+            initializeEmailChipInputs._suggestionCounter = emailChipSuggestionCounter;
         };
 
         var accumulatedFileMap = new WeakMap();
@@ -3667,6 +3711,10 @@
                 {
                     window.syncGhostWaveBorders();
                 }
+                if (ghostEnabled && typeof window.asclepiusDismissInternalReplyTip === 'function')
+                {
+                    window.asclepiusDismissInternalReplyTip(ghostWrap);
+                }
                 return;
             }
 
@@ -4849,6 +4897,290 @@
 
             evaluateCategoryMatchTip();
             evaluateDuplicateTicketTip();
+        })();
+
+        (function initInternalReplyTips()
+        {
+            var STORAGE_KEY = 'asclepius_tips_dismissed';
+            if (!ticketPollPayload || !ticketPollPayload.is_admin_portal || ticketPollPayload.view !== 'overview')
+            {
+                return;
+            }
+
+            var getDismissed = function ()
+            {
+                try
+                {
+                    var raw = localStorage.getItem(STORAGE_KEY);
+                    return raw ? JSON.parse(raw) : {};
+                } catch (storageError)
+                {
+                    return {};
+                }
+            };
+
+            var setDismissed = function (id)
+            {
+                try
+                {
+                    var current = getDismissed();
+                    current[String(id)] = 1;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+                } catch (storageError)
+                {
+                    /* Intentionally ignored */
+                }
+            };
+
+            var isDismissed = function (id)
+            {
+                return !!getDismissed()[String(id)];
+            };
+
+            var TIP_ID = 'internal_reply_hint';
+            var internalReplyTipsSidebar = document.getElementById('internal-reply-tips-sidebar');
+            var internalReplyTipCard = internalReplyTipsSidebar
+                ? internalReplyTipsSidebar.querySelector('[data-role="reply-internal-tip"][data-tip-id="' + TIP_ID + '"]')
+                : null;
+            var viewerEmail = String(ticketPollPayload.viewer_email || '').trim().toLowerCase();
+
+            var normalizeMentionText = function (value)
+            {
+                return String(value || '').toLowerCase().trim();
+            };
+
+            var getReplyTipCard = function ()
+            {
+                return internalReplyTipCard;
+            };
+
+            var positionInternalReplyTipsSidebar = function ()
+            {
+                if (!internalReplyTipsSidebar || internalReplyTipsSidebar.hidden)
+                {
+                    return;
+                }
+
+                var page = document.querySelector('.page');
+                var sidebarWidth = internalReplyTipsSidebar.offsetWidth || 240;
+                var pageRight = page ? page.getBoundingClientRect().right : (window.innerWidth - 16);
+                var left = Math.round(pageRight + 16);
+
+                if (left + sidebarWidth > window.innerWidth - 8)
+                {
+                    left = window.innerWidth - sidebarWidth - 8;
+                }
+                if (left < 8)
+                {
+                    left = 8;
+                }
+
+                var ticketSection = document.querySelector('[data-live-ticket-section]');
+                var top = ticketSection
+                    ? Math.max(16, Math.round(ticketSection.getBoundingClientRect().top))
+                    : 16;
+
+                internalReplyTipsSidebar.style.left = left + 'px';
+                internalReplyTipsSidebar.style.top = top + 'px';
+            };
+
+            window.addEventListener('resize', positionInternalReplyTipsSidebar);
+            window.addEventListener('scroll', positionInternalReplyTipsSidebar, { passive: true });
+
+            var parseMentionTargets = function (wrap)
+            {
+                if (!wrap)
+                {
+                    return [];
+                }
+
+                try
+                {
+                    var parsed = JSON.parse(wrap.getAttribute('data-internal-mention-targets') || '[]') || [];
+                    if (!Array.isArray(parsed))
+                    {
+                        return [];
+                    }
+                    return parsed.map(function (email)
+                    {
+                        return String(email || '').trim().toLowerCase();
+                    }).filter(function (email)
+                    {
+                        return email && email !== viewerEmail;
+                    });
+                } catch (parseError)
+                {
+                    return [];
+                }
+            };
+
+            var buildMentionCandidates = function (email)
+            {
+                var candidates = {};
+                var normalizedEmail = normalizeMentionText(email);
+                if (normalizedEmail)
+                {
+                    candidates[normalizedEmail] = 1;
+                    var localPart = normalizedEmail.split('@')[0] || '';
+                    if (localPart.length >= 3)
+                    {
+                        candidates[localPart] = 1;
+                    }
+                }
+
+                var displayName = normalizeMentionText(resolveUserDisplayName(normalizedEmail));
+                if (displayName && displayName !== normalizedEmail)
+                {
+                    candidates[displayName] = 1;
+                    displayName.split(/[^a-z0-9\u00c0-\u024f]+/i).forEach(function (part)
+                    {
+                        part = normalizeMentionText(part);
+                        if (part.length < 3)
+                        {
+                            return;
+                        }
+                        candidates[part] = 1;
+                        for (var length = 3; length < part.length; length++)
+                        {
+                            candidates[part.slice(0, length)] = 1;
+                        }
+                    });
+                }
+
+                return Object.keys(candidates);
+            };
+
+            var replyTextMentionsInternalUser = function (text, wrap)
+            {
+                var normalizedText = normalizeMentionText(text);
+                if (normalizedText.length < 2)
+                {
+                    return false;
+                }
+
+                var targets = parseMentionTargets(wrap);
+                var escapeRegExp = function (value)
+                {
+                    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                };
+
+                var containsCandidate = function (candidate)
+                {
+                    if (!candidate)
+                    {
+                        return false;
+                    }
+
+                    // For emails we do substring matching; '@' mentions for partial name tokens are handled below.
+                    if (candidate.indexOf('@') !== -1)
+                    {
+                        return normalizedText.indexOf(candidate) !== -1;
+                    }
+
+                    var escaped = escapeRegExp(candidate);
+
+                    // Require the token to be a whole "letter/number" token (not part of a longer word).
+                    var wordRe = new RegExp('(^|[^\\p{L}\\p{N}_])' + escaped + '($|[^\\p{L}\\p{N}_])', 'u');
+                    var atRe = new RegExp('@' + escaped + '($|[^\\p{L}\\p{N}_])', 'u');
+                    return wordRe.test(normalizedText) || atRe.test(normalizedText);
+                };
+
+                return targets.some(function (email)
+                {
+                    return buildMentionCandidates(email).some(function (candidate)
+                    {
+                        if (!candidate)
+                        {
+                            return false;
+                        }
+                        return containsCandidate(candidate);
+                    });
+                });
+            };
+
+            var syncReplyTipForWrap = function (wrap)
+            {
+                var tipCard = getReplyTipCard(wrap);
+                var textarea = wrap ? wrap.querySelector('[data-role="reply-message-input"]') : null;
+                if (!tipCard || !textarea)
+                {
+                    return;
+                }
+
+                if (isDismissed(TIP_ID))
+                {
+                    tipCard.hidden = true;
+                    if (internalReplyTipsSidebar)
+                    {
+                        internalReplyTipsSidebar.hidden = true;
+                    }
+                    return;
+                }
+
+                tipCard.hidden = !replyTextMentionsInternalUser(textarea.value || '', wrap);
+                if (internalReplyTipsSidebar)
+                {
+                    internalReplyTipsSidebar.hidden = tipCard.hidden;
+                    if (!tipCard.hidden)
+                    {
+                        positionInternalReplyTipsSidebar();
+                    }
+                }
+            };
+
+            window.asclepiusDismissInternalReplyTip = function (wrap)
+            {
+                setDismissed(TIP_ID);
+                if (internalReplyTipCard)
+                {
+                    internalReplyTipCard.hidden = true;
+                }
+                if (internalReplyTipsSidebar)
+                {
+                    internalReplyTipsSidebar.hidden = true;
+                }
+            };
+
+            document.addEventListener('input', function (event)
+            {
+                var target = event.target;
+                if (!(target instanceof HTMLElement))
+                {
+                    return;
+                }
+                var textarea = target.closest('[data-role="reply-message-input"]');
+                if (!textarea)
+                {
+                    return;
+                }
+                var wrap = textarea.closest('[data-role="reply-textarea-wrap"]');
+                if (!wrap || !wrap.hasAttribute('data-internal-mention-targets'))
+                {
+                    return;
+                }
+                syncReplyTipForWrap(wrap);
+            });
+
+            document.addEventListener('click', function (event)
+            {
+                var target = event.target;
+                if (!(target instanceof HTMLElement))
+                {
+                    return;
+                }
+                var dismissButton = target.closest('[data-tip-dismiss="' + TIP_ID + '"]');
+                var tipCard = dismissButton ? dismissButton.closest('[data-role="reply-internal-tip"]') : null;
+                if (!dismissButton || !tipCard)
+                {
+                    return;
+                }
+                window.asclepiusDismissInternalReplyTip();
+            });
+
+            document.querySelectorAll('[data-role="reply-textarea-wrap"][data-internal-mention-targets]').forEach(function (wrap)
+            {
+                syncReplyTipForWrap(wrap);
+            });
         })();
 
         /**

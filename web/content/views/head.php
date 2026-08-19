@@ -174,6 +174,10 @@
             display: none !important;
         }
 
+        .reply-tip-card {
+            margin-top: 10px;
+        }
+
         @keyframes tips-sidebar-pulse {
             0%, 100% {
                 box-shadow: var(--shadow), 0 0 0 0 rgba(147, 197, 253, 0);

@@ -53,9 +53,12 @@
             </div>
 
             <?php if ($userIsAdmin): ?>
+                <?php $knownRequesterSuggestions = buildKnownUserEmailSuggestions(); ?>
                 <label>
                     <?= h(__('new_ticket.requester_list_label')) ?>
                     <input type="text" name="requester_emails" maxlength="1200" data-email-chip-input="1"
+                        data-email-suggestions="<?= h((string) json_encode($knownRequesterSuggestions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                        autocomplete="off" spellcheck="false"
                         placeholder="<?= h(__('new_ticket.requester_placeholder')) ?>">
                     <span class="hint"><?= h(__('new_ticket.requester_list_hint')) ?></span>
                 </label>

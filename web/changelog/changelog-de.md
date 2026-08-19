@@ -1,3 +1,11 @@
+id: 2026-08-19-email-autocomplete-new-ticket-users
+date: 2026-08-19
+title: E-Mail-Vorschläge bei neuem Ticket und Benutzerverwaltung
+author: Tim Falken
+
+Unter **Neues Ticket** (für Admins) und in **Benutzer verwalten** in der ICT-Übersicht werden beim Tippen jetzt dieselben E-Mail-Vorschläge angezeigt wie auf der Rollen-Seite. Dadurch lassen sich bekannte Benutzer schneller hinzufügen, ohne die komplette Adresse auswendig eingeben zu müssen.
+
+---
 id: 2026-08-19-tips-sidebar
 date: 2026-08-19
 title: Tipp beim Hochladen eines Anhangs — Screenshots mit Strg+V einfügen
@@ -5,7 +13,7 @@ author: Tim Falken
 
 Beim Erstellen eines neuen Tickets erscheint rechts ein Tipp, sobald Sie eine Datei als Anhang hochladen: Sie können Screenshots auch direkt aus der Zwischenablage mit **Strg+V** in den Nachrichtentext einfügen. Der Tipp verschwindet automatisch, wenn Sie dies bereits getan haben, oder Sie können ihn dauerhaft mit "Nicht mehr anzeigen" ausblenden. Dies ist die Grundlage eines generischen Tipps-Systems, dem später weitere kontextbezogene Tipps hinzugefügt werden können.
 
-Zusätzliche intelligente Tipps weisen jetzt auch auf eine möglicherweise besser passende Kategorie hin, warnen vor einer zu hohen Priorität und erkennen ein mögliches doppeltes offenes Ticket desselben Anfragenden. Die Kategorie-Vorschläge erkennen außerdem Abkürzungen in Großbuchstaben (wie BC).
+Zusätzliche intelligente Tipps weisen jetzt auch auf eine möglicherweise besser passende Kategorie hin, warnen vor einer zu hohen Priorität und erkennen ein mögliches doppeltes offenes Ticket desselben Anfragenden. Die Kategorie-Vorschläge erkennen außerdem Abkürzungen in Großbuchstaben (wie BC). In der **ICT-Übersicht** erscheint jetzt außerdem ein Tipp, wenn Ihre Antwort einen anderen Admin oder ein Rollenmitglied erwähnt, damit Sie solche Abstimmung bei Bedarf als violette 👻-interne Nachricht senden können.
 
 In den Einstellungen gibt es unten die Schaltfläche **"Ausgeblendete Tipps wieder anzeigen"**, mit der alle ausgeblendeten Tipps auf einmal zurückgesetzt werden können.
 
