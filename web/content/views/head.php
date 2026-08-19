@@ -112,6 +112,85 @@
             padding: 16px;
         }
 
+        .related-tickets-sidebar {
+            position: fixed;
+            z-index: 35;
+            width: 240px;
+            max-height: calc(100vh - 32px);
+            overflow: auto;
+            background: var(--panel);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .related-tickets-sidebar[hidden] {
+            display: none !important;
+        }
+
+        .related-tickets-heading {
+            margin: 0 0 4px;
+            font-size: 16px;
+        }
+
+        .related-tickets-intro {
+            margin: 0 0 10px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .related-tickets-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .related-tickets-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            border: 1px solid var(--line);
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 10px;
+            cursor: pointer;
+            color: var(--text);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.35;
+        }
+
+        .related-tickets-item:hover,
+        .related-tickets-item:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
+            background: var(--accent-soft);
+        }
+
+        .related-ticket-modal-card {
+            width: min(960px, 100%);
+            max-height: min(90vh, 860px);
+        }
+
+        .related-ticket-modal-body {
+            min-height: 80px;
+        }
+
+        .related-ticket-modal-loading {
+            margin: 0;
+            color: var(--muted);
+        }
+
+        @media (max-width: 700px) {
+            .related-tickets-sidebar {
+                width: min(240px, calc(100vw - 24px));
+            }
+        }
+
         .presence-sidebar {
             position: fixed;
             top: 16px;

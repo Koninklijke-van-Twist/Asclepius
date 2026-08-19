@@ -8,6 +8,52 @@ function shouldIncludeGhostMessages(bool $canManageTickets, bool $isAdminPortal,
     return $canManageTickets && $isAdminPortal && $view === 'overview';
 }
 
+/**
+ * Keep a ticket opened via ?open= in the current list even when filters would hide it.
+ *
+ * @param list<array<string, mixed>> $tickets
+ * @param list<string>|null $accessCategories
+ * @return list<array<string, mixed>>
+ */
+function prependLinkedOpenTicketIfMissing(
+    TicketStore $store,
+    array $tickets,
+    int $openTicketId,
+    bool $canManageTickets,
+    string $userEmail,
+    string $browseMode,
+    bool $includeGhostMessages,
+    ?array $accessCategories,
+    string $currentLanguage
+): array {
+    if ($openTicketId <= 0) {
+        return $tickets;
+    }
+
+    foreach ($tickets as $ticket) {
+        if ((int) ($ticket['id'] ?? 0) === $openTicketId) {
+            return $tickets;
+        }
+    }
+
+    $linkedOpenTicket = $store->getTicket(
+        $openTicketId,
+        $canManageTickets,
+        $userEmail,
+        $browseMode,
+        $includeGhostMessages,
+        $accessCategories
+    );
+    if (!is_array($linkedOpenTicket)) {
+        return $tickets;
+    }
+
+    return array_merge(
+        [localizeTicketForViewer($linkedOpenTicket, $store, $currentLanguage, true)],
+        $tickets
+    );
+}
+
 function h(?string $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');

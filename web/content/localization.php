@@ -318,6 +318,9 @@ const TRANSLATIONS = [
         'new_ticket.participants_hint' => 'Voeg collega\'s toe die dit ticket ook onder Mijn tickets moeten zien.',
         'new_ticket.attachments_label' => 'Screenshots of documenten',
         'new_ticket.btn_submit' => 'Ticket indienen',
+        'new_ticket.related_heading' => 'Mogelijk gerelateerd',
+        'new_ticket.related_intro' => 'Mogelijk is uw vraag eerder beantwoord',
+        'new_ticket.related_loading' => 'Ticket wordt geladen…',
 
         // Template tickets
         'template_ticket.heading' => 'Template-ticket aanmaken',
@@ -909,6 +912,9 @@ const TRANSLATIONS = [
         'new_ticket.participants_hint' => 'Add colleagues who should also see this ticket under My tickets.',
         'new_ticket.attachments_label' => 'Screenshots or documents',
         'new_ticket.btn_submit' => 'Submit ticket',
+        'new_ticket.related_heading' => 'Possibly related',
+        'new_ticket.related_intro' => 'Your question may already have been answered',
+        'new_ticket.related_loading' => 'Loading ticket…',
 
         // Template tickets
         'template_ticket.heading' => 'Create template ticket',
@@ -1500,6 +1506,9 @@ const TRANSLATIONS = [
         'new_ticket.participants_hint' => 'Fügen Sie Kollegen hinzu, die dieses Ticket ebenfalls unter Meine Tickets sehen sollen.',
         'new_ticket.attachments_label' => 'Screenshots oder Dokumente',
         'new_ticket.btn_submit' => 'Ticket einreichen',
+        'new_ticket.related_heading' => 'Möglicherweise verwandt',
+        'new_ticket.related_intro' => 'Ihre Frage wurde möglicherweise schon beantwortet',
+        'new_ticket.related_loading' => 'Ticket wird geladen…',
 
         // Template tickets
         'template_ticket.heading' => 'Template-Ticket erstellen',
@@ -2091,6 +2100,9 @@ const TRANSLATIONS = [
         'new_ticket.participants_hint' => 'Ajoutez des collègues qui doivent aussi voir ce ticket dans Mes tickets.',
         'new_ticket.attachments_label' => 'Captures d\'écran ou documents',
         'new_ticket.btn_submit' => 'Soumettre le ticket',
+        'new_ticket.related_heading' => 'Peut-être lié',
+        'new_ticket.related_intro' => 'Votre question a peut-être déjà une réponse',
+        'new_ticket.related_loading' => 'Chargement du ticket…',
 
         // Template tickets
         'template_ticket.heading' => 'Créer un ticket modèle',

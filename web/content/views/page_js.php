@@ -4132,6 +4132,237 @@
             });
         };
 
+        var relatedTicketsSidebar = document.getElementById('related-tickets-sidebar');
+        var relatedTicketsList = relatedTicketsSidebar
+            ? relatedTicketsSidebar.querySelector('[data-role="related-tickets-list"]')
+            : null;
+        var relatedTicketModal = document.querySelector('[data-role="related-ticket-modal"]');
+        var relatedTicketModalBody = relatedTicketModal
+            ? relatedTicketModal.querySelector('[data-role="related-ticket-modal-body"]')
+            : null;
+        var relatedSearchTimer = 0;
+        var relatedSearchRequestId = 0;
+        var relatedLoadingLabel = <?= json_encode(__('new_ticket.related_loading'), JSON_UNESCAPED_UNICODE) ?>;
+
+        var positionRelatedTicketsSidebar = function ()
+        {
+            if (!relatedTicketsSidebar || relatedTicketsSidebar.hidden)
+            {
+                return;
+            }
+
+            var page = document.querySelector('.page');
+            var formPanel = document.querySelector('.layout > .panel');
+            var presence = document.getElementById('presence-sidebar');
+            var sidebarWidth = relatedTicketsSidebar.offsetWidth || 240;
+            var pageLeft = page ? page.getBoundingClientRect().left : 16;
+            var left = Math.round(pageLeft - sidebarWidth - 16);
+            var presenceBottom = 16;
+            if (presence && presence.offsetParent !== null)
+            {
+                var presenceRect = presence.getBoundingClientRect();
+                presenceBottom = Math.round(presenceRect.bottom + 16);
+                if (left < presenceRect.right + 12)
+                {
+                    left = 16;
+                }
+            }
+            if (left < 8)
+            {
+                left = 8;
+            }
+
+            var top = 16;
+            if (formPanel)
+            {
+                top = Math.max(16, Math.round(formPanel.getBoundingClientRect().top));
+            }
+            if (presence && presence.offsetParent !== null && left <= 24)
+            {
+                top = Math.max(top, presenceBottom);
+            }
+
+            relatedTicketsSidebar.style.left = left + 'px';
+            relatedTicketsSidebar.style.top = top + 'px';
+        };
+
+        var renderRelatedTickets = function (tickets)
+        {
+            if (!relatedTicketsSidebar || !relatedTicketsList)
+            {
+                return;
+            }
+
+            relatedTicketsList.innerHTML = '';
+            if (!tickets || !tickets.length)
+            {
+                relatedTicketsSidebar.hidden = true;
+                return;
+            }
+
+            tickets.forEach(function (ticket)
+            {
+                var item = document.createElement('li');
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'related-tickets-item';
+                button.setAttribute('data-ticket-id', String(ticket.id || ''));
+                button.textContent = ticket.title || ('#' + ticket.id);
+                item.appendChild(button);
+                relatedTicketsList.appendChild(item);
+            });
+            relatedTicketsSidebar.hidden = false;
+            positionRelatedTicketsSidebar();
+        };
+
+        var closeRelatedTicketModal = function ()
+        {
+            if (!relatedTicketModal)
+            {
+                return;
+            }
+            relatedTicketModal.hidden = true;
+            relatedTicketModal.classList.remove('is-open');
+            if (relatedTicketModalBody)
+            {
+                relatedTicketModalBody.innerHTML = '<p class="related-ticket-modal-loading">' + escapeHtml(relatedLoadingLabel) + '</p>';
+            }
+        };
+
+        var openRelatedTicketModal = function (ticketId)
+        {
+            if (!relatedTicketModal || !relatedTicketModalBody || !ticketId)
+            {
+                return;
+            }
+
+            relatedTicketModal.hidden = false;
+            relatedTicketModal.classList.add('is-open');
+            relatedTicketModalBody.innerHTML = '<p class="related-ticket-modal-loading">' + escapeHtml(relatedLoadingLabel) + '</p>';
+
+            apiFetchJson('related_ticket_preview', {
+                ticket_id: ticketId,
+                current_page: ticketPollPayload.current_page || 'index.php',
+                current_language: ticketPollPayload.current_language || document.documentElement.lang || 'nl',
+                csrf_token: document.body.getAttribute('data-csrf-token') || '',
+                viewer_email: ticketPollPayload.viewer_email || ''
+            }).then(function (data)
+            {
+                if (!data || !data.success || !data.card_html)
+                {
+                    closeRelatedTicketModal();
+                    return;
+                }
+
+                relatedTicketModalBody.innerHTML = data.card_html;
+                var card = relatedTicketModalBody.querySelector('details.ticket-card');
+                if (card)
+                {
+                    card.open = true;
+                    if (typeof hydrateTicketThumbnails === 'function')
+                    {
+                        hydrateTicketThumbnails(card);
+                    }
+                }
+            }).catch(function ()
+            {
+                closeRelatedTicketModal();
+            });
+        };
+
+        var requestRelatedTickets = function ()
+        {
+            var titleInput = document.getElementById('title');
+            var descriptionInput = document.getElementById('description');
+            if (!relatedTicketsSidebar || !titleInput || !descriptionInput)
+            {
+                return;
+            }
+
+            var title = String(titleInput.value || '').trim();
+            var description = String(descriptionInput.value || '').trim();
+            if ((title + ' ' + description).trim().length < 3)
+            {
+                renderRelatedTickets([]);
+                return;
+            }
+
+            var requestId = ++relatedSearchRequestId;
+            apiFetchJson('related_completed_tickets', {
+                title: title,
+                description: description,
+                current_language: ticketPollPayload.current_language || document.documentElement.lang || 'nl'
+            }).then(function (data)
+            {
+                if (requestId !== relatedSearchRequestId)
+                {
+                    return;
+                }
+                renderRelatedTickets((data && data.tickets) || []);
+            }).catch(function ()
+            {
+                if (requestId !== relatedSearchRequestId)
+                {
+                    return;
+                }
+                renderRelatedTickets([]);
+            });
+        };
+
+        var scheduleRelatedTicketsSearch = function ()
+        {
+            if (!relatedTicketsSidebar)
+            {
+                return;
+            }
+            window.clearTimeout(relatedSearchTimer);
+            relatedSearchTimer = window.setTimeout(requestRelatedTickets, 400);
+        };
+
+        if (relatedTicketsSidebar)
+        {
+            var titleInput = document.getElementById('title');
+            var descriptionInput = document.getElementById('description');
+            if (titleInput)
+            {
+                titleInput.addEventListener('input', scheduleRelatedTicketsSearch);
+            }
+            if (descriptionInput)
+            {
+                descriptionInput.addEventListener('input', scheduleRelatedTicketsSearch);
+            }
+            relatedTicketsSidebar.addEventListener('click', function (event)
+            {
+                var button = event.target.closest('.related-tickets-item');
+                if (!button)
+                {
+                    return;
+                }
+                event.preventDefault();
+                openRelatedTicketModal(parseInt(button.getAttribute('data-ticket-id') || '0', 10));
+            });
+            window.addEventListener('resize', positionRelatedTicketsSidebar);
+            window.addEventListener('scroll', positionRelatedTicketsSidebar, { passive: true });
+        }
+
+        if (relatedTicketModal)
+        {
+            relatedTicketModal.addEventListener('click', function (event)
+            {
+                if (event.target === relatedTicketModal || event.target.closest('[data-role="related-ticket-close"]'))
+                {
+                    closeRelatedTicketModal();
+                }
+            });
+            document.addEventListener('keydown', function (event)
+            {
+                if (event.key === 'Escape' && relatedTicketModal && !relatedTicketModal.hidden)
+                {
+                    closeRelatedTicketModal();
+                }
+            });
+        }
+
         /**
          * Template-fragment modal
          */
@@ -5789,6 +6020,18 @@
 
             if (data.is_empty)
             {
+                var pinnedOpenId = String(ticketPollPayload.open_ticket_id || '0');
+                var pinnedCard = pinnedOpenId !== '0'
+                    ? liveTicketSection.querySelector('details.ticket-card[data-ticket-id="' + pinnedOpenId + '"]')
+                    : null;
+                if (pinnedCard)
+                {
+                    if (emptyState)
+                    {
+                        emptyState.remove();
+                    }
+                    return ensureTicketList();
+                }
                 if (list)
                 {
                     list.remove();
@@ -6054,6 +6297,11 @@
 
             Object.keys(existingCards).forEach(function (ticketId)
             {
+                var pinnedOpenId = String(ticketPollPayload.open_ticket_id || '0');
+                if (pinnedOpenId !== '0' && ticketId === pinnedOpenId)
+                {
+                    return;
+                }
                 if (!seenTicketIds[ticketId] && existingCards[ticketId].parentNode)
                 {
                     existingCards[ticketId].parentNode.removeChild(existingCards[ticketId]);

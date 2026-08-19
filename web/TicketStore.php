@@ -2367,8 +2367,147 @@ class TicketStore
     }
 
     /**
-     * @return array{conditions: list<string>, parameters: array<string, mixed>, adminList: bool, allCompletedPublic: bool}
+     * Public completed tickets (Alle tickets) that look related to a new-ticket draft.
+     *
+     * @return list<array{id: int, title: string}>
      */
+    public function searchRelatedCompletedPublicTickets(string $title, string $description, int $limit = 8): array
+    {
+        $limit = max(1, min(20, $limit));
+        $terms = $this->extractRelatedSearchTerms($title, $description);
+        if ($terms === []) {
+            return [];
+        }
+
+        $parameters = [];
+        $termConditions = [];
+        foreach ($terms as $index => $term) {
+            $placeholder = ':related_' . $index;
+            $parameters[$placeholder] = self::unicodeLower($term);
+            $termConditions[] = "(
+                instr(mb_lower(COALESCE(t.title, '')), {$placeholder}) > 0
+                OR instr(mb_lower(COALESCE(t.description, '')), {$placeholder}) > 0
+                OR EXISTS (
+                    SELECT 1
+                    FROM ticket_messages tm
+                    WHERE tm.ticket_id = t.id
+                      AND COALESCE(tm.is_ghost, 0) = 0
+                      AND instr(mb_lower(COALESCE(tm.message_text, '')), {$placeholder}) > 0
+                )
+            )";
+        }
+
+        $sql = 'SELECT t.id, t.title, t.description
+                FROM tickets t
+                WHERE t.status = \'afgehandeld\'
+                  AND COALESCE(t.is_private, 0) = 0
+                  AND (' . implode(' OR ', $termConditions) . ')
+                ORDER BY datetime(t.updated_at) DESC, t.id DESC
+                LIMIT 80';
+
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($parameters);
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        if ($rows === []) {
+            return [];
+        }
+
+        $titleLower = self::unicodeLower($title);
+        $scored = [];
+        foreach ($rows as $row) {
+            $ticketId = (int) ($row['id'] ?? 0);
+            if ($ticketId <= 0) {
+                continue;
+            }
+            $ticketTitle = (string) ($row['title'] ?? '');
+            $ticketTitleLower = self::unicodeLower($ticketTitle);
+            $ticketDescriptionLower = self::unicodeLower((string) ($row['description'] ?? ''));
+            $score = 0;
+            foreach ($terms as $term) {
+                $termLower = self::unicodeLower($term);
+                if ($termLower === '') {
+                    continue;
+                }
+                if (mb_strpos($ticketTitleLower, $termLower) !== false) {
+                    $score += 12;
+                } elseif (mb_strpos($ticketDescriptionLower, $termLower) !== false) {
+                    $score += 4;
+                } else {
+                    $score += 1;
+                }
+            }
+            if ($titleLower !== '' && $ticketTitleLower !== '' && mb_strpos($ticketTitleLower, $titleLower) !== false) {
+                $score += 20;
+            }
+            if ($score <= 0) {
+                continue;
+            }
+            $scored[] = [
+                'id' => $ticketId,
+                'title' => $ticketTitle,
+                'score' => $score,
+            ];
+        }
+
+        usort($scored, static function (array $left, array $right): int {
+            $scoreCompare = ((int) ($right['score'] ?? 0)) <=> ((int) ($left['score'] ?? 0));
+            if ($scoreCompare !== 0) {
+                return $scoreCompare;
+            }
+
+            return ((int) ($right['id'] ?? 0)) <=> ((int) ($left['id'] ?? 0));
+        });
+
+        $results = [];
+        foreach (array_slice($scored, 0, $limit) as $row) {
+            $results[] = [
+                'id' => (int) $row['id'],
+                'title' => (string) $row['title'],
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractRelatedSearchTerms(string $title, string $description): array
+    {
+        $stopwords = [
+            'de', 'het', 'een', 'van', 'en', 'of', 'te', 'in', 'op', 'aan', 'bij', 'voor', 'met', 'als',
+            'dat', 'dit', 'die', 'is', 'was', 'zijn', 'ik', 'je', 'we', 'zij', 'mijn', 'uw', 'ons',
+            'the', 'a', 'an', 'and', 'or', 'to', 'of', 'on', 'for', 'with', 'as', 'be', 'this', 'that',
+            'are', 'was', 'were', 'not', 'can', 'please', 'hallo', 'hoi',
+            'und', 'der', 'die', 'das', 'ein', 'eine', 'oder', 'für', 'mit', 'ist',
+            'le', 'la', 'les', 'un', 'une', 'et', 'ou', 'du', 'des', 'pour', 'avec', 'est',
+        ];
+        $stopLookup = array_fill_keys($stopwords, true);
+        $combined = trim($title . ' ' . $description);
+        if ($combined === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[^\p{L}\p{N}]+/u', $combined, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $terms = [];
+        foreach ($parts as $part) {
+            $term = trim((string) $part);
+            if (mb_strlen($term) < 3) {
+                continue;
+            }
+            $key = self::unicodeLower($term);
+            if ($key === '' || isset($stopLookup[$key]) || isset($terms[$key])) {
+                continue;
+            }
+            $terms[$key] = $term;
+            if (count($terms) >= 10) {
+                break;
+            }
+        }
+
+        return array_values($terms);
+    }
+
     /**
      * Extract ticket IDs that the search query names exactly (e.g. "42", "#42").
      *

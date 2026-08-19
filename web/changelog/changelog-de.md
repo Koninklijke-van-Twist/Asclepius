@@ -1,3 +1,11 @@
+id: 2026-08-19-open-ticket-related-sidebar
+date: 2026-08-19
+title: Verlinktes Ticket bleibt sichtbar und verwandte Tickets beim Erstellen
+author: Tim Falken
+
+Ein Ticket, das du über `?open=` in der URL öffnest, bleibt beim stillen Aktualisieren sichtbar, auch wenn es nicht zu Filter oder Seite passt. Unter **Neues Ticket** erscheint links die Seitenleiste **Möglicherweise verwandt**, sobald erledigte Tickets in **Alle Tickets** zu Titel oder Beschreibung passen. Ein Klick auf den Titel öffnet das Ticket in einem Fenster, ohne deine Eingaben zu löschen.
+
+---
 id: 2026-08-18-ticket-sort-preferences
 date: 2026-08-18
 title: Eigene Ticketsortierung festlegen

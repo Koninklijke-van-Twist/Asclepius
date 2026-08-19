@@ -167,28 +167,18 @@ if ($store instanceof TicketStore) {
     );
 }
 
-if ($openTicketId > 0 && $store instanceof TicketStore && ($isAllTicketsView || ($canManageTickets && $view === 'overview'))) {
-    $openTicketIdsInList = array_map(
-        static fn(array $ticket): int => (int) ($ticket['id'] ?? 0),
-        $tickets
+if ($openTicketId > 0 && $store instanceof TicketStore) {
+    $tickets = prependLinkedOpenTicketIfMissing(
+        $store,
+        $tickets,
+        $openTicketId,
+        $canManageTickets,
+        $userEmail,
+        $ticketBrowseMode,
+        shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
+        ($isLimitedIct && !$isAllTicketsView) ? ($ictAccessCategories ?? []) : null,
+        $currentLanguage
     );
-    if (!in_array($openTicketId, $openTicketIdsInList, true)) {
-        $includeGhostForOpen = shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view);
-        $linkedOpenTicket = $store->getTicket(
-            $openTicketId,
-            $canManageTickets,
-            $userEmail,
-            $ticketBrowseMode,
-            $includeGhostForOpen,
-            ($isLimitedIct && !$isAllTicketsView) ? ($ictAccessCategories ?? []) : null
-        );
-        if (is_array($linkedOpenTicket)) {
-            $tickets = array_merge(
-                [localizeTicketForViewer($linkedOpenTicket, $store, $currentLanguage, true)],
-                $tickets
-            );
-        }
-    }
 }
 
 $ticketDetailsById = [];

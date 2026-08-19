@@ -1,3 +1,11 @@
+id: 2026-08-19-open-ticket-related-sidebar
+date: 2026-08-19
+title: Linked tickets stay visible and related tickets when creating
+author: Tim Falken
+
+A ticket opened with `?open=` in the URL now stays on the page during silent refresh, even if it is outside your current filter or page. On **New ticket**, a left sidebar **Possibly related** appears when completed tickets in **All tickets** match your title or description. Click a title to view that ticket in a window without clearing what you already typed.
+
+---
 id: 2026-08-18-ticket-sort-preferences
 date: 2026-08-18
 title: Set your own ticket sorting

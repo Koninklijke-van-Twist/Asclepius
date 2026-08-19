@@ -320,6 +320,21 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         $accessCategories,
         $sortRules
     );
+    $tickets = array_map(
+        fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage, true),
+        $tickets
+    );
+    $tickets = prependLinkedOpenTicketIfMissing(
+        $store,
+        $tickets,
+        $openTicketId,
+        $canManageTickets,
+        $viewerEmail,
+        $browseMode,
+        shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
+        $accessCategories,
+        $currentLanguage
+    );
     $signature = buildTicketSnapshotSignature($tickets);
     if ($lastSignature !== '' && hash_equals($lastSignature, $signature)) {
         return [
@@ -328,11 +343,6 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
             'unchanged' => true,
         ];
     }
-
-    $tickets = array_map(
-        fn(array $ticket): array => localizeTicketForViewer($ticket, $store, $currentLanguage, true),
-        $tickets
-    );
     $pollContext = [
         'currentPage' => $currentPage,
         'canManageTickets' => $canManageTickets,
@@ -377,6 +387,82 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         'total_pages' => $ticketTotalPages,
         'total_count' => $ticketTotalCount,
         'pagination_html' => $paginationHtml,
+    ];
+}
+
+function buildRelatedCompletedTicketsApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $title = trim((string) ($payload['title'] ?? ''));
+    $description = trim((string) ($payload['description'] ?? ''));
+    $currentLanguage = strtolower(trim((string) ($payload['current_language'] ?? 'nl')));
+    if (!array_key_exists($currentLanguage, SUPPORTED_LANGUAGES)) {
+        $currentLanguage = 'nl';
+    }
+
+    $matches = $store->searchRelatedCompletedPublicTickets($title, $description, 8);
+    $tickets = [];
+    foreach ($matches as $match) {
+        $localized = localizeTicketForViewer($match, $store, $currentLanguage, true);
+        $tickets[] = [
+            'id' => (int) ($localized['id'] ?? $match['id'] ?? 0),
+            'title' => (string) ($localized['title'] ?? $match['title'] ?? ''),
+        ];
+    }
+
+    return [
+        'success' => true,
+        'tickets' => $tickets,
+    ];
+}
+
+function buildRelatedTicketPreviewApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    global $ictUsers;
+
+    $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+    $currentPage = normalizeReturnPage((string) ($payload['current_page'] ?? 'index.php'));
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $csrfToken = (string) ($payload['csrf_token'] ?? '');
+    $currentLanguage = strtolower(trim((string) ($payload['current_language'] ?? 'nl')));
+    if (!array_key_exists($currentLanguage, SUPPORTED_LANGUAGES)) {
+        $currentLanguage = 'nl';
+    }
+
+    $ticket = $store->getTicket($ticketId, false, $viewerEmail, 'all_completed_public', false, null);
+    if (!is_array($ticket)) {
+        return [
+            'success' => false,
+            'error' => 'ticket_not_found',
+        ];
+    }
+
+    $ticket = localizeTicketForViewer($ticket, $store, $currentLanguage, true);
+    $ticketDetail = localizeTicketDetailForViewer($ticket, $store, $currentLanguage, true);
+    $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
+    $cardHtml = renderTicketCardHtml($ticket, $ticketDetail, [
+        'currentPage' => $currentPage,
+        'canManageTickets' => false,
+        'userIsAdmin' => false,
+        'isAdminPortal' => false,
+        'ictUsers' => $ictUsersList,
+        'store' => $store,
+        'csrfToken' => $csrfToken,
+        'openTicketId' => $ticketId,
+        'view' => 'all_tickets',
+        'isReadOnlyTicket' => true,
+        'viewerEmail' => $viewerEmail,
+        'includeMessages' => true,
+        'lazyMessages' => false,
+        'includeGhostMessages' => false,
+        'showGhostToggle' => false,
+        'activeCustomStatuses' => [],
+        'recentCustomStatuses' => [],
+    ]);
+
+    return [
+        'success' => true,
+        'ticket_id' => $ticketId,
+        'card_html' => $cardHtml,
     ];
 }
 
@@ -1648,6 +1734,14 @@ if ($method === 'POST') {
 
     if ($action === 'ticket_poll') {
         sendJson(200, buildTicketPollApiPayload($store, $payload, $apiClient));
+    }
+
+    if ($action === 'related_completed_tickets') {
+        sendJson(200, buildRelatedCompletedTicketsApiPayload($store, $payload, $apiClient));
+    }
+
+    if ($action === 'related_ticket_preview') {
+        sendJson(200, buildRelatedTicketPreviewApiPayload($store, $payload, $apiClient));
     }
 
     if ($action === 'presence_poll') {

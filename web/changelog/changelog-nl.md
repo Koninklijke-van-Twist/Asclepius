@@ -1,3 +1,11 @@
+id: 2026-08-19-open-ticket-related-sidebar
+date: 2026-08-19
+title: Open ticket blijft zichtbaar en gerelateerde tickets bij nieuw ticket
+author: Tim Falken
+
+Een ticket dat je via `?open=` in de URL opent, blijft nu staan bij de stille verversing, ook als het niet in je huidige filter of pagina valt. Bij **Nieuw ticket** verschijnt links een zijbalk **Mogelijk gerelateerd** zodra er afgehandelde tickets in **Alle tickets** overeenkomen met je titel of beschrijving. Klik op een titel om dat ticket in een venster te bekijken zonder je ingevulde tekst te wissen.
+
+---
 id: 2026-08-18-ticket-sort-preferences
 date: 2026-08-18
 title: Eigen ticketsortering instellen

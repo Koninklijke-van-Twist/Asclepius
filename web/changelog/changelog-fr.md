@@ -1,3 +1,11 @@
+id: 2026-08-19-open-ticket-related-sidebar
+date: 2026-08-19
+title: Le ticket ouvert reste visible et tickets liés à la création
+author: Tim Falken
+
+Un ticket ouvert via `?open=` dans l’URL reste maintenant affiché lors de l’actualisation silencieuse, même s’il n’est pas dans le filtre ou la page en cours. Sur **Nouveau ticket**, une barre latérale **Peut-être lié** apparaît dès que des tickets clôturés de **Tous les tickets** correspondent au titre ou à la description. Un clic sur un titre ouvre ce ticket dans une fenêtre sans effacer votre saisie.
+
+---
 id: 2026-08-18-ticket-sort-preferences
 date: 2026-08-18
 title: Définir son propre tri des tickets

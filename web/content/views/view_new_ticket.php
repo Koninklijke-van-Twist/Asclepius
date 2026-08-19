@@ -10,7 +10,7 @@
             <div class="form-grid two-columns">
                 <label>
                     <?= h(__('new_ticket.title_label')) ?>
-                    <input type="text" name="title" maxlength="150"
+                    <input type="text" id="title" name="title" maxlength="150"
                         placeholder="<?= h(__('new_ticket.title_placeholder')) ?>" required>
                 </label>
                 <label>
@@ -27,7 +27,7 @@
             <label>
                 <?= h(__('new_ticket.description_label')) ?>
                 <div class="textarea-wrapper">
-                    <textarea name="description" placeholder="<?= h(__('new_ticket.description_placeholder')) ?>"
+                    <textarea id="description" name="description" placeholder="<?= h(__('new_ticket.description_placeholder')) ?>"
                         required></textarea>
                     <button type="button" class="key-picker-toggle" title="<?= h(__('ticket.key_picker_tooltip')) ?>"
                         aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>">
@@ -80,4 +80,21 @@
             </div>
         </form>
     </section>
+    <aside class="related-tickets-sidebar" id="related-tickets-sidebar" hidden>
+        <h2 class="related-tickets-heading"><?= h(__('new_ticket.related_heading')) ?></h2>
+        <p class="related-tickets-intro"><?= h(__('new_ticket.related_intro')) ?></p>
+        <ul class="related-tickets-list" data-role="related-tickets-list"></ul>
+    </aside>
+    <div class="ticket-participants-modal" data-role="related-ticket-modal" hidden>
+        <div class="ticket-participants-modal-card related-ticket-modal-card">
+            <div class="ticket-participants-modal-head">
+                <h3><?= h(__('new_ticket.related_heading')) ?></h3>
+                <button type="button" class="participant-modal-close" data-role="related-ticket-close"
+                    aria-label="<?= h(__('ticket.preview_close')) ?>">&times;</button>
+            </div>
+            <div class="related-ticket-modal-body" data-role="related-ticket-modal-body">
+                <p class="related-ticket-modal-loading"><?= h(__('new_ticket.related_loading')) ?></p>
+            </div>
+        </div>
+    </div>
 <?php endif; ?>
