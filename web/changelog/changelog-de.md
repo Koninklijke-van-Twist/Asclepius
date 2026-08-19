@@ -1,3 +1,11 @@
+id: 2026-08-19-presence-ict-role-groups
+date: 2026-08-19
+title: Anwesenheit nach ICT und Rollen gruppiert
+author: Tim Falken
+
+In der Anwesenheitsübersicht stehen globale ICT-Admins jetzt unter **ICT**. Wenn Mitglieder einer Rolle auch in Janus stehen, erscheint darunter eine Trennlinie mit dem Rollennamen und ihrer Anwesenheit. Andere Janus-Benutzer ohne Rolle oder globale Adminrechte werden nicht angezeigt.
+
+---
 id: 2026-08-19-open-ticket-related-sidebar
 date: 2026-08-19
 title: Verlinktes Ticket bleibt sichtbar und verwandte Tickets beim Erstellen

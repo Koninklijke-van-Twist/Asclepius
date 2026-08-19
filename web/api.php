@@ -1745,22 +1745,24 @@ if ($method === 'POST') {
     }
 
     if ($action === 'presence_poll') {
+        global $ictUsers;
+
         $rows = fetchJanusPresence();
+        $groups = [];
         $mapped = [];
         if (is_array($rows)) {
-            foreach ($rows as $row) {
-                $mapped[] = [
-                    'email' => (string) ($row['email'] ?? ''),
-                    'name' => (string) ($row['name'] ?? ''),
-                    'status' => (string) ($row['status'] ?? ''),
-                    'label' => janusPresenceStatusLabel((string) ($row['status'] ?? '')),
-                    'detail' => janusPresenceStatusDetail($row),
-                ];
+            $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
+            $groups = mapJanusPresenceGroupsForDisplay(groupJanusPresenceRows($rows, $store, $ictUsersList));
+            foreach ($groups as $group) {
+                foreach ($group['rows'] as $row) {
+                    $mapped[] = $row;
+                }
             }
         }
         sendJson(200, [
             'success' => true,
             'connected' => $rows !== null,
+            'groups' => $groups,
             'rows' => $mapped,
         ]);
     }

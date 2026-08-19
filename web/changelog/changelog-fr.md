@@ -1,3 +1,11 @@
+id: 2026-08-19-presence-ict-role-groups
+date: 2026-08-19
+title: Présence groupée par ICT et rôles
+author: Tim Falken
+
+L’aperçu de présence place désormais les administrateurs ICT globaux sous **ICT**. Si des membres d’un rôle apparaissent aussi dans Janus, un séparateur avec le nom du rôle s’affiche, suivi de leur présence. Les autres utilisateurs Janus sans rôle ni droits d’admin global ne sont pas affichés.
+
+---
 id: 2026-08-19-open-ticket-related-sidebar
 date: 2026-08-19
 title: Le ticket ouvert reste visible et tickets liés à la création

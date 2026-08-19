@@ -234,6 +234,23 @@
             gap: 8px;
         }
 
+        .presence-group {
+            margin: 6px 0 0;
+            padding: 8px 2px 0;
+            border-top: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .presence-group:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
         .presence-item {
             display: flex;
             gap: 10px;

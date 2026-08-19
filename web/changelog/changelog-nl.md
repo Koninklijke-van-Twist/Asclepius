@@ -1,3 +1,11 @@
+id: 2026-08-19-presence-ict-role-groups
+date: 2026-08-19
+title: Aanwezigheid gegroepeerd op ICT en rollen
+author: Tim Falken
+
+In het aanwezigheidsoverzicht staan globale ICT-admins nu onder de kop **ICT**. Als leden van een rol ook in Janus staan, verschijnt daaronder een scheiding met de rolnaam en hun aanwezigheid. Andere Janus-gebruikers zonder rol of globale adminrechten worden niet getoond.
+
+---
 id: 2026-08-19-open-ticket-related-sidebar
 date: 2026-08-19
 title: Open ticket blijft zichtbaar en gerelateerde tickets bij nieuw ticket

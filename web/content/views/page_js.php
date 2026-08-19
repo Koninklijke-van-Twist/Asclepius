@@ -6567,10 +6567,60 @@
                 document.documentElement.style.overflow = '';
             };
 
-            var renderPresenceRows = function (connected, rows)
+            var appendPresenceItem = function (row)
+            {
+                var email = String(row.email || '');
+                var status = String(row.status || '');
+                var li = document.createElement('li');
+                li.className = 'presence-item presence-status-' + status;
+                li.setAttribute('data-presence-email', email);
+                var detail = String(row.detail || '');
+                li.innerHTML = '<span class="presence-dot" aria-hidden="true"></span>'
+                    + '<span class="presence-meta">'
+                    + '<span class="presence-name"></span>'
+                    + '<span class="presence-status"></span>'
+                    + (detail ? '<span class="presence-detail"></span>' : '')
+                    + '</span>';
+                var nameEl = li.querySelector('.presence-name');
+                var statusEl = li.querySelector('.presence-status');
+                var detailEl = li.querySelector('.presence-detail');
+                if (nameEl)
+                {
+                    nameEl.textContent = String(row.name || email);
+                    nameEl.title = email;
+                }
+                if (statusEl)
+                {
+                    statusEl.textContent = String(row.label || status);
+                }
+                if (detailEl)
+                {
+                    detailEl.textContent = detail;
+                }
+                list.appendChild(li);
+            };
+
+            var flattenPresenceGroups = function (groups)
+            {
+                var rows = [];
+                (groups || []).forEach(function (group)
+                {
+                    (group.rows || []).forEach(function (row)
+                    {
+                        rows.push(row);
+                    });
+                });
+                return rows;
+            };
+
+            var renderPresenceRows = function (connected, rows, groups)
             {
                 sidebar.setAttribute('data-presence-connected', connected ? '1' : '0');
                 list.innerHTML = '';
+                var grouped = Array.isArray(groups) && groups.length
+                    ? groups
+                    : [{ id: 'all', name: '', rows: rows || [] }];
+                var flatRows = flattenPresenceGroups(grouped);
                 if (!connected)
                 {
                     if (emptyEl)
@@ -6582,7 +6632,7 @@
                     syncJoinableState([]);
                     return;
                 }
-                if (!rows || rows.length === 0)
+                if (!flatRows.length)
                 {
                     if (emptyEl)
                     {
@@ -6598,39 +6648,24 @@
                     emptyEl.hidden = true;
                 }
                 list.hidden = false;
-                rows.forEach(function (row)
+                grouped.forEach(function (group)
                 {
-                    var email = String(row.email || '');
-                    var status = String(row.status || '');
-                    var li = document.createElement('li');
-                    li.className = 'presence-item presence-status-' + status;
-                    li.setAttribute('data-presence-email', email);
-                    var detail = String(row.detail || '');
-                    li.innerHTML = '<span class="presence-dot" aria-hidden="true"></span>'
-                        + '<span class="presence-meta">'
-                        + '<span class="presence-name"></span>'
-                        + '<span class="presence-status"></span>'
-                        + (detail ? '<span class="presence-detail"></span>' : '')
-                        + '</span>';
-                    var nameEl = li.querySelector('.presence-name');
-                    var statusEl = li.querySelector('.presence-status');
-                    var detailEl = li.querySelector('.presence-detail');
-                    if (nameEl)
+                    var groupRows = group && Array.isArray(group.rows) ? group.rows : [];
+                    if (!groupRows.length)
                     {
-                        nameEl.textContent = String(row.name || email);
-                        nameEl.title = email;
+                        return;
                     }
-                    if (statusEl)
+                    var groupName = String(group.name || '').trim();
+                    if (groupName)
                     {
-                        statusEl.textContent = String(row.label || status);
+                        var heading = document.createElement('li');
+                        heading.className = 'presence-group';
+                        heading.textContent = groupName;
+                        list.appendChild(heading);
                     }
-                    if (detailEl)
-                    {
-                        detailEl.textContent = detail;
-                    }
-                    list.appendChild(li);
+                    groupRows.forEach(appendPresenceItem);
                 });
-                syncJoinableState(rows);
+                syncJoinableState(flatRows);
             };
 
             var pollPresence = function ()
@@ -6646,15 +6681,15 @@
                         presenceInFlight = false;
                         if (!data || !data.success)
                         {
-                            renderPresenceRows(false, []);
+                            renderPresenceRows(false, [], []);
                             return;
                         }
-                        renderPresenceRows(!!data.connected, Array.isArray(data.rows) ? data.rows : []);
+                        renderPresenceRows(!!data.connected, Array.isArray(data.rows) ? data.rows : [], Array.isArray(data.groups) ? data.groups : []);
                     })
                     .catch(function ()
                     {
                         presenceInFlight = false;
-                        renderPresenceRows(false, []);
+                        renderPresenceRows(false, [], []);
                     });
             };
 

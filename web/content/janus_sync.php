@@ -189,11 +189,15 @@ function fetchJanusPresence(?array $emails = null, ?string $date = null): ?array
         if ($name === '') {
             $name = $email;
         }
+        $holidayUntil = isset($status['holidayUntil']) ? trim((string) $status['holidayUntil']) : '';
+        if ($statusKey === 'holiday') {
+            $holidayUntil = expandJanusHolidayUntilIncludingContractFreeDays($email, $dateKey, $holidayUntil);
+        }
         $rows[] = [
             'email' => $email,
             'name' => $name,
             'status' => $statusKey,
-            'holidayUntil' => isset($status['holidayUntil']) ? (string) $status['holidayUntil'] : null,
+            'holidayUntil' => $holidayUntil !== '' ? $holidayUntil : null,
             'startTime' => isset($status['startTime']) ? (string) $status['startTime'] : null,
             'endTime' => isset($status['endTime']) ? (string) $status['endTime'] : null,
             'office' => !empty($status['office']),
@@ -207,6 +211,58 @@ function fetchJanusPresence(?array $emails = null, ?string $date = null): ?array
     $cache[$cacheKey] = $rows;
 
     return $rows;
+}
+
+function expandJanusHolidayUntilIncludingContractFreeDays(string $email, string $startDate, string $holidayUntil): string
+{
+    $email = strtolower(trim($email));
+    $startDate = trim($startDate);
+    $holidayUntil = trim($holidayUntil);
+    if ($email === '' || $startDate === '') {
+        return $holidayUntil;
+    }
+
+    try {
+        $cursor = new DateTimeImmutable($holidayUntil !== '' ? $holidayUntil : $startDate);
+    } catch (Throwable $exception) {
+        try {
+            $cursor = new DateTimeImmutable($startDate);
+        } catch (Throwable $innerException) {
+            return $holidayUntil;
+        }
+    }
+
+    $lastMatchingDate = $cursor->format('Y-m-d');
+    for ($dayOffset = 0; $dayOffset < 31; $dayOffset++) {
+        $candidate = $cursor->modify('+1 day');
+        if (!$candidate instanceof DateTimeImmutable) {
+            break;
+        }
+
+        $candidateDate = $candidate->format('Y-m-d');
+        $away = fetchJanusAwayStatus([$email], $candidateDate);
+        $userStatus = is_array($away['users'][$email] ?? null) ? $away['users'][$email] : null;
+        if (!is_array($userStatus) || empty($userStatus['known']) || empty($userStatus['locked'])) {
+            break;
+        }
+
+        $reason = trim((string) ($userStatus['reason'] ?? ''));
+        $isHoliday = !empty($userStatus['holiday']) || $reason === 'janus_holiday';
+        $isContractFree = $reason === 'contract_off'
+            || (
+                empty($userStatus['holiday'])
+                && empty($userStatus['sick'])
+                && !empty($userStatus['locked'])
+            );
+        if (!$isHoliday && !$isContractFree) {
+            break;
+        }
+
+        $lastMatchingDate = $candidateDate;
+        $cursor = $candidate;
+    }
+
+    return $lastMatchingDate;
 }
 
 function janusPresenceStatusLabel(string $status): string
@@ -235,6 +291,116 @@ function janusPresenceStatusDetail(array $row): string
     }
 
     return '';
+}
+
+/**
+ * @param array<string, mixed> $row
+ * @return array{email: string, name: string, status: string, label: string, detail: string}
+ */
+function mapJanusPresenceDisplayRow(array $row): array
+{
+    return [
+        'email' => (string) ($row['email'] ?? ''),
+        'name' => (string) ($row['name'] ?? ''),
+        'status' => (string) ($row['status'] ?? ''),
+        'label' => janusPresenceStatusLabel((string) ($row['status'] ?? '')),
+        'detail' => janusPresenceStatusDetail($row),
+    ];
+}
+
+/**
+ * @param list<array<string, mixed>> $rows
+ * @return list<array<string, mixed>>
+ */
+function sortJanusPresenceRowsByName(array $rows): array
+{
+    usort($rows, static function (array $left, array $right): int {
+        return strcasecmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+    });
+
+    return $rows;
+}
+
+/**
+ * Group Janus presence: global admins under ICT, then each role that has members in Janus.
+ *
+ * @param list<array<string, mixed>>|null $rows
+ * @return list<array{id: string, name: string, rows: list<array<string, mixed>>}>
+ */
+function groupJanusPresenceRows(?array $rows, ?TicketStore $store, array $ictUsers): array
+{
+    $byEmail = [];
+    foreach ($rows ?? [] as $row) {
+        $email = strtolower(trim((string) ($row['email'] ?? '')));
+        if ($email === '') {
+            continue;
+        }
+        $byEmail[$email] = $row;
+    }
+
+    $claimed = [];
+    $takeEmails = static function (array $emails) use (&$byEmail, &$claimed): array {
+        $picked = [];
+        foreach ($emails as $email) {
+            $email = strtolower(trim((string) $email));
+            if ($email === '' || isset($claimed[$email]) || !isset($byEmail[$email])) {
+                continue;
+            }
+            $claimed[$email] = true;
+            $picked[] = $byEmail[$email];
+        }
+
+        return sortJanusPresenceRowsByName($picked);
+    };
+
+    $groups = [];
+    $ictRows = $takeEmails(getFullIctAdminEmailsFromConfig($ictUsers));
+    if ($ictRows !== []) {
+        $groups[] = [
+            'id' => 'ict',
+            'name' => (string) __('ticket.role_admin'),
+            'rows' => $ictRows,
+        ];
+    }
+
+    if ($store instanceof TicketStore) {
+        foreach ($store->listIctRoles() as $role) {
+            $roleId = (int) ($role['id'] ?? 0);
+            $roleName = trim((string) ($role['name'] ?? ''));
+            if ($roleId <= 0 || $roleName === '') {
+                continue;
+            }
+            $roleRows = $takeEmails($store->listIctRoleMemberEmails($roleId));
+            if ($roleRows === []) {
+                continue;
+            }
+            $groups[] = [
+                'id' => 'role-' . $roleId,
+                'name' => $roleName,
+                'rows' => $roleRows,
+            ];
+        }
+    }
+
+    return $groups;
+}
+
+/**
+ * @param list<array{id: string, name: string, rows: list<array<string, mixed>>}> $groups
+ * @return list<array{id: string, name: string, rows: list<array{email: string, name: string, status: string, label: string, detail: string}>}>
+ */
+function mapJanusPresenceGroupsForDisplay(array $groups): array
+{
+    $mapped = [];
+    foreach ($groups as $group) {
+        $mapped[] = [
+            'id' => (string) ($group['id'] ?? ''),
+            'name' => (string) ($group['name'] ?? ''),
+            'rows' => array_map('mapJanusPresenceDisplayRow', is_array($group['rows'] ?? null) ? $group['rows'] : []),
+        ];
+    }
+
+    return $mapped;
 }
 
 /**

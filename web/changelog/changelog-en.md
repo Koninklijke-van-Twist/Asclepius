@@ -1,3 +1,11 @@
+id: 2026-08-19-presence-ict-role-groups
+date: 2026-08-19
+title: Presence grouped by ICT and roles
+author: Tim Falken
+
+The presence sidebar now lists global ICT admins under **ICT**. If members of a role also appear in Janus, a separator with that role name is shown, followed by their presence. Other Janus users without a role or global admin rights are not shown.
+
+---
 id: 2026-08-19-open-ticket-related-sidebar
 date: 2026-08-19
 title: Linked tickets stay visible and related tickets when creating
