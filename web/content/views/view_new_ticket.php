@@ -83,6 +83,11 @@
             </div>
         </form>
     </section>
+    <aside class="related-tickets-sidebar" id="related-tickets-sidebar" hidden>
+        <h2 class="related-tickets-heading"><?= h(__('new_ticket.related_heading')) ?></h2>
+        <p class="related-tickets-intro"><?= h(__('new_ticket.related_intro')) ?></p>
+        <ul class="related-tickets-list" data-role="related-tickets-list"></ul>
+    </aside>
     <aside class="tips-sidebar" id="new-ticket-tips-sidebar" hidden>
         <div class="tip-card" id="tip-clipboard-paste" data-tip-id="clipboard_paste" hidden>
             <p class="tips-sidebar-heading"><?= h(__('tips.heading')) ?></p>
@@ -104,11 +109,6 @@
             <p class="tip-card-body"><?= h(__('tips.possible_duplicate')) ?></p>
             <button type="button" class="tip-dismiss-btn" data-tip-dismiss="possible_duplicate"><?= h(__('tips.dismiss')) ?></button>
         </div>
-    </aside>
-    <aside class="related-tickets-sidebar" id="related-tickets-sidebar" hidden>
-        <h2 class="related-tickets-heading"><?= h(__('new_ticket.related_heading')) ?></h2>
-        <p class="related-tickets-intro"><?= h(__('new_ticket.related_intro')) ?></p>
-        <ul class="related-tickets-list" data-role="related-tickets-list"></ul>
     </aside>
     <div class="ticket-participants-modal" data-role="related-ticket-modal" hidden>
         <div class="ticket-participants-modal-card related-ticket-modal-card">

@@ -4217,22 +4217,60 @@
         var relatedSearchTimer = 0;
         var relatedSearchRequestId = 0;
         var relatedLoadingLabel = <?= json_encode(__('new_ticket.related_loading'), JSON_UNESCAPED_UNICODE) ?>;
+        var RELATED_SIDEBAR_WIDTH = 240;
+        var RELATED_SIDEBAR_GAP = 16;
+
+        var canFitLeftRelatedSidebar = function ()
+        {
+            var page = document.querySelector('.page');
+            if (!page)
+            {
+                return window.innerWidth >= 1400;
+            }
+
+            var pageLeft = page.getBoundingClientRect().left;
+            return pageLeft >= (RELATED_SIDEBAR_WIDTH + RELATED_SIDEBAR_GAP + 8);
+        };
+
+        var syncPresenceCompactMode = function ()
+        {
+            if (typeof window.asclepiusSyncPresenceCompactMode === 'function')
+            {
+                window.asclepiusSyncPresenceCompactMode(!canFitLeftRelatedSidebar());
+            }
+        };
 
         var positionRelatedTicketsSidebar = function ()
         {
             if (!relatedTicketsSidebar || relatedTicketsSidebar.hidden)
             {
+                syncPresenceCompactMode();
                 return;
             }
 
             var page = document.querySelector('.page');
             var formPanel = document.querySelector('.layout > .panel');
             var presence = document.getElementById('presence-sidebar');
-            var sidebarWidth = relatedTicketsSidebar.offsetWidth || 240;
+            var sidebarWidth = relatedTicketsSidebar.offsetWidth || RELATED_SIDEBAR_WIDTH;
+            var canFitBeside = canFitLeftRelatedSidebar();
+
+            if (!canFitBeside)
+            {
+                relatedTicketsSidebar.classList.add('is-stacked');
+                relatedTicketsSidebar.style.left = '';
+                relatedTicketsSidebar.style.top = '';
+                syncPresenceCompactMode();
+                return;
+            }
+
+            relatedTicketsSidebar.classList.remove('is-stacked');
             var pageLeft = page ? page.getBoundingClientRect().left : 16;
-            var left = Math.round(pageLeft - sidebarWidth - 16);
+            var left = Math.round(pageLeft - sidebarWidth - RELATED_SIDEBAR_GAP);
             var presenceBottom = 16;
-            if (presence && presence.offsetParent !== null)
+            var presenceVisible = presence
+                && presence.offsetParent !== null
+                && !presence.classList.contains('is-collapsed');
+            if (presenceVisible)
             {
                 var presenceRect = presence.getBoundingClientRect();
                 presenceBottom = Math.round(presenceRect.bottom + 16);
@@ -4251,13 +4289,14 @@
             {
                 top = Math.max(16, Math.round(formPanel.getBoundingClientRect().top));
             }
-            if (presence && presence.offsetParent !== null && left <= 24)
+            if (presenceVisible && left <= 24)
             {
                 top = Math.max(top, presenceBottom);
             }
 
             relatedTicketsSidebar.style.left = left + 'px';
             relatedTicketsSidebar.style.top = top + 'px';
+            syncPresenceCompactMode();
         };
 
         var renderRelatedTickets = function (tickets)
@@ -7311,6 +7350,8 @@
             var list = document.getElementById('presence-list');
             var emptyEl = sidebar ? sidebar.querySelector('[data-presence-empty]') : null;
             var joinModal = document.querySelector('[data-role="presence-join-modal"]');
+            var presenceToggle = document.getElementById('presence-toggle');
+            var presenceCollapseBtn = sidebar ? sidebar.querySelector('[data-role="presence-collapse"]') : null;
             if (!sidebar || !list || typeof apiFetchJson !== 'function')
             {
                 return;
@@ -7322,6 +7363,74 @@
             var viewerEmail = String(sidebar.getAttribute('data-viewer-email') || '').trim().toLowerCase();
             var viewerIsIct = sidebar.getAttribute('data-viewer-is-ict') === '1';
             var joinHintTitle = sidebar.getAttribute('data-join-hint-title') || sidebar.getAttribute('title') || '';
+            var presenceExpandedOverride = false;
+            var lastCompactMode = null;
+
+            var setPresenceCollapsed = function (collapsed)
+            {
+                sidebar.classList.toggle('is-collapsed', !!collapsed);
+                if (presenceToggle)
+                {
+                    presenceToggle.hidden = !collapsed;
+                    presenceToggle.classList.toggle('is-visible', !!collapsed);
+                    presenceToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                }
+            };
+
+            window.asclepiusSyncPresenceCompactMode = function (compact)
+            {
+                var isCompact = !!compact;
+                sidebar.classList.toggle('is-collapsible', isCompact);
+
+                if (!isCompact)
+                {
+                    presenceExpandedOverride = false;
+                    setPresenceCollapsed(false);
+                    lastCompactMode = false;
+                    return;
+                }
+
+                if (lastCompactMode !== true)
+                {
+                    // Entering compact mode: start collapsed unless user already expanded this session.
+                    setPresenceCollapsed(!presenceExpandedOverride);
+                }
+                else
+                {
+                    setPresenceCollapsed(!presenceExpandedOverride);
+                }
+                lastCompactMode = true;
+            };
+
+            if (presenceToggle)
+            {
+                presenceToggle.addEventListener('click', function (event)
+                {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    presenceExpandedOverride = true;
+                    setPresenceCollapsed(false);
+                    if (typeof positionRelatedTicketsSidebar === 'function')
+                    {
+                        positionRelatedTicketsSidebar();
+                    }
+                });
+            }
+
+            if (presenceCollapseBtn)
+            {
+                presenceCollapseBtn.addEventListener('click', function (event)
+                {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    presenceExpandedOverride = false;
+                    setPresenceCollapsed(true);
+                    if (typeof positionRelatedTicketsSidebar === 'function')
+                    {
+                        positionRelatedTicketsSidebar();
+                    }
+                });
+            }
 
             var syncJoinableState = function (rows)
             {
@@ -7569,6 +7678,19 @@
                     pollPresence();
                 }
             });
+
+            var syncCompactFromViewport = function ()
+            {
+                if (typeof canFitLeftRelatedSidebar === 'function')
+                {
+                    window.asclepiusSyncPresenceCompactMode(!canFitLeftRelatedSidebar());
+                    return;
+                }
+                window.asclepiusSyncPresenceCompactMode(window.innerWidth < 1400);
+            };
+
+            window.addEventListener('resize', syncCompactFromViewport);
+            syncCompactFromViewport();
         })();
 
 

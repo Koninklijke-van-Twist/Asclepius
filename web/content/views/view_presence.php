@@ -29,6 +29,11 @@ if ($presenceViewerEmail !== '') {
 }
 $janusPresenceUrl = '../janus/';
 ?>
+<button type="button" class="presence-toggle" id="presence-toggle" hidden
+    aria-controls="presence-sidebar"
+    aria-expanded="false"
+    aria-label="<?= h(__('presence.expand')) ?>"
+    title="<?= h(__('presence.expand')) ?>">≪</button>
 <aside class="presence-sidebar<?= ($presenceViewerIsIct && !$presenceViewerListed) ? ' is-joinable' : '' ?>"
     id="presence-sidebar"
     aria-label="<?= h(__('presence.heading')) ?>"
@@ -38,7 +43,12 @@ $janusPresenceUrl = '../janus/';
     data-viewer-listed="<?= $presenceViewerListed ? '1' : '0' ?>"
     data-join-hint-title="<?= h(__('presence.join_hint_title')) ?>"
     <?= ($presenceViewerIsIct && !$presenceViewerListed) ? ' role="button" tabindex="0" title="' . h(__('presence.join_hint_title')) . '"' : '' ?>>
-    <h2 class="presence-heading"><?= h(__('presence.heading')) ?></h2>
+    <div class="presence-sidebar-head">
+        <h2 class="presence-heading"><?= h(__('presence.heading')) ?></h2>
+        <button type="button" class="presence-collapse-btn" data-role="presence-collapse"
+            aria-label="<?= h(__('presence.collapse')) ?>"
+            title="<?= h(__('presence.collapse')) ?>">≫</button>
+    </div>
     <?php if (!$presenceConnected): ?>
         <p class="presence-empty" data-presence-empty><?= h(__('presence.unavailable')) ?></p>
         <ul class="presence-list" id="presence-list" hidden></ul>

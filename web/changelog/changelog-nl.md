@@ -1,3 +1,11 @@
+id: 2026-08-20-related-presence-narrow-layout
+date: 2026-08-20
+title: Gerelateerde tickets en aanwezigheid op smalle schermen
+author: Tim Falken
+
+Als het scherm te smal is om **Mogelijk gerelateerd** naast het formulier te tonen, verschijnt die sectie onder **Nieuw ticket**. De aanwezigheidstracker klapt dan in achter een **≪**-knop; met **≫** kun je hem weer verbergen.
+
+---
 id: 2026-08-19-email-autocomplete-new-ticket-users
 date: 2026-08-19
 title: E-mailsuggesties bij nieuw ticket en gebruikers beheren

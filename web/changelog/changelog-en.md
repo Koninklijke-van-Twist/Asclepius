@@ -1,3 +1,11 @@
+id: 2026-08-20-related-presence-narrow-layout
+date: 2026-08-20
+title: Related tickets and presence on narrow screens
+author: Tim Falken
+
+When the screen is too narrow to show **Possibly related** beside the form, that section moves under **New ticket**. The presence tracker then collapses behind a **≪** button; use **≫** to hide it again.
+
+---
 id: 2026-08-19-email-autocomplete-new-ticket-users
 date: 2026-08-19
 title: Email suggestions for new ticket and manage users

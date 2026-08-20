@@ -1,3 +1,11 @@
+id: 2026-08-20-related-presence-narrow-layout
+date: 2026-08-20
+title: Tickets liés et présence sur écrans étroits
+author: Tim Falken
+
+Lorsque l’écran est trop étroit pour afficher **Peut-être lié** à côté du formulaire, cette section passe sous **Nouveau ticket**. L’aperçu de présence se replie alors derrière un bouton **≪** ; utilisez **≫** pour le masquer à nouveau.
+
+---
 id: 2026-08-19-email-autocomplete-new-ticket-users
 date: 2026-08-19
 title: Suggestions d’e-mail pour nouveau ticket et gestion des utilisateurs

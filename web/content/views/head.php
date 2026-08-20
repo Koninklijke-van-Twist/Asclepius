@@ -124,6 +124,14 @@
             box-shadow: var(--shadow);
         }
 
+        .related-tickets-sidebar.is-stacked {
+            position: static;
+            width: auto;
+            max-height: none;
+            left: auto !important;
+            top: auto !important;
+        }
+
         .related-tickets-sidebar[hidden] {
             display: none !important;
         }
@@ -290,10 +298,37 @@
             color: var(--muted);
         }
 
-        @media (max-width: 700px) {
-            .related-tickets-sidebar {
-                width: min(240px, calc(100vw - 24px));
-            }
+        .presence-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 41;
+            width: 40px;
+            height: 40px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            color: var(--text);
+            font: inherit;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        .presence-toggle:hover,
+        .presence-toggle:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .presence-toggle.is-visible {
+            display: inline-flex;
         }
 
         .presence-sidebar {
@@ -310,9 +345,44 @@
             overflow: auto;
         }
 
+        .presence-sidebar-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
         .presence-heading {
-            margin: 0 0 10px;
+            margin: 0;
             font-size: 16px;
+        }
+
+        .presence-collapse-btn {
+            display: none;
+            border: 1px solid var(--line);
+            background: #f8fafc;
+            color: var(--text);
+            border-radius: 10px;
+            width: 34px;
+            height: 34px;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+            flex: 0 0 auto;
+        }
+
+        .presence-sidebar.is-collapsible .presence-collapse-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .presence-sidebar.is-collapsed {
+            display: none !important;
         }
 
         .presence-sidebar.is-joinable {
@@ -409,12 +479,6 @@
         @media (max-width: 1500px) {
             .presence-sidebar {
                 width: 200px;
-            }
-        }
-
-        @media (max-width: 1100px) {
-            .presence-sidebar {
-                display: none;
             }
         }
 

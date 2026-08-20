@@ -1,3 +1,11 @@
+id: 2026-08-20-related-presence-narrow-layout
+date: 2026-08-20
+title: Verwandte Tickets und Anwesenheit auf schmalen Bildschirmen
+author: Tim Falken
+
+Wenn der Bildschirm zu schmal ist, um **Möglicherweise verwandt** neben dem Formular anzuzeigen, erscheint dieser Bereich unter **Neues Ticket**. Die Anwesenheitsübersicht klappt dann hinter einer **≪**-Schaltfläche ein; mit **≫** können Sie sie wieder ausblenden.
+
+---
 id: 2026-08-19-email-autocomplete-new-ticket-users
 date: 2026-08-19
 title: E-Mail-Vorschläge bei neuem Ticket und Benutzerverwaltung
