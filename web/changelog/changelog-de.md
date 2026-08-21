@@ -1,3 +1,11 @@
+id: 2026-08-21-user-profile-sidebar
+date: 2026-08-21
+title: Benutzerkarte in der Sidebar der Übersicht
+author: Tim Falken
+
+In der **ICT-Übersicht** kannst du auf einen Benutzernamen in einem Ticket klicken (Anfragender, Zugewiesener oder Nachrichtenautor). Links erscheint dann eine Karte mit Name, E-Mail und kurzen Statistiken: Anzahl Tickets, offene Tickets, durchschnittliche Antwortzeit und durchschnittliche Wartezeit. Die Karte bleibt geöffnet, bis du sie schließt oder einen anderen Benutzer öffnest.
+
+---
 id: 2026-08-20-related-presence-narrow-layout
 date: 2026-08-20
 title: Verwandte Tickets und Anwesenheit auf schmalen Bildschirmen

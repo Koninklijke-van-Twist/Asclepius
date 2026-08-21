@@ -385,6 +385,114 @@
             display: none !important;
         }
 
+        .user-profile-sidebar {
+            position: fixed;
+            z-index: 39;
+            left: 16px;
+            top: 400px;
+            width: 240px;
+            max-height: calc(100vh - 32px);
+            overflow: auto;
+            background: var(--panel);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .user-profile-sidebar[hidden] {
+            display: none !important;
+        }
+
+        .user-profile-sidebar-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .user-profile-identity {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .user-profile-name {
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+
+        .user-profile-email {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .user-profile-close {
+            border: 1px solid var(--line);
+            background: #f8fafc;
+            color: var(--text);
+            border-radius: 10px;
+            width: 34px;
+            height: 34px;
+            font: inherit;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .user-profile-close:hover,
+        .user-profile-close:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .user-profile-loading,
+        .user-profile-error {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .user-profile-stats {
+            list-style: disc;
+            margin: 0;
+            padding-left: 18px;
+            display: grid;
+            gap: 6px;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .user-profile-trigger {
+            cursor: pointer;
+        }
+
+        .user-profile-trigger:hover,
+        .user-profile-trigger:focus-visible {
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            text-underline-offset: 2px;
+        }
+
+        .user-profile-popover-link {
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            padding: 0;
+            text-align: left;
+            cursor: pointer;
+        }
+
         .presence-sidebar.is-joinable {
             cursor: pointer;
         }

@@ -890,7 +890,7 @@ function renderMessageInlineAttachmentHtml(array $attachment): string
     return (string) ob_get_clean();
 }
 
-function renderTicketMessageHtml(array $message, string $currentPage): string
+function renderTicketMessageHtml(array $message, string $currentPage, bool $enableUserProfile = false): string
 {
     $rawMessageText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
     $displayMessageText = (string) ($message['message_text'] ?? '');
@@ -913,7 +913,8 @@ function renderTicketMessageHtml(array $message, string $currentPage): string
         <?= !empty($message['is_ghost']) ? 'data-ghost="1"' : '' ?>>
         <div class="message-meta">
             <?php $senderEmail = (string) ($message['sender_email'] ?? ''); ?>
-            <strong title="<?= h(formatUserDisplayName($senderEmail) !== strtolower(trim($senderEmail)) ? $senderEmail : '') ?>"><?= h(formatUserDisplayName($senderEmail)) ?></strong>
+            <strong<?= ($enableUserProfile && $senderEmail !== '') ? ' class="user-profile-trigger" data-user-profile-email="' . h(strtolower(trim($senderEmail))) . '"' : '' ?>
+                title="<?= h(formatUserDisplayName($senderEmail) !== strtolower(trim($senderEmail)) ? $senderEmail : '') ?>"><?= h(formatUserDisplayName($senderEmail)) ?></strong>
             <span
                 class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? h(__('ticket.role_admin')) : h(__('ticket.role_user')) ?></span>
             <span><?= h(formatDateTime((string) ($message['created_at'] ?? ''))) ?></span>
@@ -1136,9 +1137,10 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         <?php endif; ?>
                     </p>
                     <div class="ticket-subtitle">
-                        <span data-role="requester-email" class="<?= $requesterExtraCount > 0 ? 'requester-multi' : '' ?>"
+                        <span data-role="requester-email" class="<?= $isAdminPortal ? 'user-profile-trigger' : '' ?><?= $requesterExtraCount > 0 ? ' requester-multi' : '' ?>"
                             title="<?= h($requesterExtraCount > 0 ? $requesterTooltip : ($requesterLabel !== $requesterEmail && $requesterEmail !== '' ? $requesterEmail : '')) ?>"
                             data-ticket-users-trigger="<?= $requesterExtraCount > 0 ? '1' : '0' ?>"
+                            <?php if ($isAdminPortal && $requesterExtraCount === 0 && $requesterEmail !== ''): ?>data-user-profile-email="<?= h(strtolower(trim($requesterEmail))) ?>"<?php endif; ?>
                             data-user-emails="<?= h((string) json_encode($requesterParticipants, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
                             <?= h($requesterLabel) ?>
                         </span>
@@ -1153,8 +1155,9 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         <span class="status-pill" data-role="status-pill"
                             style="--ticket-color: <?= h($statusColor) ?>;"><?= h(translateStatus((string) ($ticket['status'] ?? ''))) ?></span>
                     <?php endif; ?>
-                    <span class="assignee-badge" data-role="assignee-badge"
+                    <span class="assignee-badge<?= ($isAdminPortal && $assignedEmail !== '') ? ' user-profile-trigger' : '' ?>" data-role="assignee-badge"
                         style="--assignee-color: <?= h($assignedColor) ?>;"
+                        <?php if ($isAdminPortal && $assignedEmail !== ''): ?>data-user-profile-email="<?= h(strtolower(trim($assignedEmail))) ?>"<?php endif; ?>
                         title="<?= h($assignedEmail !== '' && $assignedLabel !== $assignedEmail ? $assignedEmail : '') ?>">
                         <?= h($assignedLabel) ?>
                     </span>
@@ -1251,7 +1254,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 <div class="thread" data-role="thread">
                     <?php if ($includeMessages): ?>
                         <?php foreach (($ticketDetail['messages'] ?? []) as $message): ?>
-                            <?= renderTicketMessageHtml($message, $currentPage) ?>
+                            <?= renderTicketMessageHtml($message, $currentPage, $isAdminPortal) ?>
                         <?php endforeach; ?>
                     <?php elseif ($lazyMessages): ?>
                         <p class="hint" data-role="thread-loading-hint" hidden><?= h(__('ticket.thread_loading')) ?></p>
@@ -1263,7 +1266,21 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 <p class="ticket-users-popover-title"><?= h(__('ticket.participants_title')) ?></p>
                 <ul class="ticket-users-popover-list" data-role="ticket-users-popover-list">
                     <?php foreach ($requesterParticipants as $participantEmail): ?>
-                        <li><?= renderUserDisplayLabel($participantEmail) ?></li>
+                        <?php
+                        $participantEmailNormalized = strtolower(trim((string) $participantEmail));
+                        $participantDisplay = formatUserDisplayName($participantEmailNormalized);
+                        ?>
+                        <li>
+                            <?php if ($isAdminPortal): ?>
+                                <button type="button" class="user-profile-trigger user-profile-popover-link"
+                                    data-user-profile-email="<?= h($participantEmailNormalized) ?>"
+                                    title="<?= h($participantDisplay !== $participantEmailNormalized ? $participantEmailNormalized : '') ?>">
+                                    <?= h($participantDisplay) ?>
+                                </button>
+                            <?php else: ?>
+                                <?= renderUserDisplayLabel((string) $participantEmail) ?>
+                            <?php endif; ?>
+                        </li>
                     <?php endforeach; ?>
                 </ul>
             </div>
@@ -1589,7 +1606,11 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
         'messages' => array_map(
             static fn(array $message): array => [
                 'id' => (int) ($message['id'] ?? 0),
-                'html' => renderTicketMessageHtml($message, (string) ($context['currentPage'] ?? 'index.php')),
+                'html' => renderTicketMessageHtml(
+                    $message,
+                    (string) ($context['currentPage'] ?? 'index.php'),
+                    !empty($context['isAdminPortal'])
+                ),
             ],
             $ticketDetail['messages'] ?? []
         ),

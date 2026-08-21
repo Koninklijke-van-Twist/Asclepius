@@ -415,6 +415,47 @@ function buildRelatedCompletedTicketsApiPayload(TicketStore $store, array $paylo
     ];
 }
 
+function buildUserProfileStatsApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    global $ictUsers;
+
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
+    $ictAccess = resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true);
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin'])
+        || !empty($ictAccess['is_full_ict_admin']) || !empty($ictAccess['is_limited_ict']);
+    $isAdminPortal = !empty($payload['is_admin_portal']);
+
+    if (!$isAdminPortal || !$userIsAdmin) {
+        return [
+            'success' => false,
+            'error' => 'forbidden',
+        ];
+    }
+
+    $email = strtolower(trim((string) ($payload['email'] ?? '')));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_email',
+        ];
+    }
+
+    $stats = $store->getUserProfileStats($email);
+
+    return [
+        'success' => true,
+        'email' => $stats['email'],
+        'display_name' => formatUserDisplayName($stats['email']),
+        'ticket_count' => $stats['ticket_count'],
+        'open_ticket_count' => $stats['open_ticket_count'],
+        'average_response_seconds' => $stats['average_response_seconds'],
+        'average_response_label' => formatDurationSeconds($stats['average_response_seconds']),
+        'average_wait_seconds' => $stats['average_wait_seconds'],
+        'average_wait_label' => formatDurationSeconds($stats['average_wait_seconds']),
+    ];
+}
+
 function buildRelatedTicketPreviewApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
 {
     global $ictUsers;
@@ -857,7 +898,7 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
         'assigned_label' => $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : __('ticket.unassigned'),
         'assigned_color' => emailToHexColor($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl'),
         'message_id' => $messageId,
-        'message_html' => renderTicketMessageHtml($messageForRender, $currentPage),
+        'message_html' => renderTicketMessageHtml($messageForRender, $currentPage, !empty($payload['is_admin_portal'])),
         'lost_access' => $losesAccess,
     ];
 }
@@ -1752,6 +1793,15 @@ if ($method === 'POST') {
         sendJson(200, buildRelatedCompletedTicketsApiPayload($store, $payload, $apiClient));
     }
 
+    if ($action === 'user_profile_stats') {
+        $profilePayload = buildUserProfileStatsApiPayload($store, $payload, $apiClient);
+        if (empty($profilePayload['success'])) {
+            $error = (string) ($profilePayload['error'] ?? 'error');
+            sendJson($error === 'forbidden' ? 403 : 422, $profilePayload);
+        }
+        sendJson(200, $profilePayload);
+    }
+
     if ($action === 'related_ticket_preview') {
         sendJson(200, buildRelatedTicketPreviewApiPayload($store, $payload, $apiClient));
     }
@@ -1827,7 +1877,7 @@ if ($method === 'POST') {
         $messages = array_map(
             static fn(array $message): array => [
                 'id' => (int) ($message['id'] ?? 0),
-                'html' => renderTicketMessageHtml($message, $currentPage),
+                'html' => renderTicketMessageHtml($message, $currentPage, $isAdminPortal),
             ],
             $ticketDetail['messages'] ?? []
         );

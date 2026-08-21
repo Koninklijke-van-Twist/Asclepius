@@ -1,3 +1,11 @@
+id: 2026-08-21-user-profile-sidebar
+date: 2026-08-21
+title: Gebruikerskaart in de sidebar op het overzicht
+author: Tim Falken
+
+Op het **ICT-overzicht** kun je op een gebruikersnaam in een ticket klikken (aanvrager, toegewezen persoon of berichtauteur). Links verschijnt dan een kaart met naam, e-mail en korte statistieken: aantal tickets, open tickets, gemiddelde responstijd en gemiddelde wachttijd. De kaart blijft open tot je hem sluit of een andere gebruiker opent.
+
+---
 id: 2026-08-20-related-presence-narrow-layout
 date: 2026-08-20
 title: Gerelateerde tickets en aanwezigheid op smalle schermen

@@ -1,3 +1,11 @@
+id: 2026-08-21-user-profile-sidebar
+date: 2026-08-21
+title: Carte utilisateur dans la barre latérale de l’aperçu
+author: Tim Falken
+
+Dans l’**aperçu ICT**, cliquez sur un nom d’utilisateur dans un ticket (demandeur, assigné ou auteur de message). Une carte apparaît à gauche avec le nom, l’e-mail et de courtes statistiques : nombre de tickets, tickets ouverts, temps de réponse moyen et temps d’attente moyen. La carte reste ouverte jusqu’à ce que vous la fermiez ou ouvriez un autre utilisateur.
+
+---
 id: 2026-08-20-related-presence-narrow-layout
 date: 2026-08-20
 title: Tickets liés et présence sur écrans étroits

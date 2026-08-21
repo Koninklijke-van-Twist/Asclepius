@@ -967,16 +967,44 @@
                 requesterElement.setAttribute('data-user-emails', JSON.stringify(emails));
                 requesterElement.setAttribute('data-ticket-users-trigger', emails.length > 1 ? '1' : '0');
                 requesterElement.classList.toggle('requester-multi', emails.length > 1);
+                var profileEnabled = !!document.getElementById('user-profile-sidebar');
+                requesterElement.classList.toggle('user-profile-trigger', profileEnabled);
+                if (profileEnabled && emails.length === 1 && emails[0])
+                {
+                    requesterElement.setAttribute('data-user-profile-email', emails[0]);
+                }
+                else
+                {
+                    requesterElement.removeAttribute('data-user-profile-email');
+                }
             }
 
             var usersPopoverList = ticketCard.querySelector('[data-role="ticket-users-popover-list"]');
             if (usersPopoverList)
             {
                 usersPopoverList.innerHTML = '';
+                var profileEnabledForPopover = !!document.getElementById('user-profile-sidebar');
                 emails.forEach(function (email)
                 {
                     var listItem = document.createElement('li');
-                    listItem.textContent = email;
+                    if (profileEnabledForPopover)
+                    {
+                        var profileButton = document.createElement('button');
+                        profileButton.type = 'button';
+                        profileButton.className = 'user-profile-trigger user-profile-popover-link';
+                        profileButton.setAttribute('data-user-profile-email', email);
+                        var displayName = resolveUserDisplayName(email);
+                        profileButton.textContent = displayName;
+                        if (displayName !== email)
+                        {
+                            profileButton.title = email;
+                        }
+                        listItem.appendChild(profileButton);
+                    }
+                    else
+                    {
+                        listItem.textContent = resolveUserDisplayName(email) || email;
+                    }
                     usersPopoverList.appendChild(listItem);
                 });
             }
@@ -4251,6 +4279,7 @@
             var page = document.querySelector('.page');
             var formPanel = document.querySelector('.layout > .panel');
             var presence = document.getElementById('presence-sidebar');
+            var profileSidebar = document.getElementById('user-profile-sidebar');
             var sidebarWidth = relatedTicketsSidebar.offsetWidth || RELATED_SIDEBAR_WIDTH;
             var canFitBeside = canFitLeftRelatedSidebar();
 
@@ -4275,6 +4304,18 @@
                 var presenceRect = presence.getBoundingClientRect();
                 presenceBottom = Math.round(presenceRect.bottom + 16);
                 if (left < presenceRect.right + 12)
+                {
+                    left = 16;
+                }
+            }
+            var profileVisible = profileSidebar
+                && !profileSidebar.hidden
+                && profileSidebar.offsetParent !== null;
+            if (profileVisible)
+            {
+                var profileRect = profileSidebar.getBoundingClientRect();
+                presenceBottom = Math.max(presenceBottom, Math.round(profileRect.bottom + 16));
+                if (left < profileRect.right + 12)
                 {
                     left = 16;
                 }
@@ -5770,6 +5811,18 @@
             {
                 setText(assigneeBadge, data.assigned_label || '');
                 assigneeBadge.style.setProperty('--assignee-color', data.assigned_color || '');
+                var assignedEmailValue = String(data.assigned_email || '').trim().toLowerCase();
+                var profileEnabledAssignee = !!document.getElementById('user-profile-sidebar');
+                if (profileEnabledAssignee && assignedEmailValue)
+                {
+                    assigneeBadge.classList.add('user-profile-trigger');
+                    assigneeBadge.setAttribute('data-user-profile-email', assignedEmailValue);
+                }
+                else
+                {
+                    assigneeBadge.classList.remove('user-profile-trigger');
+                    assigneeBadge.removeAttribute('data-user-profile-email');
+                }
             }
 
             appendCategoryChangeMessage(ticketCard, data.message_html || '', data.message_id || 0);
@@ -6991,6 +7044,18 @@
             {
                 setText(assigneeBadge, ticket.assigned_label);
                 assigneeBadge.style.setProperty('--assignee-color', ticket.assigned_color);
+                var pollAssignedEmail = String(ticket.assigned_email || '').trim().toLowerCase();
+                var profileEnabledPoll = !!document.getElementById('user-profile-sidebar');
+                if (profileEnabledPoll && pollAssignedEmail)
+                {
+                    assigneeBadge.classList.add('user-profile-trigger');
+                    assigneeBadge.setAttribute('data-user-profile-email', pollAssignedEmail);
+                }
+                else
+                {
+                    assigneeBadge.classList.remove('user-profile-trigger');
+                    assigneeBadge.removeAttribute('data-user-profile-email');
+                }
             }
 
             var timeOpenBadge = card.querySelector('[data-role="time-open-badge"]');
@@ -7375,6 +7440,10 @@
                     presenceToggle.classList.toggle('is-visible', !!collapsed);
                     presenceToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
                 }
+                if (typeof window.asclepiusPositionUserProfileSidebar === 'function')
+                {
+                    window.asclepiusPositionUserProfileSidebar();
+                }
             };
 
             window.asclepiusSyncPresenceCompactMode = function (compact)
@@ -7691,6 +7760,250 @@
 
             window.addEventListener('resize', syncCompactFromViewport);
             syncCompactFromViewport();
+        })();
+
+        (function initUserProfileSidebar()
+        {
+            var sidebar = document.getElementById('user-profile-sidebar');
+            if (!sidebar)
+            {
+                return;
+            }
+
+            var nameNode = sidebar.querySelector('[data-role="user-profile-name"]');
+            var emailNode = sidebar.querySelector('[data-role="user-profile-email"]');
+            var statsNode = sidebar.querySelector('[data-role="user-profile-stats"]');
+            var loadingNode = sidebar.querySelector('[data-role="user-profile-loading"]');
+            var errorNode = sidebar.querySelector('[data-role="user-profile-error"]');
+            var closeButton = sidebar.querySelector('[data-role="user-profile-close"]');
+            var activeEmail = '';
+            var requestId = 0;
+            var profileLabels = {
+                tickets: <?= json_encode(__('user_profile.stat_tickets'), JSON_UNESCAPED_UNICODE) ?>,
+                open: <?= json_encode(__('user_profile.stat_open'), JSON_UNESCAPED_UNICODE) ?>,
+                response: <?= json_encode(__('user_profile.stat_response'), JSON_UNESCAPED_UNICODE) ?>,
+                wait: <?= json_encode(__('user_profile.stat_wait'), JSON_UNESCAPED_UNICODE) ?>
+            };
+
+            var formatProfileStat = function (template, value)
+            {
+                return String(template || '').replace('%s', String(value));
+            };
+
+            var PROFILE_SIDEBAR_WIDTH = 240;
+            var PROFILE_SIDEBAR_GAP = 16;
+
+            var positionUserProfileSidebar = function ()
+            {
+                if (sidebar.hidden)
+                {
+                    return;
+                }
+
+                var page = document.querySelector('.page');
+                var sidebarWidth = sidebar.offsetWidth || PROFILE_SIDEBAR_WIDTH;
+                var pageLeft = page ? page.getBoundingClientRect().left : 16;
+                var left = Math.round(pageLeft - sidebarWidth - PROFILE_SIDEBAR_GAP);
+                if (left < 8)
+                {
+                    left = 8;
+                }
+
+                var sidebarHeight = sidebar.offsetHeight || 0;
+                var top = Math.round((window.innerHeight - sidebarHeight) / 2);
+                var maxTop = Math.max(16, window.innerHeight - sidebarHeight - 16);
+                if (top < 16)
+                {
+                    top = 16;
+                }
+                if (top > maxTop)
+                {
+                    top = maxTop;
+                }
+
+                sidebar.style.left = left + 'px';
+                sidebar.style.top = top + 'px';
+            };
+
+            window.asclepiusPositionUserProfileSidebar = positionUserProfileSidebar;
+
+            var closeUserProfileSidebar = function ()
+            {
+                activeEmail = '';
+                requestId += 1;
+                sidebar.hidden = true;
+                sidebar.style.top = '';
+                sidebar.style.left = '';
+                if (typeof positionRelatedTicketsSidebar === 'function')
+                {
+                    positionRelatedTicketsSidebar();
+                }
+            };
+
+            var renderProfileStats = function (data)
+            {
+                if (!statsNode)
+                {
+                    return;
+                }
+
+                statsNode.innerHTML = '';
+                var items = [
+                    formatProfileStat(profileLabels.tickets, data.ticket_count != null ? data.ticket_count : 0),
+                    formatProfileStat(profileLabels.open, data.open_ticket_count != null ? data.open_ticket_count : 0),
+                    formatProfileStat(profileLabels.response, data.average_response_label || '—'),
+                    formatProfileStat(profileLabels.wait, data.average_wait_label || '—')
+                ];
+                items.forEach(function (text)
+                {
+                    var item = document.createElement('li');
+                    item.textContent = text;
+                    statsNode.appendChild(item);
+                });
+                statsNode.hidden = false;
+            };
+
+            var openUserProfileSidebar = function (email)
+            {
+                var normalized = String(email || '').trim().toLowerCase();
+                if (!normalized || normalized.indexOf('@') === -1)
+                {
+                    return;
+                }
+
+                activeEmail = normalized;
+                var currentRequest = ++requestId;
+                sidebar.hidden = false;
+                if (nameNode)
+                {
+                    nameNode.textContent = resolveUserDisplayName(normalized) || normalized;
+                }
+                if (emailNode)
+                {
+                    emailNode.textContent = normalized;
+                }
+                if (statsNode)
+                {
+                    statsNode.hidden = true;
+                    statsNode.innerHTML = '';
+                }
+                if (errorNode)
+                {
+                    errorNode.hidden = true;
+                }
+                if (loadingNode)
+                {
+                    loadingNode.hidden = false;
+                }
+                positionUserProfileSidebar();
+
+                var payload = {
+                    email: normalized,
+                    is_admin_portal: true,
+                    user_is_admin: true
+                };
+                if (ticketPollPayload && typeof ticketPollPayload === 'object')
+                {
+                    if (ticketPollPayload.viewer_email)
+                    {
+                        payload.viewer_email = ticketPollPayload.viewer_email;
+                    }
+                    if (ticketPollPayload.csrf_token)
+                    {
+                        payload.csrf_token = ticketPollPayload.csrf_token;
+                    }
+                }
+
+                apiFetchJson('user_profile_stats', payload).then(function (data)
+                {
+                    if (currentRequest !== requestId || activeEmail !== normalized)
+                    {
+                        return;
+                    }
+
+                    if (loadingNode)
+                    {
+                        loadingNode.hidden = true;
+                    }
+
+                    if (!data || !data.success)
+                    {
+                        if (errorNode)
+                        {
+                            errorNode.hidden = false;
+                        }
+                        return;
+                    }
+
+                    if (nameNode)
+                    {
+                        nameNode.textContent = data.display_name || resolveUserDisplayName(normalized) || normalized;
+                    }
+                    if (emailNode)
+                    {
+                        emailNode.textContent = data.email || normalized;
+                    }
+                    renderProfileStats(data);
+                    positionUserProfileSidebar();
+                    if (typeof positionRelatedTicketsSidebar === 'function')
+                    {
+                        positionRelatedTicketsSidebar();
+                    }
+                }).catch(function ()
+                {
+                    if (currentRequest !== requestId || activeEmail !== normalized)
+                    {
+                        return;
+                    }
+
+                    if (loadingNode)
+                    {
+                        loadingNode.hidden = true;
+                    }
+                    if (errorNode)
+                    {
+                        errorNode.hidden = false;
+                    }
+                });
+            };
+
+            if (closeButton)
+            {
+                closeButton.addEventListener('click', function (event)
+                {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeUserProfileSidebar();
+                });
+            }
+
+            document.addEventListener('click', function (event)
+            {
+                var trigger = event.target.closest('[data-user-profile-email]');
+                if (!trigger)
+                {
+                    return;
+                }
+
+                // Multi-requester label opens the participants popover instead.
+                if (trigger.getAttribute('data-ticket-users-trigger') === '1')
+                {
+                    return;
+                }
+
+                var email = trigger.getAttribute('data-user-profile-email') || '';
+                if (!email)
+                {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                openUserProfileSidebar(email);
+            }, true);
+
+            window.addEventListener('resize', positionUserProfileSidebar);
+            window.addEventListener('scroll', positionUserProfileSidebar, { passive: true });
         })();
 
 

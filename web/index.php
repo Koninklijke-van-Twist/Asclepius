@@ -51,6 +51,7 @@ $apiUrl = 'api.php';
     <?php require __DIR__ . '/content/views/update_notify.php'; ?>
     <?php if (empty($isBigscreen)): ?>
         <?php require __DIR__ . '/content/views/view_presence.php'; ?>
+        <?php require __DIR__ . '/content/views/view_user_profile.php'; ?>
     <?php endif; ?>
     <div class="page">
         <?php require __DIR__ . '/content/views/header.php'; ?>

@@ -1,3 +1,11 @@
+id: 2026-08-21-user-profile-sidebar
+date: 2026-08-21
+title: User profile card in the overview sidebar
+author: Tim Falken
+
+On the **ICT overview**, click a user name in a ticket (requester, assignee, or message author). A card appears on the left with name, email, and short stats: ticket count, open tickets, average response time, and average wait time. The card stays open until you close it or open another user.
+
+---
 id: 2026-08-20-related-presence-narrow-layout
 date: 2026-08-20
 title: Related tickets and presence on narrow screens

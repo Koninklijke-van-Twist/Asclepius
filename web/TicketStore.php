@@ -1632,6 +1632,96 @@ class TicketStore
         return $stats;
     }
 
+    /**
+     * Profile card stats for a requester email (tickets owned by that user).
+     *
+     * @return array{
+     *     email: string,
+     *     ticket_count: int,
+     *     open_ticket_count: int,
+     *     average_response_seconds: float|null,
+     *     average_wait_seconds: float|null
+     * }
+     */
+    public function getUserProfileStats(string $email): array
+    {
+        $email = strtolower(trim($email));
+        $empty = [
+            'email' => $email,
+            'ticket_count' => 0,
+            'open_ticket_count' => 0,
+            'average_response_seconds' => null,
+            'average_wait_seconds' => null,
+        ];
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $empty;
+        }
+
+        $countStatement = $this->pdo->prepare(
+            "SELECT COUNT(*) AS ticket_count,
+                    SUM(CASE WHEN status <> 'afgehandeld' THEN 1 ELSE 0 END) AS open_ticket_count
+             FROM tickets
+             WHERE lower(user_email) = :email"
+        );
+        $countStatement->execute([':email' => $email]);
+        $countRow = $countStatement->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $responseStatement = $this->pdo->prepare(
+            "SELECT AVG(response_seconds) AS average_response_seconds
+             FROM (
+                 SELECT tst.ticket_id,
+                        SUM(
+                            MAX(
+                                0,
+                                (julianday(COALESCE(NULLIF(tst.ended_at, ''), CURRENT_TIMESTAMP)) - julianday(tst.started_at)) * 86400
+                            )
+                        ) AS response_seconds
+                 FROM ticket_status_transitions tst
+                 INNER JOIN tickets t ON t.id = tst.ticket_id
+                 WHERE lower(t.user_email) = :email
+                   AND tst.status = :response_status
+                 GROUP BY tst.ticket_id
+             ) AS response_per_ticket"
+        );
+        $responseStatement->execute([
+            ':email' => $email,
+            ':response_status' => self::REQUESTER_RESPONSE_STATUS,
+        ]);
+        $responseRow = $responseStatement->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $waitStatement = $this->pdo->prepare(
+            "SELECT AVG(
+                        MAX(
+                            0,
+                            (julianday(COALESCE(NULLIF(resolved_at, ''), NULLIF(updated_at, ''), CURRENT_TIMESTAMP))
+                                - julianday(created_at)) * 86400
+                        )
+                    ) AS average_wait_seconds
+             FROM tickets
+             WHERE lower(user_email) = :email
+               AND status = 'afgehandeld'
+               AND created_at IS NOT NULL
+               AND TRIM(created_at) <> ''"
+        );
+        $waitStatement->execute([':email' => $email]);
+        $waitRow = $waitStatement->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $averageResponse = isset($responseRow['average_response_seconds']) && $responseRow['average_response_seconds'] !== null
+            ? max(0.0, (float) $responseRow['average_response_seconds'])
+            : null;
+        $averageWait = isset($waitRow['average_wait_seconds']) && $waitRow['average_wait_seconds'] !== null
+            ? max(0.0, (float) $waitRow['average_wait_seconds'])
+            : null;
+
+        return [
+            'email' => $email,
+            'ticket_count' => (int) ($countRow['ticket_count'] ?? 0),
+            'open_ticket_count' => (int) ($countRow['open_ticket_count'] ?? 0),
+            'average_response_seconds' => $averageResponse,
+            'average_wait_seconds' => $averageWait,
+        ];
+    }
+
     public function pickAvailableIctUser(?string $category = null, ?string $excludeEmail = null): ?string
     {
         return $this->pickAssignee($category, $excludeEmail);
