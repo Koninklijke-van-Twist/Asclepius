@@ -270,6 +270,57 @@ function hasExplicitTicketFilterQueryParams(): bool
         || isset($_GET['reset_filters']);
 }
 
+function sendPrivateNoStoreHeaders(): void
+{
+    if (headers_sent()) {
+        return;
+    }
+
+    header('Cache-Control: private, no-store, must-revalidate');
+    header('Pragma: no-cache');
+    header('Vary: Cookie');
+}
+
+/**
+ * Prefer the logged-in session user over client-supplied viewer_email values.
+ */
+function resolveAuthenticatedUserEmail(?array $apiClient = null, array $payload = []): string
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        $sessionCookieName = session_name();
+        if ($sessionCookieName !== '' && !empty($_COOKIE[$sessionCookieName])) {
+            session_start(['read_and_close' => true]);
+        }
+    }
+
+    $sessionEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+    if ($sessionEmail !== '' && filter_var($sessionEmail, FILTER_VALIDATE_EMAIL)) {
+        return $sessionEmail;
+    }
+
+    $apiEmail = strtolower(trim((string) ($apiClient['email'] ?? '')));
+    if ($apiEmail !== '' && filter_var($apiEmail, FILTER_VALIDATE_EMAIL)) {
+        return $apiEmail;
+    }
+
+    $payloadEmail = strtolower(trim((string) ($payload['viewer_email'] ?? ($payload['user_email'] ?? ''))));
+    if ($payloadEmail !== '' && filter_var($payloadEmail, FILTER_VALIDATE_EMAIL)) {
+        return $payloadEmail;
+    }
+
+    return '';
+}
+
+function stampTicketOverviewFiltersForUser(array $filters, string $ownerEmail): array
+{
+    $ownerEmail = strtolower(trim($ownerEmail));
+    if ($ownerEmail !== '' && filter_var($ownerEmail, FILTER_VALIDATE_EMAIL)) {
+        $filters['owner_email'] = $ownerEmail;
+    }
+
+    return $filters;
+}
+
 function hasActiveTicketOverviewFilters(bool $statusFilterRequestActive, bool $categoryFilterRequestActive, string $assignedFilter, string $searchQuery): bool
 {
     return $statusFilterRequestActive
@@ -1620,19 +1671,32 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
 function normalizeSavedTicketOverviewFilters(
     array $prefs,
     array $activeCustomStatusLabels = [],
-    array $validAssigneeEmails = []
+    array $validAssigneeEmails = [],
+    string $ownerEmail = ''
 ): array
 {
+    $empty = [
+        'status_filter_active' => false,
+        'status_filters' => [],
+        'category_filter_active' => false,
+        'category_filters' => [],
+        'assigned_filter' => '',
+        'search_query' => '',
+    ];
+
     $savedFilters = $prefs['ticket_overview_filters'] ?? null;
     if (!is_array($savedFilters)) {
-        return [
-            'status_filter_active' => false,
-            'status_filters' => [],
-            'category_filter_active' => false,
-            'category_filters' => [],
-            'assigned_filter' => '',
-            'search_query' => '',
-        ];
+        return $empty;
+    }
+
+    $expectedOwner = strtolower(trim($ownerEmail));
+    $savedOwner = strtolower(trim((string) ($savedFilters['owner_email'] ?? '')));
+    if (
+        $expectedOwner !== ''
+        && $savedOwner !== ''
+        && $savedOwner !== $expectedOwner
+    ) {
+        return $empty;
     }
 
     $statusFilters = array_values(array_filter(
@@ -2252,6 +2316,7 @@ function translateCategory(string $dbCategory): string
         'software bestellen' => 'category.software_bestellen',
         'licentie aanvragen' => 'category.licentie_aanvragen',
         'Business Central' => 'category.business_central',
+        'BC Verbeteringen' => 'category.bc_verbeteringen',
         'AFAS' => 'category.afas',
         'Hardwareproblemen' => 'category.hardwareproblemen',
         'Softwareproblemen' => 'category.softwareproblemen',
@@ -2457,11 +2522,12 @@ function applyDefaultEnabledOwnCustomStatusFilters(
         $overview = normalizeSavedTicketOverviewFilters(
             $prefs,
             array_column($activeCustomStatuses, 'display_label'),
-            $validAssigneeEmails
+            $validAssigneeEmails,
+            $userEmail
         );
         $overview['status_filter_active'] = true;
         $overview['status_filters'] = array_values(array_unique($statusFilters));
-        saveUserPref($userEmail, 'ticket_overview_filters', $overview);
+        saveUserPref($userEmail, 'ticket_overview_filters', stampTicketOverviewFiltersForUser($overview, $userEmail));
     }
 
     return array_values(array_unique($statusFilters));

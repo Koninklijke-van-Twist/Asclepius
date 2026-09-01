@@ -193,6 +193,7 @@ Slaat per categorie alleen een rij op als het aantal open tickets is veranderd t
 - `Printerproblemen`
 - `licentie aanvragen`
 - `Business Central`
+- `BC Verbeteringen`
 - `Hardwareproblemen`
 - `Softwareproblemen`
 - `MagazijnApp`

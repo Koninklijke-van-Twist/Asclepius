@@ -1370,9 +1370,7 @@ function handleSaveTicketOverviewSearchApiAction(array $payload, ?array $apiClie
         ];
     }
 
-    $userEmail = strtolower(trim((string) (
-        $apiClient['email'] ?? ($payload['viewer_email'] ?? ($_SESSION['user']['email'] ?? ''))
-    )));
+    $userEmail = resolveAuthenticatedUserEmail($apiClient, $payload);
     if ($userEmail === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
         return [
             'success' => false,
@@ -1392,9 +1390,9 @@ function handleSaveTicketOverviewSearchApiAction(array $payload, ?array $apiClie
         $activeCustomLabels = [];
         $validAssigneeEmails = extractIctUserEmails(is_array($ictUsers ?? null) ? $ictUsers : []);
     }
-    $savedFilters = normalizeSavedTicketOverviewFilters($userPrefs, $activeCustomLabels, $validAssigneeEmails);
+    $savedFilters = normalizeSavedTicketOverviewFilters($userPrefs, $activeCustomLabels, $validAssigneeEmails, $userEmail);
     $savedFilters['search_query'] = trim((string) ($payload['search_query'] ?? ''));
-    saveUserPref($userEmail, 'ticket_overview_filters', $savedFilters);
+    saveUserPref($userEmail, 'ticket_overview_filters', stampTicketOverviewFiltersForUser($savedFilters, $userEmail));
 
     return [
         'success' => true,

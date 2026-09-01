@@ -1,3 +1,19 @@
+id: 2026-09-01-category-bc-verbeteringen
+date: 2026-09-01
+title: New category BC Verbeteringen
+author: Tim Falken
+
+A new ticket category **BC Verbeteringen** has been added, alongside **Business Central**. You can select it for new tickets, filters, and role assignments.
+
+---
+id: 2026-09-01-overview-filter-session-fix
+date: 2026-09-01
+title: ICT overview filters stay tied to your account
+author: Tim Falken
+
+Filters on the **ICT overview** are saved per account. When a session was missing or expired, the app could sometimes show another ICT admin’s filters by mistake. This is fixed: without a valid login, another user’s filters are no longer loaded, and saved filters are checked against your account.
+
+---
 id: 2026-08-21-user-profile-sidebar
 date: 2026-08-21
 title: User profile card in the overview sidebar

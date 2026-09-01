@@ -4,6 +4,20 @@ require_once __DIR__ . '/content/bootstrap.php';
 require_once __DIR__ . '/content/constants.php';
 require_once __DIR__ . '/content/localization.php';
 require_once __DIR__ . '/content/helpers.php';
+
+$isPersonalizedHtmlRequest =
+    !isset($_GET['_partial'])
+    && !isset($_GET['_tickets_poll'])
+    && !isset($_GET['_browser_notifications_poll'])
+    && !isset($_GET['_webpush_subscription'])
+    && !isset($_GET['_bigscreen_poll'])
+    && !isset($_GET['_bigscreen_version'])
+    && !isset($_GET['download'])
+    && !isset($_GET['_auto_refresh']);
+if ($isPersonalizedHtmlRequest) {
+    sendPrivateNoStoreHeaders();
+}
+
 require_once __DIR__ . '/content/ict_roles.php';
 require_once __DIR__ . '/content/janus_sync.php';
 require_once __DIR__ . '/content/TranslationProvider.php';

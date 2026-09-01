@@ -1,3 +1,19 @@
+id: 2026-09-01-category-bc-verbeteringen
+date: 2026-09-01
+title: Nieuwe categorie BC Verbeteringen
+author: Tim Falken
+
+Er is een nieuwe ticketcategorie **BC Verbeteringen** toegevoegd, naast **Business Central**. Je kunt deze kiezen bij nieuwe tickets, filters en rol-toewijzingen.
+
+---
+id: 2026-09-01-overview-filter-session-fix
+date: 2026-09-01
+title: Filters op ICT-overzicht blijven van jouw account
+author: Tim Falken
+
+Filters op het **ICT-overzicht** worden per account opgeslagen. Bij een verlopen of ontbrekende sessie kon het systeem soms per ongeluk de filters van een andere ICT-beheerder tonen. Dat is opgelost: zonder geldige login worden geen filters van iemand anders meer geladen, en opgeslagen filters worden aan jouw account gecontroleerd.
+
+---
 id: 2026-08-21-user-profile-sidebar
 date: 2026-08-21
 title: Gebruikerskaart in de sidebar op het overzicht

@@ -33,15 +33,23 @@ if ($localRequester && isset($_GET['dev_admin'])) {
     $_SESSION['user']['admin'] = $_GET['dev_admin'] === '1';
 }
 
-if (!isset($_SESSION['user']['email']) || trim((string) $_SESSION['user']['email']) === '') {
-    $_SESSION['user']['email'] = $ictUsers[0] ?? 'developer@kvt.nl';
+$sessionUserEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+if ($sessionUserEmail === '' || !filter_var($sessionUserEmail, FILTER_VALIDATE_EMAIL)) {
+    // Local development fallback only — never impersonate another ICT user in production.
+    if ($localRequester) {
+        $sessionUserEmail = strtolower(trim((string) ($ictUsers[0] ?? 'developer@kvt.nl')));
+        $_SESSION['user']['email'] = $sessionUserEmail;
+    } else {
+        $sessionUserEmail = '';
+    }
 }
 
 if (!isset($_SESSION['user']['admin'])) {
-    $_SESSION['user']['admin'] = in_array(strtolower((string) $_SESSION['user']['email']), extractIctUserEmails($ictUsers), true);
+    $_SESSION['user']['admin'] = $sessionUserEmail !== ''
+        && in_array($sessionUserEmail, extractIctUserEmails($ictUsers), true);
 }
 
-$userEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? 'developer@kvt.nl')));
+$userEmail = $sessionUserEmail;
 $userIsAdmin = (bool) ($_SESSION['user']['admin'] ?? false);
 $canManageTickets = $isAdminPortal && $userIsAdmin;
 $_SESSION['user']['email'] = $userEmail;
@@ -169,7 +177,8 @@ $savedOverviewFilters = $resetOverviewFilters
         $activeCustomStatusLabels,
         $store instanceof TicketStore
             ? $store->getAllIctCapableEmails()
-            : extractIctUserEmails($ictUsers)
+            : extractIctUserEmails($ictUsers),
+        $userEmail
     );
 
 $storageDiagnostics = [
@@ -357,15 +366,15 @@ if ($openTicketId > 0 && $store instanceof TicketStore && isOpenTicketNavigation
     }
 }
 
-if ($canUseTicketOverviewFilters && $ticketOverviewFilterChangeRequested) {
-    saveUserPref($userEmail, 'ticket_overview_filters', [
+if ($canUseTicketOverviewFilters && $ticketOverviewFilterChangeRequested && $userEmail !== '') {
+    saveUserPref($userEmail, 'ticket_overview_filters', stampTicketOverviewFiltersForUser([
         'status_filter_active' => $resetOverviewFilters ? false : $statusFilterRequestActive,
         'status_filters' => $resetOverviewFilters ? [] : $statusFilters,
         'category_filter_active' => $resetOverviewFilters ? false : $categoryFilterRequestActive,
         'category_filters' => $resetOverviewFilters ? [] : $categoryFilters,
         'assigned_filter' => $resetOverviewFilters ? '' : $assignedFilter,
         'search_query' => $resetOverviewFilters ? '' : $searchQuery,
-    ]);
+    ], $userEmail));
     $savedOverviewFilters = [
         'status_filter_active' => $resetOverviewFilters ? false : $statusFilterRequestActive,
         'status_filters' => $resetOverviewFilters ? [] : $statusFilters,
@@ -373,6 +382,7 @@ if ($canUseTicketOverviewFilters && $ticketOverviewFilterChangeRequested) {
         'category_filters' => $resetOverviewFilters ? [] : $categoryFilters,
         'assigned_filter' => $resetOverviewFilters ? '' : $assignedFilter,
         'search_query' => $resetOverviewFilters ? '' : $searchQuery,
+        'owner_email' => $userEmail,
     ];
 }
 

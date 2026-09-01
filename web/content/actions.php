@@ -428,7 +428,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                         $overview = normalizeSavedTicketOverviewFilters(
                             $prefs,
                             $store->getActiveCustomStatusLabels(),
-                            $store->getAllIctCapableEmails()
+                            $store->getAllIctCapableEmails(),
+                            $userEmail
                         );
                         // Ensure the new status is treated as "seen" and enabled if filters are active.
                         $activeForDefault = [[
