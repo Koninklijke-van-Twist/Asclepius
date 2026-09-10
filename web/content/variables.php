@@ -108,7 +108,8 @@ $userPrefs = loadUserPrefs($userEmail);
 $requestedView = trim((string) ($_GET['view'] ?? ''));
 // Full ICT admins already see everything on admin.php; limited ICT keeps the public "all tickets" tab.
 $isAllTicketsView = !$isAdminPortal && !$isFullIctAdmin && $requestedView === 'all_tickets';
-$canUseTicketOverviewFilters = $canManageTickets || $isAllTicketsView;
+$isMyTicketsView = !$isAdminPortal && $requestedView === 'my_tickets';
+$canUseTicketOverviewFilters = $canManageTickets || $isAllTicketsView || $isMyTicketsView;
 $resetOverviewFilters = $canUseTicketOverviewFilters && isset($_GET['reset_filters']) && (string) $_GET['reset_filters'] === '1';
 
 $flashMessages = $_SESSION['flash_messages'] ?? [];
@@ -151,11 +152,12 @@ $janusPresenceRows = [];
 $janusPresenceConnected = false;
 
 $isAllTicketsView = !$isAdminPortal && !$isFullIctAdmin && $requestedView === 'all_tickets';
-$canUseTicketOverviewFilters = $canManageTickets || $isAllTicketsView;
+$isMyTicketsView = !$isAdminPortal && $requestedView === 'my_tickets';
+$canUseTicketOverviewFilters = $canManageTickets || $isAllTicketsView || $isMyTicketsView;
 $resetOverviewFilters = $canUseTicketOverviewFilters && isset($_GET['reset_filters']) && (string) $_GET['reset_filters'] === '1';
 
 $activeCustomStatuses = $store instanceof TicketStore
-    ? $store->getActiveCustomStatuses(($isLimitedIct && !$isAllTicketsView) ? ($ictAccessCategories ?? []) : null)
+    ? $store->getActiveCustomStatuses(($isLimitedIct && !$isAllTicketsView && !$isMyTicketsView) ? ($ictAccessCategories ?? []) : null)
     : [];
 $activeCustomStatusLabels = array_values(array_map(
     static fn(array $row): string => (string) ($row['display_label'] ?? ''),
@@ -173,7 +175,9 @@ $savedOverviewFilters = $resetOverviewFilters
         'search_query' => '',
     ]
     : normalizeSavedTicketOverviewFilters(
-        $userPrefs,
+        $isMyTicketsView
+            ? ['ticket_overview_filters' => $userPrefs['my_ticket_filters'] ?? null]
+            : $userPrefs,
         $activeCustomStatusLabels,
         $store instanceof TicketStore
             ? $store->getAllIctCapableEmails()
@@ -296,7 +300,9 @@ if ($canUseTicketOverviewFilters) {
         $assignedFilter = '';
     }
 }
-if ($canManageIctRoles) {
+if ($isMyTicketsView) {
+    $view = 'my_tickets';
+} elseif ($canManageIctRoles) {
     $view = in_array($requestedView, ['settings', 'stats', 'template_tickets', 'email_prefs', 'preferences', 'changelog', 'api', 'roles'], true)
         ? $requestedView
         : 'overview';
@@ -367,7 +373,7 @@ if ($openTicketId > 0 && $store instanceof TicketStore && isOpenTicketNavigation
 }
 
 if ($canUseTicketOverviewFilters && $ticketOverviewFilterChangeRequested && $userEmail !== '') {
-    saveUserPref($userEmail, 'ticket_overview_filters', stampTicketOverviewFiltersForUser([
+    saveUserPref($userEmail, $isMyTicketsView ? 'my_ticket_filters' : 'ticket_overview_filters', stampTicketOverviewFiltersForUser([
         'status_filter_active' => $resetOverviewFilters ? false : $statusFilterRequestActive,
         'status_filters' => $resetOverviewFilters ? [] : $statusFilters,
         'category_filter_active' => $resetOverviewFilters ? false : $categoryFilterRequestActive,
@@ -386,7 +392,7 @@ if ($canUseTicketOverviewFilters && $ticketOverviewFilterChangeRequested && $use
     ];
 }
 
-$overviewListView = $isAllTicketsView ? 'all_tickets' : 'overview';
+$overviewListView = $isAllTicketsView ? 'all_tickets' : ($isMyTicketsView ? 'my_tickets' : 'overview');
 
 if (
     isTicketOverviewListRequest()

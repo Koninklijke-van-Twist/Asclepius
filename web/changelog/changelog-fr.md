@@ -1,3 +1,11 @@
+id: 2026-09-10-my-tickets-page
+date: 2026-09-10
+title: Mes tickets via votre nom dans l’en-tête
+author: Tim Falken
+
+Un clic sur votre **nom** dans l’en-tête ouvre la page **Mes tickets**. Vous y voyez les mêmes tickets que sur **Nouveau ticket**, mais à la place du formulaire de création vous pouvez filtrer par statut, catégorie, recherche et employé ICT assigné — comme dans l’aperçu ICT. Vos filtres sont mémorisés.
+
+---
 id: 2026-09-01-category-bc-verbeteringen
 date: 2026-09-01
 title: Nouvelle catégorie BC Verbeteringen

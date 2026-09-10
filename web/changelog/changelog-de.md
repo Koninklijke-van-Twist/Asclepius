@@ -1,3 +1,11 @@
+id: 2026-09-10-my-tickets-page
+date: 2026-09-10
+title: Meine Tickets über den Namen in der Kopfzeile
+author: Tim Falken
+
+Ein Klick auf Ihren **Namen** in der Kopfzeile öffnet **Meine Tickets**. Sie sehen dieselben Tickets wie unter **Neues Ticket**, aber statt des Formulars können Sie nach Status, Kategorie, Suchbegriff und zugewiesenem ICT-Mitarbeiter filtern — wie in der ICT-Übersicht. Ihre Filter werden gespeichert.
+
+---
 id: 2026-09-01-category-bc-verbeteringen
 date: 2026-09-01
 title: Neue Kategorie BC Verbeteringen

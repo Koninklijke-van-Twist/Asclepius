@@ -382,7 +382,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         'signature' => $signature,
         'tickets' => buildTicketPollItemsFromTickets($store, $tickets, $pollContext, $currentLanguage),
         'is_empty' => $tickets === [],
-        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : ($isAllTicketsView ? h(__('tickets.empty_all')) : h(__('tickets.empty_user')))) . '</div>',
+        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : ($isAllTicketsView ? h(__('tickets.empty_all')) : ($view === 'my_tickets' ? h(__('tickets.empty_my')) : h(__('tickets.empty_user'))))) . '</div>',
         'page' => $ticketPage,
         'total_pages' => $ticketTotalPages,
         'total_count' => $ticketTotalCount,

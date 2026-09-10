@@ -2697,7 +2697,7 @@ class TicketStore
         $parameters = [];
         $allCompletedPublic = $browseMode === 'all_completed_public';
         $adminList = $isAdmin && !$allCompletedPublic;
-        $searchEnabled = $adminList || $allCompletedPublic;
+        $searchEnabled = true;
         $exactTicketIds = $searchEnabled ? $this->extractExactTicketIdsFromSearch($searchQuery) : [];
 
         if ($allCompletedPublic) {
@@ -2738,7 +2738,7 @@ class TicketStore
             $listConditions[] = 't.status IN (' . implode(', ', $statusPlaceholders) . ')';
         }
 
-        if (($adminList || $allCompletedPublic) && $assignedFilter !== null && $assignedFilter !== '') {
+        if ($assignedFilter !== null && $assignedFilter !== '') {
             if ($assignedFilter === '__unassigned__') {
                 $listConditions[] = '(t.assigned_email IS NULL OR t.assigned_email = "")';
             } else {

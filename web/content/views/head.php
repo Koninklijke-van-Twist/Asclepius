@@ -1002,6 +1002,18 @@
 
         .user-chip {
             background: rgba(255, 255, 255, 0.16);
+            color: #fff;
+            border: 1px solid transparent;
+        }
+
+        a.user-chip:hover {
+            background: rgba(255, 255, 255, 0.28);
+        }
+
+        a.user-chip.active {
+            background: #fff;
+            color: var(--accent);
+            border-color: rgba(255, 255, 255, 0.2);
         }
 
         .nav-link {

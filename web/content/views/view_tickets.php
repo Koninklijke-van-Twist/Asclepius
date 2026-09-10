@@ -52,14 +52,14 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
         : ($isAllTicketsView ? __('tickets.heading_all') : __('tickets.heading_user'));
     $ticketEmptyMessage = $isAdminPortal
         ? __('tickets.empty_admin')
-        : ($isAllTicketsView ? __('tickets.empty_all') : __('tickets.empty_user'));
+        : ($isAllTicketsView ? __('tickets.empty_all') : ($isMyTicketsView ? __('tickets.empty_my') : __('tickets.empty_user')));
     ?>
     <section class="panel" data-live-ticket-section data-ticket-signature="<?= h($ticketSnapshotSignature) ?>"
         data-ticket-poll-payload="<?= h((string) json_encode($ticketPollPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
         data-ticket-poll-interval="15000"
-        data-is-limited-ict="<?= (!empty($isLimitedIct) && empty($isAllTicketsView)) ? '1' : '0' ?>"
+        data-is-limited-ict="<?= (!empty($isLimitedIct) && empty($isAllTicketsView) && empty($isMyTicketsView)) ? '1' : '0' ?>"
         data-ict-access-categories="<?= h((string) json_encode(
-            (!empty($isLimitedIct) && empty($isAllTicketsView) && is_array($ictAccessCategories ?? null))
+            (!empty($isLimitedIct) && empty($isAllTicketsView) && empty($isMyTicketsView) && is_array($ictAccessCategories ?? null))
                 ? array_values($ictAccessCategories)
                 : [],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
@@ -67,12 +67,16 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
         <h2><?= h($ticketHeading) ?></h2>
         <?php if ($isAllTicketsView): ?>
             <p class="panel-intro"><?= h(__('tickets.intro_all')) ?></p>
+        <?php elseif ($isMyTicketsView): ?>
+            <p class="panel-intro"><?= h(__('tickets.intro_my')) ?></p>
         <?php endif; ?>
 
         <?php if ($canUseTicketOverviewFilters): ?>
             <form method="get" class="filters-form">
                 <?php if ($isAllTicketsView): ?>
                     <input type="hidden" name="view" value="all_tickets">
+                <?php elseif ($isMyTicketsView): ?>
+                    <input type="hidden" name="view" value="my_tickets">
                 <?php endif; ?>
                 <?php if (!$isAllTicketsView): ?>
                     <input type="hidden" name="status_filter_mode" value="manual">
@@ -121,7 +125,7 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                     <label><?= h(__('filter.category_label')) ?></label>
                     <div class="checkbox-group">
                         <?php
-                        $filterCategories = (!empty($isLimitedIct) && empty($isAllTicketsView) && is_array($ictAccessCategories))
+                        $filterCategories = (!empty($isLimitedIct) && empty($isAllTicketsView) && empty($isMyTicketsView) && is_array($ictAccessCategories))
                             ? array_values(array_filter(
                                 TICKET_CATEGORIES,
                                 static fn(string $category): bool => in_array($category, $ictAccessCategories, true)
@@ -152,7 +156,7 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                             <?= h(__('filter.unassigned')) ?>
                         </option>
                         <?php
-                        $filterAssigneeEmails = (!empty($isLimitedIct) && empty($isAllTicketsView) && $store instanceof TicketStore && is_array($ictRole))
+                        $filterAssigneeEmails = (!empty($isLimitedIct) && empty($isAllTicketsView) && empty($isMyTicketsView) && $store instanceof TicketStore && is_array($ictRole))
                             ? $store->listIctRoleMemberEmails((int) ($ictRole['role_id'] ?? 0))
                             : ($store instanceof TicketStore
                                 ? $store->getAllIctCapableEmails()
@@ -172,7 +176,7 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                 <div class="filters-toolbar-row">
                     <a class="secondary-button"
                         href="<?= h(buildPageUrl($currentPage, array_merge(
-                            $isAllTicketsView ? ['view' => 'all_tickets'] : [],
+                            $isAllTicketsView ? ['view' => 'all_tickets'] : ($isMyTicketsView ? ['view' => 'my_tickets'] : []),
                             ['reset_filters' => '1'],
                             $openTicketId > 0 ? ['open' => $openTicketId] : []
                         ))) ?>"><?= h(__('filter.reset')) ?></a>

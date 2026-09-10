@@ -49,10 +49,13 @@ $currentLang = getCurrentLanguage();
         </div>
     </div>
     <div class="hero-actions" <?= $isBigscreen ? ' hidden' : '' ?>>
-        <span class="user-chip" title="<?= h($userEmail) ?>">
+        <a class="user-chip <?= !$isAdminPortal && $view === 'my_tickets' ? 'active' : '' ?>"
+            href="index.php?view=my_tickets"
+            title="<?= h(__('nav.my_tickets')) ?> · <?= h($userEmail) ?>"
+            aria-label="<?= h(__('nav.my_tickets')) ?>">
             <?= h(formatUserDisplayName($userEmail)) ?><?= $userIsAdmin ? h(__('header.admin_suffix')) : '' ?>
-        </span>
-        <a class="nav-link <?= !$isAdminPortal && $view !== 'all_tickets' ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
+        </a>
+        <a class="nav-link <?= !$isAdminPortal && !in_array($view, ['all_tickets', 'my_tickets'], true) ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
         <?php if (!$isFullIctAdmin): ?>
             <a class="nav-link <?= !$isAdminPortal && $view === 'all_tickets' ? 'active' : '' ?>"
                 href="index.php?view=all_tickets"><?= h(__('nav.all_tickets')) ?></a>

@@ -1,3 +1,11 @@
+id: 2026-09-10-my-tickets-page
+date: 2026-09-10
+title: Mijn tickets via je naam in de header
+author: Tim Falken
+
+Als je op je **naam** in de header klikt, open je de pagina **Mijn tickets**. Daar zie je dezelfde tickets als op **Nieuw ticket**, maar in plaats van het aanmaakformulier kun je filteren op status, categorie, zoekterm en toegewezen ICT-medewerker — zoals op het ICT-overzicht. Je filters worden onthouden.
+
+---
 id: 2026-09-01-category-bc-verbeteringen
 date: 2026-09-01
 title: Nieuwe categorie BC Verbeteringen

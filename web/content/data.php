@@ -133,7 +133,7 @@ if ($store instanceof TicketStore && $showTicketListSection) {
     $ticketPageOffset = ($ticketPage - 1) * $ticketsPerPage;
 }
 
-$overviewListView = $isAllTicketsView ? 'all_tickets' : 'overview';
+$overviewListView = $isAllTicketsView ? 'all_tickets' : ($isMyTicketsView ? 'my_tickets' : 'overview');
 $ticketListNavigationQuery = buildTicketListLocationQuery(
     $overviewListView,
     $isAdminPortal,
@@ -507,7 +507,7 @@ if (isset($_GET['_tickets_poll'])) {
             ? buildTicketPollItemsFromTickets($store, $tickets, $pollContext, getCurrentLanguage())
             : [],
         'is_empty' => $tickets === [],
-        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : ($isAllTicketsView ? h(__('tickets.empty_all')) : h(__('tickets.empty_user')))) . '</div>',
+        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : ($isAllTicketsView ? h(__('tickets.empty_all')) : ($isMyTicketsView ? h(__('tickets.empty_my')) : h(__('tickets.empty_user'))))) . '</div>',
         'page' => $ticketPage,
         'total_pages' => $ticketTotalPages,
         'total_count' => $ticketTotalCount,

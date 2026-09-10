@@ -244,8 +244,8 @@ function buildTicketListLocationQuery(string $view, bool $isAdminPortal, int $op
         $query['view'] = $view;
     }
 
-    if (!$isAdminPortal && $view === 'all_tickets') {
-        $query['view'] = 'all_tickets';
+    if (!$isAdminPortal && in_array($view, ['all_tickets', 'my_tickets'], true)) {
+        $query['view'] = $view;
     }
 
     if ($openTicketId > 0) {
@@ -508,7 +508,7 @@ function buildTicketPollPaginationHtml(
         $categoryFilterRequestActive
     );
 
-    $overviewListView = $view === 'all_tickets' ? 'all_tickets' : 'overview';
+    $overviewListView = in_array($view, ['all_tickets', 'my_tickets'], true) ? $view : 'overview';
     $baseNavigationQuery = buildTicketListLocationQuery($overviewListView, $isAdminPortal, $openTicketId, 1);
 
     return renderTicketPaginationHtml($currentPage, $ticketPage, $ticketTotalPages, $baseNavigationQuery);

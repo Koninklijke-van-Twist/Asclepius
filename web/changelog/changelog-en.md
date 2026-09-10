@@ -1,3 +1,11 @@
+id: 2026-09-10-my-tickets-page
+date: 2026-09-10
+title: My tickets via your name in the header
+author: Tim Falken
+
+Clicking your **name** in the header opens the **My tickets** page. You see the same tickets as on **New ticket**, but instead of the create form you can filter by status, category, search term, and assigned ICT employee — like on the ICT overview. Your filters are remembered.
+
+---
 id: 2026-09-01-category-bc-verbeteringen
 date: 2026-09-01
 title: New category BC Verbeteringen
