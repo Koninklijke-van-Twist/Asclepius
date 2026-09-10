@@ -1,3 +1,11 @@
+id: 2026-09-10-ticket-url-links
+date: 2026-09-10
+title: Ticketlinks in berichten
+author: Tim Falken
+
+Een URL naar een ander ticket (zoals `index.php?open=943`) wordt in de tickettekst een klikbare koppeling **Ticket #943**.
+
+---
 id: 2026-09-10-grok-ticket-webhook
 date: 2026-09-10
 title: Webhook bij nieuw ticket, bot kiest naam en titel

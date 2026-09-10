@@ -1,3 +1,11 @@
+id: 2026-09-10-ticket-url-links
+date: 2026-09-10
+title: Liens vers d’autres tickets
+author: Tim Falken
+
+Une URL vers un autre ticket (comme `index.php?open=943`) devient un lien cliquable **Ticket #943** dans le texte.
+
+---
 id: 2026-09-10-grok-ticket-webhook
 date: 2026-09-10
 title: Webhook à la création d’un ticket, le bot choisit nom et titre

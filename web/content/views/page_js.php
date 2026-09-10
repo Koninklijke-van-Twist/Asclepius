@@ -66,6 +66,64 @@
             return userDisplayNames[normalized] || normalized;
         };
 
+        var TICKET_REF_LABEL = <?= json_encode(__('ticket.ref_link'), JSON_UNESCAPED_UNICODE) ?>;
+        var trimLinkTrailingPunctuation = function (value)
+        {
+            return String(value || '').replace(/[.,;:!?)\]]+$/, '');
+        };
+        var extractAsclepiusTicketIdFromUrl = function (rawUrl)
+        {
+            var url = String(rawUrl || '').replace(/&amp;/g, '&');
+            url = trimLinkTrailingPunctuation(url);
+            if (url === '')
+            {
+                return 0;
+            }
+            if (/^www\./i.test(url))
+            {
+                url = 'https://' + url;
+            }
+            try
+            {
+                var parsed = new URL(url, window.location.origin);
+                var script = String(parsed.pathname.split('/').pop() || '').toLowerCase();
+                if (script !== 'index.php' && script !== 'admin.php')
+                {
+                    return 0;
+                }
+                var ticketId = parseInt(parsed.searchParams.get('open') || '0', 10);
+                return ticketId > 0 ? ticketId : 0;
+            }
+            catch (error)
+            {
+                return 0;
+            }
+        };
+        var formatTicketRefLabel = function (ticketId)
+        {
+            return String(TICKET_REF_LABEL || 'Ticket #%d').replace('%d', String(ticketId));
+        };
+        var linkifyHttpUrlsInEscapedHtml = function (escaped)
+        {
+            return String(escaped || '').replace(/\b((?:https?:\/\/|www\.)[^\s<]+)/gi, function (match)
+            {
+                var trimmed = trimLinkTrailingPunctuation(match);
+                var suffix = match.slice(trimmed.length);
+                var href = trimmed.replace(/&amp;/g, '&');
+                if (/^www\./i.test(href))
+                {
+                    href = 'https://' + href;
+                }
+                if (!/^https?:\/\//i.test(href))
+                {
+                    return match;
+                }
+                var ticketId = extractAsclepiusTicketIdFromUrl(href);
+                var label = ticketId > 0 ? escapeHtml(formatTicketRefLabel(ticketId)) : trimmed;
+                var extraAttrs = ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
+                return '<a href="' + escapeHtml(href) + '"' + extraAttrs + '>' + label + '</a>' + suffix;
+            });
+        };
         var SHORTCUT_KEY_DEFINITIONS = <?= json_encode(getShortcutKeyDefinitions(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
         var SHORTCUT_KEY_ALIAS_MAP = {};
 
@@ -2521,11 +2579,6 @@
                 return escapeHtml(value).replace(/'/g, '&#039;');
             };
 
-            var trimLinkTrailingPunctuation = function (value)
-            {
-                return String(value || '').replace(/[.,;:!?)\]]+$/, '');
-            };
-
             var linkifyEscapedHtml = function (escaped)
             {
                 var pattern = /\b((?:https?:\/\/|www\.)[^\s<]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
@@ -2537,7 +2590,7 @@
                     }
                     var trimmed = trimLinkTrailingPunctuation(match);
                     var suffix = match.slice(trimmed.length);
-                    var href = trimmed;
+                    var href = trimmed.replace(/&amp;/g, '&');
                     if (/^www\./i.test(href))
                     {
                         href = 'https://' + href;
@@ -2546,8 +2599,11 @@
                     {
                         return match;
                     }
-                    return '<a class="ponos-text-link" href="' + escapeAttr(href) + '" target="_blank" rel="noopener noreferrer">'
-                        + trimmed + '</a>' + suffix;
+                    var ticketId = extractAsclepiusTicketIdFromUrl(href);
+                    var label = ticketId > 0 ? escapeHtml(formatTicketRefLabel(ticketId)) : trimmed;
+                    var extraAttrs = ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
+                    return '<a class="ponos-text-link" href="' + escapeAttr(href) + '"' + extraAttrs + '>'
+                        + label + '</a>' + suffix;
                 });
             };
 
@@ -6264,11 +6320,11 @@
                     var label = String(checkboxMatch[3] || '');
                     return '<label class="message-checkbox-line">'
                         + '<input type="checkbox" data-role="message-checkbox" data-message-id="' + parseInt(messageId || 0, 10) + '" data-line-index="' + lineIndex + '"' + (isChecked ? ' checked' : '') + '>'
-                        + '<span>' + (label !== '' ? renderShortcutMarkup(escapeHtml(label)) : '&nbsp;') + '</span>'
+                        + '<span>' + (label !== '' ? linkifyHttpUrlsInEscapedHtml(renderShortcutMarkup(escapeHtml(label))) : '&nbsp;') + '</span>'
                         + '</label>';
                 }
 
-                return renderShortcutMarkup(escapeHtml(line));
+                return linkifyHttpUrlsInEscapedHtml(renderShortcutMarkup(escapeHtml(line)));
             }).join('<br>');
         };
 

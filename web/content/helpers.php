@@ -2892,6 +2892,38 @@ function renderShortcutMarkup(string $escapedText, bool $forEmail = false): stri
     ) ?? $rendered;
 }
 
+function extractAsclepiusTicketIdFromUrl(string $rawUrl): int
+{
+    $url = html_entity_decode(trim($rawUrl), ENT_QUOTES, 'UTF-8');
+    $url = preg_replace('/[.,;:!?)\]]+$/', '', $url) ?? $url;
+    if ($url === '') {
+        return 0;
+    }
+    if (preg_match('/^www\./i', $url) === 1) {
+        $url = 'https://' . $url;
+    }
+
+    $parts = parse_url($url);
+    if (!is_array($parts)) {
+        return 0;
+    }
+
+    $script = strtolower(basename((string) ($parts['path'] ?? '')));
+    if (!in_array($script, ['index.php', 'admin.php'], true)) {
+        return 0;
+    }
+
+    $query = [];
+    parse_str((string) ($parts['query'] ?? ''), $query);
+
+    return max(0, (int) ($query['open'] ?? 0));
+}
+
+function formatTicketRefLabel(int $ticketId): string
+{
+    return __('ticket.ref_link', $ticketId);
+}
+
 function makeTextInteractive(string $text, bool $forEmail = false): string
 {
     $escapedText = h($text);
@@ -2901,15 +2933,20 @@ function makeTextInteractive(string $text, bool $forEmail = false): string
         '~(?:(https?://|www\.)[^\s<]+)~i',
         static function (array $matches) use ($forEmail): string {
             $displayValue = $matches[0];
-            $href = str_starts_with(strtolower($displayValue), 'www.') ? 'https://' . $displayValue : $displayValue;
+            $trimmed = preg_replace('/[.,;:!?)\]]+$/', '', $displayValue) ?? $displayValue;
+            $suffix = substr($displayValue, strlen($trimmed));
+            $href = str_starts_with(strtolower($trimmed), 'www.') ? 'https://' . $trimmed : $trimmed;
             $safeHref = h($href);
-            $safeLabel = h($displayValue);
+            $ticketId = extractAsclepiusTicketIdFromUrl($href);
+            $safeLabel = $ticketId > 0 ? h(formatTicketRefLabel($ticketId)) : h($trimmed);
 
             if ($forEmail) {
-                return '<a href="' . $safeHref . '">' . $safeLabel . '</a>';
+                return '<a href="' . $safeHref . '">' . $safeLabel . '</a>' . h($suffix);
             }
 
-            return '<a href="' . $safeHref . '" target="_blank" rel="noopener noreferrer">' . $safeLabel . '</a>';
+            $target = $ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
+
+            return '<a href="' . $safeHref . '"' . $target . '>' . $safeLabel . '</a>' . h($suffix);
         },
         $escapedText
     ) ?? $escapedText;

@@ -1,3 +1,11 @@
+id: 2026-09-10-ticket-url-links
+date: 2026-09-10
+title: Ticket links in messages
+author: Tim Falken
+
+A URL to another ticket (such as `index.php?open=943`) becomes a clickable **Ticket #943** link in the message text.
+
+---
 id: 2026-09-10-grok-ticket-webhook
 date: 2026-09-10
 title: Webhook on new tickets; the bot sets its name and title
