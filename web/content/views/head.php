@@ -3,6 +3,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Asclepius - tickets</title>
+    <link rel="alternate" type="text/markdown" href="docs/api.md" title="<?= h(__('api_docs.raw_label')) ?>">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
@@ -1014,6 +1015,30 @@
             background: #fff;
             color: var(--accent);
             border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .api-docs-corner-link {
+            position: fixed;
+            right: 12px;
+            bottom: 10px;
+            z-index: 25;
+            color: #94a3b8;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-decoration: none;
+            text-transform: lowercase;
+            opacity: 0.45;
+        }
+
+        .api-docs-corner-link:hover,
+        .api-docs-corner-link:focus-visible {
+            opacity: 1;
+            color: #64748b;
+        }
+
+        .api-docs-corner-link.is-active {
+            opacity: 0.8;
         }
 
         .nav-link {

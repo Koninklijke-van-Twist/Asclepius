@@ -1,0 +1,28 @@
+---
+description: Houd web/docs/api.md synchroon met echte API-acties
+globs: web/api.php,web/docs/api.md,web/content/constants.php,web/hourly.php
+alwaysApply: true
+---
+
+# API-specificatie bijwerken
+
+`web/docs/api.md` is de publieke API-spec (HTML op `index.php?view=api`, raw op `docs/api.md` of `index.php?view=api&raw=1`). Die moet **in dezelfde wijziging** kloppen met de code.
+
+## Wanneer bijwerken
+
+Bij élke wijziging die de HTTP-API raakt:
+
+- nieuwe, hernoemde of verwijderde `action` in `web/api.php`
+- andere GET-routes of queryparameters (`id`, `include_ghosts`, …)
+- request-/responsevelden, statuscodes of authenticatie
+- geldige categorieën of statussen (`TICKET_CATEGORIES`, `TICKET_STATUSES` in `web/content/constants.php`)
+- scheduler-endpoints die in de spec staan (`hourly.php`, `nightly.php`)
+- uitgaande webhooks (payload, headers, wanneer ze vuren) die in `docs/api.md` staan
+
+## Hoe
+
+1. Zoek in `web/api.php` naar alle `action === '…'` (POST) en GET-acties.
+2. Controleer dat **elke** actie in `web/docs/api.md` staat, met methode, velden, rechten en voorbeeldresponse.
+3. Verwijder of markeer acties die niet meer bestaan. Verzin geen endpoints.
+4. Houd de categorie-/statuslijsten gelijk aan de constanten.
+5. Onbekende POST-`action` blijft `422 unknown_action`; ticket aanmaken alleen zonder `action`.

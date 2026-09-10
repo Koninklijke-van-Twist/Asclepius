@@ -1,17 +1,16 @@
-<?php if ($canManageTickets && $view === 'api'): ?>
+<?php if ($view === 'api'): ?>
     <?php
     $apiDocsMarkdown = loadApiDocsMarkdown();
     $apiDocsHtml = $apiDocsMarkdown !== '' ? formatApiDocsHtml($apiDocsMarkdown) : '';
+    $apiDocsRawUrl = 'docs/api.md';
     ?>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <section class="panel api-docs-panel">
-        <div class="api-docs-toolbar">
-            <div>
-                <h2><?= h(__('api_docs.heading')) ?></h2>
-                <p class="panel-intro"><?= h(__('api_docs.intro')) ?></p>
-            </div>
-            <a class="secondary-button" href="admin.php?view=settings"><?= h(__('api_docs.back_to_settings')) ?></a>
-        </div>
+        <h2><?= h(__('api_docs.heading')) ?></h2>
+        <p class="panel-intro"><?= h(__('api_docs.intro')) ?></p>
+
+        <a hidden href="<?= h($apiDocsRawUrl) ?>" rel="alternate" type="text/markdown"
+            data-api-spec="<?= h($apiDocsRawUrl) ?>"><?= h(__('api_docs.raw_label')) ?></a>
 
         <?php if ($apiDocsHtml === ''): ?>
             <p class="hint"><?= h(__('api_docs.missing')) ?></p>

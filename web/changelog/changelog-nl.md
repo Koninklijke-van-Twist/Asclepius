@@ -1,3 +1,19 @@
+id: 2026-09-10-grok-ticket-webhook
+date: 2026-09-10
+title: Webhook bij nieuw ticket, bot kiest naam en titel
+author: Tim Falken
+
+Bij elk **nieuw ticket** kan Asclepius een webhook aanroepen met ticketnummer en een **uur-geldige API-key**. De bot-sleutel gaat in de header `Authorization: Bearer`. De bot antwoordt via de API, zet zelf **weergavenaam** en **blauwe functietitel**, en kan categorieën en vaste statussen opvragen. De uurlijkse snapshot blijft ongewijzigd.
+
+---
+id: 2026-09-10-public-api-docs
+date: 2026-09-10
+title: API-documentatie voor iedereen
+author: Tim Falken
+
+Rechtsonder op elke pagina staat een subtiele **api**-link naar de API-documentatie. Die pagina is een eigen tabblad (alleen zichtbaar in de header als je er bent). De spec beschrijft alle API-acties, inclusief tickets lezen en een bericht in ghost-modus plaatsen. Bots en agents vinden de ruwe Markdown via `docs/api.md`.
+
+---
 id: 2026-09-10-my-tickets-page
 date: 2026-09-10
 title: Mijn tickets via je naam in de header

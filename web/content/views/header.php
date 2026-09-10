@@ -55,7 +55,7 @@ $currentLang = getCurrentLanguage();
             aria-label="<?= h(__('nav.my_tickets')) ?>">
             <?= h(formatUserDisplayName($userEmail)) ?><?= $userIsAdmin ? h(__('header.admin_suffix')) : '' ?>
         </a>
-        <a class="nav-link <?= !$isAdminPortal && !in_array($view, ['all_tickets', 'my_tickets'], true) ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
+        <a class="nav-link <?= !$isAdminPortal && !in_array($view, ['all_tickets', 'my_tickets', 'api'], true) ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
         <?php if (!$isFullIctAdmin): ?>
             <a class="nav-link <?= !$isAdminPortal && $view === 'all_tickets' ? 'active' : '' ?>"
                 href="index.php?view=all_tickets"><?= h(__('nav.all_tickets')) ?></a>
@@ -65,7 +65,7 @@ $currentLang = getCurrentLanguage();
                 href="admin.php"><?= h($isLimitedIct && $ictRoleName !== ''
                     ? formatRoleScopedNavLabel($ictRoleName, 'nav.overview_suffix')
                     : __('nav.ict_overview')) ?></a>
-            <a class="nav-link <?= $isAdminPortal && in_array($view, ['settings', 'api'], true) ? 'active' : '' ?>"
+            <a class="nav-link <?= $isAdminPortal && $view === 'settings' ? 'active' : '' ?>"
                 href="admin.php?view=settings"><?= h(__('nav.settings')) ?></a>
             <a class="nav-link <?= $isAdminPortal && $view === 'stats' ? 'active' : '' ?>"
                 href="admin.php?view=stats"><?= h($isLimitedIct && $ictRoleName !== ''
@@ -81,6 +81,9 @@ $currentLang = getCurrentLanguage();
                 href="admin.php?view=preferences"><?= h(__('nav.preferences')) ?></a>
             <a class="nav-link changelog-nav-link<?= !empty($changelogHasUnread) ? ' has-unread-changelog' : '' ?><?= $isAdminPortal && $view === 'changelog' ? ' active' : '' ?>"
                 href="admin.php?view=changelog" data-changelog-nav-link><?= h(__('nav.changelog')) ?></a>
+        <?php endif; ?>
+        <?php if ($view === 'api'): ?>
+            <a class="nav-link active" href="index.php?view=api"><?= h(__('nav.api')) ?></a>
         <?php endif; ?>
     </div>
 </header>

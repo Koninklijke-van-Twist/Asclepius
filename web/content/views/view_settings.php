@@ -112,9 +112,8 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div class="button-row settings-actions-row">
+                        <div class="button-row">
                             <button type="submit" name="form_action" value="save_settings"><?= h(__('settings.btn_save')) ?></button>
-                            <a class="secondary-button settings-api-docs-button" href="admin.php?view=api"><?= h(__('settings.api_docs_button')) ?></a>
                         </div>
                     </form>
                 </section>

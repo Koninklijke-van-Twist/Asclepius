@@ -1854,6 +1854,12 @@ class TicketStore
                 $assignee = $this->ensureTicketAssigned($ticketId);
             }
 
+            try {
+                require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
+                GrokBot::notifyTicketCreated($this, $ticketId);
+            } catch (Throwable) {
+            }
+
             return [
                 'ticket_id' => $ticketId,
                 'assigned_email' => $assignee,
@@ -2186,17 +2192,33 @@ class TicketStore
         }
     }
 
-    public function addMessage(int $ticketId, string $senderEmail, string $senderRole, string $messageText, array $files = [], bool $isGhost = false): int
-    {
+    public function addMessage(
+        int $ticketId,
+        string $senderEmail,
+        string $senderRole,
+        string $messageText,
+        array $files = [],
+        bool $isGhost = false,
+        ?string $senderDisplayName = null,
+        ?string $senderRoleTitle = null
+    ): int {
         $now = date('c');
         $statement = $this->pdo->prepare(
-            'INSERT INTO ticket_messages (ticket_id, sender_email, sender_role, message_text, created_at, is_ghost)
-             VALUES (:ticket_id, :sender_email, :sender_role, :message_text, :created_at, :is_ghost)'
+            'INSERT INTO ticket_messages (
+                ticket_id, sender_email, sender_role, sender_display_name, sender_role_title,
+                message_text, created_at, is_ghost
+             )
+             VALUES (
+                :ticket_id, :sender_email, :sender_role, :sender_display_name, :sender_role_title,
+                :message_text, :created_at, :is_ghost
+             )'
         );
         $statement->execute([
             ':ticket_id' => $ticketId,
             ':sender_email' => strtolower(trim($senderEmail)),
             ':sender_role' => $senderRole,
+            ':sender_display_name' => self::normalizeMessageIdentity($senderDisplayName, 80),
+            ':sender_role_title' => self::normalizeMessageIdentity($senderRoleTitle, 48),
             ':message_text' => $messageText,
             ':created_at' => $now,
             ':is_ghost' => $isGhost ? 1 : 0,
@@ -2212,6 +2234,27 @@ class TicketStore
         ]);
 
         return $messageId;
+    }
+
+    private static function normalizeMessageIdentity(?string $value, int $maxLength): ?string
+    {
+        $normalized = trim((string) $value);
+        if ($normalized === '') {
+            return null;
+        }
+
+        $normalized = trim((string) preg_replace('/[\r\n\t]+/', ' ', $normalized));
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (function_exists('mb_substr')) {
+            $normalized = mb_substr($normalized, 0, $maxLength);
+        } else {
+            $normalized = substr($normalized, 0, $maxLength);
+        }
+
+        return $normalized !== '' ? $normalized : null;
     }
 
     public function updateTicketMessageCheckboxState(int $ticketId, int $messageId, int $lineIndex, bool $checked, bool $isAdmin, string $userEmail): ?string
@@ -3699,6 +3742,8 @@ class TicketStore
                 ticket_id INTEGER NOT NULL,
                 sender_email TEXT NOT NULL,
                 sender_role TEXT NOT NULL,
+                sender_display_name TEXT DEFAULT NULL,
+                sender_role_title TEXT DEFAULT NULL,
                 message_text TEXT NOT NULL DEFAULT "",
                 created_at TEXT NOT NULL,
                 is_ghost INTEGER NOT NULL DEFAULT 0,
@@ -3885,6 +3930,8 @@ class TicketStore
         $this->ensureColumn('tickets', 'is_private', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_messages', 'message_text', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('ticket_messages', 'is_ghost', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn('ticket_messages', 'sender_display_name', 'TEXT DEFAULT NULL');
+        $this->ensureColumn('ticket_messages', 'sender_role_title', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_attachments', 'mime_type', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_attachments', 'file_size', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_text_translations', 'source_language', 'TEXT NOT NULL DEFAULT ""');
@@ -4402,6 +4449,14 @@ class TicketStore
             $messageId = (int) $message['id'];
             $message['attachments'] = $attachmentsByMessage[$messageId] ?? [];
             $message['is_ghost'] = !empty($message['is_ghost']);
+            $customName = trim((string) ($message['sender_display_name'] ?? ''));
+            if ($customName !== '') {
+                $message['sender_name'] = $customName;
+            }
+            $customTitle = trim((string) ($message['sender_role_title'] ?? ''));
+            if ($customTitle !== '') {
+                $message['sender_title'] = $customTitle;
+            }
         }
         unset($message);
 

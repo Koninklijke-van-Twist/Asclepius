@@ -30,6 +30,17 @@ require_once __DIR__ . '/content/variables.php';
 require_once __DIR__ . '/content/actions.php';
 require_once __DIR__ . '/content/data.php';
 
+if ($view === 'api' && (isset($_GET['raw']) || (string) ($_GET['format'] ?? '') === 'md')) {
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    header('Content-Type: text/markdown; charset=utf-8');
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: inline; filename="api.md"');
+    echo loadApiDocsMarkdown();
+    exit;
+}
+
 $browserNotificationPollUrl = buildCurrentPageUrl($currentPage, ['_browser_notifications_poll' => '1'], ['_partial', '_tickets_poll', '_bigscreen_poll', '_browser_notifications_poll', 'reset_filters']);
 $browserNotificationTargetPage = $userIsAdmin ? 'admin.php' : 'index.php';
 $browserNotificationOpenUrlTemplate = $browserNotificationTargetPage . '?open=__TICKET_ID__';
@@ -108,6 +119,13 @@ $apiUrl = 'api.php';
             <?php require __DIR__ . '/content/views/view_tickets.php'; ?>
         </main>
     </div>
+    <?php if (empty($isBigscreen)): ?>
+        <a hidden href="docs/api.md" rel="alternate" type="text/markdown"
+            data-api-spec="docs/api.md"><?= h(__('api_docs.raw_label')) ?></a>
+        <a class="api-docs-corner-link<?= $view === 'api' ? ' is-active' : '' ?>"
+            href="index.php?view=api"
+            title="<?= h(__('api_docs.corner_title')) ?>"><?= h(__('api_docs.corner_link')) ?></a>
+    <?php endif; ?>
     <?php require __DIR__ . '/content/views/view_ticket_share_modal.php'; ?>
     <?php require __DIR__ . '/content/views/view_theevraagje_modal.php'; ?>
     <?php require __DIR__ . '/content/views/page_js.php'; ?>

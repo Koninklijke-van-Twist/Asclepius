@@ -300,7 +300,9 @@ if ($canUseTicketOverviewFilters) {
         $assignedFilter = '';
     }
 }
-if ($isMyTicketsView) {
+if ($requestedView === 'api') {
+    $view = 'api';
+} elseif ($isMyTicketsView) {
     $view = 'my_tickets';
 } elseif ($canManageIctRoles) {
     $view = in_array($requestedView, ['settings', 'stats', 'template_tickets', 'email_prefs', 'preferences', 'changelog', 'api', 'roles'], true)
@@ -323,7 +325,7 @@ if ($view === 'email_prefs') {
 $ticketBrowseMode = resolveTicketBrowseMode($canManageTickets, $isAllTicketsView);
 $showTicketListSection = ($isAdminPortal && $view === 'overview')
     || $isAllTicketsView
-    || (!$isAdminPortal && !$isAllTicketsView);
+    || (!$isAdminPortal && !$isAllTicketsView && $view !== 'api');
 $ticketPage = $showTicketListSection ? max(1, (int) ($_GET['page'] ?? 1)) : 1;
 $ticketsPerPageChanged = false;
 

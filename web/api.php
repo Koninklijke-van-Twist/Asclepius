@@ -136,6 +136,16 @@ function loadApiClientByToken(string $providedKey): ?array
         return null;
     }
 
+    $expiresAt = trim((string) ($decoded['expires_at'] ?? ''));
+    if ($expiresAt !== '') {
+        $expiresTs = strtotime($expiresAt);
+        if ($expiresTs === false || $expiresTs < time()) {
+            @unlink($apiClientFile);
+
+            return null;
+        }
+    }
+
     return [
         'oid' => strtolower(trim((string) ($decoded['oid'] ?? ''))),
         'api_key' => $storedApiKey,
@@ -759,14 +769,14 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
     ];
 }
 
-function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload, ?array $apiClient, bool $hasValidServiceApiKey = false): array
 {
     global $ictUsers;
 
     $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
     $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
     $ictAccess = resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true);
-    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin'])
+    $userIsAdmin = $hasValidServiceApiKey || !empty($apiClient['is_admin']) || !empty($payload['user_is_admin'])
         || !empty($ictAccess['is_full_ict_admin']) || !empty($ictAccess['is_limited_ict']);
     if (!$userIsAdmin && !isTrustedApiRequester()) {
         return [
@@ -1001,6 +1011,160 @@ function handleUpdateTicketPrivateApiAction(TicketStore $store, array $payload, 
         'success' => true,
         'ticket_id' => $ticketId,
         'is_private' => $isPrivate,
+    ];
+}
+
+function isApiTruthy(mixed $value): bool
+{
+    if (is_bool($value)) {
+        return $value;
+    }
+    if (is_int($value) || is_float($value)) {
+        return (int) $value === 1;
+    }
+
+    $normalized = strtolower(trim((string) $value));
+
+    return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+}
+
+function buildTicketLookupsApiPayload(string $action = 'ticket_lookups'): array
+{
+    $normalized = strtolower(trim($action));
+    $payload = [
+        'success' => true,
+    ];
+    if ($normalized !== 'statuses') {
+        $payload['categories'] = array_values(TICKET_CATEGORIES);
+    }
+    if ($normalized !== 'categories') {
+        $payload['statuses'] = array_values(TICKET_STATUSES);
+    }
+
+    return $payload;
+}
+
+function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?array $apiClient, bool $hasValidServiceApiKey): array
+{
+    $viewerEmail = strtolower(trim((string) (
+        $apiClient['email']
+        ?? $payload['sender_email']
+        ?? $payload['viewer_email']
+        ?? $payload['user_email']
+        ?? ''
+    )));
+    $isServiceActor = $hasValidServiceApiKey || isTrustedApiRequester();
+    $userIsAdmin = $isServiceActor || !empty($apiClient['is_admin']);
+
+    $ticketId = max(0, (int) ($payload['ticket_id'] ?? $payload['id'] ?? 0));
+    $message = trim((string) ($payload['message'] ?? $payload['message_text'] ?? ''));
+    $isGhost = isApiTruthy($payload['ghost'] ?? $payload['is_ghost'] ?? $payload['ghost_mode'] ?? false);
+
+    if ($ticketId <= 0) {
+        return [
+            'success' => false,
+            'error' => 'ticket_id_required',
+        ];
+    }
+    if ($message === '') {
+        return [
+            'success' => false,
+            'error' => 'message_required',
+        ];
+    }
+    if ($isGhost && !$userIsAdmin) {
+        return [
+            'success' => false,
+            'error' => 'ghost_forbidden',
+        ];
+    }
+
+    $ticket = $store->getTicket($ticketId, $userIsAdmin, $viewerEmail, 'default', $userIsAdmin);
+    if ($ticket === null) {
+        return [
+            'success' => false,
+            'error' => 'ticket_not_found',
+        ];
+    }
+
+    $senderEmail = $viewerEmail;
+    if ($senderEmail === '' || !filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) {
+        if (!$userIsAdmin) {
+            return [
+                'success' => false,
+                'error' => 'invalid_user',
+            ];
+        }
+        $senderEmail = 'ict@kvt.nl';
+    }
+
+    $senderRole = $userIsAdmin ? 'admin' : 'user';
+    $senderDisplayName = null;
+    $senderRoleTitle = null;
+    if ($userIsAdmin) {
+        $senderDisplayName = trim((string) (
+            $payload['sender_name']
+            ?? $payload['display_name']
+            ?? $payload['sender_display_name']
+            ?? ''
+        ));
+        $senderRoleTitle = trim((string) (
+            $payload['sender_title']
+            ?? $payload['role_title']
+            ?? $payload['function_title']
+            ?? $payload['sender_role_title']
+            ?? ''
+        ));
+        if ($senderDisplayName === '' || $senderRoleTitle === '') {
+            require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
+            $defaults = GrokBot::resolveDefaultIdentity($senderEmail);
+            if ($senderDisplayName === '') {
+                $senderDisplayName = $defaults['name'];
+            }
+            if ($senderRoleTitle === '') {
+                $senderRoleTitle = $defaults['title'];
+            }
+        }
+        if ($senderDisplayName === '') {
+            $senderDisplayName = null;
+        }
+        if ($senderRoleTitle === '') {
+            $senderRoleTitle = null;
+        }
+    }
+
+    $messageId = $store->addMessage(
+        $ticketId,
+        $senderEmail,
+        $senderRole,
+        $message,
+        [],
+        $isGhost,
+        $senderDisplayName,
+        $senderRoleTitle
+    );
+
+    $updatedTicket = $store->getTicket($ticketId, true, $senderEmail, 'default', true);
+    $createdMessage = null;
+    foreach (($updatedTicket['messages'] ?? []) as $row) {
+        if ((int) ($row['id'] ?? 0) === $messageId) {
+            $createdMessage = $row;
+            break;
+        }
+    }
+
+    return [
+        'success' => true,
+        'ticket_id' => $ticketId,
+        'message_id' => $messageId,
+        'is_ghost' => $isGhost,
+        'sender_email' => $senderEmail,
+        'sender_name' => $senderDisplayName !== null && $senderDisplayName !== ''
+            ? $senderDisplayName
+            : formatUserDisplayName($senderEmail),
+        'sender_role' => $senderRole,
+        'sender_title' => $senderRoleTitle,
+        'message' => $createdMessage,
     ];
 }
 
@@ -1753,11 +1917,15 @@ if ($method === 'GET') {
         $snapshotResponse = handleCategoryOpenSnapshotsApiAction($store, $_GET, $apiClient);
         sendJson(!empty($snapshotResponse['success']) ? 200 : 422, $snapshotResponse);
     }
+    if (in_array($getAction, ['ticket_lookups', 'categories', 'statuses'], true)) {
+        sendJson(200, buildTicketLookupsApiPayload($getAction));
+    }
 
     $ticketId = max(0, (int) ($_GET['id'] ?? 0));
 
     if ($ticketId > 0) {
-        $ticket = $store->getTicket($ticketId, true, '');
+        $includeGhosts = isApiTruthy($_GET['include_ghosts'] ?? $_GET['ghosts'] ?? false);
+        $ticket = $store->getTicket($ticketId, true, '', 'default', $includeGhosts);
         if ($ticket === null) {
             sendJson(404, [
                 'success' => false,
@@ -1782,6 +1950,24 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $payload = getRequestBody();
     $action = trim((string) ($payload['action'] ?? ''));
+
+    if (in_array($action, ['ticket_lookups', 'categories', 'statuses'], true)) {
+        sendJson(200, buildTicketLookupsApiPayload($action));
+    }
+
+    if ($action === 'add_ticket_message') {
+        $messageResponse = handleAddTicketMessageApiAction($store, $payload, $apiClient, $hasValidServiceApiKey);
+        $error = (string) ($messageResponse['error'] ?? '');
+        $statusCode = 200;
+        if (empty($messageResponse['success'])) {
+            $statusCode = match ($error) {
+                'ticket_not_found' => 404,
+                'ghost_forbidden' => 403,
+                default => 422,
+            };
+        }
+        sendJson($statusCode, $messageResponse);
+    }
 
     if ($action === 'ticket_poll') {
         sendJson(200, buildTicketPollApiPayload($store, $payload, $apiClient));
@@ -1900,7 +2086,7 @@ if ($method === 'POST') {
     }
 
     if ($action === 'change_ticket_category') {
-        sendJson(200, handleChangeTicketCategoryApiAction($store, $payload, $apiClient));
+        sendJson(200, handleChangeTicketCategoryApiAction($store, $payload, $apiClient, $hasValidServiceApiKey));
     }
 
     if ($action === 'change_ticket_title') {
@@ -2119,6 +2305,14 @@ if ($method === 'POST') {
             'title_translation_error' => (string) ($ticketDetail['title_translation_error'] ?? ''),
             'title_translation_error_detail' => (string) ($ticketDetail['title_translation_error_detail'] ?? ''),
             'messages' => $messages,
+        ]);
+    }
+
+    if ($action !== '') {
+        sendJson(422, [
+            'success' => false,
+            'error' => 'unknown_action',
+            'action' => $action,
         ]);
     }
 

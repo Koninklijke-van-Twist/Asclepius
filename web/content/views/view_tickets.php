@@ -1,5 +1,5 @@
 <?php
-$showMyTicketsSection = !$isAdminPortal && !$isAllTicketsView;
+$showMyTicketsSection = !$isAdminPortal && !$isAllTicketsView && $view !== 'api';
 $showAllTicketsSection = $isAllTicketsView;
 $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
 ?>

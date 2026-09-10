@@ -963,11 +963,23 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
         data-translation-status="<?= $translationPending ? 'pending' : 'loaded' ?>"
         <?= !empty($message['is_ghost']) ? 'data-ghost="1"' : '' ?>>
         <div class="message-meta">
-            <?php $senderEmail = (string) ($message['sender_email'] ?? ''); ?>
+            <?php
+            $senderEmail = (string) ($message['sender_email'] ?? '');
+            $senderDisplayName = trim((string) ($message['sender_display_name'] ?? ($message['sender_name'] ?? '')));
+            if ($senderDisplayName === '') {
+                $senderDisplayName = formatUserDisplayName($senderEmail);
+            }
+            $senderRoleTitle = trim((string) ($message['sender_role_title'] ?? ($message['sender_title'] ?? '')));
+            if ($senderRoleTitle === '') {
+                $senderRoleTitle = ($message['sender_role'] ?? '') === 'admin'
+                    ? __('ticket.role_admin')
+                    : __('ticket.role_user');
+            }
+            ?>
             <strong<?= ($enableUserProfile && $senderEmail !== '') ? ' class="user-profile-trigger" data-user-profile-email="' . h(strtolower(trim($senderEmail))) . '"' : '' ?>
-                title="<?= h(formatUserDisplayName($senderEmail) !== strtolower(trim($senderEmail)) ? $senderEmail : '') ?>"><?= h(formatUserDisplayName($senderEmail)) ?></strong>
+                title="<?= h($senderDisplayName !== strtolower(trim($senderEmail)) ? $senderEmail : '') ?>"><?= h($senderDisplayName) ?></strong>
             <span
-                class="message-role"><?= ($message['sender_role'] ?? '') === 'admin' ? h(__('ticket.role_admin')) : h(__('ticket.role_user')) ?></span>
+                class="message-role"><?= h($senderRoleTitle) ?></span>
             <span><?= h(formatDateTime((string) ($message['created_at'] ?? ''))) ?></span>
             <?php if ($messageIsTranslated): ?>
                 <button type="button" class="translation-toggle-button" data-role="message-translation-toggle"

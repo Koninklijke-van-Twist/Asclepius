@@ -1,3 +1,19 @@
+id: 2026-09-10-grok-ticket-webhook
+date: 2026-09-10
+title: Webhook on new tickets; the bot sets its name and title
+author: Tim Falken
+
+Every **new ticket** can trigger a webhook with the ticket number and a **one-hour API key**. The bot secret goes in the `Authorization: Bearer` header. The bot replies through the API, sets its own **display name** and **blue function title**, and can list built-in categories and statuses. The hourly snapshot is unchanged.
+
+---
+id: 2026-09-10-public-api-docs
+date: 2026-09-10
+title: API documentation for everyone
+author: Tim Falken
+
+A subtle **api** link in the bottom-right corner of every page opens the API documentation. That page is its own tab (shown in the header only while you are on it). The spec covers every API action, including reading tickets and posting a ghost-mode message. Bots and agents can fetch the raw Markdown at `docs/api.md`.
+
+---
 id: 2026-09-10-my-tickets-page
 date: 2026-09-10
 title: My tickets via your name in the header

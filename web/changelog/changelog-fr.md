@@ -1,3 +1,19 @@
+id: 2026-09-10-grok-ticket-webhook
+date: 2026-09-10
+title: Webhook à la création d’un ticket, le bot choisit nom et titre
+author: Tim Falken
+
+Chaque **nouveau ticket** peut déclencher un webhook avec le numéro de ticket et une **clé API d’une heure**. La clé du bot part dans l’en-tête `Authorization: Bearer`. Le bot répond via l’API, définit **nom affiché** et **titre de fonction bleu**, et peut lister les catégories et statuts intégrés. L’instantané horaire ne change pas.
+
+---
+id: 2026-09-10-public-api-docs
+date: 2026-09-10
+title: Documentation API pour tout le monde
+author: Tim Falken
+
+Un lien **api** discret en bas à droite de chaque page ouvre la documentation API. Cette page est un onglet autonome (visible dans l’en-tête uniquement lorsque vous y êtes). La spécification décrit toutes les actions API, y compris la lecture des tickets et l’ajout d’un message en mode ghost. Les bots et agents trouvent le Markdown brut via `docs/api.md`.
+
+---
 id: 2026-09-10-my-tickets-page
 date: 2026-09-10
 title: Mes tickets via votre nom dans l’en-tête
