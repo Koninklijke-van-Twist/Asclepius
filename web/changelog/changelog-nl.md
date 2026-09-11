@@ -3,7 +3,7 @@ date: 2026-09-11
 title: Markdown in ticketberichten
 author: Tim Falken
 
-Tekst in ticketberichten (inclusief ghost-berichten van bots zoals ICT-Bot) toont nu **Markdown**: vet, cursief, koppen, lijsten, links, code en citaten. Gewone platte tekst houdt zijn regelafbreking. Bijlagen in de tekst en toetsenbord-iconen blijven werken.
+Tekst in ticketberichten (inclusief ghost-berichten van bots zoals ICT-Bot) toont nu **Markdown**: vet, cursief, koppen, lijsten, tabellen, links, code en citaten. Gewone platte tekst houdt zijn regelafbreking. Bijlagen in de tekst en toetsenbord-iconen blijven werken.
 
 ---
 id: 2026-09-11-grok-webhook-ticket-solved

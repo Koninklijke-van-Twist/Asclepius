@@ -164,7 +164,87 @@ function isMessageMarkdownCheckboxLine(string $line): bool
     return preg_match('/^(\s*)\[( |x|X)\](?:\s+(.*))?$/', $line) === 1;
 }
 
-function isMessageMarkdownBlockStart(string $line): bool
+/**
+ * @return list<string>
+ */
+function splitMessageMarkdownTableCells(string $trimmed): array
+{
+    $line = preg_replace('/^\s*\|/', '', $trimmed) ?? $trimmed;
+    $line = preg_replace('/\|\s*$/', '', $line) ?? $line;
+    $parts = preg_split('/(?<!\\\\)\|/', $line);
+    if (!is_array($parts)) {
+        return [];
+    }
+
+    return array_map(
+        static fn(string $cell): string => trim(str_replace('\\|', '|', $cell)),
+        $parts
+    );
+}
+
+function isMessageMarkdownTableSeparatorLine(string $trimmed): bool
+{
+    if (!str_contains($trimmed, '|') || !str_contains($trimmed, '-')) {
+        return false;
+    }
+
+    $cells = splitMessageMarkdownTableCells($trimmed);
+    if ($cells === []) {
+        return false;
+    }
+
+    foreach ($cells as $cell) {
+        if (preg_match('/^:?-{3,}:?$/', $cell) !== 1) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function isMessageMarkdownTableRowLine(string $trimmed): bool
+{
+    return $trimmed !== '' && str_contains($trimmed, '|');
+}
+
+/**
+ * @return list<string>
+ */
+function parseMessageMarkdownTableAlignments(string $trimmed): array
+{
+    $alignments = [];
+    foreach (splitMessageMarkdownTableCells($trimmed) as $cell) {
+        $left = str_starts_with($cell, ':');
+        $right = str_ends_with($cell, ':');
+        if ($left && $right) {
+            $alignments[] = 'center';
+        } elseif ($right) {
+            $alignments[] = 'right';
+        } else {
+            $alignments[] = 'left';
+        }
+    }
+
+    return $alignments;
+}
+
+function isMessageMarkdownTableBodyStopLine(string $line): bool
+{
+    $trimmed = trim($line);
+    if ($trimmed === '' || !isMessageMarkdownTableRowLine($trimmed)) {
+        return true;
+    }
+
+    return isMessageMarkdownFenceLine($trimmed)
+        || isMessageMarkdownAttachmentLine($trimmed)
+        || isMessageMarkdownHeadingLine($trimmed)
+        || isMessageMarkdownQuoteLine($trimmed)
+        || isMessageMarkdownUnorderedLine($trimmed)
+        || isMessageMarkdownOrderedLine($trimmed)
+        || isMessageMarkdownCheckboxLine($line);
+}
+
+function isMessageMarkdownBlockStart(string $line, string $nextLine = ''): bool
 {
     $trimmed = trim($line);
 
@@ -174,7 +254,11 @@ function isMessageMarkdownBlockStart(string $line): bool
         || isMessageMarkdownQuoteLine($trimmed)
         || isMessageMarkdownUnorderedLine($trimmed)
         || isMessageMarkdownOrderedLine($trimmed)
-        || isMessageMarkdownCheckboxLine($line);
+        || isMessageMarkdownCheckboxLine($line)
+        || (
+            isMessageMarkdownTableRowLine($trimmed)
+            && isMessageMarkdownTableSeparatorLine(trim($nextLine))
+        );
 }
 
 function renderMessageMarkdownHeadingHtml(string $trimmed, bool $forEmail): string
@@ -242,6 +326,69 @@ function renderMessageMarkdownListItemHtml(string $itemText, int $messageId, int
     return makeTextInteractive($itemText, $forEmail);
 }
 
+function renderMessageMarkdownTableCellHtml(string $cellText, string $tag, string $alignment, bool $forEmail): string
+{
+    $alignClass = $alignment === 'center' || $alignment === 'right'
+        ? ' message-md-cell-' . $alignment
+        : '';
+    $content = trim($cellText) === '' ? '&nbsp;' : makeTextInteractive($cellText, $forEmail);
+
+    return '<' . $tag . ' class="message-md-cell' . $alignClass . '">' . $content . '</' . $tag . '>';
+}
+
+/**
+ * @param list<string> $lines
+ * @return array{html: string, next_index: int}|null
+ */
+function tryRenderMessageMarkdownTable(array $lines, int $index, bool $forEmail): ?array
+{
+    $headerLine = trim((string) ($lines[$index] ?? ''));
+    $separatorLine = trim((string) ($lines[$index + 1] ?? ''));
+    if (!isMessageMarkdownTableRowLine($headerLine) || !isMessageMarkdownTableSeparatorLine($separatorLine)) {
+        return null;
+    }
+
+    $headerCells = splitMessageMarkdownTableCells($headerLine);
+    if ($headerCells === []) {
+        return null;
+    }
+
+    $columnCount = count($headerCells);
+    $alignments = parseMessageMarkdownTableAlignments($separatorLine);
+    $headerHtml = '';
+    for ($column = 0; $column < $columnCount; $column++) {
+        $alignment = $alignments[$column] ?? 'left';
+        $headerHtml .= renderMessageMarkdownTableCellHtml((string) ($headerCells[$column] ?? ''), 'th', $alignment, $forEmail);
+    }
+
+    $bodyHtml = '';
+    $rowIndex = $index + 2;
+    $lineCount = count($lines);
+    while ($rowIndex < $lineCount && !isMessageMarkdownTableBodyStopLine((string) $lines[$rowIndex])) {
+        $rowCells = splitMessageMarkdownTableCells(trim((string) $lines[$rowIndex]));
+        $bodyHtml .= '<tr>';
+        for ($column = 0; $column < $columnCount; $column++) {
+            $alignment = $alignments[$column] ?? 'left';
+            $bodyHtml .= renderMessageMarkdownTableCellHtml((string) ($rowCells[$column] ?? ''), 'td', $alignment, $forEmail);
+        }
+        $bodyHtml .= '</tr>';
+        $rowIndex++;
+    }
+
+    $html = '<div class="message-md-table-wrap"><table class="message-md-table"><thead><tr>'
+        . $headerHtml
+        . '</tr></thead>';
+    if ($bodyHtml !== '') {
+        $html .= '<tbody>' . $bodyHtml . '</tbody>';
+    }
+    $html .= '</table></div>';
+
+    return [
+        'html' => $html,
+        'next_index' => $rowIndex,
+    ];
+}
+
 function renderTicketMessageMarkdown(?string $messageText, int $messageId = 0, array $attachments = [], bool $forEmail = false): string
 {
     $normalized = str_replace(["\r\n", "\r"], "\n", trim((string) $messageText));
@@ -297,6 +444,14 @@ function renderTicketMessageMarkdown(?string $messageText, int $messageId = 0, a
             $flushPending();
             $parts[] = renderMessageMarkdownHeadingHtml($trimmed, $forEmail);
             $index++;
+            continue;
+        }
+
+        $table = tryRenderMessageMarkdownTable($lines, $index, $forEmail);
+        if ($table !== null) {
+            $flushPending();
+            $parts[] = $table['html'];
+            $index = $table['next_index'];
             continue;
         }
 

@@ -6411,6 +6411,88 @@
             {
                 return /^(\s*)\[( |x|X)\](?:\s+(.*))?$/.test(line);
             };
+            var splitTableCells = function (trimmed)
+            {
+                var line = String(trimmed || '').replace(/^\s*\|/, '').replace(/\|\s*$/, '');
+                var cells = [];
+                var current = '';
+                for (var cellIndex = 0; cellIndex < line.length; cellIndex++)
+                {
+                    if (line.charAt(cellIndex) === '\\' && line.charAt(cellIndex + 1) === '|')
+                    {
+                        current += '|';
+                        cellIndex += 1;
+                        continue;
+                    }
+                    if (line.charAt(cellIndex) === '|')
+                    {
+                        cells.push(current.trim());
+                        current = '';
+                        continue;
+                    }
+                    current += line.charAt(cellIndex);
+                }
+                cells.push(current.trim());
+                return cells;
+            };
+            var isTableSeparator = function (trimmed)
+            {
+                if (trimmed.indexOf('|') === -1 || trimmed.indexOf('-') === -1)
+                {
+                    return false;
+                }
+                var cells = splitTableCells(trimmed);
+                if (cells.length === 0)
+                {
+                    return false;
+                }
+                return cells.every(function (cell)
+                {
+                    return /^:?-{3,}:?$/.test(cell);
+                });
+            };
+            var isTableRow = function (trimmed)
+            {
+                return trimmed !== '' && trimmed.indexOf('|') !== -1;
+            };
+            var parseTableAlignments = function (trimmed)
+            {
+                return splitTableCells(trimmed).map(function (cell)
+                {
+                    var left = cell.charAt(0) === ':';
+                    var right = cell.charAt(cell.length - 1) === ':';
+                    if (left && right)
+                    {
+                        return 'center';
+                    }
+                    return right ? 'right' : 'left';
+                });
+            };
+            var isTableBodyStop = function (line)
+            {
+                var tableTrimmed = String(line || '').trim();
+                if (tableTrimmed === '' || !isTableRow(tableTrimmed))
+                {
+                    return true;
+                }
+                return isAttachment(tableTrimmed)
+                    || isHeading(tableTrimmed)
+                    || isQuote(tableTrimmed)
+                    || isUnordered(tableTrimmed)
+                    || isOrdered(tableTrimmed)
+                    || isCheckbox(line)
+                    || /^```([a-zA-Z0-9_-]*)[ \t]*$/.test(tableTrimmed);
+            };
+            var renderTableCell = function (cellText, tag, alignment)
+            {
+                var alignClass = (alignment === 'center' || alignment === 'right')
+                    ? ' message-md-cell-' + alignment
+                    : '';
+                var content = String(cellText || '').trim() === ''
+                    ? '&nbsp;'
+                    : formatTicketMessageInlineHtml(cellText);
+                return '<' + tag + ' class="message-md-cell' + alignClass + '">' + content + '</' + tag + '>';
+            };
             var renderListItem = function (itemText, lineIndex)
             {
                 return isCheckbox(itemText)
@@ -6468,6 +6550,39 @@
                         + formatTicketMessageInlineHtml(headingMatch ? headingMatch[2] : trimmed)
                         + '</h' + tagLevel + '>');
                     index += 1;
+                    continue;
+                }
+
+                var nextTrimmed = index + 1 < lines.length ? String(lines[index + 1] || '').trim() : '';
+                if (isTableRow(trimmed) && isTableSeparator(nextTrimmed))
+                {
+                    flushPending();
+                    var headerCells = splitTableCells(trimmed);
+                    var alignments = parseTableAlignments(nextTrimmed);
+                    var columnCount = headerCells.length;
+                    var headerHtml = '';
+                    for (var headerColumn = 0; headerColumn < columnCount; headerColumn++)
+                    {
+                        headerHtml += renderTableCell(headerCells[headerColumn] || '', 'th', alignments[headerColumn] || 'left');
+                    }
+                    var bodyHtml = '';
+                    index += 2;
+                    while (index < lines.length && !isTableBodyStop(lines[index]))
+                    {
+                        var rowCells = splitTableCells(String(lines[index] || '').trim());
+                        bodyHtml += '<tr>';
+                        for (var bodyColumn = 0; bodyColumn < columnCount; bodyColumn++)
+                        {
+                            bodyHtml += renderTableCell(rowCells[bodyColumn] || '', 'td', alignments[bodyColumn] || 'left');
+                        }
+                        bodyHtml += '</tr>';
+                        index += 1;
+                    }
+                    parts.push('<div class="message-md-table-wrap"><table class="message-md-table"><thead><tr>'
+                        + headerHtml
+                        + '</tr></thead>'
+                        + (bodyHtml !== '' ? '<tbody>' + bodyHtml + '</tbody>' : '')
+                        + '</table></div>');
                     continue;
                 }
 
