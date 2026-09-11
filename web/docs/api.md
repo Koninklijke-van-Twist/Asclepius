@@ -308,7 +308,7 @@ Slaat per categorie alleen een rij op als het aantal open tickets is veranderd. 
 
 `update_ticket_message_checkbox` — vink een markdown-checkbox in een bericht aan/uit. `ticket_id`, `message_id`, `line_index`, `checked`, `csrf_token`. Admin of trusted + geldige sessie-CSRF. Response: `message_text`.
 
-`translate_ticket` — vertaal titel en berichten. `ticket_id`, `language` (`nl`/`en`/`de`/`fr`), `viewer_email`, optioneel `user_is_admin`, `is_admin_portal`. Response: `title`, `title_raw`, `title_is_translated`, `messages[]` met `message_text` / `message_text_raw`. Ghosts volgen gewone `getTicket`-regels (niet inbegrepen tenzij admin-overzicht).
+`translate_ticket` — vertaal titel en berichten. `ticket_id`, `language` (`nl`/`en`/`de`/`fr`), `viewer_email`, optioneel `user_is_admin`, `is_admin_portal`. Response: `title`, `title_raw`, `title_is_translated`, `messages[]` met `message_text` / `message_text_raw` en gerenderde HTML `message_text_html` / `message_text_raw_html` (Markdown, veilig geëscaped; inline bijlagen en toets-iconen blijven intact). Ghosts volgen gewone `getTicket`-regels (niet inbegrepen tenzij admin-overzicht).
 
 ### Live UI (browser)
 

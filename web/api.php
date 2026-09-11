@@ -2285,10 +2285,14 @@ if ($method === 'POST') {
         foreach (($ticketDetail['messages'] ?? []) as $message) {
             $rawText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
             $displayText = (string) ($message['message_text'] ?? '');
+            $messageAttachments = is_array($message['attachments'] ?? null) ? $message['attachments'] : [];
+            $messageId = (int) ($message['id'] ?? 0);
             $messages[] = [
-                'id' => (int) ($message['id'] ?? 0),
+                'id' => $messageId,
                 'message_text' => $displayText,
                 'message_text_raw' => $rawText,
+                'message_text_html' => formatTicketMessageText($displayText, $messageId, $messageAttachments),
+                'message_text_raw_html' => formatTicketMessageText($rawText, $messageId, $messageAttachments),
                 'message_is_translated' => !empty($message['message_is_translated']),
                 'translation_error' => (string) ($message['translation_error'] ?? ''),
                 'translation_error_detail' => (string) ($message['translation_error_detail'] ?? ''),

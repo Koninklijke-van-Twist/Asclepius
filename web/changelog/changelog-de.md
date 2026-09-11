@@ -1,3 +1,11 @@
+id: 2026-09-11-ticket-message-markdown
+date: 2026-09-11
+title: Markdown in Ticketnachrichten
+author: Tim Falken
+
+Der Text in Ticketnachrichten (einschließlich Ghost-Nachrichten von Bots wie ICT-Bot) stellt jetzt **Markdown** dar: fett, kursiv, Überschriften, Listen, Links, Code und Zitate. Gewöhnlicher Klartext behält seine Zeilenumbrüche. Inline-Anhänge und Tastatur-Icons funktionieren weiterhin.
+
+---
 id: 2026-09-11-grok-webhook-ticket-solved
 date: 2026-09-11
 title: Webhook bei erledigtem Ticket

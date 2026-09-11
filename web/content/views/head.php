@@ -2576,6 +2576,8 @@
         .message.is-ghost .message-role,
         .message.is-ghost .message-text,
         .message.is-ghost .message-text a,
+        .message.is-ghost .message-text .message-md-heading,
+        .message.is-ghost .message-text li,
         .message.is-ghost .attachment-download-link,
         .message.is-ghost .hint {
             color: #fce7f3;
@@ -2588,6 +2590,18 @@
         .message.is-ghost .message-text a {
             color: #f9a8d4;
             text-decoration-color: #f9a8d4;
+        }
+
+        .message.is-ghost .message-text .message-md-pre,
+        .message.is-ghost .message-text .message-md-code {
+            background: rgba(252, 231, 243, 0.12);
+            border-color: #f9a8d4;
+            color: #fce7f3;
+        }
+
+        .message.is-ghost .message-text .message-md-quote {
+            border-left-color: #f9a8d4;
+            color: #fce7f3;
         }
 
         .message-meta {
@@ -2614,6 +2628,76 @@
         .message-text a {
             color: var(--accent);
             text-decoration: underline;
+        }
+
+        .message-text .message-md-heading {
+            margin: 0.65em 0 0.3em;
+            line-height: 1.3;
+            font-weight: 700;
+        }
+
+        .message-text .message-md-heading:first-child {
+            margin-top: 0;
+        }
+
+        .message-text .message-md-heading-1 {
+            font-size: 1.2em;
+        }
+
+        .message-text .message-md-heading-2 {
+            font-size: 1.1em;
+        }
+
+        .message-text .message-md-heading-3,
+        .message-text .message-md-heading-4,
+        .message-text .message-md-heading-5,
+        .message-text .message-md-heading-6 {
+            font-size: 1.02em;
+        }
+
+        .message-text .message-md-list {
+            margin: 0.4em 0;
+            padding-left: 1.4em;
+        }
+
+        .message-text .message-md-list li {
+            margin: 0.15em 0;
+        }
+
+        .message-text .message-md-quote {
+            margin: 0.5em 0;
+            padding: 0.15em 0.8em;
+            border-left: 3px solid var(--accent);
+            color: var(--muted);
+        }
+
+        .message-text .message-md-pre {
+            margin: 0.5em 0;
+            padding: 8px 10px;
+            background: #f3f6fb;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.88em;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .message-text .message-md-code,
+        .message-text .message-md-pre code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+
+        .message-text .message-md-code {
+            background: #f3f6fb;
+            padding: 0.1em 0.35em;
+            border-radius: 4px;
+            font-size: 0.92em;
+        }
+
+        .message-text .message-md-pre code {
+            background: none;
+            padding: 0;
         }
 
         .message-text small {

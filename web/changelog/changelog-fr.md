@@ -1,3 +1,11 @@
+id: 2026-09-11-ticket-message-markdown
+date: 2026-09-11
+title: Markdown dans les messages de ticket
+author: Tim Falken
+
+Le texte des messages de ticket (y compris les messages fantômes de bots comme ICT-Bot) affiche désormais le **Markdown** : gras, italique, titres, listes, liens, code et citations. Le texte brut conserve ses retours à la ligne. Les pièces jointes intégrées et les icônes de clavier fonctionnent toujours.
+
+---
 id: 2026-09-11-grok-webhook-ticket-solved
 date: 2026-09-11
 title: Webhook lorsqu’un ticket est résolu
