@@ -19,7 +19,7 @@ Drie soorten keys:
 
 - **Service-key** — vast, in `auth.php` (`$apiKeys`). Bedoeld voor bots en integraties. Heeft geen sessie-e-mail; stuur `user_email` / `sender_email` / `viewer_email` mee waar een actor nodig is.
 - **Sessie-key** — tijdelijke rotating key van de web-UI (hex, 64 tekens). Koppeling aan de ingelogde gebruiker (`email`, `is_admin`).
-- **Webhook-key** — hex, 64 tekens, zit in de uitgaande `ticket.created`-webhook. ICT-rechten, maximaal **1 uur** geldig, daarna `401`.
+- **Webhook-key** — hex, 64 tekens, zit in de uitgaande ticket-webhook (`new-ticket` / `ticket-solved`). ICT-rechten, maximaal **1 uur** geldig, daarna `401`.
 
 Bij een ongeldige key:
 
@@ -182,11 +182,16 @@ Succes → `200` met `ticket_id`, `message_id`, `is_ghost`, `sender_email`, `sen
 
 Fouten: `422` (`ticket_id_required`, `message_required`, `invalid_user`), `404` (`ticket_not_found`), `403` (`ghost_forbidden`).
 
-## Uitgaande webhook — nieuw ticket
+## Uitgaande webhook — ticket
 
-Als `$grokBot['enabled']` aan staat en `webhook_url` is gezet, POST’t Asclepius bij **elk nieuw ticket** (UI, API, sjabloon, pagina-toegang) naar die URL. Dit zit **niet** in `hourly.php`. Geen instructies in de body: die heeft de bot zelf.
+Als `$grokBot['enabled']` aan staat en `webhook_url` is gezet, POST’t Asclepius naar die URL bij:
 
-Timeout: 5 seconden. Een mislukte webhook houdt het ticket niet tegen.
+- **elk nieuw ticket** (UI, API, sjabloon, pagina-toegang) — `type: "new-ticket"`
+- **elke overgang naar Afgehandeld** — `type: "ticket-solved"`
+
+Dit zit **niet** in `hourly.php`. Geen instructies in de body: die heeft de bot zelf.
+
+Timeout: 5 seconden. Een mislukte webhook houdt het ticket of de statuswijziging niet tegen.
 
 Headers:
 
@@ -197,6 +202,7 @@ Body:
 
 ```json
 {
+  "type": "new-ticket",
   "ticket_id": 123,
   "api_key": "64-teken-hex-sleutel"
 }
@@ -204,6 +210,7 @@ Body:
 
 | Veld | Betekenis |
 | --- | --- |
+| `type` | `new-ticket` of `ticket-solved` |
 | `ticket_id` | Ticketnummer. Ticket ophalen: `GET api.php?id=123` (optioneel `&include_ghosts=1`) |
 | `api_key` | Webhook-key, max. 1 uur. De bot stuurt die terug als `X-API-Key` of `api_key` |
 
@@ -285,7 +292,7 @@ Externe scheduler (GET, elk uur): **GET** `hourly.php`
 
 Slaat per categorie alleen een rij op als het aantal open tickets is veranderd. Response o.a. `snapshot_at`, `counts`, `written`, `skipped`.
 
-`nightly.php` doet geen ticket-snapshots (alleen theevraagje). De Grok-bot hangt niet aan deze taak; zie **Uitgaande webhook — ticket.created**.
+`nightly.php` doet geen ticket-snapshots (alleen theevraagje). De Grok-bot hangt niet aan deze taak; zie **Uitgaande webhook — ticket**.
 
 ## Overige POST-acties
 

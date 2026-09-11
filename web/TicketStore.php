@@ -2190,6 +2190,14 @@ class TicketStore
 
             throw $exception;
         }
+
+        if ($statusChanged && strtolower($status) === 'afgehandeld') {
+            try {
+                require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
+                GrokBot::notifyTicketSolved($this, $ticketId);
+            } catch (Throwable) {
+            }
+        }
     }
 
     public function addMessage(

@@ -2,6 +2,9 @@
 
 class GrokBot
 {
+    public const EVENT_NEW_TICKET = 'new-ticket';
+    public const EVENT_TICKET_SOLVED = 'ticket-solved';
+
     private const DEFAULT_SENDER = 'grok-bot@kvt.nl';
     private const WEBHOOK_TIMEOUT_SECONDS = 5;
     private const EPHEMERAL_KEY_TTL_SECONDS = 3600;
@@ -11,6 +14,21 @@ class GrokBot
      */
     public static function notifyTicketCreated(TicketStore $store, int $ticketId, ?array $config = null): void
     {
+        self::notifyTicketEvent($ticketId, self::EVENT_NEW_TICKET, $config);
+    }
+
+    /**
+     * @param array<string, mixed>|null $config
+     */
+    public static function notifyTicketSolved(TicketStore $store, int $ticketId, ?array $config = null): void
+    {
+        self::notifyTicketEvent($ticketId, self::EVENT_TICKET_SOLVED, $config);
+    }
+
+    /**
+     * @param array<string, mixed>|null $config
+     */
+    private static function notifyTicketEvent(int $ticketId, string $type, ?array $config = null): void {
         if ($ticketId <= 0) {
             return;
         }
@@ -36,6 +54,7 @@ class GrokBot
 
         $sendKey = trim((string) ($config['send_key'] ?? ($config['webhook_secret'] ?? '')));
         self::postWebhook($webhookUrl, [
+            'type' => $type,
             'ticket_id' => $ticketId,
             'api_key' => $issued['api_key'],
         ], $sendKey);

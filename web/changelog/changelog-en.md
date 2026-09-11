@@ -1,3 +1,11 @@
+id: 2026-09-11-grok-webhook-ticket-solved
+date: 2026-09-11
+title: Webhook when a ticket is resolved
+author: Tim Falken
+
+The Grok webhook for a **new ticket** now also sends `type: new-ticket`. When a ticket is marked **resolved**, the same webhook is called with `type: ticket-solved`.
+
+---
 id: 2026-09-10-ticket-url-links
 date: 2026-09-10
 title: Ticket links in messages

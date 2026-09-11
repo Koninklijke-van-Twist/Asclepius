@@ -1,3 +1,11 @@
+id: 2026-09-11-grok-webhook-ticket-solved
+date: 2026-09-11
+title: Webhook bij afgehandeld ticket
+author: Tim Falken
+
+De Grok-webhook bij een **nieuw ticket** stuurt nu ook `type: new-ticket`. Als een ticket op **Afgehandeld** wordt gezet, volgt dezelfde webhook met `type: ticket-solved`.
+
+---
 id: 2026-09-10-ticket-url-links
 date: 2026-09-10
 title: Ticketlinks in berichten

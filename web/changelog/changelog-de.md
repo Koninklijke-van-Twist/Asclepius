@@ -1,3 +1,11 @@
+id: 2026-09-11-grok-webhook-ticket-solved
+date: 2026-09-11
+title: Webhook bei erledigtem Ticket
+author: Tim Falken
+
+Der Grok-Webhook bei einem **neuen Ticket** sendet jetzt auch `type: new-ticket`. Wird ein Ticket auf **erledigt** gesetzt, folgt derselbe Webhook mit `type: ticket-solved`.
+
+---
 id: 2026-09-10-ticket-url-links
 date: 2026-09-10
 title: Ticket-Links in Nachrichten
