@@ -3,7 +3,7 @@ date: 2026-09-11
 title: Markdown in ticket messages
 author: Tim Falken
 
-Ticket message text (including ghost messages from bots such as ICT-Bot) now renders **Markdown**: bold, italic, headings, lists, links, code, and quotes. Ordinary plain text keeps its line breaks. Inline attachments and keyboard icons still work as before.
+Ticket message text (including ghost messages from bots such as ICT-Bot) now renders **Markdown**: bold, italic, headings, lists, tables, links, code, and quotes. Ordinary plain text keeps its line breaks. Inline attachments and keyboard icons still work as before.
 
 ---
 id: 2026-09-11-grok-webhook-ticket-solved
