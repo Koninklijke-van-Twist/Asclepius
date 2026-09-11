@@ -2,6 +2,7 @@
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'user_directory.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'user_avatars.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'message_markdown.php';
 
 function shouldIncludeGhostMessages(bool $canManageTickets, bool $isAdminPortal, string $view): bool
 {
@@ -946,6 +947,11 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
     $rawMessageText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
     $displayMessageText = (string) ($message['message_text'] ?? '');
     $messageAttachments = is_array($message['attachments'] ?? null) ? $message['attachments'] : [];
+    $messageId = (int) ($message['id'] ?? 0);
+    $translatedMessageHtml = formatTicketMessageText($displayMessageText, $messageId, $messageAttachments);
+    $originalMessageHtml = $rawMessageText === $displayMessageText
+        ? $translatedMessageHtml
+        : formatTicketMessageText($rawMessageText, $messageId, $messageAttachments);
     $referencedAttachmentNames = extractReferencedAttachmentNames($rawMessageText);
     $referencedAttachmentLookup = array_fill_keys($referencedAttachmentNames, true);
     $listAttachments = array_values(array_filter(
@@ -1001,8 +1007,10 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
             <div class="message-text" data-role="message-text-content"
                 data-translated-text="<?= h((string) json_encode($displayMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
                 data-original-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                data-translated-html="<?= h((string) json_encode($translatedMessageHtml, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                data-original-html="<?= h((string) json_encode($originalMessageHtml, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
                 data-showing="translated">
-                <?= formatTicketMessageText($displayMessageText, (int) ($message['id'] ?? 0), $messageAttachments) ?>
+                <?= $translatedMessageHtml ?>
             </div>
         <?php endif; ?>
 
@@ -2926,133 +2934,69 @@ function formatTicketRefLabel(int $ticketId): string
 
 function makeTextInteractive(string $text, bool $forEmail = false): string
 {
-    $escapedText = h($text);
+    $inlineCode = extractMessageInlineCodePlaceholders($text);
+    $escapedText = applyMessageInlineMarkdown(h($inlineCode['text']), $forEmail);
     $escapedText = renderShortcutMarkup($escapedText, $forEmail);
 
-    $escapedText = preg_replace_callback(
-        '~(?:(https?://|www\.)[^\s<]+)~i',
-        static function (array $matches) use ($forEmail): string {
-            $displayValue = $matches[0];
-            $trimmed = preg_replace('/[.,;:!?)\]]+$/', '', $displayValue) ?? $displayValue;
-            $suffix = substr($displayValue, strlen($trimmed));
-            $href = str_starts_with(strtolower($trimmed), 'www.') ? 'https://' . $trimmed : $trimmed;
-            $safeHref = h($href);
-            $ticketId = extractAsclepiusTicketIdFromUrl($href);
-            $safeLabel = $ticketId > 0 ? h(formatTicketRefLabel($ticketId)) : h($trimmed);
+    $escapedText = mapMessageHtmlTextSegments(
+        $escapedText,
+        static function (string $segment) use ($forEmail): string {
+            $segment = preg_replace_callback(
+                '~(?:(https?://|www\.)[^\s<]+)~i',
+                static function (array $matches) use ($forEmail): string {
+                    $displayValue = $matches[0];
+                    $trimmed = preg_replace('/[.,;:!?)\]]+$/', '', $displayValue) ?? $displayValue;
+                    $suffix = substr($displayValue, strlen($trimmed));
+                    $href = html_entity_decode($trimmed, ENT_QUOTES, 'UTF-8');
+                    $href = str_starts_with(strtolower($href), 'www.') ? 'https://' . $href : $href;
+                    $safeHref = h($href);
+                    $ticketId = extractAsclepiusTicketIdFromUrl($href);
+                    $safeLabel = $ticketId > 0 ? h(formatTicketRefLabel($ticketId)) : $trimmed;
 
-            if ($forEmail) {
-                return '<a href="' . $safeHref . '">' . $safeLabel . '</a>' . h($suffix);
-            }
+                    if ($forEmail) {
+                        return '<a href="' . $safeHref . '">' . $safeLabel . '</a>' . $suffix;
+                    }
 
-            $target = $ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
+                    $target = $ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
 
-            return '<a href="' . $safeHref . '"' . $target . '>' . $safeLabel . '</a>' . h($suffix);
-        },
-        $escapedText
-    ) ?? $escapedText;
+                    return '<a href="' . $safeHref . '"' . $target . '>' . $safeLabel . '</a>' . $suffix;
+                },
+                $segment
+            ) ?? $segment;
 
-    $escapedText = preg_replace(
-        '/(?<![\w.@])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?![^<]*>)/i',
-        '<a href="mailto:$1">$1</a>',
-        $escapedText
-    ) ?? $escapedText;
+            $segment = preg_replace(
+                '/(?<![\w.@])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i',
+                '<a href="mailto:$1">$1</a>',
+                $segment
+            ) ?? $segment;
 
-    $escapedText = preg_replace_callback(
-        '/(?<![\w>])((?:\+?[0-9][0-9\s()\/.-]{6,}[0-9]))(?![^<]*>)/',
-        static function (array $matches): string {
-            $phoneText = trim($matches[1]);
-            $phoneHref = preg_replace('/[^0-9+]/', '', $phoneText) ?? '';
-            if ($phoneHref === '') {
-                return $phoneText;
-            }
+            return preg_replace_callback(
+                '/(?<![\w>])((?:\+?[0-9][0-9\s()\/.-]{6,}[0-9]))/',
+                static function (array $matches): string {
+                    $phoneText = trim($matches[1]);
+                    $phoneHref = preg_replace('/[^0-9+]/', '', $phoneText) ?? '';
+                    if ($phoneHref === '') {
+                        return $phoneText;
+                    }
 
-            return '<a href="tel:' . h($phoneHref) . '">' . h($phoneText) . '</a>';
-        },
-        $escapedText
-    ) ?? $escapedText;
+                    return '<a href="tel:' . h($phoneHref) . '">' . h($phoneText) . '</a>';
+                },
+                $segment
+            ) ?? $segment;
+        }
+    );
 
-    return $escapedText;
+    return restoreMessageInlineCodePlaceholders($escapedText, $inlineCode['codes']);
 }
 
 function formatTicketMessageText(?string $messageText, int $messageId = 0, array $attachments = []): string
 {
-    $normalized = str_replace(["\r\n", "\r"], "\n", trim((string) $messageText));
-    if ($normalized === '') {
-        return '';
-    }
-
-    $formattedLines = [];
-    foreach (explode("\n", $normalized) as $lineIndex => $line) {
-        $trimmedLine = trim($line);
-        if ($trimmedLine === '') {
-            $formattedLines[] = '';
-            continue;
-        }
-
-        if (preg_match('/^\[\[attachment:(.+)\]\]$/', $trimmedLine, $attachmentMatch) === 1) {
-            $attachmentName = trim((string) ($attachmentMatch[1] ?? ''));
-            $attachment = $attachmentName !== '' ? findAttachmentByOriginalName($attachments, $attachmentName) : null;
-            if ($attachment !== null) {
-                $formattedLines[] = renderMessageInlineAttachmentHtml($attachment);
-            } else {
-                $formattedLines[] = '<em>' . h($attachmentName !== '' ? $attachmentName : $trimmedLine) . '</em>';
-            }
-            continue;
-        }
-
-        if (preg_match('/^(\s*)\[( |x|X)\]\s*(.*)$/', $line, $checkboxMatch) === 1) {
-            $isChecked = strtolower((string) $checkboxMatch[2]) === 'x';
-            $checkboxText = (string) ($checkboxMatch[3] ?? '');
-            $checkboxLabel = $checkboxText !== '' ? makeTextInteractive($checkboxText) : '&nbsp;';
-            $formattedLines[] = '<label class="message-checkbox-line">'
-                . '<input type="checkbox" data-role="message-checkbox" data-message-id="' . (int) $messageId . '" data-line-index="' . (int) $lineIndex . '"'
-                . ($isChecked ? ' checked' : '')
-                . ($messageId > 0 ? '' : ' disabled')
-                . '>'
-                . '<span>' . $checkboxLabel . '</span>'
-                . '</label>';
-            continue;
-        }
-
-        $interactiveLine = makeTextInteractive($line);
-        if (str_starts_with($trimmedLine, 'Status gewijzigd naar ')) {
-            $formattedLines[] = '<small>' . $interactiveLine . '</small>';
-            continue;
-        }
-
-        $formattedLines[] = $interactiveLine;
-    }
-
-    return implode('<br>', $formattedLines);
+    return renderTicketMessageMarkdown($messageText, $messageId, $attachments, false);
 }
 
 function formatTicketMessageTextForEmail(?string $messageText): string
 {
-    $normalized = str_replace(["\r\n", "\r"], "\n", trim((string) $messageText));
-    if ($normalized === '') {
-        return '';
-    }
-
-    $formattedLines = [];
-    foreach (explode("\n", $normalized) as $line) {
-        if (trim($line) === '') {
-            $formattedLines[] = '';
-            continue;
-        }
-
-        $trimmedLine = trim($line);
-        if (preg_match('/^\[\[attachment:(.+)\]\]$/', $trimmedLine, $attachmentMatch) === 1) {
-            $attachmentName = trim((string) ($attachmentMatch[1] ?? ''));
-            $formattedLines[] = '<p style="margin:8px 0;"><em>📎 '
-                . htmlspecialchars($attachmentName !== '' ? $attachmentName : $trimmedLine, ENT_QUOTES, 'UTF-8')
-                . '</em></p>';
-            continue;
-        }
-
-        $formattedLines[] = makeTextInteractive($line, true);
-    }
-
-    return implode('<br>', $formattedLines);
+    return renderTicketMessageMarkdown($messageText, 0, [], true);
 }
 
 function buildAbsoluteTicketUrl(int $ticketId, bool $adminPage = false): string

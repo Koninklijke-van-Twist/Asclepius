@@ -6298,6 +6298,75 @@
             }
         };
 
+        var sanitizeMessageMarkdownHref = function (rawUrl)
+        {
+            var url = String(rawUrl || '').trim();
+            if (url === '' || /[\x00-\x1f\x7f]/.test(url))
+            {
+                return '';
+            }
+            if (/^www\./i.test(url))
+            {
+                url = 'https://' + url;
+            }
+            if (/^[a-z][a-z0-9+.-]*:/i.test(url))
+            {
+                var scheme = url.split(':', 1)[0].toLowerCase();
+                return (scheme === 'http' || scheme === 'https' || scheme === 'mailto' || scheme === 'tel') ? url : '';
+            }
+            return /^(?:[.#/?]|index\.php|admin\.php)/i.test(url) ? url : '';
+        };
+
+        var applyMessageInlineMarkdown = function (escapedText)
+        {
+            var html = String(escapedText || '').replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (match, label, rawHref)
+            {
+                var href = sanitizeMessageMarkdownHref(String(rawHref || '').replace(/&amp;/g, '&'));
+                if (href === '')
+                {
+                    return match;
+                }
+                var ticketId = extractAsclepiusTicketIdFromUrl(href);
+                var extraAttrs = ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
+                return '<a href="' + escapeHtml(href) + '"' + extraAttrs + '>' + label + '</a>';
+            });
+            html = html.replace(/\*\*(\S(?:[^*\n]*\S)?)\*\*/g, '<strong>$1</strong>');
+            return html.replace(/(^|[^*])\*(\S(?:[^*\n]*\S)?)\*(?!\*)/g, '$1<em>$2</em>');
+        };
+
+        var formatTicketMessageInlineHtml = function (text)
+        {
+            var source = String(text || '');
+            var codes = [];
+            source = source.replace(/`([^`\n]+)`/g, function (match, code)
+            {
+                codes.push(code);
+                return '\x1AASCCODE' + (codes.length - 1) + '\x1A';
+            });
+            var html = applyMessageInlineMarkdown(escapeHtml(source));
+            html = linkifyHttpUrlsInEscapedHtml(renderShortcutMarkup(html));
+            codes.forEach(function (code, index)
+            {
+                html = html.split('\x1AASCCODE' + index + '\x1A').join('<code class="message-md-code">' + escapeHtml(code) + '</code>');
+            });
+            return html;
+        };
+
+        var formatTicketMessageCheckboxHtml = function (line, messageId, lineIndex)
+        {
+            var checkboxMatch = String(line || '').match(/^(\s*)\[( |x|X)\](?:\s+(.*))?$/);
+            if (!checkboxMatch)
+            {
+                return formatTicketMessageInlineHtml(line);
+            }
+            var isChecked = String(checkboxMatch[2] || '').toLowerCase() === 'x';
+            var label = String(checkboxMatch[3] || '');
+            return '<label class="message-checkbox-line">'
+                + '<input type="checkbox" data-role="message-checkbox" data-message-id="' + parseInt(messageId || 0, 10) + '" data-line-index="' + parseInt(lineIndex || 0, 10) + '"' + (isChecked ? ' checked' : '') + '>'
+                + '<span>' + (label !== '' ? formatTicketMessageInlineHtml(label) : '&nbsp;') + '</span>'
+                + '</label>';
+        };
+
         var formatTicketMessageTextForToggle = function (text, messageId)
         {
             var normalized = String(text || '').replace(/\r\n?/g, '\n').trim();
@@ -6306,26 +6375,188 @@
                 return '';
             }
 
-            return normalized.split('\n').map(function (line, lineIndex)
+            var lines = normalized.split('\n');
+            var parts = [];
+            var pending = [];
+            var flushPending = function ()
             {
-                if (line.trim() === '')
+                if (pending.length === 0)
                 {
-                    return '';
+                    return;
+                }
+                parts.push(pending.join('<br>'));
+                pending = [];
+            };
+            var isAttachment = function (trimmed)
+            {
+                return /^\[\[attachment:(.+)\]\]$/.test(trimmed);
+            };
+            var isHeading = function (trimmed)
+            {
+                return /^#{1,6}\s+\S/.test(trimmed);
+            };
+            var isQuote = function (trimmed)
+            {
+                return trimmed.charAt(0) === '>';
+            };
+            var isUnordered = function (trimmed)
+            {
+                return /^[-*+]\s+/.test(trimmed);
+            };
+            var isOrdered = function (trimmed)
+            {
+                return /^\d+\.\s+/.test(trimmed);
+            };
+            var isCheckbox = function (line)
+            {
+                return /^(\s*)\[( |x|X)\](?:\s+(.*))?$/.test(line);
+            };
+            var renderListItem = function (itemText, lineIndex)
+            {
+                return isCheckbox(itemText)
+                    ? formatTicketMessageCheckboxHtml(itemText, messageId, lineIndex)
+                    : formatTicketMessageInlineHtml(itemText);
+            };
+
+            var index = 0;
+            while (index < lines.length)
+            {
+                var line = String(lines[index] || '');
+                var trimmed = line.trim();
+                var fenceMatch = trimmed.match(/^```([a-zA-Z0-9_-]*)[ \t]*$/);
+                if (fenceMatch)
+                {
+                    var closeIndex = -1;
+                    for (var lookAhead = index + 1; lookAhead < lines.length; lookAhead++)
+                    {
+                        if (/^```[ \t]*$/.test(String(lines[lookAhead] || '').trim()))
+                        {
+                            closeIndex = lookAhead;
+                            break;
+                        }
+                    }
+                    if (closeIndex >= 0)
+                    {
+                        flushPending();
+                        var language = String(fenceMatch[1] || '');
+                        var code = lines.slice(index + 1, closeIndex).join('\n');
+                        var languageClass = /^[a-z0-9_-]+$/i.test(language) && language !== ''
+                            ? ' class="language-' + escapeHtml(language.toLowerCase()) + '"'
+                            : '';
+                        parts.push('<pre class="message-md-pre"><code' + languageClass + '>' + escapeHtml(code) + '</code></pre>');
+                        index = closeIndex + 1;
+                        continue;
+                    }
                 }
 
-                var checkboxMatch = line.match(/^(\s*)\[( |x|X)\]\s*(.*)$/);
-                if (checkboxMatch)
+                if (isAttachment(trimmed))
                 {
-                    var isChecked = String(checkboxMatch[2] || '').toLowerCase() === 'x';
-                    var label = String(checkboxMatch[3] || '');
-                    return '<label class="message-checkbox-line">'
-                        + '<input type="checkbox" data-role="message-checkbox" data-message-id="' + parseInt(messageId || 0, 10) + '" data-line-index="' + lineIndex + '"' + (isChecked ? ' checked' : '') + '>'
-                        + '<span>' + (label !== '' ? linkifyHttpUrlsInEscapedHtml(renderShortcutMarkup(escapeHtml(label))) : '&nbsp;') + '</span>'
-                        + '</label>';
+                    flushPending();
+                    var attachmentName = trimmed.replace(/^\[\[attachment:(.+)\]\]$/, '$1').trim();
+                    parts.push('<em>' + escapeHtml(attachmentName !== '' ? attachmentName : trimmed) + '</em>');
+                    index += 1;
+                    continue;
                 }
 
-                return linkifyHttpUrlsInEscapedHtml(renderShortcutMarkup(escapeHtml(line)));
-            }).join('<br>');
+                if (isHeading(trimmed))
+                {
+                    flushPending();
+                    var headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+                    var level = headingMatch ? headingMatch[1].length : 1;
+                    var tagLevel = Math.min(6, level + 2);
+                    parts.push('<h' + tagLevel + ' class="message-md-heading message-md-heading-' + level + '">'
+                        + formatTicketMessageInlineHtml(headingMatch ? headingMatch[2] : trimmed)
+                        + '</h' + tagLevel + '>');
+                    index += 1;
+                    continue;
+                }
+
+                if (isQuote(trimmed))
+                {
+                    flushPending();
+                    var quoteLines = [];
+                    while (index < lines.length)
+                    {
+                        var quoteTrimmed = String(lines[index] || '').trim();
+                        if (!isQuote(quoteTrimmed))
+                        {
+                            break;
+                        }
+                        var quoteBody = quoteTrimmed.replace(/^>\s?/, '');
+                        quoteLines.push(quoteBody === '' ? '' : formatTicketMessageInlineHtml(quoteBody));
+                        index += 1;
+                    }
+                    parts.push('<blockquote class="message-md-quote">' + quoteLines.join('<br>') + '</blockquote>');
+                    continue;
+                }
+
+                if (isUnordered(trimmed))
+                {
+                    flushPending();
+                    var unorderedItems = [];
+                    while (index < lines.length)
+                    {
+                        var unorderedTrimmed = String(lines[index] || '').trim();
+                        if (!isUnordered(unorderedTrimmed))
+                        {
+                            break;
+                        }
+                        unorderedItems.push('<li>' + renderListItem(unorderedTrimmed.replace(/^[-*+]\s+/, ''), index) + '</li>');
+                        index += 1;
+                    }
+                    parts.push('<ul class="message-md-list">' + unorderedItems.join('') + '</ul>');
+                    continue;
+                }
+
+                if (isOrdered(trimmed))
+                {
+                    flushPending();
+                    var orderedItems = [];
+                    while (index < lines.length)
+                    {
+                        var orderedTrimmed = String(lines[index] || '').trim();
+                        if (!isOrdered(orderedTrimmed))
+                        {
+                            break;
+                        }
+                        orderedItems.push('<li>' + renderListItem(orderedTrimmed.replace(/^\d+\.\s+/, ''), index) + '</li>');
+                        index += 1;
+                    }
+                    parts.push('<ol class="message-md-list message-md-list-ordered">' + orderedItems.join('') + '</ol>');
+                    continue;
+                }
+
+                if (isCheckbox(line))
+                {
+                    flushPending();
+                    parts.push(formatTicketMessageCheckboxHtml(line, messageId, index));
+                    index += 1;
+                    continue;
+                }
+
+                if (trimmed === '')
+                {
+                    pending.push('');
+                    index += 1;
+                    continue;
+                }
+
+                var interactiveLine = formatTicketMessageInlineHtml(line);
+                pending.push(trimmed.indexOf('Status gewijzigd naar ') === 0 ? '<small>' + interactiveLine + '</small>' : interactiveLine);
+                index += 1;
+            }
+
+            flushPending();
+            return parts.join('');
+        };
+
+        var readMessageHtmlAttribute = function (node, attributeName)
+        {
+            if (!node)
+            {
+                return '';
+            }
+            return parseJsonString(node.getAttribute(attributeName));
         };
 
         document.addEventListener('click', function (event)
@@ -6342,11 +6573,17 @@
 
                 var currentlyShowing = String(messageContent.getAttribute('data-showing') || 'translated');
                 var nextShowing = currentlyShowing === 'translated' ? 'original' : 'translated';
-                var translatedText = parseJsonString(messageContent.getAttribute('data-translated-text'));
-                var originalText = parseJsonString(messageContent.getAttribute('data-original-text'));
-                var nextText = nextShowing === 'translated' ? translatedText : originalText;
+                var storedHtml = readMessageHtmlAttribute(
+                    messageContent,
+                    nextShowing === 'translated' ? 'data-translated-html' : 'data-original-html'
+                );
+                var nextText = parseJsonString(messageContent.getAttribute(
+                    nextShowing === 'translated' ? 'data-translated-text' : 'data-original-text'
+                ));
 
-                messageContent.innerHTML = formatTicketMessageTextForToggle(String(nextText || ''), parseInt(messageNode.getAttribute('data-message-id') || '0', 10));
+                messageContent.innerHTML = storedHtml !== ''
+                    ? storedHtml
+                    : formatTicketMessageTextForToggle(String(nextText || ''), parseInt(messageNode.getAttribute('data-message-id') || '0', 10));
                 messageContent.setAttribute('data-showing', nextShowing);
                 messageToggle.setAttribute('data-showing', nextShowing);
                 messageToggle.textContent = nextShowing === 'translated'
@@ -6558,14 +6795,26 @@
 
                 var displayText = String(msg.message_text || '');
                 var rawText = String(msg.message_text_raw || msg.message_text || '');
+                var displayHtml = String(msg.message_text_html || '');
+                var rawHtml = String(msg.message_text_raw_html || '');
 
                 var messageContent = messageNode.querySelector('[data-role="message-text-content"]');
                 if (messageContent)
                 {
                     messageContent.setAttribute('data-translated-text', JSON.stringify(displayText));
                     messageContent.setAttribute('data-original-text', JSON.stringify(rawText));
+                    if (displayHtml !== '')
+                    {
+                        messageContent.setAttribute('data-translated-html', JSON.stringify(displayHtml));
+                    }
+                    if (rawHtml !== '')
+                    {
+                        messageContent.setAttribute('data-original-html', JSON.stringify(rawHtml));
+                    }
                     messageContent.setAttribute('data-showing', 'translated');
-                    messageContent.innerHTML = formatTicketMessageTextForToggle(displayText, msg.id);
+                    messageContent.innerHTML = displayHtml !== ''
+                        ? displayHtml
+                        : formatTicketMessageTextForToggle(displayText, msg.id);
                 }
 
                 messageNode.setAttribute('data-translation-status', 'loaded');
