@@ -214,7 +214,7 @@ Body:
 | `ticket_id` | Ticketnummer. Ticket ophalen: `GET api.php?id=123` (optioneel `&include_ghosts=1`) |
 | `api_key` | Webhook-key, max. 1 uur. De bot stuurt die terug als `X-API-Key` of `api_key` |
 
-Met die `api_key` kan de bot o.a. het ticket lezen, `add_ticket_message` (inclusief `sender_name` / `sender_title` / `ghost`), `change_ticket_category` en `ticket_lookups`.
+Met die `api_key` kan de bot o.a. het ticket lezen, `add_ticket_message` (inclusief `sender_name` / `sender_title` / `ghost`), `change_ticket_status`, `change_ticket_category`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date` en `ticket_lookups`.
 
 ## GET/POST — `ticket_lookups`
 
@@ -301,6 +301,36 @@ Slaat per categorie alleen een rij op als het aantal open tickets is veranderd. 
 `manage_ticket_participants` — `operation`: `add` | `remove` | `apply`. Velden: `ticket_id`, `participant_emails` (toevoegen), `participant_email` of `remove_participant_emails` (verwijderen). Minimaal één deelnemer. Admin of trusted.
 
 `change_ticket_category` — `ticket_id`, `category` (moet in `ticket_lookups.categories` zitten), optioneel `reassign` (bool). Zet een systeemnotitie. ICT, service-key, webhook-key of trusted.
+
+`change_ticket_status` — `ticket_id` (alias `id`), `status`. Zelfde rechten als `change_ticket_category`. `status` is een vaste waarde uit `ticket_lookups.statuses` of een eigen label (zoals in de UI, max. 40 tekens). Zet een systeemnotitie, werkt `resolved_at` bij, en stuurt dezelfde meldingen als het ICT-overzicht. Overgang naar `afgehandeld` vuurt de `ticket-solved`-webhook. Al dezelfde status → `200` met `"unchanged": true`. Fouten: `403` `forbidden`, `404` `ticket_not_found`, `422` (`ticket_id_required`, `invalid_status`).
+
+```json
+{
+  "action": "change_ticket_status",
+  "ticket_id": 776,
+  "status": "in behandeling"
+}
+```
+
+Succes → `200`:
+
+```json
+{
+  "success": true,
+  "unchanged": false,
+  "ticket_id": 776,
+  "status": "in behandeling",
+  "status_label": "in behandeling",
+  "resolved_at": null,
+  "message_id": 123
+}
+```
+
+`change_ticket_assignee` — `ticket_id`, `assigned_email` (aliassen `assignee` / `assigned`; lege string = niet toegewezen). Zelfde rechten en toewijzingsregels als de UI (categorie, afwezigheid, geen toewijzing aan de aanvrager behalve bij template-tickets of zelf toewijzen). Meldingen naar aanvrager en nieuwe medewerker. Open tickets zonder assignee worden bij het laden weer automatisch toegewezen (zelfde als de UI). Al dezelfde toewijzing → `"unchanged": true`.
+
+`change_ticket_priority` — `ticket_id`, `priority` (`0`–`2`). Zelfde rechten. Tickets mét due-date krijgen hun prioriteit uit die datum; de API weigert dan met `priority_follows_due_date`. Geen e-mail bij alleen een prioriteitswijziging.
+
+`change_ticket_due_date` — `ticket_id`, `due_date` (`YYYY-MM-DD`). Zelfde rechten. Past de afgeleide prioriteit aan zoals in de UI. Leeg of ongeldig → `invalid_due_date`.
 
 `change_ticket_title` — `ticket_id`, `title` (niet leeg). Admin of trusted. Wist titelvertalingen.
 
@@ -447,6 +477,15 @@ curl -X POST "https://sleutels.kvt.nl/asclepius/api.php" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: JOUW_KEY" \
   -d "{\"action\":\"add_ticket_message\",\"ticket_id\":123,\"message\":\"Interne notitie\",\"ghost\":true,\"sender_email\":\"grok-bot@kvt.nl\",\"sender_name\":\"Grok\",\"sender_title\":\"Assistent\"}"
+```
+
+Status wijzigen (bijv. ticket #776 naar in behandeling):
+
+```bash
+curl -X POST "https://sleutels.kvt.nl/asclepius/api.php" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: JOUW_KEY" \
+  -d "{\"action\":\"change_ticket_status\",\"ticket_id\":776,\"status\":\"in behandeling\"}"
 ```
 
 Open tickets per categorie over tijd:

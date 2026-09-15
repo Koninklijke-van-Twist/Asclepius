@@ -1,3 +1,11 @@
+id: 2026-09-15-api-change-ticket-status
+date: 2026-09-15
+title: Statut, attribution et priorité des tickets via l’API
+author: Tim Falken
+
+Les bots et intégrations (comme ICT-Bot) peuvent désormais modifier le **statut** d’un ticket via l’API HTTP, par exemple vers **in behandeling** ou **résolu**. Cela correspond à l’aperçu ICT : statuts fixes, libellés personnalisés, note système et notifications. Vous pouvez aussi mettre à jour l’**attribution**, la **priorité** et la **date d’échéance** via l’API.
+
+---
 id: 2026-09-11-ticket-message-markdown
 date: 2026-09-11
 title: Markdown dans les messages de ticket

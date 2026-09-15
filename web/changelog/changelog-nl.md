@@ -1,3 +1,11 @@
+id: 2026-09-15-api-change-ticket-status
+date: 2026-09-15
+title: Ticketstatus, toewijzing en prioriteit via de API
+author: Tim Falken
+
+Bots en integraties (zoals ICT-Bot) kunnen een ticket nu via de HTTP-API op een andere **status** zetten, bijvoorbeeld **in behandeling** of **afgehandeld**. Dat werkt hetzelfde als in het ICT-overzicht: vaste statussen, eigen statuslabels, systeemnotitie en meldingen. Daarnaast kun je via de API ook de **toegewezen medewerker**, **prioriteit** en **due-date** bijwerken.
+
+---
 id: 2026-09-11-ticket-message-markdown
 date: 2026-09-11
 title: Markdown in ticketberichten
