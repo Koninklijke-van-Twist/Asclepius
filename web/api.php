@@ -1461,7 +1461,7 @@ function handleChangeTicketPriorityApiAction(TicketStore $store, array $payload,
     }
 
     $priorityValue = $payload['priority'];
-    $priorityIsValid = is_int($priorityValue)
+    $priorityIsValid = (is_int($priorityValue) && $priorityValue >= 0 && $priorityValue <= 2)
         || (is_string($priorityValue) && preg_match('/^[0-2]$/D', $priorityValue) === 1);
     if (!$priorityIsValid) {
         return [
