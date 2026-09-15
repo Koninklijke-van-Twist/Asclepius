@@ -128,6 +128,10 @@ $updatedOpenTicket = $store->getTicket((int) $resultDue['ticket_id'], true, 'ict
 assertSame('Due-date kan worden aangepast op bestaand due-date ticket', $dueTomorrow, (string) ($updatedOpenTicket['due_date'] ?? ''));
 assertSame('Open due-date ticket houdt afgeleide prioriteit', 2, (int) ($updatedOpenTicket['priority'] ?? -1));
 
+$store->updateTicket((int) $resultDue['ticket_id'], 'ingediend', 'ict@kvt.nl', 0, '2026-02-31');
+$rejectedImpossibleDue = $store->getTicket((int) $resultDue['ticket_id'], true, 'ict@kvt.nl');
+assertSame('Onmogelijke kalenderdatum wordt niet opgeslagen', null, $rejectedImpossibleDue['due_date'] ?? null);
+
 $store->updateTicket((int) $resultDue['ticket_id'], 'afgehandeld', 'ict@kvt.nl', 1, $dueTomorrow);
 $updatedClosedTicket = $store->getTicket((int) $resultDue['ticket_id'], true, 'ict@kvt.nl');
 assertSame('Afgehandeld due-date ticket behoudt opgeslagen prioriteit', 1, (int) ($updatedClosedTicket['priority'] ?? -1));

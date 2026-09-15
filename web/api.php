@@ -1030,7 +1030,7 @@ function resolveIctTicketMutationAccess(TicketStore $store, array $payload, ?arr
     )));
     $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
     $ictAccess = resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true);
-    $userIsAdmin = $hasValidServiceApiKey || !empty($apiClient['is_admin']) || !empty($payload['user_is_admin'])
+    $userIsAdmin = $hasValidServiceApiKey || !empty($apiClient['is_admin'])
         || !empty($ictAccess['is_full_ict_admin']) || !empty($ictAccess['is_limited_ict']);
     if (!$userIsAdmin && !isTrustedApiRequester()) {
         return [
@@ -1460,14 +1460,17 @@ function handleChangeTicketPriorityApiAction(TicketStore $store, array $payload,
         ];
     }
 
-    $requestedPriority = (int) $payload['priority'];
-    if ($requestedPriority < 0 || $requestedPriority > 2) {
+    $priorityValue = $payload['priority'];
+    $priorityIsValid = is_int($priorityValue)
+        || (is_string($priorityValue) && preg_match('/^[0-2]$/D', $priorityValue) === 1);
+    if (!$priorityIsValid) {
         return [
             'success' => false,
             'error' => __('flash.invalid_priority'),
             'error_code' => 'invalid_priority',
         ];
     }
+    $requestedPriority = (int) $priorityValue;
 
     $currentPriority = (int) ($ticket['priority'] ?? 0);
     if ($requestedPriority === $currentPriority) {

@@ -174,6 +174,9 @@ assertTrue('Statuswijziging slaagt', !empty($statusResponse['success']));
 assertSame('Status is in behandeling', 'in behandeling', (string) ($statusResponse['status'] ?? ''));
 assertFalse('Status was gewijzigd', !empty($statusResponse['unchanged']));
 assertTrue('Systeemnotitie-id aanwezig', (int) ($statusResponse['message_id'] ?? 0) > 0);
+assertTrue('Statusresponse bevat message', trim((string) ($statusResponse['message'] ?? '')) !== '');
+assertTrue('Statusresponse bevat status_color', trim((string) ($statusResponse['status_color'] ?? '')) !== '');
+assertTrue('Statusresponse bevat message_html', trim((string) ($statusResponse['message_html'] ?? '')) !== '');
 
 $updated = $store->getTicket($ticketId, true, 'ict@kvt.nl', 'default', true);
 assertSame('Opgeslagen status is in behandeling', 'in behandeling', (string) ($updated['status'] ?? ''));
@@ -246,6 +249,13 @@ $forbidden = handleChangeTicketStatusApiAction($store, [
 ], ['email' => 'user@kvt.nl', 'is_admin' => false], false);
 assertSame('Zonder ICT-rechten forbidden', 'forbidden', (string) ($forbidden['error_code'] ?? ''));
 
+$spoofAdmin = handleChangeTicketStatusApiAction($store, [
+    'ticket_id' => $ticketId,
+    'status' => 'ingediend',
+    'user_is_admin' => true,
+], ['email' => 'user@kvt.nl', 'is_admin' => false], false);
+assertSame('Payload user_is_admin wordt genegeerd', 'forbidden', (string) ($spoofAdmin['error_code'] ?? ''));
+
 $serviceKeyOk = handleChangeTicketStatusApiAction($store, [
     'ticket_id' => $ticketId,
     'status' => 'ingediend',
@@ -315,6 +325,28 @@ $badPriority = handleChangeTicketPriorityApiAction($store, [
 ], $adminClient, false);
 assertSame('Ongeldige prioriteit', 'invalid_priority', (string) ($badPriority['error_code'] ?? ''));
 
+$invalidPriorities = [
+    ['invalid', 'Prioriteit-tekst wordt geweigerd'],
+    ['1x', 'Prioriteit met suffix wordt geweigerd'],
+    [1.9, 'Prioriteit-float wordt geweigerd'],
+    [true, 'Prioriteit-boolean wordt geweigerd'],
+    ['01', 'Prioriteit met leading zero wordt geweigerd'],
+];
+foreach ($invalidPriorities as [$invalidPriority, $priorityLabel]) {
+    $rejectedPriority = handleChangeTicketPriorityApiAction($store, [
+        'ticket_id' => $priorityTicket,
+        'priority' => $invalidPriority,
+    ], $adminClient, false);
+    assertSame($priorityLabel, 'invalid_priority', (string) ($rejectedPriority['error_code'] ?? ''));
+}
+
+$stringPriority = handleChangeTicketPriorityApiAction($store, [
+    'ticket_id' => $priorityTicket,
+    'priority' => '1',
+], $adminClient, false);
+assertTrue('Prioriteit als cijferstring slaagt', !empty($stringPriority['success']));
+assertSame('Prioriteit 1 via string opgeslagen', 1, (int) ($stringPriority['priority'] ?? -1));
+
 $due = handleChangeTicketDueDateApiAction($store, [
     'ticket_id' => $priorityTicket,
     'due_date' => date('Y-m-d', strtotime('+1 day')),
@@ -333,6 +365,18 @@ $badDue = handleChangeTicketDueDateApiAction($store, [
     'due_date' => 'niet-een-datum',
 ], $adminClient, false);
 assertSame('Ongeldige due-date', 'invalid_due_date', (string) ($badDue['error_code'] ?? ''));
+
+$impossibleDue = handleChangeTicketDueDateApiAction($store, [
+    'ticket_id' => $priorityTicket,
+    'due_date' => '2026-02-31',
+], $adminClient, false);
+assertSame('Onmogelijke due-date', 'invalid_due_date', (string) ($impossibleDue['error_code'] ?? ''));
+
+$suffixDue = handleChangeTicketDueDateApiAction($store, [
+    'ticket_id' => $priorityTicket,
+    'due_date' => '2026-09-15-invalid',
+], $adminClient, false);
+assertSame('Due-date met suffix', 'invalid_due_date', (string) ($suffixDue['error_code'] ?? ''));
 
 echo PHP_EOL;
 if ($failed === 0) {

@@ -1,3 +1,11 @@
+id: 2026-09-15-api-ticket-mutation-hardening
+date: 2026-09-15
+title: Strengere controle bij ticketwijzigingen via de API
+author: Tim Falken
+
+Wijzigingen van **status**, **toewijzing**, **prioriteit** en **due-date** via de API kijken alleen naar een geldige service-key, webhook-key of ICT-rechten van de sessie. Een `user_is_admin`-vlag in het verzoek zelf geeft geen extra rechten meer. Prioriteit moet een heel getal **0**, **1** of **2** zijn; de due-date moet een echte kalenderdatum zijn (`YYYY-MM-DD`, dus geen 31 februari).
+
+---
 id: 2026-09-15-api-change-ticket-status
 date: 2026-09-15
 title: Ticketstatus, toewijzing en prioriteit via de API

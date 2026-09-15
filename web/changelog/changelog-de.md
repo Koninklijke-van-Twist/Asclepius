@@ -1,3 +1,11 @@
+id: 2026-09-15-api-ticket-mutation-hardening
+date: 2026-09-15
+title: Strengere Prüfung bei Ticketänderungen über die API
+author: Tim Falken
+
+Änderungen von **Status**, **Zuweisung**, **Priorität** und **Fälligkeitsdatum** über die API prüfen nur noch einen gültigen Service-Key, Webhook-Key oder die ICT-Rechte der Sitzung. Ein `user_is_admin`-Flag in der Anfrage selbst gibt keine zusätzlichen Rechte mehr. Die Priorität muss eine ganze Zahl **0**, **1** oder **2** sein; das Fälligkeitsdatum muss ein echtes Kalenderdatum sein (`YYYY-MM-DD`, also kein 31. Februar).
+
+---
 id: 2026-09-15-api-change-ticket-status
 date: 2026-09-15
 title: Ticketstatus, Zuweisung und Priorität über die API

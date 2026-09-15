@@ -1,3 +1,11 @@
+id: 2026-09-15-api-ticket-mutation-hardening
+date: 2026-09-15
+title: Stricter checks when changing tickets via the API
+author: Tim Falken
+
+API changes to **status**, **assignee**, **priority**, and **due date** now rely only on a valid service key, webhook key, or the session’s ICT rights. A `user_is_admin` flag in the request body no longer grants extra access. Priority must be a whole number **0**, **1**, or **2**; the due date must be a real calendar date (`YYYY-MM-DD`, so 31 February is rejected).
+
+---
 id: 2026-09-15-api-change-ticket-status
 date: 2026-09-15
 title: Ticket status, assignment and priority via the API

@@ -302,7 +302,29 @@ Slaat per categorie alleen een rij op als het aantal open tickets is veranderd. 
 
 `change_ticket_category` — `ticket_id`, `category` (moet in `ticket_lookups.categories` zitten), optioneel `reassign` (bool). Zet een systeemnotitie. ICT, service-key, webhook-key of trusted.
 
-`change_ticket_status` — `ticket_id` (alias `id`), `status`. Zelfde rechten als `change_ticket_category`. `status` is een vaste waarde uit `ticket_lookups.statuses` of een eigen label (zoals in de UI, max. 40 tekens). Zet een systeemnotitie, werkt `resolved_at` bij, en stuurt dezelfde meldingen als het ICT-overzicht. Overgang naar `afgehandeld` vuurt de `ticket-solved`-webhook. Al dezelfde status → `200` met `"unchanged": true`. Fouten: `403` `forbidden`, `404` `ticket_not_found`, `422` (`ticket_id_required`, `invalid_status`).
+De vier mutaties hieronder (`change_ticket_status`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date`) gebruiken dezelfde autorisatie als `change_ticket_category`: geldige **service-key**, **webhook-key** (`apiClient.is_admin`), ICT-rechten van de sessie, of trusted localhost. Een client-meegegeven `user_is_admin` in de body wordt **genegeerd**.
+
+Gemeenschappelijke foutvorm (`success: false`):
+
+| HTTP | `error_code` | Wanneer |
+| --- | --- | --- |
+| `403` | `forbidden` | Geen service-key / webhook-key / ICT-rechten / trusted localhost |
+| `404` | `ticket_not_found` | Ticket bestaat niet of valt buiten de ICT-categorieën van een beperkte rol |
+| `422` | `ticket_id_required` | `ticket_id` / `id` ontbreekt of is geen positief geheel getal |
+
+```json
+{
+  "success": false,
+  "error": "Alleen admins kunnen instellingen aanpassen.",
+  "error_code": "forbidden"
+}
+```
+
+`error` is meestal een gelokaliseerde flash-tekst; bij `ticket_id_required` is `error` gelijk aan de `error_code`.
+
+#### `change_ticket_status`
+
+`ticket_id` (alias `id`), `status`. `status` is een vaste waarde uit `ticket_lookups.statuses` of een eigen label (zoals in de UI, max. 40 tekens). Zet een systeemnotitie, werkt `resolved_at` bij, en stuurt dezelfde meldingen als het ICT-overzicht. Overgang naar `afgehandeld` vuurt de `ticket-solved`-webhook.
 
 ```json
 {
@@ -312,25 +334,114 @@ Slaat per categorie alleen een rij op als het aantal open tickets is veranderd. 
 }
 ```
 
+Succes na wijziging → `200`:
+
+```json
+{
+  "success": true,
+  "unchanged": false,
+  "message": "Status bijgewerkt.",
+  "ticket_id": 776,
+  "status": "in behandeling",
+  "status_label": "in behandeling",
+  "status_color": "#d97706",
+  "resolved_at": null,
+  "message_id": 123,
+  "message_html": "<article class=\"ticket-message\">…</article>"
+}
+```
+
+Al dezelfde status → `200` met `"unchanged": true`. Dezelfde velden als hierboven, **zonder** `message_id` en `message_html`.
+
+Extra fout: `422` `invalid_status` (leeg of ongeldig label).
+
+#### `change_ticket_assignee`
+
+`ticket_id`, `assigned_email` (aliassen `assignee` / `assigned`; lege string = niet toegewezen). Zelfde toewijzingsregels als de UI (categorie, afwezigheid, geen toewijzing aan de aanvrager behalve bij template-tickets of zelf toewijzen). Meldingen naar aanvrager en nieuwe medewerker. Open tickets zonder assignee worden bij het laden weer automatisch toegewezen (zelfde als de UI).
+
+```json
+{
+  "action": "change_ticket_assignee",
+  "ticket_id": 776,
+  "assigned_email": "colleague@kvt.nl"
+}
+```
+
 Succes → `200`:
 
 ```json
 {
   "success": true,
   "unchanged": false,
+  "message": "Toewijzing bijgewerkt.",
   "ticket_id": 776,
-  "status": "in behandeling",
-  "status_label": "in behandeling",
-  "resolved_at": null,
-  "message_id": 123
+  "assigned_email": "colleague@kvt.nl",
+  "assigned_label": "Colleague",
+  "assigned_color": "#0f766e"
 }
 ```
 
-`change_ticket_assignee` — `ticket_id`, `assigned_email` (aliassen `assignee` / `assigned`; lege string = niet toegewezen). Zelfde rechten en toewijzingsregels als de UI (categorie, afwezigheid, geen toewijzing aan de aanvrager behalve bij template-tickets of zelf toewijzen). Meldingen naar aanvrager en nieuwe medewerker. Open tickets zonder assignee worden bij het laden weer automatisch toegewezen (zelfde als de UI). Al dezelfde toewijzing → `"unchanged": true`.
+Al dezelfde toewijzing → `200` met `"unchanged": true` en dezelfde velden.
 
-`change_ticket_priority` — `ticket_id`, `priority` (`0`–`2`). Zelfde rechten. Tickets mét due-date krijgen hun prioriteit uit die datum; de API weigert dan met `priority_follows_due_date`. Geen e-mail bij alleen een prioriteitswijziging.
+Extra fouten (`422`): `invalid_employee`, `self_assignment_not_allowed`, `employee_away`.
 
-`change_ticket_due_date` — `ticket_id`, `due_date` (`YYYY-MM-DD`). Zelfde rechten. Past de afgeleide prioriteit aan zoals in de UI. Leeg of ongeldig → `invalid_due_date`.
+#### `change_ticket_priority`
+
+`ticket_id`, `priority`. Alleen een geheel getal `0`, `1` of `2` (JSON-integer of string `"0"` / `"1"` / `"2"`). Waarden als `"invalid"`, `"1x"` of `1.9` worden geweigerd. Tickets mét due-date krijgen hun prioriteit uit die datum. Geen e-mail bij alleen een prioriteitswijziging.
+
+```json
+{
+  "action": "change_ticket_priority",
+  "ticket_id": 776,
+  "priority": 2
+}
+```
+
+Succes → `200`:
+
+```json
+{
+  "success": true,
+  "unchanged": false,
+  "message": "Prioriteit bijgewerkt.",
+  "ticket_id": 776,
+  "priority": 2,
+  "priority_label": "2 · Geblokkeerd"
+}
+```
+
+Al dezelfde prioriteit → `200` met `"unchanged": true` en dezelfde velden.
+
+Extra fouten (`422`): `invalid_priority`, `priority_follows_due_date`.
+
+#### `change_ticket_due_date`
+
+`ticket_id`, `due_date` (alias `due`). Alleen een echte kalenderdatum `YYYY-MM-DD` (geen `2026-02-31`, geen suffix zoals `2026-09-15T14:30:00`). Past de afgeleide prioriteit aan zoals in de UI.
+
+```json
+{
+  "action": "change_ticket_due_date",
+  "ticket_id": 776,
+  "due_date": "2026-09-16"
+}
+```
+
+Succes → `200`:
+
+```json
+{
+  "success": true,
+  "unchanged": false,
+  "message": "Due-date bijgewerkt.",
+  "ticket_id": 776,
+  "due_date": "2026-09-16",
+  "priority": 2
+}
+```
+
+Al dezelfde due-date → `200` met `"unchanged": true` en dezelfde velden.
+
+Extra fout: `422` `invalid_due_date` (leeg, verkeerd formaat of onmogelijke kalenderdatum).
 
 `change_ticket_title` — `ticket_id`, `title` (niet leeg). Admin of trusted. Wist titelvertalingen.
 

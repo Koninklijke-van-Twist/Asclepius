@@ -1,3 +1,11 @@
+id: 2026-09-15-api-ticket-mutation-hardening
+date: 2026-09-15
+title: Contrôles plus stricts lors des modifications de tickets via l’API
+author: Tim Falken
+
+Les modifications de **statut**, **attribution**, **priorité** et **date d’échéance** via l’API ne s’appuient plus que sur une clé de service, une clé de webhook ou les droits ICT de la session. Un indicateur `user_is_admin` dans la requête elle-même n’accorde plus de droits supplémentaires. La priorité doit être un entier **0**, **1** ou **2** ; la date d’échéance doit être une date de calendrier réelle (`YYYY-MM-DD`, donc pas le 31 février).
+
+---
 id: 2026-09-15-api-change-ticket-status
 date: 2026-09-15
 title: Statut, attribution et priorité des tickets via l’API
