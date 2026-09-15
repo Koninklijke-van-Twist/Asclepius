@@ -1,3 +1,11 @@
+id: 2026-09-15-api-change-ticket-status
+date: 2026-09-15
+title: Ticket status, assignment and priority via the API
+author: Tim Falken
+
+Bots and integrations (such as ICT-Bot) can now change a ticket’s **status** through the HTTP API, for example to **in behandeling** or **resolved**. This matches the ICT overview: built-in statuses, custom labels, a system note, and notifications. You can also update the **assignee**, **priority**, and **due date** via the API.
+
+---
 id: 2026-09-11-ticket-message-markdown
 date: 2026-09-11
 title: Markdown in ticket messages

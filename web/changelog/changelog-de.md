@@ -1,3 +1,11 @@
+id: 2026-09-15-api-change-ticket-status
+date: 2026-09-15
+title: Ticketstatus, Zuweisung und Priorität über die API
+author: Tim Falken
+
+Bots und Integrationen (wie ICT-Bot) können den **Status** eines Tickets jetzt über die HTTP-API ändern, zum Beispiel auf **in behandeling** oder **erledigt**. Das entspricht der ICT-Übersicht: feste Statuswerte, eigene Labels, Systemhinweis und Benachrichtigungen. Über die API lassen sich außerdem **Zuweisung**, **Priorität** und **Fälligkeitsdatum** aktualisieren.
+
+---
 id: 2026-09-11-ticket-message-markdown
 date: 2026-09-11
 title: Markdown in Ticketnachrichten
