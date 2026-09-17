@@ -4191,17 +4191,29 @@ class TicketStore
 
     private function normalizeDueDate(?string $dueDate): ?string
     {
-        $rawValue = trim((string) $dueDate);
-        if ($rawValue === '') {
+        if (function_exists('normalizeDueDateInput')) {
+            return normalizeDueDateInput((string) $dueDate);
+        }
+
+        $value = trim((string) $dueDate);
+        if ($value === '' || preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value) !== 1) {
             return null;
         }
 
-        $datePart = substr($rawValue, 0, 10);
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $datePart) !== 1) {
+        try {
+            $timezone = new DateTimeZone(date_default_timezone_get());
+            $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $value, $timezone);
+            $errors = DateTimeImmutable::getLastErrors();
+            $hasParseIssues = is_array($errors)
+                && (((int) ($errors['warning_count'] ?? 0)) > 0 || ((int) ($errors['error_count'] ?? 0)) > 0);
+            if (!$parsed instanceof DateTimeImmutable || $hasParseIssues || $parsed->format('Y-m-d') !== $value) {
+                return null;
+            }
+        } catch (Throwable) {
             return null;
         }
 
-        return $datePart;
+        return $value;
     }
 
     private function applyDerivedPriorityForDueDate(array $ticket): array

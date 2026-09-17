@@ -149,9 +149,21 @@ assertSame(
 );
 
 assertSame(
-    'Datum met tijdzone-suffix wordt afgekapt tot Y-m-d',
-    '2026-05-07',
+    'Datum met tijdzone-suffix wordt afgewezen',
+    null,
     normalizeDueDateInput('2026-05-07T14:30:00')
+);
+
+assertSame(
+    'Onmogelijke kalenderdatum wordt afgewezen',
+    null,
+    normalizeDueDateInput('2026-02-31')
+);
+
+assertSame(
+    'Datum met extra suffix wordt afgewezen',
+    null,
+    normalizeDueDateInput('2026-09-15-invalid')
 );
 
 assertSame(
@@ -170,6 +182,12 @@ assertSame(
     'Jaaraantal alleen geeft null',
     null,
     normalizeDueDateInput('2026')
+);
+
+assertSame(
+    'Geldige datum met spaties wordt getrimd',
+    '2026-05-07',
+    normalizeDueDateInput('  2026-05-07  ')
 );
 
 echo PHP_EOL;
@@ -279,6 +297,7 @@ echo "--- 5. getPriorityFromDueDate() ---" . PHP_EOL;
 // Ongeldig → 0
 assertSame('Lege string → prioriteit 0', 0, getPriorityFromDueDate(''));
 assertSame('Ongeldige tekst → prioriteit 0', 0, getPriorityFromDueDate('onjuist'));
+assertSame('Onmogelijke kalenderdatum → prioriteit 0', 0, getPriorityFromDueDate('2026-02-31'));
 
 // Verleden datum: calendarDaysRemaining is negatief (<7), werkdagen=0 (<3) → prioriteit 2
 // (Een verstreken deadline is urgenter dan een toekomstige deadline)

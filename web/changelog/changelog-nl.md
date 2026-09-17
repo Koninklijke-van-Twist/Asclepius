@@ -1,8 +1,9 @@
-id: 2026-09-17-resolution-docs-modal
-date: 2026-09-17
-title: Technische oplossing bij afhandelen
+id: 2026-09-15-api-ticket-mutation-hardening
+date: 2026-09-15
+title: Strengere controle bij ticketwijzigingen via de API
 author: Tim Falken
 
+Wijzigingen van **status**, **toewijzing**, **prioriteit** en **due-date** via de API kijken alleen naar een geldige service-key, webhook-key of ICT-rechten van de sessie. Een `user_is_admin`-vlag in het verzoek zelf geeft geen extra rechten meer. Prioriteit moet een heel getal **0**, **1** of **2** zijn; de due-date moet een echte kalenderdatum zijn (`YYYY-MM-DD`, dus geen 31 februari).
 Als ICT een ticket op **Afgehandeld** zet, vraagt Opslaan eerst om de technische oplossing. Die notitie is optioneel en komt als intern (ghost) bericht in het ticket, zichtbaar voor collega’s. Onder **Voorkeuren** kun je die vraag uitzetten; je krijgt dan een herinnering om de technische oplossing zelf in het ticket te documenteren.
 
 ---

@@ -1,8 +1,9 @@
-id: 2026-09-17-resolution-docs-modal
-date: 2026-09-17
-title: Technical solution when resolving
+id: 2026-09-15-api-ticket-mutation-hardening
+date: 2026-09-15
+title: Stricter checks when changing tickets via the API
 author: Tim Falken
 
+API changes to **status**, **assignee**, **priority**, and **due date** now rely only on a valid service key, webhook key, or the session’s ICT rights. A `user_is_admin` flag in the request body no longer grants extra access. Priority must be a whole number **0**, **1**, or **2**; the due date must be a real calendar date (`YYYY-MM-DD`, so 31 February is rejected).
 When ICT marks a ticket **resolved**, Save first asks for the technical solution. That note is optional and is stored as an internal (ghost) message for colleagues. Under **Preferences** you can turn that prompt off; you then get a reminder to document the technical solution in the ticket yourself.
 
 ---

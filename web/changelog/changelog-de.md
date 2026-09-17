@@ -1,8 +1,9 @@
-id: 2026-09-17-resolution-docs-modal
-date: 2026-09-17
-title: Technische Lösung beim Abschließen
+id: 2026-09-15-api-ticket-mutation-hardening
+date: 2026-09-15
+title: Strengere Prüfung bei Ticketänderungen über die API
 author: Tim Falken
 
+Änderungen von **Status**, **Zuweisung**, **Priorität** und **Fälligkeitsdatum** über die API prüfen nur noch einen gültigen Service-Key, Webhook-Key oder die ICT-Rechte der Sitzung. Ein `user_is_admin`-Flag in der Anfrage selbst gibt keine zusätzlichen Rechte mehr. Die Priorität muss eine ganze Zahl **0**, **1** oder **2** sein; das Fälligkeitsdatum muss ein echtes Kalenderdatum sein (`YYYY-MM-DD`, also kein 31. Februar).
 Wenn ICT ein Ticket auf **erledigt** setzt, fragt Speichern zuerst nach der technischen Lösung. Die Notiz ist optional und wird als interne (Ghost-)Nachricht für Kollegen gespeichert. Unter **Einstellungen** können Sie diese Abfrage ausschalten; dann erscheint eine Erinnerung, die technische Lösung selbst im Ticket zu dokumentieren.
 
 ---
