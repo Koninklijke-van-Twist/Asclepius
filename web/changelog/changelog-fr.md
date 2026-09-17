@@ -4,6 +4,7 @@ title: Contrôles plus stricts lors des modifications de tickets via l’API
 author: Tim Falken
 
 Les modifications de **statut**, **attribution**, **priorité** et **date d’échéance** via l’API ne s’appuient plus que sur une clé de service, une clé de webhook ou les droits ICT de la session. Un indicateur `user_is_admin` dans la requête elle-même n’accorde plus de droits supplémentaires. La priorité doit être un entier **0**, **1** ou **2** ; la date d’échéance doit être une date de calendrier réelle (`YYYY-MM-DD`, donc pas le 31 février).
+Quand l’ICT passe un ticket à **résolu**, Enregistrer demande d’abord la solution technique. La note est facultative et est enregistrée comme message interne (ghost) pour les collègues. Dans **Préférences**, vous pouvez désactiver cette demande ; un rappel apparaît alors pour documenter vous-même la solution technique dans le ticket.
 
 ---
 id: 2026-09-15-api-change-ticket-status
@@ -19,7 +20,7 @@ date: 2026-09-11
 title: Markdown dans les messages de ticket
 author: Tim Falken
 
-Le texte des messages de ticket (y compris les messages fantômes de bots comme ICT-Bot) affiche désormais le **Markdown** : gras, italique, titres, listes, liens, code et citations. Le texte brut conserve ses retours à la ligne. Les pièces jointes intégrées et les icônes de clavier fonctionnent toujours.
+Le texte des messages de ticket (y compris les messages fantômes de bots comme ICT-Bot) affiche désormais le **Markdown** : gras, italique, titres, listes, tableaux, liens, code et citations. Le texte brut conserve ses retours à la ligne. Les pièces jointes intégrées et les icônes de clavier fonctionnent toujours.
 
 ---
 id: 2026-09-11-grok-webhook-ticket-solved

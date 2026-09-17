@@ -184,6 +184,9 @@ const TRANSLATIONS = [
         'email_prefs.type_escalation' => 'Escalatie (lang open ticket)',
         'email_prefs.saved' => 'Voorkeur opgeslagen',
         'email_prefs.save_failed' => 'Opslaan mislukt',
+        'email_prefs.ask_resolution_note' => 'Vraag om technische oplossing bij afhandelen ticket',
+        'email_prefs.ask_resolution_note_warning' => 'Let op: Het is belangrijk dat je in de ticket documenteert hoe een probleem op een technisch vlak opgelost is. Doe dit met een ghost-bericht voor je de ticket op afgehandeld zet, tenzij het bericht naar de gebruiker die informatie al voldoende bevat.',
+        'email_prefs.ask_resolution_note_understand' => 'Ik begrijp het',
         'appearance.heading' => 'Uiterlijk',
         'appearance.intro' => 'Pas aan hoe tickets er voor jou uitzien. Wijzigingen worden direct opgeslagen en gelden overal.',
         'appearance.show_priority_markers' => 'Statusbolletjes',
@@ -294,6 +297,8 @@ const TRANSLATIONS = [
         'appearance.sort_help_message_count' => 'Vergelijkt hoeveel reacties een ticket heeft.',
         'appearance.sort_help_attachment_count' => 'Vergelijkt hoeveel bijlagen er aan een ticket hangen.',
         'ticket.btn_save' => 'Opslaan',
+        'ticket.resolution_modal_heading' => 'Technische oplossing documenteren',
+        'ticket.resolution_modal_placeholder' => 'Noteer hier op een technisch niveau hoe het probleem van de aanvrager opgelost is. Dit kan dan door je collega\'s ter referentie ingezien worden als ze een vergelijkbare ticket aan moeten pakken.',
         'ticket.btn_reply' => 'Reactie plaatsen en medewerker mailen',
         'ticket.show_original' => 'Toon origineel',
         'ticket.show_translation' => 'Toon vertaling',
@@ -812,6 +817,9 @@ const TRANSLATIONS = [
         'email_prefs.type_escalation' => 'Escalation (long-open ticket)',
         'email_prefs.saved' => 'Preference saved',
         'email_prefs.save_failed' => 'Save failed',
+        'email_prefs.ask_resolution_note' => 'Ask for a technical solution when resolving a ticket',
+        'email_prefs.ask_resolution_note_warning' => 'Note: It is important that you document in the ticket how a problem was solved at a technical level. Do this with a ghost message before you mark the ticket as resolved, unless the message to the user already contains that information.',
+        'email_prefs.ask_resolution_note_understand' => 'I understand',
         'appearance.heading' => 'Appearance',
         'appearance.intro' => 'Choose how tickets look for you. Changes are saved immediately and apply everywhere.',
         'appearance.show_priority_markers' => 'Priority dots',
@@ -922,6 +930,8 @@ const TRANSLATIONS = [
         'appearance.sort_help_message_count' => 'Compares how many replies a ticket has.',
         'appearance.sort_help_attachment_count' => 'Compares how many attachments a ticket has.',
         'ticket.btn_save' => 'Save',
+        'ticket.resolution_modal_heading' => 'Document the technical solution',
+        'ticket.resolution_modal_placeholder' => 'Note here at a technical level how the requester’s problem was solved. Colleagues can use this as a reference when they handle a similar ticket.',
         'ticket.btn_reply' => 'Post reply and email staff',
         'ticket.show_original' => 'Show original',
         'ticket.show_translation' => 'Show translation',
@@ -1440,6 +1450,9 @@ const TRANSLATIONS = [
         'email_prefs.type_escalation' => 'Eskalation (lange offenes Ticket)',
         'email_prefs.saved' => 'Einstellung gespeichert',
         'email_prefs.save_failed' => 'Speichern fehlgeschlagen',
+        'email_prefs.ask_resolution_note' => 'Bei Abschluss eines Tickets nach der technischen Lösung fragen',
+        'email_prefs.ask_resolution_note_warning' => 'Achtung: Es ist wichtig, dass Sie im Ticket dokumentieren, wie ein Problem technisch gelöst wurde. Tun Sie das mit einer Ghost-Nachricht, bevor Sie das Ticket auf erledigt setzen, es sei denn, die Nachricht an den Benutzer enthält diese Information bereits ausreichend.',
+        'email_prefs.ask_resolution_note_understand' => 'Ich verstehe',
         'appearance.heading' => 'Darstellung',
         'appearance.intro' => 'Legen Sie fest, wie Tickets für Sie aussehen. Änderungen werden sofort gespeichert und gelten überall.',
         'appearance.show_priority_markers' => 'Prioritätspunkte',
@@ -1550,6 +1563,8 @@ const TRANSLATIONS = [
         'appearance.sort_help_message_count' => 'Vergleicht, wie viele Antworten ein Ticket hat.',
         'appearance.sort_help_attachment_count' => 'Vergleicht, wie viele Anhänge ein Ticket hat.',
         'ticket.btn_save' => 'Speichern',
+        'ticket.resolution_modal_heading' => 'Technische Lösung dokumentieren',
+        'ticket.resolution_modal_placeholder' => 'Notieren Sie hier auf technischer Ebene, wie das Problem des Antragstellers gelöst wurde. Kollegen können dies als Referenz nutzen, wenn sie ein ähnliches Ticket bearbeiten.',
         'ticket.btn_reply' => 'Antwort senden und Mitarbeiter benachrichtigen',
         'ticket.show_original' => 'Original anzeigen',
         'ticket.show_translation' => 'Uebersetzung anzeigen',
@@ -2068,6 +2083,9 @@ const TRANSLATIONS = [
         'email_prefs.type_escalation' => 'Escalade (ticket ouvert longtemps)',
         'email_prefs.saved' => 'Préférence enregistrée',
         'email_prefs.save_failed' => 'Échec de l\'enregistrement',
+        'email_prefs.ask_resolution_note' => 'Demander la solution technique lors du traitement d’un ticket',
+        'email_prefs.ask_resolution_note_warning' => 'Attention : il est important de documenter dans le ticket comment un problème a été résolu sur le plan technique. Faites-le avec un message ghost avant de marquer le ticket comme traité, sauf si le message à l’utilisateur contient déjà suffisamment cette information.',
+        'email_prefs.ask_resolution_note_understand' => 'J’ai compris',
         'appearance.heading' => 'Apparence',
         'appearance.intro' => 'Choisissez l\'apparence des tickets pour vous. Les modifications sont enregistrées immédiatement et s\'appliquent partout.',
         'appearance.show_priority_markers' => 'Pastilles de priorité',
@@ -2178,6 +2196,8 @@ const TRANSLATIONS = [
         'appearance.sort_help_message_count' => 'Compare le nombre de réponses d’un ticket.',
         'appearance.sort_help_attachment_count' => 'Compare le nombre de pièces jointes d’un ticket.',
         'ticket.btn_save' => 'Enregistrer',
+        'ticket.resolution_modal_heading' => 'Documenter la solution technique',
+        'ticket.resolution_modal_placeholder' => 'Notez ici, à un niveau technique, comment le problème du demandeur a été résolu. Vos collègues pourront s’y référer s’ils doivent traiter un ticket similaire.',
         'ticket.btn_reply' => 'Publier la réponse et envoyer un e-mail au collaborateur',
         'ticket.show_original' => 'Afficher l\'original',
         'ticket.show_translation' => 'Afficher la traduction',
@@ -2567,6 +2587,15 @@ function saveUserPref(string $email, string $key, mixed $value): void
     $prefs = loadUserPrefs($email);
     $prefs[$key] = $value;
     file_put_contents($path, json_encode($prefs, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+}
+
+function userAsksResolutionNoteOnResolve(array $userPrefs): bool
+{
+    if (!array_key_exists('ask_resolution_note', $userPrefs)) {
+        return true;
+    }
+
+    return !empty($userPrefs['ask_resolution_note']);
 }
 
 function getCurrentLanguage(): string

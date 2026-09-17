@@ -4,6 +4,7 @@ title: Strengere Prüfung bei Ticketänderungen über die API
 author: Tim Falken
 
 Änderungen von **Status**, **Zuweisung**, **Priorität** und **Fälligkeitsdatum** über die API prüfen nur noch einen gültigen Service-Key, Webhook-Key oder die ICT-Rechte der Sitzung. Ein `user_is_admin`-Flag in der Anfrage selbst gibt keine zusätzlichen Rechte mehr. Die Priorität muss eine ganze Zahl **0**, **1** oder **2** sein; das Fälligkeitsdatum muss ein echtes Kalenderdatum sein (`YYYY-MM-DD`, also kein 31. Februar).
+Wenn ICT ein Ticket auf **erledigt** setzt, fragt Speichern zuerst nach der technischen Lösung. Die Notiz ist optional und wird als interne (Ghost-)Nachricht für Kollegen gespeichert. Unter **Einstellungen** können Sie diese Abfrage ausschalten; dann erscheint eine Erinnerung, die technische Lösung selbst im Ticket zu dokumentieren.
 
 ---
 id: 2026-09-15-api-change-ticket-status
@@ -19,7 +20,7 @@ date: 2026-09-11
 title: Markdown in Ticketnachrichten
 author: Tim Falken
 
-Der Text in Ticketnachrichten (einschließlich Ghost-Nachrichten von Bots wie ICT-Bot) stellt jetzt **Markdown** dar: fett, kursiv, Überschriften, Listen, Links, Code und Zitate. Gewöhnlicher Klartext behält seine Zeilenumbrüche. Inline-Anhänge und Tastatur-Icons funktionieren weiterhin.
+Der Text in Ticketnachrichten (einschließlich Ghost-Nachrichten von Bots wie ICT-Bot) stellt jetzt **Markdown** dar: fett, kursiv, Überschriften, Listen, Tabellen, Links, Code und Zitate. Gewöhnlicher Klartext behält seine Zeilenumbrüche. Inline-Anhänge und Tastatur-Icons funktionieren weiterhin.
 
 ---
 id: 2026-09-11-grok-webhook-ticket-solved

@@ -1267,6 +1267,99 @@
                     });
                 });
             });
+
+            var askResolutionNoteCheckbox = emailPrefsSection.querySelector('[data-ask-resolution-note-pref]');
+            var askResolutionNoteWarning = emailPrefsSection.querySelector('[data-role="ask-resolution-note-warning-modal"]');
+            var closeAskResolutionNoteWarning = function ()
+            {
+                if (!askResolutionNoteWarning)
+                {
+                    return;
+                }
+
+                askResolutionNoteWarning.hidden = true;
+                askResolutionNoteWarning.classList.remove('is-open');
+                document.documentElement.style.overflow = '';
+            };
+            var openAskResolutionNoteWarning = function ()
+            {
+                if (!askResolutionNoteWarning)
+                {
+                    return;
+                }
+
+                askResolutionNoteWarning.hidden = false;
+                askResolutionNoteWarning.classList.add('is-open');
+                document.documentElement.style.overflow = 'hidden';
+                var dismissButton = askResolutionNoteWarning.querySelector('[data-role="ask-resolution-note-dismiss"]');
+                if (dismissButton)
+                {
+                    dismissButton.focus();
+                }
+            };
+
+            if (askResolutionNoteWarning)
+            {
+                askResolutionNoteWarning.addEventListener('click', function (event)
+                {
+                    if (event.target.closest('[data-role="ask-resolution-note-dismiss"]'))
+                    {
+                        event.preventDefault();
+                        closeAskResolutionNoteWarning();
+                    }
+                });
+            }
+
+            if (askResolutionNoteCheckbox)
+            {
+                askResolutionNoteCheckbox.addEventListener('change', function ()
+                {
+                    var enabled = !!askResolutionNoteCheckbox.checked;
+                    fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': apiKey
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({
+                            action: 'save_ask_resolution_note',
+                            csrf_token: csrfToken,
+                            viewer_email: emailPrefsViewerEmail,
+                            user_is_admin: emailPrefsUserIsAdmin,
+                            is_admin_portal: true,
+                            enabled: enabled ? 1 : 0
+                        })
+                    }).then(function (response)
+                    {
+                        if (!response.ok)
+                        {
+                            throw new Error('ask-resolution-note-request-failed');
+                        }
+
+                        return response.json();
+                    }).then(function (data)
+                    {
+                        if (!data || !data.success)
+                        {
+                            askResolutionNoteCheckbox.checked = !enabled;
+                            showEmailPrefsFeedback(EMAIL_PREFS_SAVE_FAILED_LABEL, true);
+                            return;
+                        }
+
+                        document.body.setAttribute('data-ask-resolution-note', enabled ? '1' : '0');
+                        showEmailPrefsFeedback(EMAIL_PREFS_SAVED_LABEL, false);
+                        if (!enabled)
+                        {
+                            openAskResolutionNoteWarning();
+                        }
+                    }).catch(function ()
+                    {
+                        askResolutionNoteCheckbox.checked = !enabled;
+                        showEmailPrefsFeedback(EMAIL_PREFS_SAVE_FAILED_LABEL, true);
+                    });
+                });
+            }
         }
 
         var appearancePrefsRoot = document.querySelector('[data-appearance-prefs]');
@@ -3666,6 +3759,22 @@
                 return;
             }
 
+            var closeResolutionNoteButton = event.target.closest('[data-role="resolution-note-close"]');
+            if (closeResolutionNoteButton)
+            {
+                event.preventDefault();
+                closeResolutionNoteModal(closeResolutionNoteButton.closest('details.ticket-card'));
+                return;
+            }
+
+            var saveResolutionNoteButton = event.target.closest('[data-role="resolution-note-save"]');
+            if (saveResolutionNoteButton)
+            {
+                event.preventDefault();
+                confirmResolutionNoteModal(saveResolutionNoteButton.closest('details.ticket-card'));
+                return;
+            }
+
             var saveTitleButton = event.target.closest('[data-role="change-title-save"]');
             if (saveTitleButton)
             {
@@ -3980,6 +4089,16 @@
 
             if (event.key === 'Escape')
             {
+                var askResolutionWarningModal = document.querySelector('[data-role="ask-resolution-note-warning-modal"].is-open');
+                if (askResolutionWarningModal)
+                {
+                    event.preventDefault();
+                    askResolutionWarningModal.hidden = true;
+                    askResolutionWarningModal.classList.remove('is-open');
+                    document.documentElement.style.overflow = '';
+                    return;
+                }
+
                 var openOutOfScopeModal = document.querySelector('[data-role="ticket-category-out-of-scope-modal"].is-open');
                 if (openOutOfScopeModal)
                 {
@@ -3987,7 +4106,7 @@
                     return;
                 }
 
-                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-custom-status-modal"].is-open, [data-role="ticket-share-modal"].is-open, [data-role="ticket-title-modal"].is-open').forEach(function (modal)
+                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-custom-status-modal"].is-open, [data-role="ticket-share-modal"].is-open, [data-role="ticket-title-modal"].is-open, [data-role="ticket-resolution-note-modal"].is-open').forEach(function (modal)
                 {
                     modal.hidden = true;
                     modal.classList.remove('is-open');
@@ -4159,6 +4278,114 @@
             });
         };
 
+        var shouldPromptResolutionNote = function (form)
+        {
+            if (!(form instanceof HTMLFormElement))
+            {
+                return false;
+            }
+
+            if ((document.body.getAttribute('data-ask-resolution-note') || '1') !== '1')
+            {
+                return false;
+            }
+
+            var actionInput = form.querySelector('input[name="form_action"]');
+            if (!actionInput || String(actionInput.value || '') !== 'reply_ticket')
+            {
+                return false;
+            }
+
+            var ticketCard = form.closest('details.ticket-card');
+            var statusSelect = form.querySelector('[data-role="status-select"]');
+            if (!ticketCard || !statusSelect)
+            {
+                return false;
+            }
+
+            var currentStatus = String(ticketCard.getAttribute('data-status') || '').toLowerCase();
+            var requestedStatus = String(statusSelect.value || '').toLowerCase();
+            return requestedStatus === 'afgehandeld' && currentStatus !== 'afgehandeld';
+        };
+
+        var closeResolutionNoteModal = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var modal = ticketCard.querySelector('[data-role="ticket-resolution-note-modal"]');
+            if (!modal)
+            {
+                return;
+            }
+
+            modal.hidden = true;
+            modal.classList.remove('is-open');
+            document.documentElement.style.overflow = '';
+        };
+
+        var openResolutionNoteModal = function (form)
+        {
+            var ticketCard = form ? form.closest('details.ticket-card') : null;
+            var modal = ticketCard ? ticketCard.querySelector('[data-role="ticket-resolution-note-modal"]') : null;
+            if (!ticketCard || !modal)
+            {
+                form.dataset.resolutionNoteConfirmed = '1';
+                if (typeof form.requestSubmit === 'function')
+                {
+                    form.requestSubmit();
+                }
+                else
+                {
+                    form.submit();
+                }
+                return;
+            }
+
+            modal.hidden = false;
+            modal.classList.add('is-open');
+            document.documentElement.style.overflow = 'hidden';
+            var textarea = modal.querySelector('[data-role="resolution-note-textarea"]');
+            if (textarea)
+            {
+                textarea.focus();
+            }
+        };
+
+        var confirmResolutionNoteModal = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var form = ticketCard.querySelector('form.reply-form');
+            var modal = ticketCard.querySelector('[data-role="ticket-resolution-note-modal"]');
+            var textarea = modal ? modal.querySelector('[data-role="resolution-note-textarea"]') : null;
+            var hiddenInput = form ? form.querySelector('[data-role="resolution-note-input"]') : null;
+            if (!form)
+            {
+                return;
+            }
+
+            if (hiddenInput)
+            {
+                hiddenInput.value = textarea ? String(textarea.value || '').trim() : '';
+            }
+            form.dataset.resolutionNoteConfirmed = '1';
+            closeResolutionNoteModal(ticketCard);
+            if (typeof form.requestSubmit === 'function')
+            {
+                form.requestSubmit();
+            }
+            else
+            {
+                form.submit();
+            }
+        };
+
         document.addEventListener('submit', function (event)
         {
             var form = event.target;
@@ -4176,6 +4403,13 @@
             if (sessionExpiredHandled)
             {
                 event.preventDefault();
+                return;
+            }
+
+            if (form.dataset.resolutionNoteConfirmed !== '1' && shouldPromptResolutionNote(form))
+            {
+                event.preventDefault();
+                openResolutionNoteModal(form);
                 return;
             }
 
@@ -6411,6 +6645,88 @@
             {
                 return /^(\s*)\[( |x|X)\](?:\s+(.*))?$/.test(line);
             };
+            var splitTableCells = function (trimmed)
+            {
+                var line = String(trimmed || '').replace(/^\s*\|/, '').replace(/\|\s*$/, '');
+                var cells = [];
+                var current = '';
+                for (var cellIndex = 0; cellIndex < line.length; cellIndex++)
+                {
+                    if (line.charAt(cellIndex) === '\\' && line.charAt(cellIndex + 1) === '|')
+                    {
+                        current += '|';
+                        cellIndex += 1;
+                        continue;
+                    }
+                    if (line.charAt(cellIndex) === '|')
+                    {
+                        cells.push(current.trim());
+                        current = '';
+                        continue;
+                    }
+                    current += line.charAt(cellIndex);
+                }
+                cells.push(current.trim());
+                return cells;
+            };
+            var isTableSeparator = function (trimmed)
+            {
+                if (trimmed.indexOf('|') === -1 || trimmed.indexOf('-') === -1)
+                {
+                    return false;
+                }
+                var cells = splitTableCells(trimmed);
+                if (cells.length === 0)
+                {
+                    return false;
+                }
+                return cells.every(function (cell)
+                {
+                    return /^:?-{3,}:?$/.test(cell);
+                });
+            };
+            var isTableRow = function (trimmed)
+            {
+                return trimmed !== '' && trimmed.indexOf('|') !== -1;
+            };
+            var parseTableAlignments = function (trimmed)
+            {
+                return splitTableCells(trimmed).map(function (cell)
+                {
+                    var left = cell.charAt(0) === ':';
+                    var right = cell.charAt(cell.length - 1) === ':';
+                    if (left && right)
+                    {
+                        return 'center';
+                    }
+                    return right ? 'right' : 'left';
+                });
+            };
+            var isTableBodyStop = function (line)
+            {
+                var tableTrimmed = String(line || '').trim();
+                if (tableTrimmed === '' || !isTableRow(tableTrimmed))
+                {
+                    return true;
+                }
+                return isAttachment(tableTrimmed)
+                    || isHeading(tableTrimmed)
+                    || isQuote(tableTrimmed)
+                    || isUnordered(tableTrimmed)
+                    || isOrdered(tableTrimmed)
+                    || isCheckbox(line)
+                    || /^```([a-zA-Z0-9_-]*)[ \t]*$/.test(tableTrimmed);
+            };
+            var renderTableCell = function (cellText, tag, alignment)
+            {
+                var alignClass = (alignment === 'center' || alignment === 'right')
+                    ? ' message-md-cell-' + alignment
+                    : '';
+                var content = String(cellText || '').trim() === ''
+                    ? '&nbsp;'
+                    : formatTicketMessageInlineHtml(cellText);
+                return '<' + tag + ' class="message-md-cell' + alignClass + '">' + content + '</' + tag + '>';
+            };
             var renderListItem = function (itemText, lineIndex)
             {
                 return isCheckbox(itemText)
@@ -6468,6 +6784,39 @@
                         + formatTicketMessageInlineHtml(headingMatch ? headingMatch[2] : trimmed)
                         + '</h' + tagLevel + '>');
                     index += 1;
+                    continue;
+                }
+
+                var nextTrimmed = index + 1 < lines.length ? String(lines[index + 1] || '').trim() : '';
+                if (isTableRow(trimmed) && isTableSeparator(nextTrimmed))
+                {
+                    flushPending();
+                    var headerCells = splitTableCells(trimmed);
+                    var alignments = parseTableAlignments(nextTrimmed);
+                    var columnCount = headerCells.length;
+                    var headerHtml = '';
+                    for (var headerColumn = 0; headerColumn < columnCount; headerColumn++)
+                    {
+                        headerHtml += renderTableCell(headerCells[headerColumn] || '', 'th', alignments[headerColumn] || 'left');
+                    }
+                    var bodyHtml = '';
+                    index += 2;
+                    while (index < lines.length && !isTableBodyStop(lines[index]))
+                    {
+                        var rowCells = splitTableCells(String(lines[index] || '').trim());
+                        bodyHtml += '<tr>';
+                        for (var bodyColumn = 0; bodyColumn < columnCount; bodyColumn++)
+                        {
+                            bodyHtml += renderTableCell(rowCells[bodyColumn] || '', 'td', alignments[bodyColumn] || 'left');
+                        }
+                        bodyHtml += '</tr>';
+                        index += 1;
+                    }
+                    parts.push('<div class="message-md-table-wrap"><table class="message-md-table"><thead><tr>'
+                        + headerHtml
+                        + '</tr></thead>'
+                        + (bodyHtml !== '' ? '<tbody>' + bodyHtml + '</tbody>' : '')
+                        + '</table></div>');
                     continue;
                 }
 
@@ -7170,7 +7519,7 @@
 
         var ticketSectionHasActiveInput = function (section)
         {
-            if (section.querySelector('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-custom-status-modal"].is-open, [data-role="ticket-title-modal"].is-open'))
+            if (section.querySelector('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-custom-status-modal"].is-open, [data-role="ticket-title-modal"].is-open, [data-role="ticket-resolution-note-modal"].is-open'))
             {
                 return true;
             }
@@ -8714,6 +9063,8 @@
             var popup = wrapper.querySelector('.key-picker-popup');
             var textarea = wrapper.querySelector('textarea');
             if (!toggle || !popup || !textarea) { return; }
+            if (wrapper.dataset.keyPickerInit === '1') { return; }
+            wrapper.dataset.keyPickerInit = '1';
 
             buildKeyPickerPopup(popup);
 

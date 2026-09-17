@@ -74,6 +74,40 @@ $quote = formatTicketMessageText("> let op\n> tweede regel");
 assertContains('Blockquote', '<blockquote class="message-md-quote">', $quote);
 assertContains('Blockquote-inhoud', 'let op', $quote);
 
+$table = formatTicketMessageText(
+    "| Artikel | Aantal | Gereserveerd |\n"
+    . "| --- | ---: | :---: |\n"
+    . "| **ABC-1** | 2 | 1 |\n"
+    . "| DEF | 3 | 0 |"
+);
+assertContains('GFM-tabel krijgt table-class', 'class="message-md-table"', $table);
+assertContains('GFM-tabel heeft thead', '<thead>', $table);
+assertContains('GFM-tabel heeft th', '<th class="message-md-cell">Artikel</th>', $table);
+assertContains('GFM-tabel heeft body-rij', '<td class="message-md-cell">DEF</td>', $table);
+assertContains('Tabelcel krijgt inline vet', '<strong>ABC-1</strong>', $table);
+assertContains('Rechterkolom krijgt alignment-class', 'message-md-cell-right', $table);
+assertContains('Gecentreerde kolom krijgt alignment-class', 'message-md-cell-center', $table);
+
+$tableInline = formatTicketMessageText(
+    "| Toets | Link |\n"
+    . "| --- | --- |\n"
+    . "| [Ctrl] | https://sleutels.kvt.nl/asclepius/index.php?open=943 |"
+);
+assertContains('Toets-icoon in tabelcel', 'class="shortcut-key"', $tableInline);
+assertContains('Ticket-URL in tabelcel wordt Ticket #', 'Ticket #943', $tableInline);
+
+$tableXss = formatTicketMessageText(
+    "| Col |\n"
+    . "| --- |\n"
+    . "| <script>alert(1)</script> |"
+);
+assertNotContains('Tabelcel voert geen script uit', '<script>alert(1)</script>', $tableXss);
+assertContains('Tabelcel-escapes HTML', '&lt;script&gt;alert(1)&lt;/script&gt;', $tableXss);
+
+$notATable = formatTicketMessageText('Prijs | voorraad zonder scheidingsrij');
+assertNotContains('Pijp zonder scheidingsrij blijft geen tabel', 'message-md-table', $notATable);
+assertContains('Pijp zonder scheidingsrij blijft tekst', 'Prijs | voorraad zonder scheidingsrij', $notATable);
+
 $link = formatTicketMessageText('Zie [de docs](https://example.com/docs) voor meer.');
 assertContains('Markdown-link krijgt href', 'href="https://example.com/docs"', $link);
 assertContains('Markdown-link opent extern veilig', 'rel="noopener noreferrer"', $link);
@@ -144,14 +178,16 @@ $ghostHtml = renderTicketMessageHtml([
     'sender_role_title' => 'Bot',
     'created_at' => '2026-09-11T12:00:00+00:00',
     'is_ghost' => true,
-    'message_text' => "## Ghost-advies\nGebruik **VPN** en [Ctrl] + [L].",
-    'message_text_raw' => "## Ghost-advies\nGebruik **VPN** en [Ctrl] + [L].",
+    'message_text' => "## Ghost-advies\nGebruik **VPN** en [Ctrl] + [L].\n\n| Artikel | Aantal |\n| --- | --- |\n| BC-10 | 4 |",
+    'message_text_raw' => "## Ghost-advies\nGebruik **VPN** en [Ctrl] + [L].\n\n| Artikel | Aantal |\n| --- | --- |\n| BC-10 | 4 |",
     'attachments' => [],
 ], 'index.php');
 assertContains('Ghost-bericht krijgt is-ghost', 'class="message admin is-ghost"', $ghostHtml);
 assertContains('Ghost-markdown rendert kop', 'Ghost-advies', $ghostHtml);
 assertContains('Ghost-markdown rendert vet', '<strong>VPN</strong>', $ghostHtml);
 assertContains('Ghost-toets blijft shortcut-key', 'class="shortcut-key"', $ghostHtml);
+assertContains('Ghost-tabel wordt HTML-tabel', 'class="message-md-table"', $ghostHtml);
+assertContains('Ghost-tabelcel blijft zichtbaar', 'BC-10', $ghostHtml);
 assertContains('Vooraf gerenderde HTML staat in data-attribuut', 'data-translated-html', $ghostHtml);
 
 $normalHtml = renderTicketMessageHtml([
