@@ -530,6 +530,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
             $isResolvingTicket = $canManageTickets
                 && $statusChanged
                 && strtolower($newStatus) === 'afgehandeld';
+
+            if ($statusChanged || ($canManageTickets && ($assigneeChanged || $priorityChanged || $dueDateChanged))) {
+                $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null, $newPriority, $newDueDate);
+            }
+
+            // After updateTicket so a rolled-back status write cannot leave a committed ghost.
             addResolutionGhostNoteIfNeeded(
                 $store,
                 $ticketId,
@@ -537,10 +543,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 (string) ($_POST['resolution_note'] ?? ''),
                 $isResolvingTicket
             );
-
-            if ($statusChanged || ($canManageTickets && ($assigneeChanged || $priorityChanged || $dueDateChanged))) {
-                $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null, $newPriority, $newDueDate);
-            }
 
             $visibleMessageForMail = '';
             if ($isGhostMode) {

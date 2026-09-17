@@ -217,15 +217,20 @@ assertContains('Klik op overlay sluit zonder opslaan', "[data-role=\"ticket-reso
 
 $actionsSource = (string) file_get_contents(__DIR__ . '/../web/content/actions.php');
 assertContains(
-    'Ghost-notitie wordt vóór de normale ticket-save geplaatst',
+    'Ghost-notitie wordt geplaatst via de helper',
     'addResolutionGhostNoteIfNeeded',
     $actionsSource
 );
 $ghostCallPos = strpos($actionsSource, 'addResolutionGhostNoteIfNeeded');
 $updatePos = strpos($actionsSource, '$store->updateTicket($ticketId');
 assertTrue(
-    'Ghost-call staat vóór updateTicket in reply_ticket',
-    $ghostCallPos !== false && $updatePos !== false && $ghostCallPos < $updatePos
+    'Ghost-call staat ná updateTicket zodat een mislukte statuswijziging geen ghost achterlaat',
+    $ghostCallPos !== false && $updatePos !== false && $updatePos < $ghostCallPos
+);
+$nextMessagePos = strpos($actionsSource, '$store->addMessage($ticketId', $ghostCallPos);
+assertTrue(
+    'Ghost blijft vóór de statusnotitie in het thread',
+    $nextMessagePos !== false && $ghostCallPos < $nextMessagePos
 );
 
 echo PHP_EOL;

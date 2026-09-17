@@ -11,8 +11,8 @@ function shouldIncludeGhostMessages(bool $canManageTickets, bool $isAdminPortal,
 
 /**
  * Posts an optional technical-resolution note as a ghost message for the current ICT user.
- * Empty notes are skipped. Callers should only set $isResolvingTicket when the ticket is
- * transitioning to afgehandeld.
+ * Empty notes are skipped. Call after a successful status write to afgehandeld so a
+ * rolled-back update cannot leave a committed ghost.
  */
 function addResolutionGhostNoteIfNeeded(
     TicketStore $store,
