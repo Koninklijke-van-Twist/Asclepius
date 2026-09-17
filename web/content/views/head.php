@@ -2604,6 +2604,16 @@
             color: #fce7f3;
         }
 
+        .message.is-ghost .message-text .message-md-table th,
+        .message.is-ghost .message-text .message-md-table td {
+            border-color: #f9a8d4;
+            color: #fce7f3;
+        }
+
+        .message.is-ghost .message-text .message-md-table th {
+            background: rgba(252, 231, 243, 0.12);
+        }
+
         .message-meta {
             display: flex;
             flex-wrap: wrap;
@@ -2698,6 +2708,38 @@
         .message-text .message-md-pre code {
             background: none;
             padding: 0;
+        }
+
+        .message-text .message-md-table-wrap {
+            margin: 0.5em 0;
+            overflow-x: auto;
+        }
+
+        .message-text .message-md-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.92em;
+        }
+
+        .message-text .message-md-table th,
+        .message-text .message-md-table td {
+            border: 1px solid var(--line);
+            padding: 6px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .message-text .message-md-table th {
+            background: #f3f6fb;
+            font-weight: 700;
+        }
+
+        .message-text .message-md-table .message-md-cell-center {
+            text-align: center;
+        }
+
+        .message-text .message-md-table .message-md-cell-right {
+            text-align: right;
         }
 
         .message-text small {
