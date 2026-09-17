@@ -1,3 +1,11 @@
+id: 2026-09-17-resolution-docs-modal
+date: 2026-09-17
+title: Technische Lösung beim Abschließen
+author: Tim Falken
+
+Wenn ICT ein Ticket auf **erledigt** setzt, fragt Speichern zuerst nach der technischen Lösung. Die Notiz ist optional und wird als interne (Ghost-)Nachricht für Kollegen gespeichert. Unter **Einstellungen** können Sie diese Abfrage ausschalten; dann erscheint eine Erinnerung, die technische Lösung selbst im Ticket zu dokumentieren.
+
+---
 id: 2026-09-15-api-change-ticket-status
 date: 2026-09-15
 title: Ticketstatus, Zuweisung und Priorität über die API

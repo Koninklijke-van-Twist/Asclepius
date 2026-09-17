@@ -1,3 +1,11 @@
+id: 2026-09-17-resolution-docs-modal
+date: 2026-09-17
+title: Technische oplossing bij afhandelen
+author: Tim Falken
+
+Als ICT een ticket op **Afgehandeld** zet, vraagt Opslaan eerst om de technische oplossing. Die notitie is optioneel en komt als intern (ghost) bericht in het ticket, zichtbaar voor collega’s. Onder **Voorkeuren** kun je die vraag uitzetten; je krijgt dan een herinnering om de technische oplossing zelf in het ticket te documenteren.
+
+---
 id: 2026-09-15-api-change-ticket-status
 date: 2026-09-15
 title: Ticketstatus, toewijzing en prioriteit via de API

@@ -3901,10 +3901,19 @@
                 max-height: none;
             }
 
+            .ticket-participants-modal-card.resolution-note-card {
+                width: min(560px, 100%);
+            }
+
+            .ticket-participants-modal-card.resolution-note-card textarea[data-role="resolution-note-textarea"] {
+                min-height: 8.5em;
+            }
+
             .ticket-participants-modal[data-role="role-remove-member-modal"],
             .ticket-participants-modal[data-role="role-delete-modal"],
             .ticket-participants-modal[data-role="ticket-category-out-of-scope-modal"],
-            .ticket-participants-modal[data-role="presence-join-modal"] {
+            .ticket-participants-modal[data-role="presence-join-modal"],
+            .ticket-participants-modal[data-role="ask-resolution-note-warning-modal"] {
                 z-index: 1800;
             }
 

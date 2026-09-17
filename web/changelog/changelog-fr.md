@@ -1,3 +1,11 @@
+id: 2026-09-17-resolution-docs-modal
+date: 2026-09-17
+title: Solution technique à la clôture
+author: Tim Falken
+
+Quand l’ICT passe un ticket à **résolu**, Enregistrer demande d’abord la solution technique. La note est facultative et est enregistrée comme message interne (ghost) pour les collègues. Dans **Préférences**, vous pouvez désactiver cette demande ; un rappel apparaît alors pour documenter vous-même la solution technique dans le ticket.
+
+---
 id: 2026-09-15-api-change-ticket-status
 date: 2026-09-15
 title: Statut, attribution et priorité des tickets via l’API

@@ -72,7 +72,8 @@ $apiUrl = 'api.php';
     data-appearance-priority-markers="<?= !empty($ticketAppearancePreferences['show_priority_markers']) ? '1' : '0' ?>"
     data-appearance-time-open="<?= !empty($ticketAppearancePreferences['show_time_open']) ? '1' : '0' ?>"
     data-appearance-border="<?= h((string) ($ticketAppearancePreferences['border_color'] ?? 'status')) ?>"
-    data-appearance-closed="<?= h((string) ($ticketAppearancePreferences['closed_style'] ?? 'normal')) ?>">
+    data-appearance-closed="<?= h((string) ($ticketAppearancePreferences['closed_style'] ?? 'normal')) ?>"
+    data-ask-resolution-note="<?= userAsksResolutionNoteOnResolve(is_array($userPrefs ?? null) ? $userPrefs : []) ? '1' : '0' ?>">
     <?php require __DIR__ . '/content/views/update_notify.php'; ?>
     <?php if (empty($isBigscreen)): ?>
         <?php require __DIR__ . '/content/views/view_presence.php'; ?>

@@ -368,6 +368,8 @@ Vereisen geldige `csrf_token` uit de browsersessie.
 
 `save_ticket_appearance_preferences` — admin. `appearance` (of losse velden). Response: `appearance`.
 
+`save_ask_resolution_note` — admin. `enabled`. Of bij afhandelen de modal voor de technische oplossing getoond wordt. Standaard aan. Response: `ask_resolution_note`.
+
 `save_ticket_overview_search` — `search_query`. Slaat de zoekterm in de overzichtsfilters van de gebruiker op.
 
 `mark_changelog_read` — admin. `entry_id`. Response: `read_ids`.

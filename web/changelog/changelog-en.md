@@ -1,3 +1,11 @@
+id: 2026-09-17-resolution-docs-modal
+date: 2026-09-17
+title: Technical solution when resolving
+author: Tim Falken
+
+When ICT marks a ticket **resolved**, Save first asks for the technical solution. That note is optional and is stored as an internal (ghost) message for colleagues. Under **Preferences** you can turn that prompt off; you then get a reminder to document the technical solution in the ticket yourself.
+
+---
 id: 2026-09-15-api-change-ticket-status
 date: 2026-09-15
 title: Ticket status, assignment and priority via the API

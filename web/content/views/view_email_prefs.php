@@ -253,6 +253,16 @@
             <?php endforeach; ?>
         </ul>
 
+        <ul class="email-prefs-list">
+            <li class="email-prefs-item">
+                <label class="email-prefs-label">
+                    <input type="checkbox" data-ask-resolution-note-pref
+                        <?= userAsksResolutionNoteOnResolve(is_array($userPrefs ?? null) ? $userPrefs : []) ? 'checked' : '' ?>>
+                    <span><?= h(__('email_prefs.ask_resolution_note')) ?></span>
+                </label>
+            </li>
+        </ul>
+
         <div class="appearance-prefs" data-appearance-prefs>
             <h2 class="appearance-prefs-heading"><?= h(__('appearance.heading')) ?></h2>
             <p class="panel-intro"><?= h(__('appearance.intro')) ?></p>
@@ -406,6 +416,17 @@
                 <?= h(__('tips.reset_btn')) ?>
             </button>
             <span class="hint" id="reset-tips-feedback" hidden><?= h(__('tips.reset_feedback')) ?></span>
+        </div>
+
+        <div class="ticket-participants-modal" data-role="ask-resolution-note-warning-modal" hidden>
+            <div class="ticket-participants-modal-card role-confirm-card" role="dialog" aria-modal="true">
+                <p class="role-confirm-copy"><?= h(__('email_prefs.ask_resolution_note_warning')) ?></p>
+                <div class="button-row">
+                    <button type="button" data-role="ask-resolution-note-dismiss">
+                        <?= h(__('email_prefs.ask_resolution_note_understand')) ?>
+                    </button>
+                </div>
+            </div>
         </div>
     </section>
 <?php endif; ?>

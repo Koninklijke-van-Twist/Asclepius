@@ -1891,6 +1891,45 @@ function handleSaveTicketAppearancePreferencesApiAction(array $payload, ?array $
     ];
 }
 
+function handleSaveAskResolutionNoteApiAction(array $payload, ?array $apiClient): array
+{
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    if (!$userIsAdmin) {
+        return [
+            'success' => false,
+            'error' => __('flash.settings_admin_only'),
+        ];
+    }
+
+    ensureApiSessionStarted();
+    $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+    $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+    if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+        return [
+            'success' => false,
+            'error' => 'csrf',
+        ];
+    }
+
+    $userEmail = strtolower(trim((string) (
+        $apiClient['email'] ?? ($payload['viewer_email'] ?? ($_SESSION['user']['email'] ?? ''))
+    )));
+    if ($userEmail === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_user',
+        ];
+    }
+
+    $enabled = !empty($payload['enabled']);
+    saveUserPref($userEmail, 'ask_resolution_note', $enabled);
+
+    return [
+        'success' => true,
+        'ask_resolution_note' => $enabled,
+    ];
+}
+
 function handleCategoryOpenSnapshotsApiAction(TicketStore $store, array $payload, ?array $apiClient): array
 {
     global $ictUsers;
@@ -2661,6 +2700,10 @@ if ($method === 'POST') {
 
     if ($action === 'save_ticket_appearance_preferences') {
         sendJson(200, handleSaveTicketAppearancePreferencesApiAction($payload, $apiClient));
+    }
+
+    if ($action === 'save_ask_resolution_note') {
+        sendJson(200, handleSaveAskResolutionNoteApiAction($payload, $apiClient));
     }
 
     if ($action === 'save_ticket_overview_search') {

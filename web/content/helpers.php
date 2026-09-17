@@ -1531,6 +1531,36 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         </div>
                     </div>
                 </div>
+
+                <div class="ticket-participants-modal" data-role="ticket-resolution-note-modal" hidden>
+                    <div class="ticket-participants-modal-card resolution-note-card">
+                        <div class="ticket-participants-modal-head">
+                            <h3><?= h(__('ticket.resolution_modal_heading')) ?></h3>
+                            <button type="button" class="participant-modal-close" data-role="resolution-note-close"
+                                aria-label="<?= h(__('ticket.preview_close')) ?>">&times;</button>
+                        </div>
+                        <label>
+                            <div class="textarea-wrapper" data-role="resolution-note-wrap">
+                                <textarea data-role="resolution-note-textarea" rows="6"
+                                    placeholder="<?= h(__('ticket.resolution_modal_placeholder')) ?>"></textarea>
+                                <button type="button" class="key-picker-toggle" title="<?= h(__('ticket.key_picker_tooltip')) ?>"
+                                    aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="2" y="6" width="20" height="12" rx="2" />
+                                        <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M10 14h4" />
+                                    </svg>
+                                </button>
+                                <div class="key-picker-popup" hidden aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>"></div>
+                            </div>
+                        </label>
+                        <div class="button-row">
+                            <button type="button" data-role="resolution-note-save">
+                                <?= h(__('ticket.btn_save')) ?>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             <?php endif; ?>
 
             <?php if (!$isReadOnlyTicket): ?>
@@ -1541,6 +1571,9 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 <input type="hidden" name="form_action" value="reply_ticket">
                 <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
                 <input type="hidden" name="ticket_id" value="<?= (int) ($ticket['id'] ?? 0) ?>">
+                <?php if ($canManageTickets): ?>
+                    <input type="hidden" name="resolution_note" value="" data-role="resolution-note-input">
+                <?php endif; ?>
 
                 <?php if ($canManageTickets): ?>
                     <div class="admin-grid">
