@@ -3759,11 +3759,18 @@
                 return;
             }
 
-            var closeResolutionNoteButton = event.target.closest('[data-role="resolution-note-close"]');
+            var closeResolutionNoteButton = event.target.closest('[data-role="resolution-note-close"], [data-role="resolution-note-cancel"]');
             if (closeResolutionNoteButton)
             {
                 event.preventDefault();
                 closeResolutionNoteModal(closeResolutionNoteButton.closest('details.ticket-card'));
+                return;
+            }
+
+            if (event.target.matches('[data-role="ticket-resolution-note-modal"]'))
+            {
+                event.preventDefault();
+                closeResolutionNoteModal(event.target.closest('details.ticket-card'));
                 return;
             }
 

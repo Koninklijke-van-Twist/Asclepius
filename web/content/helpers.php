@@ -10,6 +10,30 @@ function shouldIncludeGhostMessages(bool $canManageTickets, bool $isAdminPortal,
 }
 
 /**
+ * Posts an optional technical-resolution note as a ghost message for the current ICT user.
+ * Empty notes are skipped. Callers should only set $isResolvingTicket when the ticket is
+ * transitioning to afgehandeld.
+ */
+function addResolutionGhostNoteIfNeeded(
+    TicketStore $store,
+    int $ticketId,
+    string $userEmail,
+    string $resolutionNote,
+    bool $isResolvingTicket
+): ?int {
+    if (!$isResolvingTicket) {
+        return null;
+    }
+
+    $note = trim($resolutionNote);
+    if ($note === '') {
+        return null;
+    }
+
+    return $store->addMessage($ticketId, $userEmail, 'admin', $note, [], true);
+}
+
+/**
  * Keep a ticket opened via ?open= in the current list even when filters would hide it.
  *
  * @param list<array<string, mixed>> $tickets
@@ -1555,6 +1579,9 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                             </div>
                         </label>
                         <div class="button-row">
+                            <button type="button" class="secondary-button" data-role="resolution-note-cancel">
+                                <?= h(__('ticket.resolution_modal_cancel')) ?>
+                            </button>
                             <button type="button" data-role="resolution-note-save">
                                 <?= h(__('ticket.btn_save')) ?>
                             </button>

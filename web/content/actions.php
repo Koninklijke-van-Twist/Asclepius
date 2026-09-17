@@ -527,13 +527,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 throw new RuntimeException(implode(' ', $errors));
             }
 
-            $resolutionNote = trim((string) ($_POST['resolution_note'] ?? ''));
             $isResolvingTicket = $canManageTickets
                 && $statusChanged
                 && strtolower($newStatus) === 'afgehandeld';
-            if ($isResolvingTicket && $resolutionNote !== '') {
-                $store->addMessage($ticketId, $userEmail, 'admin', $resolutionNote, [], true);
-            }
+            addResolutionGhostNoteIfNeeded(
+                $store,
+                $ticketId,
+                $userEmail,
+                (string) ($_POST['resolution_note'] ?? ''),
+                $isResolvingTicket
+            );
 
             if ($statusChanged || ($canManageTickets && ($assigneeChanged || $priorityChanged || $dueDateChanged))) {
                 $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null, $newPriority, $newDueDate);

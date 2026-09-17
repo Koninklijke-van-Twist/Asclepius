@@ -3945,10 +3945,16 @@
 
             .ticket-participants-modal-card.resolution-note-card {
                 width: min(560px, 100%);
+                overflow: visible;
+                max-height: none;
             }
 
             .ticket-participants-modal-card.resolution-note-card textarea[data-role="resolution-note-textarea"] {
                 min-height: 8.5em;
+            }
+
+            .ticket-participants-modal-card.resolution-note-card .key-picker-popup {
+                z-index: 1800;
             }
 
             .ticket-participants-modal[data-role="role-remove-member-modal"],
