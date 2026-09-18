@@ -1,3 +1,11 @@
+id: 2026-09-18-api-message-status-assignee
+date: 2026-09-18
+title: Nachricht, Status und Zuweisung in einem API-Aufruf
+author: Tim Falken
+
+Bots wie ICT-Bot können bei `add_ticket_message` optional einen neuen **Status** und/oder eine **Zuweisung** mitsenden. Das entspricht dem Antwortformular in der ICT-Übersicht: eine Anfrage, dieselben Rechte und Prüfungen, und ein Systemhinweis bei Statusänderung. Nur eine Nachricht zu senden bleibt unverändert; die separaten `change_*`-Aktionen bleiben bestehen.
+
+---
 id: 2026-09-15-api-ticket-mutation-hardening
 date: 2026-09-15
 title: Strengere Prüfung bei Ticketänderungen über die API

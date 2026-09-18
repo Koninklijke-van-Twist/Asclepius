@@ -2522,6 +2522,80 @@ function pushRecentCustomStatusForUser(string $email, string $status): void
     saveUserPref($email, 'recent_custom_statuses', array_slice($recent, 0, 5));
 }
 
+function rememberCustomTicketStatusForActor(TicketStore $store, string $actorEmail, string $status): void
+{
+    $actorEmail = strtolower(trim($actorEmail));
+    $status = trim($status);
+    if ($actorEmail === '' || $status === '' || matchBuiltInTicketStatus($status) !== null) {
+        return;
+    }
+
+    pushRecentCustomStatusForUser($actorEmail, $status);
+    $prefs = loadUserPrefs($actorEmail);
+    $overview = normalizeSavedTicketOverviewFilters(
+        $prefs,
+        $store->getActiveCustomStatusLabels(),
+        $store->getAllIctCapableEmails(),
+        $actorEmail
+    );
+    applyDefaultEnabledOwnCustomStatusFilters(
+        $actorEmail,
+        [[
+            'display_label' => $status,
+            'created_by_email' => $actorEmail,
+        ]],
+        !empty($overview['status_filter_active']),
+        array_values(array_filter(
+            array_map('trim', (array) ($overview['status_filters'] ?? [])),
+            static fn(string $statusFilter): bool => $statusFilter !== ''
+        )),
+        $store->getAllIctCapableEmails()
+    );
+}
+
+/**
+ * @return array{error: string, error_code: string}|null
+ */
+function validateTicketAssigneeChange(
+    TicketStore $store,
+    array $ticket,
+    string $requestedAssignee,
+    string $actorEmail
+): ?array {
+    $requestedAssignee = strtolower(trim($requestedAssignee));
+    $currentAssignee = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
+    $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
+    $templateTicketSelfAssignmentAllowed = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
+    $availabilityByUser = $store->getEffectiveIctUserAvailability();
+    $actorEmail = strtolower(trim($actorEmail));
+    $isAssigningToSelf = $requestedAssignee !== '' && $requestedAssignee === $actorEmail;
+    $allowedAssignees = $store->getEmailsEligibleForCategory((string) ($ticket['category'] ?? ''));
+    if ($currentAssignee !== '' && !in_array($currentAssignee, $allowedAssignees, true)) {
+        $allowedAssignees[] = $currentAssignee;
+    }
+
+    if ($requestedAssignee !== '' && !in_array($requestedAssignee, $allowedAssignees, true)) {
+        return [
+            'error' => __('flash.invalid_employee'),
+            'error_code' => 'invalid_employee',
+        ];
+    }
+    if ($requestedAssignee !== '' && $requestedAssignee === $requesterEmail && !$templateTicketSelfAssignmentAllowed && !$isAssigningToSelf) {
+        return [
+            'error' => __('flash.self_assignment_not_allowed'),
+            'error_code' => 'self_assignment_not_allowed',
+        ];
+    }
+    if ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee]) && $requestedAssignee !== $currentAssignee && !$isAssigningToSelf) {
+        return [
+            'error' => __('flash.employee_away'),
+            'error_code' => 'employee_away',
+        ];
+    }
+
+    return null;
+}
+
 /**
  * First time a custom status created by this user appears, include it in their active status filters.
  * Once seen (and optionally unchecked by the user), it is not forced back on.
@@ -2681,6 +2755,102 @@ function buildCategoryChangeNote(string $oldCategory, string $newCategory, bool 
 function buildStatusChangeNote(string $status, string $changedByEmail): string
 {
     return __('flash.status_changed_to', translateStatus($status));
+}
+
+/**
+ * Compose the stored reply text the same way as the ICT reply form.
+ * Ghost replies keep the status note as a visible system message.
+ *
+ * @return array{message_for_storage: string, status_change_note: string}
+ */
+function composeTicketReplyMessageForStorage(
+    string $message,
+    bool $isGhostMode,
+    bool $appendStatusNote,
+    string $newStatus,
+    string $changedByEmail
+): array {
+    $messageForStorage = $message;
+    $statusChangeNote = '';
+
+    if ($appendStatusNote) {
+        $statusChangeNote = buildStatusChangeNote($newStatus, $changedByEmail);
+        if ($isGhostMode) {
+            $messageForStorage = $statusChangeNote;
+        } else {
+            $messageForStorage = $message !== ''
+                ? rtrim($message) . PHP_EOL . PHP_EOL . $statusChangeNote
+                : $statusChangeNote;
+        }
+    } elseif ($isGhostMode) {
+        $messageForStorage = '';
+    }
+
+    return [
+        'message_for_storage' => $messageForStorage,
+        'status_change_note' => $statusChangeNote,
+    ];
+}
+
+/**
+ * Persist a ticket reply in the same order as the ICT reply form:
+ * visible status note first (when ghost), then the user/bot message.
+ *
+ * @param list<array<string, mixed>> $files
+ * @return array{message_id: int, status_message_id: int|null, visible_message_for_mail: string}
+ */
+function persistTicketReplyMessages(
+    TicketStore $store,
+    int $ticketId,
+    string $senderEmail,
+    string $senderRole,
+    string $message,
+    array $files,
+    bool $isGhostMode,
+    string $messageForStorage,
+    ?string $senderDisplayName = null,
+    ?string $senderRoleTitle = null
+): array {
+    $visibleMessageForMail = '';
+    $statusMessageId = null;
+    $messageId = 0;
+
+    if ($isGhostMode) {
+        if ($messageForStorage !== '') {
+            $statusMessageId = $store->addMessage($ticketId, $senderEmail, 'admin', $messageForStorage, []);
+            $visibleMessageForMail = $messageForStorage;
+        }
+        if ($message !== '' || $files !== []) {
+            $messageId = $store->addMessage(
+                $ticketId,
+                $senderEmail,
+                'admin',
+                $message,
+                $files,
+                true,
+                $senderDisplayName,
+                $senderRoleTitle
+            );
+        }
+    } elseif ($messageForStorage !== '' || $files !== []) {
+        $messageId = $store->addMessage(
+            $ticketId,
+            $senderEmail,
+            $senderRole,
+            $messageForStorage,
+            $files,
+            false,
+            $senderDisplayName,
+            $senderRoleTitle
+        );
+        $visibleMessageForMail = $messageForStorage;
+    }
+
+    return [
+        'message_id' => $messageId,
+        'status_message_id' => $statusMessageId,
+        'visible_message_for_mail' => $visibleMessageForMail,
+    ];
 }
 
 function buildParticipantChangeNote(array $addedParticipants, array $removedParticipants): string

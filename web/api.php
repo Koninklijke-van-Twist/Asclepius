@@ -1072,6 +1072,33 @@ function parseApiTicketId(array $payload): int
     return max(0, (int) ($payload['ticket_id'] ?? $payload['id'] ?? 0));
 }
 
+function payloadRequestsStatusChange(array $payload): bool
+{
+    return array_key_exists('status', $payload) || array_key_exists('ticket_status', $payload);
+}
+
+function payloadRequestsAssigneeChange(array $payload): bool
+{
+    return array_key_exists('assigned_email', $payload)
+        || array_key_exists('assignee', $payload)
+        || array_key_exists('assigned', $payload);
+}
+
+function readApiStatusValue(array $payload): string
+{
+    return trim((string) ($payload['status'] ?? $payload['ticket_status'] ?? ''));
+}
+
+function readApiAssigneeEmail(array $payload): string
+{
+    return strtolower(trim((string) (
+        $payload['assigned_email']
+        ?? $payload['assignee']
+        ?? $payload['assigned']
+        ?? ''
+    )));
+}
+
 /**
  * @return array<string, mixed>|null
  */
@@ -1208,7 +1235,7 @@ function handleChangeTicketStatusApiAction(TicketStore $store, array $payload, ?
     }
 
     $actorEmail = resolveApiMutationActorEmail($ticket, $viewerEmail);
-    $requestedStatus = trim((string) ($payload['status'] ?? ''));
+    $requestedStatus = readApiStatusValue($payload);
     $resolvedStatus = resolveTicketStatusValue($requestedStatus, $store, $actorEmail);
     if ($resolvedStatus === null) {
         return [
@@ -1233,27 +1260,7 @@ function handleChangeTicketStatusApiAction(TicketStore $store, array $payload, ?
     }
 
     if (matchBuiltInTicketStatus($resolvedStatus) === null) {
-        pushRecentCustomStatusForUser($actorEmail, $resolvedStatus);
-        $prefs = loadUserPrefs($actorEmail);
-        $overview = normalizeSavedTicketOverviewFilters(
-            $prefs,
-            $store->getActiveCustomStatusLabels(),
-            $store->getAllIctCapableEmails(),
-            $actorEmail
-        );
-        applyDefaultEnabledOwnCustomStatusFilters(
-            $actorEmail,
-            [[
-                'display_label' => $resolvedStatus,
-                'created_by_email' => $actorEmail,
-            ]],
-            !empty($overview['status_filter_active']),
-            array_values(array_filter(
-                array_map('trim', (array) ($overview['status_filters'] ?? [])),
-                static fn(string $status): bool => $status !== ''
-            )),
-            $store->getAllIctCapableEmails()
-        );
+        rememberCustomTicketStatusForActor($store, $actorEmail, $resolvedStatus);
     }
 
     persistTicketFieldUpdate($store, $ticket, ['status' => $resolvedStatus]);
@@ -1331,12 +1338,7 @@ function handleChangeTicketAssigneeApiAction(TicketStore $store, array $payload,
     }
 
     $actorEmail = resolveApiMutationActorEmail($ticket, $viewerEmail);
-    $requestedAssignee = strtolower(trim((string) (
-        $payload['assigned_email']
-        ?? $payload['assignee']
-        ?? $payload['assigned']
-        ?? ''
-    )));
+    $requestedAssignee = readApiAssigneeEmail($payload);
     $currentAssignee = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
     if ($requestedAssignee === $currentAssignee) {
         $assignedLabel = $requestedAssignee !== '' ? formatUserDisplayName($requestedAssignee) : __('ticket.unassigned');
@@ -1351,34 +1353,12 @@ function handleChangeTicketAssigneeApiAction(TicketStore $store, array $payload,
         ];
     }
 
-    $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
-    $templateTicketSelfAssignmentAllowed = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
-    $availabilityByUser = $store->getEffectiveIctUserAvailability();
-    $isAssigningToSelf = $requestedAssignee !== '' && $requestedAssignee === strtolower($actorEmail);
-    $allowedAssignees = $store->getEmailsEligibleForCategory((string) ($ticket['category'] ?? ''));
-    if ($currentAssignee !== '' && !in_array($currentAssignee, $allowedAssignees, true)) {
-        $allowedAssignees[] = $currentAssignee;
-    }
-
-    if ($requestedAssignee !== '' && !in_array($requestedAssignee, $allowedAssignees, true)) {
+    $assigneeError = validateTicketAssigneeChange($store, $ticket, $requestedAssignee, $actorEmail);
+    if ($assigneeError !== null) {
         return [
             'success' => false,
-            'error' => __('flash.invalid_employee'),
-            'error_code' => 'invalid_employee',
-        ];
-    }
-    if ($requestedAssignee !== '' && $requestedAssignee === $requesterEmail && !$templateTicketSelfAssignmentAllowed && !$isAssigningToSelf) {
-        return [
-            'success' => false,
-            'error' => __('flash.self_assignment_not_allowed'),
-            'error_code' => 'self_assignment_not_allowed',
-        ];
-    }
-    if ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee]) && $requestedAssignee !== $currentAssignee && !$isAssigningToSelf) {
-        return [
-            'success' => false,
-            'error' => __('flash.employee_away'),
-            'error_code' => 'employee_away',
+            'error' => $assigneeError['error'],
+            'error_code' => $assigneeError['error_code'],
         ];
     }
 
@@ -1601,52 +1581,78 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
     $isServiceActor = $hasValidServiceApiKey || isTrustedApiRequester();
     $userIsAdmin = $isServiceActor || !empty($apiClient['is_admin']);
 
-    $ticketId = max(0, (int) ($payload['ticket_id'] ?? $payload['id'] ?? 0));
+    $ticketId = parseApiTicketId($payload);
     $message = trim((string) ($payload['message'] ?? $payload['message_text'] ?? ''));
     $isGhost = isApiTruthy($payload['ghost'] ?? $payload['is_ghost'] ?? $payload['ghost_mode'] ?? false);
+    $wantsStatus = payloadRequestsStatusChange($payload);
+    $wantsAssignee = payloadRequestsAssigneeChange($payload);
+    $wantsFieldChange = $wantsStatus || $wantsAssignee;
 
     if ($ticketId <= 0) {
         return [
             'success' => false,
             'error' => 'ticket_id_required',
+            'error_code' => 'ticket_id_required',
         ];
     }
     if ($message === '') {
         return [
             'success' => false,
             'error' => 'message_required',
+            'error_code' => 'message_required',
         ];
     }
     if ($isGhost && !$userIsAdmin) {
         return [
             'success' => false,
             'error' => 'ghost_forbidden',
+            'error_code' => 'ghost_forbidden',
         ];
     }
 
-    $ticket = $store->getTicket($ticketId, $userIsAdmin, $viewerEmail, 'default', $userIsAdmin);
+    $mutationAccess = null;
+    if ($wantsFieldChange) {
+        $mutationAccess = resolveIctTicketMutationAccess($store, $payload, $apiClient, $hasValidServiceApiKey);
+        if (empty($mutationAccess['allowed'])) {
+            return $mutationAccess['error'];
+        }
+        $ticket = loadTicketForIctMutation(
+            $store,
+            $ticketId,
+            (string) $mutationAccess['viewer_email'],
+            $mutationAccess['ict_access']
+        );
+    } else {
+        $ticket = $store->getTicket($ticketId, $userIsAdmin, $viewerEmail, 'default', $userIsAdmin);
+    }
+
     if ($ticket === null) {
         return [
             'success' => false,
-            'error' => 'ticket_not_found',
+            'error' => $wantsFieldChange ? __('flash.ticket_not_found') : 'ticket_not_found',
+            'error_code' => 'ticket_not_found',
         ];
     }
 
     $senderEmail = $viewerEmail;
     if ($senderEmail === '' || !filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) {
-        if (!$userIsAdmin) {
+        if (!$userIsAdmin && $mutationAccess === null) {
             return [
                 'success' => false,
                 'error' => 'invalid_user',
+                'error_code' => 'invalid_user',
             ];
         }
-        $senderEmail = 'ict@kvt.nl';
+        $senderEmail = $mutationAccess !== null
+            ? resolveApiMutationActorEmail($ticket, (string) $mutationAccess['viewer_email'])
+            : 'ict@kvt.nl';
     }
 
-    $senderRole = $userIsAdmin ? 'admin' : 'user';
+    $canPostAsAdmin = $userIsAdmin || $mutationAccess !== null;
+    $senderRole = $canPostAsAdmin ? 'admin' : 'user';
     $senderDisplayName = null;
     $senderRoleTitle = null;
-    if ($userIsAdmin) {
+    if ($canPostAsAdmin) {
         $senderDisplayName = trim((string) (
             $payload['sender_name']
             ?? $payload['display_name']
@@ -1678,18 +1684,102 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         }
     }
 
-    $messageId = $store->addMessage(
+    $actorEmail = $mutationAccess !== null
+        ? resolveApiMutationActorEmail($ticket, (string) $mutationAccess['viewer_email'])
+        : $senderEmail;
+    $newStatus = (string) ($ticket['status'] ?? '');
+    $newAssignee = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
+    $statusChanged = false;
+    $assigneeChanged = false;
+
+    if ($wantsStatus) {
+        $resolvedStatus = resolveTicketStatusValue(readApiStatusValue($payload), $store, $actorEmail);
+        if ($resolvedStatus === null) {
+            return [
+                'success' => false,
+                'error' => __('flash.invalid_status'),
+                'error_code' => 'invalid_status',
+            ];
+        }
+        $newStatus = $resolvedStatus;
+        $statusChanged = $newStatus !== (string) ($ticket['status'] ?? '');
+        if ($statusChanged) {
+            rememberCustomTicketStatusForActor($store, $actorEmail, $newStatus);
+        }
+    }
+
+    if ($wantsAssignee) {
+        $requestedAssignee = readApiAssigneeEmail($payload);
+        if ($requestedAssignee !== $newAssignee) {
+            $assigneeError = validateTicketAssigneeChange($store, $ticket, $requestedAssignee, $actorEmail);
+            if ($assigneeError !== null) {
+                return [
+                    'success' => false,
+                    'error' => $assigneeError['error'],
+                    'error_code' => $assigneeError['error_code'],
+                ];
+            }
+            $newAssignee = $requestedAssignee;
+            $assigneeChanged = true;
+        }
+    }
+
+    $composedReply = composeTicketReplyMessageForStorage(
+        $message,
+        $isGhost,
+        $statusChanged,
+        $newStatus,
+        $actorEmail
+    );
+    $messageForStorage = $composedReply['message_for_storage'];
+
+    if ($statusChanged || $assigneeChanged) {
+        $overrides = [];
+        if ($statusChanged) {
+            $overrides['status'] = $newStatus;
+        }
+        if ($assigneeChanged) {
+            $overrides['assigned_email'] = $newAssignee;
+        }
+        persistTicketFieldUpdate($store, $ticket, $overrides);
+    }
+
+    $persistedReply = persistTicketReplyMessages(
+        $store,
         $ticketId,
         $senderEmail,
         $senderRole,
         $message,
         [],
         $isGhost,
+        $messageForStorage,
         $senderDisplayName,
         $senderRoleTitle
     );
+    $messageId = (int) $persistedReply['message_id'];
 
     $updatedTicket = $store->getTicket($ticketId, true, $senderEmail, 'default', true);
+    if ($updatedTicket === null) {
+        return [
+            'success' => false,
+            'error' => $wantsFieldChange ? __('flash.ticket_not_found') : 'ticket_not_found',
+            'error_code' => 'ticket_not_found',
+        ];
+    }
+
+    if ($statusChanged || $assigneeChanged) {
+        notifyTicketFieldChangeViaApi(
+            $store,
+            $updatedTicket,
+            $ticketId,
+            $actorEmail,
+            (string) $persistedReply['visible_message_for_mail'],
+            $statusChanged,
+            $assigneeChanged,
+            $assigneeChanged ? $newAssignee : ''
+        );
+    }
+
     $createdMessage = null;
     foreach (($updatedTicket['messages'] ?? []) as $row) {
         if ((int) ($row['id'] ?? 0) === $messageId) {
@@ -1698,7 +1788,7 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         }
     }
 
-    return [
+    $response = [
         'success' => true,
         'ticket_id' => $ticketId,
         'message_id' => $messageId,
@@ -1711,6 +1801,21 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         'sender_title' => $senderRoleTitle,
         'message' => $createdMessage,
     ];
+
+    if ($wantsFieldChange) {
+        $assignedEmail = strtolower(trim((string) ($updatedTicket['assigned_email'] ?? $newAssignee)));
+        $status = (string) ($updatedTicket['status'] ?? $newStatus);
+        $response['status'] = $status;
+        $response['status_changed'] = $statusChanged;
+        $response['assigned_email'] = $assignedEmail;
+        $response['assignee_changed'] = $assigneeChanged;
+        $response['unchanged'] = !$statusChanged && !$assigneeChanged;
+        if (!empty($persistedReply['status_message_id'])) {
+            $response['status_message_id'] = (int) $persistedReply['status_message_id'];
+        }
+    }
+
+    return $response;
 }
 
 function buildBigscreenPollApiPayload(TicketStore $store, ?array $apiClient = null): array
@@ -2541,12 +2646,12 @@ if ($method === 'POST') {
 
     if ($action === 'add_ticket_message') {
         $messageResponse = handleAddTicketMessageApiAction($store, $payload, $apiClient, $hasValidServiceApiKey);
-        $error = (string) ($messageResponse['error'] ?? '');
+        $error = (string) ($messageResponse['error_code'] ?? $messageResponse['error'] ?? '');
         $statusCode = 200;
         if (empty($messageResponse['success'])) {
             $statusCode = match ($error) {
                 'ticket_not_found' => 404,
-                'ghost_forbidden' => 403,
+                'ghost_forbidden', 'forbidden' => 403,
                 default => 422,
             };
         }

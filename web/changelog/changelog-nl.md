@@ -1,3 +1,11 @@
+id: 2026-09-18-api-message-status-assignee
+date: 2026-09-18
+title: Bericht, status en toewijzing in één API-aanroep
+author: Tim Falken
+
+Bots zoals ICT-Bot kunnen bij `add_ticket_message` optioneel een nieuwe **status** en/of **toegewezen medewerker** meegeven. Dat werkt hetzelfde als het antwoordformulier in het ICT-overzicht: één verzoek, dezelfde rechten en controles, en de systeemnotitie bij een statuswijziging. Alleen een bericht sturen blijft ongewijzigd; de losse `change_*`-acties blijven bestaan.
+
+---
 id: 2026-09-15-api-ticket-mutation-hardening
 date: 2026-09-15
 title: Strengere controle bij ticketwijzigingen via de API

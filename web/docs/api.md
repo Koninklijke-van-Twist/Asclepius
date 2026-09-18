@@ -151,6 +151,8 @@ Plaats een bericht op een bestaand ticket. Ghost-berichten zijn alleen zichtbaar
 
 Een bot (service-key) kan zelf bepalen hoe het bericht in de thread staat: **weergavenaam** (zoals “Tim Falken”) en **functietitel** (het blauwe label ernaast, zoals “ICT”).
 
+Optioneel kun je in **hetzelfde verzoek** de status en/of de toegewezen medewerker meenemen — hetzelfde als het ICT-antwoordformulier. `change_ticket_status` en `change_ticket_assignee` blijven bestaan.
+
 ```json
 {
   "action": "add_ticket_message",
@@ -163,24 +165,53 @@ Een bot (service-key) kan zelf bepalen hoe het bericht in de thread staat: **wee
 }
 ```
 
+Gecombineerd bericht + status + toewijzing (ICT-Bot):
+
+```json
+{
+  "action": "add_ticket_message",
+  "ticket_id": 776,
+  "message": "Printer opnieuw ingesteld; testafdruk is gelukt.",
+  "status": "afgehandeld",
+  "assigned_email": "ict@kvt.nl",
+  "sender_email": "grok-bot@kvt.nl",
+  "sender_name": "ICT-Bot",
+  "sender_title": "Assistent"
+}
+```
+
 Velden:
 
 - `ticket_id` of `id` — verplicht
-- `message` of `message_text` — verplicht, niet leeg
+- `message` of `message_text` — verplicht, niet leeg (ook als je status of assignee meegeeft)
 - `ghost` / `is_ghost` / `ghost_mode` — optioneel, default `false`
 - `sender_email` / `viewer_email` / `user_email` — actor; bij service-key verplicht voor een herkenbare afzender, anders `ict@kvt.nl`
 - `sender_name` / `display_name` / `sender_display_name` — optioneel; weergavenaam in de ticketthread. Alleen ICT-sessie, service-key of trusted localhost. Anders de naam bij het e-mailadres.
 - `sender_title` / `role_title` / `function_title` / `sender_role_title` — optioneel; blauwe functietitel naast de naam. Zelfde rechten als `sender_name`. Anders `ICT` of `Gebruiker`.
+- `status` / `ticket_status` — optioneel; alleen meenemen om de status te wijzigen. Zelfde regels als `change_ticket_status` (vaste waarde uit `ticket_lookups.statuses` of eigen label).
+- `assigned_email` / `assignee` / `assigned` — optioneel; alleen meenemen om de toewijzing te wijzigen. Lege string = niet toegewezen. Zelfde regels als `change_ticket_assignee`.
+
+Volgorde (gelijk aan het ICT-antwoordformulier): eerst validatie (geen bericht als status/assignee ongeldig is), daarna ticket bijwerken, daarna berichten. Bij `ghost: true` én een statuswijziging komt de systeemnotitie als gewoon bericht in de thread; de tekst van de bot blijft ghost.
 
 Rechten:
 
 - Ticket lezen: ICT/service-key ziet elk ticket; een sessie-user alleen als deelnemer
 - `ghost: true` alleen met ICT-sessie, service-key of trusted localhost → anders `403` `ghost_forbidden`
 - Eigen naam/titel alleen met dezelfde rechten als ghost; andere callers worden stil genegeerd
+- `status` / `assigned_email` alleen met dezelfde autorisatie als `change_ticket_status` / `change_ticket_assignee`: service-key, webhook-key (`apiClient.is_admin`), ICT-rechten van de sessie, of trusted localhost. Anders `403` `forbidden`. Een `user_is_admin` in de body geeft geen extra rechten.
 
 Succes → `200` met `ticket_id`, `message_id`, `is_ghost`, `sender_email`, `sender_name`, `sender_role`, `sender_title`, `message`.
 
-Fouten: `422` (`ticket_id_required`, `message_required`, `invalid_user`), `404` (`ticket_not_found`), `403` (`ghost_forbidden`).
+Als `status` en/of `assigned_email` (of hun aliassen) in het verzoek stonden, extra velden:
+
+- `status`, `status_changed`
+- `assigned_email`, `assignee_changed`
+- `unchanged` — `true` als status en toewijzing allebei hetzelfde bleven
+- `status_message_id` — alleen bij ghost + echte statuswijziging (aparte zichtbare systeemnotitie)
+
+Fouten: `422` (`ticket_id_required`, `message_required`, `invalid_user`, `invalid_status`, `invalid_employee`, `self_assignment_not_allowed`, `employee_away`), `404` (`ticket_not_found`), `403` (`ghost_forbidden`, `forbidden`).
+
+Bij mutatiefouten is `error_code` de machineleesbare code; `error` is die code of een gelokaliseerde flash-tekst (zelfde als de `change_*`-acties). Bestaande callers die alleen een bericht sturen blijven werken: zonder status/assignee-velden verandert er niets aan het ticket.
 
 ## Uitgaande webhook — ticket
 
@@ -214,7 +245,7 @@ Body:
 | `ticket_id` | Ticketnummer. Ticket ophalen: `GET api.php?id=123` (optioneel `&include_ghosts=1`) |
 | `api_key` | Webhook-key, max. 1 uur. De bot stuurt die terug als `X-API-Key` of `api_key` |
 
-Met die `api_key` kan de bot o.a. het ticket lezen, `add_ticket_message` (inclusief `sender_name` / `sender_title` / `ghost`), `change_ticket_status`, `change_ticket_category`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date` en `ticket_lookups`.
+Met die `api_key` kan de bot o.a. het ticket lezen, `add_ticket_message` (inclusief `sender_name` / `sender_title` / `ghost`, en optioneel `status` / `assigned_email` in hetzelfde verzoek), `change_ticket_status`, `change_ticket_category`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date` en `ticket_lookups`.
 
 ## GET/POST — `ticket_lookups`
 
@@ -324,7 +355,7 @@ Gemeenschappelijke foutvorm (`success: false`):
 
 #### `change_ticket_status`
 
-`ticket_id` (alias `id`), `status`. `status` is een vaste waarde uit `ticket_lookups.statuses` of een eigen label (zoals in de UI, max. 40 tekens). Zet een systeemnotitie, werkt `resolved_at` bij, en stuurt dezelfde meldingen als het ICT-overzicht. Overgang naar `afgehandeld` vuurt de `ticket-solved`-webhook.
+`ticket_id` (alias `id`), `status` (alias `ticket_status`). `status` is een vaste waarde uit `ticket_lookups.statuses` of een eigen label (zoals in de UI, max. 40 tekens). Zet een systeemnotitie, werkt `resolved_at` bij, en stuurt dezelfde meldingen als het ICT-overzicht. Overgang naar `afgehandeld` vuurt de `ticket-solved`-webhook.
 
 ```json
 {
@@ -590,6 +621,15 @@ curl -X POST "https://sleutels.kvt.nl/asclepius/api.php" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: JOUW_KEY" \
   -d "{\"action\":\"add_ticket_message\",\"ticket_id\":123,\"message\":\"Interne notitie\",\"ghost\":true,\"sender_email\":\"grok-bot@kvt.nl\",\"sender_name\":\"Grok\",\"sender_title\":\"Assistent\"}"
+```
+
+Bericht + status + toewijzing in één call (ICT-Bot):
+
+```bash
+curl -X POST "https://sleutels.kvt.nl/asclepius/api.php" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: JOUW_KEY" \
+  -d "{\"action\":\"add_ticket_message\",\"ticket_id\":776,\"message\":\"Printer opnieuw ingesteld; testafdruk is gelukt.\",\"status\":\"afgehandeld\",\"assigned_email\":\"ict@kvt.nl\",\"sender_email\":\"grok-bot@kvt.nl\",\"sender_name\":\"ICT-Bot\",\"sender_title\":\"Assistent\"}"
 ```
 
 Status wijzigen (bijv. ticket #776 naar in behandeling):

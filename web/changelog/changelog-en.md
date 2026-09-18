@@ -1,3 +1,11 @@
+id: 2026-09-18-api-message-status-assignee
+date: 2026-09-18
+title: Message, status and assignee in one API call
+author: Tim Falken
+
+Bots such as ICT-Bot can optionally include a new **status** and/or **assignee** on `add_ticket_message`. This matches the ICT reply form: one request, the same rights and checks, and a system note when the status changes. Sending only a message is unchanged; the separate `change_*` actions still exist.
+
+---
 id: 2026-09-15-api-ticket-mutation-hardening
 date: 2026-09-15
 title: Stricter checks when changing tickets via the API

@@ -1,7 +1,8 @@
 <?php
 /**
  * Tests for ICT ticket field mutations via api.php:
- * change_ticket_status, change_ticket_assignee, change_ticket_priority, change_ticket_due_date.
+ * change_ticket_status, change_ticket_assignee, change_ticket_priority, change_ticket_due_date,
+ * and add_ticket_message with optional status/assignee.
  */
 
 echo "=== TEST: API ticket field mutations ===" . PHP_EOL . PHP_EOL;
@@ -377,6 +378,151 @@ $suffixDue = handleChangeTicketDueDateApiAction($store, [
     'due_date' => '2026-09-15-invalid',
 ], $adminClient, false);
 assertSame('Due-date met suffix', 'invalid_due_date', (string) ($suffixDue['error_code'] ?? ''));
+
+echo PHP_EOL . '--- add_ticket_message + optionele status/assignee ---' . PHP_EOL;
+
+$combinedTicket = createOpenTicket($store, 'Combined reply ticket');
+$beforeCombined = $store->getTicket($combinedTicket, true, 'ict@kvt.nl', 'default', true);
+$beforeCount = count($beforeCombined['messages'] ?? []);
+
+$messageOnly = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $combinedTicket,
+    'message' => 'Alleen een bericht',
+    'sender_email' => 'ict@kvt.nl',
+], $adminClient, false);
+assertTrue('Bericht zonder velden slaagt', !empty($messageOnly['success']));
+assertTrue('Bericht-id aanwezig', (int) ($messageOnly['message_id'] ?? 0) > 0);
+assertFalse('Geen status_changed zonder statusveld', array_key_exists('status_changed', $messageOnly));
+assertFalse('Geen assignee_changed zonder assigneeveld', array_key_exists('assignee_changed', $messageOnly));
+$afterMessageOnly = $store->getTicket($combinedTicket, true, 'ict@kvt.nl', 'default', true);
+assertSame('Status ongewijzigd bij alleen bericht', 'ingediend', (string) ($afterMessageOnly['status'] ?? ''));
+assertSame('Een bericht toegevoegd', $beforeCount + 1, count($afterMessageOnly['messages'] ?? []));
+
+$combined = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $combinedTicket,
+    'message' => 'Printer opnieuw ingesteld; testafdruk is gelukt.',
+    'status' => 'in behandeling',
+    'assigned_email' => 'colleague@kvt.nl',
+    'sender_email' => 'grok-bot@kvt.nl',
+    'sender_name' => 'ICT-Bot',
+    'sender_title' => 'Assistent',
+], $adminClient, false);
+assertTrue('Gecombineerde call slaagt', !empty($combined['success']));
+assertSame('Gecombineerde status', 'in behandeling', (string) ($combined['status'] ?? ''));
+assertTrue('Status is gewijzigd', !empty($combined['status_changed']));
+assertSame('Gecombineerde assignee', 'colleague@kvt.nl', (string) ($combined['assigned_email'] ?? ''));
+assertTrue('Assignee is gewijzigd', !empty($combined['assignee_changed']));
+assertFalse('Gecombineerde call is niet unchanged', !empty($combined['unchanged']));
+assertSame('Bot-naam behouden', 'ICT-Bot', (string) ($combined['sender_name'] ?? ''));
+
+$afterCombined = $store->getTicket($combinedTicket, true, 'ict@kvt.nl', 'default', true);
+assertSame('Opgeslagen status na combined', 'in behandeling', (string) ($afterCombined['status'] ?? ''));
+assertSame('Opgeslagen assignee na combined', 'colleague@kvt.nl', strtolower((string) ($afterCombined['assigned_email'] ?? '')));
+$combinedText = (string) (($combined['message']['message_text'] ?? ''));
+assertTrue('Bericht bevat de bottekst', str_contains($combinedText, 'Printer opnieuw ingesteld'));
+assertTrue('Bericht bevat statusnotitie', str_contains($combinedText, 'in behandeling'));
+
+$ghostTicket = createOpenTicket($store, 'Ghost combined ticket');
+$ghostBefore = $store->getTicket($ghostTicket, true, 'ict@kvt.nl', 'default', true);
+$ghostBeforeCount = count($ghostBefore['messages'] ?? []);
+$ghostCombined = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $ghostTicket,
+    'message' => 'Interne botnotitie',
+    'ghost' => true,
+    'ticket_status' => 'afwachtende op gebruiker',
+    'assignee' => 'colleague@kvt.nl',
+    'sender_email' => 'grok-bot@kvt.nl',
+    'sender_name' => 'ICT-Bot',
+    'sender_title' => 'Assistent',
+], null, true);
+assertTrue('Ghost combined slaagt (service-key)', !empty($ghostCombined['success']));
+assertTrue('Ghost blijft ghost', !empty($ghostCombined['is_ghost']));
+assertTrue('Ghost+status heeft status_message_id', (int) ($ghostCombined['status_message_id'] ?? 0) > 0);
+assertTrue(
+    'Ghost-bericht en statusnotitie zijn verschillend',
+    (int) ($ghostCombined['message_id'] ?? 0) !== (int) ($ghostCombined['status_message_id'] ?? 0)
+);
+$ghostAfter = $store->getTicket($ghostTicket, true, 'ict@kvt.nl', 'default', true);
+assertSame('Ghost combined status opgeslagen', 'afwachtende op gebruiker', (string) ($ghostAfter['status'] ?? ''));
+assertSame('Ghost combined twee berichten extra', $ghostBeforeCount + 2, count($ghostAfter['messages'] ?? []));
+$ghostUserMessage = null;
+$ghostStatusNote = null;
+foreach (($ghostAfter['messages'] ?? []) as $row) {
+    if ((int) ($row['id'] ?? 0) === (int) ($ghostCombined['message_id'] ?? 0)) {
+        $ghostUserMessage = $row;
+    }
+    if ((int) ($row['id'] ?? 0) === (int) ($ghostCombined['status_message_id'] ?? 0)) {
+        $ghostStatusNote = $row;
+    }
+}
+assertTrue('Ghost-bericht gevonden', is_array($ghostUserMessage));
+assertTrue('Statusnotitie gevonden', is_array($ghostStatusNote));
+assertTrue('Bottekst is ghost', !empty($ghostUserMessage['is_ghost']));
+assertFalse('Statusnotitie is niet ghost', !empty($ghostStatusNote['is_ghost']));
+assertSame('Ghost-bericht is de bottekst', 'Interne botnotitie', trim((string) ($ghostUserMessage['message_text'] ?? '')));
+
+$invalidDoesNotPost = createOpenTicket($store, 'Invalid status should not post');
+$invalidBefore = $store->getTicket($invalidDoesNotPost, true, 'ict@kvt.nl', 'default', true);
+$invalidCount = count($invalidBefore['messages'] ?? []);
+$invalidCombined = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $invalidDoesNotPost,
+    'message' => 'Dit mag niet worden opgeslagen',
+    'status' => '',
+    'sender_email' => 'ict@kvt.nl',
+], $adminClient, false);
+assertFalse('Ongeldige status weigert combined call', !empty($invalidCombined['success']));
+assertSame('Ongeldige status error_code', 'invalid_status', (string) ($invalidCombined['error_code'] ?? ''));
+$invalidAfter = $store->getTicket($invalidDoesNotPost, true, 'ict@kvt.nl', 'default', true);
+assertSame('Geen bericht bij ongeldige status', $invalidCount, count($invalidAfter['messages'] ?? []));
+assertSame('Status ongewijzigd bij ongeldige status', 'ingediend', (string) ($invalidAfter['status'] ?? ''));
+
+$badAssigneeCombined = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $combinedTicket,
+    'message' => 'Mag niet',
+    'assigned_email' => 'user@kvt.nl',
+    'sender_email' => 'ict@kvt.nl',
+], $adminClient, false);
+assertSame('Ongeldige assignee in combined', 'invalid_employee', (string) ($badAssigneeCombined['error_code'] ?? ''));
+
+$_SERVER['REMOTE_ADDR'] = '203.0.113.10';
+$_SERVER['SERVER_ADDR'] = '10.0.0.1';
+$forbiddenCombined = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $combinedTicket,
+    'message' => 'Mag niet',
+    'status' => 'in behandeling',
+    'sender_email' => 'user@kvt.nl',
+], ['email' => 'user@kvt.nl', 'is_admin' => false], false);
+assertSame('Combined zonder ICT-rechten forbidden', 'forbidden', (string) ($forbiddenCombined['error_code'] ?? ''));
+
+$spoofCombined = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $combinedTicket,
+    'message' => 'Mag niet',
+    'status' => 'afgehandeld',
+    'user_is_admin' => true,
+    'sender_email' => 'user@kvt.nl',
+], ['email' => 'user@kvt.nl', 'is_admin' => false], false);
+assertSame('Combined user_is_admin genegeerd', 'forbidden', (string) ($spoofCombined['error_code'] ?? ''));
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+$_SERVER['SERVER_ADDR'] = '127.0.0.1';
+
+$unchangedFields = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $combinedTicket,
+    'message' => 'Status blijft hetzelfde',
+    'status' => 'in behandeling',
+    'assigned_email' => 'colleague@kvt.nl',
+    'sender_email' => 'ict@kvt.nl',
+], $adminClient, false);
+assertTrue('Bericht met dezelfde velden slaagt', !empty($unchangedFields['success']));
+assertTrue('Velden unchanged als ze gelijk blijven', !empty($unchangedFields['unchanged']));
+assertFalse('status_changed false bij dezelfde status', !empty($unchangedFields['status_changed']));
+assertTrue('Bericht-id bij unchanged velden', (int) ($unchangedFields['message_id'] ?? 0) > 0);
+
+$dedicatedStatusStillWorks = handleChangeTicketStatusApiAction($store, [
+    'ticket_id' => $combinedTicket,
+    'ticket_status' => 'afgehandeld',
+], $adminClient, false);
+assertTrue('Losse change_ticket_status blijft werken', !empty($dedicatedStatusStillWorks['success']));
+assertSame('Losse status afgehandeld', 'afgehandeld', (string) ($dedicatedStatusStillWorks['status'] ?? ''));
 
 echo PHP_EOL;
 if ($failed === 0) {

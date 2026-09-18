@@ -422,49 +422,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 } else {
                     $newStatus = $resolvedStatus;
                     $statusChanged = $newStatus !== (string) $ticket['status'];
-                    if ($statusChanged && matchBuiltInTicketStatus($newStatus) === null) {
-                        pushRecentCustomStatusForUser($userEmail, $newStatus);
-                        $prefs = loadUserPrefs($userEmail);
-                        $overview = normalizeSavedTicketOverviewFilters(
-                            $prefs,
-                            $store->getActiveCustomStatusLabels(),
-                            $store->getAllIctCapableEmails(),
-                            $userEmail
-                        );
-                        // Ensure the new status is treated as "seen" and enabled if filters are active.
-                        $activeForDefault = [[
-                            'display_label' => $newStatus,
-                            'created_by_email' => strtolower(trim($userEmail)),
-                        ]];
-                        $overview['status_filters'] = applyDefaultEnabledOwnCustomStatusFilters(
-                            $userEmail,
-                            $activeForDefault,
-                            !empty($overview['status_filter_active']),
-                            array_values(array_filter(
-                                array_map('trim', (array) ($overview['status_filters'] ?? [])),
-                                static fn(string $status): bool => $status !== ''
-                            )),
-                            $store->getAllIctCapableEmails()
-                        );
+                    if ($statusChanged) {
+                        rememberCustomTicketStatusForActor($store, $userEmail, $newStatus);
                     }
                 }
 
                 $requestedAssignee = strtolower(trim((string) ($_POST['assigned_email'] ?? (string) ($ticket['assigned_email'] ?? ''))));
                 $currentAssignee = strtolower((string) ($ticket['assigned_email'] ?? ''));
-                $requesterEmail = strtolower(trim((string) ($ticket['user_email'] ?? '')));
-                $templateTicketSelfAssignmentAllowed = isTemplateTicketCategory((string) ($ticket['category'] ?? ''));
-                $availabilityByUser = $store->getEffectiveIctUserAvailability();
-                $isAssigningToSelf = $requestedAssignee !== '' && $requestedAssignee === strtolower($userEmail);
-                $allowedAssignees = $store->getEmailsEligibleForCategory((string) ($ticket['category'] ?? ''));
-                if ($currentAssignee !== '' && !in_array($currentAssignee, $allowedAssignees, true)) {
-                    $allowedAssignees[] = $currentAssignee;
-                }
-                if ($requestedAssignee !== '' && !in_array($requestedAssignee, $allowedAssignees, true)) {
-                    $errors[] = __('flash.invalid_employee');
-                } elseif ($requestedAssignee !== '' && $requestedAssignee === $requesterEmail && !$templateTicketSelfAssignmentAllowed && !$isAssigningToSelf) {
-                    $errors[] = __('flash.self_assignment_not_allowed');
-                } elseif ($requestedAssignee !== '' && empty($availabilityByUser[$requestedAssignee]) && $requestedAssignee !== $currentAssignee && !$isAssigningToSelf) {
-                    $errors[] = __('flash.employee_away');
+                $assigneeError = validateTicketAssigneeChange($store, $ticket, $requestedAssignee, $userEmail);
+                if ($assigneeError !== null) {
+                    $errors[] = $assigneeError['error'];
                 } else {
                     $newAssignee = $requestedAssignee;
                     $assigneeChanged = $newAssignee !== $currentAssignee;
@@ -509,19 +476,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $errors[] = __('flash.reply_empty');
             }
 
-            if ($canManageTickets && $statusChanged) {
-                $statusChangeNote = buildStatusChangeNote($newStatus, $userEmail);
-                if ($isGhostMode) {
-                    // Keep system notes as a normal message; ghost text is stored separately.
-                    $messageForStorage = $statusChangeNote;
-                } else {
-                    $messageForStorage = $message !== ''
-                        ? rtrim($message) . PHP_EOL . PHP_EOL . $statusChangeNote
-                        : $statusChangeNote;
-                }
-            } elseif ($isGhostMode) {
-                $messageForStorage = '';
-            }
+            $composedReply = composeTicketReplyMessageForStorage(
+                $message,
+                $isGhostMode,
+                $canManageTickets && $statusChanged,
+                $newStatus,
+                $userEmail
+            );
+            $messageForStorage = $composedReply['message_for_storage'];
 
             if ($errors !== []) {
                 throw new RuntimeException(implode(' ', $errors));
@@ -539,19 +501,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $store->updateTicket($ticketId, $newStatus, $newAssignee !== '' ? $newAssignee : null, $newPriority, $newDueDate);
             }
 
-            $visibleMessageForMail = '';
-            if ($isGhostMode) {
-                if ($messageForStorage !== '') {
-                    $store->addMessage($ticketId, $userEmail, 'admin', $messageForStorage, []);
-                    $visibleMessageForMail = $messageForStorage;
-                }
-                if ($message !== '' || $files !== []) {
-                    $store->addMessage($ticketId, $userEmail, 'admin', $message, $files, true);
-                }
-            } elseif ($messageForStorage !== '' || $files !== []) {
-                $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $messageForStorage, $files);
-                $visibleMessageForMail = $messageForStorage;
-            }
+            $persistedReply = persistTicketReplyMessages(
+                $store,
+                $ticketId,
+                $userEmail,
+                $canManageTickets ? 'admin' : 'user',
+                $message,
+                $files,
+                $isGhostMode,
+                $messageForStorage
+            );
+            $visibleMessageForMail = $persistedReply['visible_message_for_mail'];
 
             $updatedTicket = $store->getTicket($ticketId, true, $userEmail, 'default', false, $ticketAccessCategories);
             if ($updatedTicket !== null) {

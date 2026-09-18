@@ -1,3 +1,11 @@
+id: 2026-09-18-api-message-status-assignee
+date: 2026-09-18
+title: Message, statut et attribution en un seul appel API
+author: Tim Falken
+
+Les bots comme ICT-Bot peuvent éventuellement joindre un nouveau **statut** et/ou une **attribution** à `add_ticket_message`. Cela correspond au formulaire de réponse ICT : une seule requête, les mêmes droits et contrôles, et une note système en cas de changement de statut. Envoyer uniquement un message ne change pas ; les actions `change_*` distinctes restent disponibles.
+
+---
 id: 2026-09-15-api-ticket-mutation-hardening
 date: 2026-09-15
 title: Contrôles plus stricts lors des modifications de tickets via l’API
