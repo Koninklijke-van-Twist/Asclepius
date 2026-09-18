@@ -1,3 +1,11 @@
+id: 2026-09-18-waiting-user-mail-priority
+date: 2026-09-18
+title: High priority when waiting on the requester
+author: Tim Falken
+
+When ICT sets a ticket to **Awaiting user**, the update email to the requester is marked high priority in the inbox. Other emails stay normal.
+
+---
 id: 2026-09-18-api-message-status-assignee
 date: 2026-09-18
 title: Message, status and assignee in one API call

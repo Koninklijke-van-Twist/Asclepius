@@ -534,7 +534,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                             (string) ($updatedTicket['category'] ?? ''),
                             $ticketId,
                             null,
-                            $userEmail
+                            $userEmail,
+                            requesterUpdateMailHasHighImportance($statusChanged, $newStatus)
                         );
                     }
 

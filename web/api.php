@@ -1187,7 +1187,11 @@ function notifyTicketFieldChangeViaApi(
             (string) ($updatedTicket['category'] ?? ''),
             $ticketId,
             null,
-            $actorEmail
+            $actorEmail,
+            requesterUpdateMailHasHighImportance(
+                $statusChanged,
+                (string) ($updatedTicket['status'] ?? '')
+            )
         );
     }
 
