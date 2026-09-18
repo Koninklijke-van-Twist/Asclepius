@@ -61,12 +61,29 @@ function splitMailBody(string $message): array
     return ['plain' => $message, 'html' => null];
 }
 
+function ticketStatusIsWaitingOnUser(string $status): bool
+{
+    return strtolower(trim($status)) === TICKET_STATUS_WAITING_ON_USER;
+}
+
+function requesterUpdateMailHasHighImportance(bool $statusChanged, string $newStatus): bool
+{
+    return $statusChanged && ticketStatusIsWaitingOnUser($newStatus);
+}
+
 /**
  * Bouwt een multipart/alternative MIME-body (plain + html) of een eenvoudige text/plain body.
  * Geeft [headers_string, body_string] terug.
  */
-function buildMimeParts(string $fromEmail, string $fromName, array $recipients, string $subject, string $plain, ?string $html): array
-{
+function buildMimeParts(
+    string $fromEmail,
+    string $fromName,
+    array $recipients,
+    string $subject,
+    string $plain,
+    ?string $html,
+    bool $highImportance = false
+): array {
     $baseHeaders = [
         'From: ' . formatMailAddress($fromName, $fromEmail),
         'To: ' . implode(', ', $recipients),
@@ -75,6 +92,11 @@ function buildMimeParts(string $fromEmail, string $fromName, array $recipients, 
         'Message-ID: <' . uniqid('ticket-', true) . '@kvt.nl>',
         'MIME-Version: 1.0',
     ];
+
+    if ($highImportance) {
+        $baseHeaders[] = 'Importance: high';
+        $baseHeaders[] = 'X-Priority: 1';
+    }
 
     if ($html === null) {
         $baseHeaders[] = 'Content-Type: text/plain; charset=UTF-8';
@@ -98,8 +120,16 @@ function buildMimeParts(string $fromEmail, string $fromName, array $recipients, 
     return [implode("\r\n", $baseHeaders), $body];
 }
 
-function sendViaSmtp(array $smtp, string $fromEmail, string $fromName, array $recipients, string $subject, string $plain, ?string $html = null): bool
-{
+function sendViaSmtp(
+    array $smtp,
+    string $fromEmail,
+    string $fromName,
+    array $recipients,
+    string $subject,
+    string $plain,
+    ?string $html = null,
+    bool $highImportance = false
+): bool {
     $host = trim((string) ($smtp['host'] ?? ''));
     $port = (int) ($smtp['port'] ?? 25);
 
@@ -158,7 +188,7 @@ function sendViaSmtp(array $smtp, string $fromEmail, string $fromName, array $re
 
         smtpCommand($socket, 'DATA', [354]);
 
-        [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, $recipients, $subject, $plain, $html);
+        [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, $recipients, $subject, $plain, $html, $highImportance);
         $raw = $headersString . "\r\n\r\n" . str_replace("\n.", "\n..", $bodyString) . "\r\n.\r\n";
         fwrite($socket, $raw);
         smtpExpect($socket, [250]);
@@ -173,8 +203,13 @@ function sendViaSmtp(array $smtp, string $fromEmail, string $fromName, array $re
     }
 }
 
-function sendTicketEmail(array $recipients, string $subject, string $message, ?string $excludeEmail = null): void
-{
+function sendTicketEmail(
+    array $recipients,
+    string $subject,
+    string $message,
+    ?string $excludeEmail = null,
+    bool $highImportance = false
+): void {
     global $mailSettings;
 
     $normalizedRecipients = [];
@@ -201,12 +236,12 @@ function sendTicketEmail(array $recipients, string $subject, string $message, ?s
 
     ['plain' => $plain, 'html' => $html] = splitMailBody($message);
 
-    if ($smtp !== [] && sendViaSmtp($smtp, $fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html)) {
+    if ($smtp !== [] && sendViaSmtp($smtp, $fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html, $highImportance)) {
         return;
     }
 
     // Fallback: mail() — multipart als HTML beschikbaar
-    [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html);
+    [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html, $highImportance);
 
     @mail(
         implode(', ', array_values($normalizedRecipients)),
@@ -670,7 +705,8 @@ function sendTicketNotification(
     ?string $ticketCategory = null,
     ?int $ticketId = null,
     ?string $adminNotificationType = null,
-    ?string $browserActorEmail = null
+    ?string $browserActorEmail = null,
+    bool $highImportance = false
 ): void {
     $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $ticketCategory);
     $routedRecipients = $routing['recipients'] ?? $recipients;
@@ -694,7 +730,7 @@ function sendTicketNotification(
             : $plain;
     }
 
-    sendTicketEmail($emailRecipients, $subject, $finalMessage, $excludeEmail);
+    sendTicketEmail($emailRecipients, $subject, $finalMessage, $excludeEmail, $highImportance);
 
     if (!$store instanceof TicketStore || $ticketId === null || $ticketId <= 0) {
         return;

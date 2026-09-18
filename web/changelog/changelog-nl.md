@@ -1,3 +1,11 @@
+id: 2026-09-18-waiting-user-mail-priority
+date: 2026-09-18
+title: Hoge prioriteit bij wachten op gebruiker
+author: Tim Falken
+
+Als ICT een ticket op **Afwachtende op gebruiker** zet, krijgt de updatemail naar de aanvrager hoge prioriteit in het postvak. Andere e-mails blijven normaal.
+
+---
 id: 2026-09-18-api-message-status-assignee
 date: 2026-09-18
 title: Bericht, status en toewijzing in één API-aanroep
