@@ -1,3 +1,11 @@
+id: 2026-09-22-publish-ghost-message
+date: 2026-09-22
+title: Publier un message fantôme pour les admins
+author: Tim Falken
+
+Les administrateurs voient une icône (👻 avec un symbole d’interdiction) en haut à droite d’un **message fantôme**. Elle permet de sortir le message du mode fantôme. Après confirmation, il devient visible pour l’utilisateur, qui reçoit le même e-mail de mise à jour que pour un nouveau message.
+
+---
 id: 2026-09-18-waiting-user-mail-priority
 date: 2026-09-18
 title: Priorité haute en attente de l’utilisateur

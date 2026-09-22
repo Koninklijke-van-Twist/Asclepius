@@ -1,3 +1,11 @@
+id: 2026-09-22-publish-ghost-message
+date: 2026-09-22
+title: Publish ghost messages for admins
+author: Tim Falken
+
+Admins see an icon (👻 with a prohibition mark) on the top-right of a **ghost message**. Use it to take the message out of ghost mode. After confirmation it becomes visible to the user, who receives the same update email as for a newly posted message.
+
+---
 id: 2026-09-18-waiting-user-mail-priority
 date: 2026-09-18
 title: High priority when waiting on the requester

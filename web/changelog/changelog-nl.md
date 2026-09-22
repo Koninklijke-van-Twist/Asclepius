@@ -1,3 +1,11 @@
+id: 2026-09-22-publish-ghost-message
+date: 2026-09-22
+title: Ghost-bericht publiceren voor beheerders
+author: Tim Falken
+
+Beheerders zien bij een **ghost-bericht** rechtsboven een icoon (👻 met verbodsteken). Daarmee kun je het bericht uit ghost-modus halen. Na bevestiging wordt het zichtbaar voor de gebruiker en krijgt die dezelfde updatemail als bij een nieuw bericht.
+
+---
 id: 2026-09-18-waiting-user-mail-priority
 date: 2026-09-18
 title: Hoge prioriteit bij wachten op gebruiker

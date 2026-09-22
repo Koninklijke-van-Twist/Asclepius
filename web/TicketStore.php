@@ -4501,6 +4501,89 @@ class TicketStore
         return (int) $value === 1;
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getTicketMessage(int $messageId): ?array
+    {
+        if ($messageId <= 0) {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT id, ticket_id, sender_email, sender_role, sender_display_name, sender_role_title,
+                    message_text, created_at, COALESCE(is_ghost, 0) AS is_ghost
+             FROM ticket_messages
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $statement->execute([':id' => $messageId]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return null;
+        }
+
+        $row['id'] = (int) ($row['id'] ?? 0);
+        $row['ticket_id'] = (int) ($row['ticket_id'] ?? 0);
+        $row['is_ghost'] = (int) ($row['is_ghost'] ?? 0) === 1;
+
+        return $row;
+    }
+
+    public function messageHasAttachments(int $messageId): bool
+    {
+        if ($messageId <= 0) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT 1
+             FROM ticket_attachments
+             WHERE message_id = :message_id
+             LIMIT 1'
+        );
+        $statement->execute([':message_id' => $messageId]);
+
+        return (bool) $statement->fetchColumn();
+    }
+
+    /**
+     * Clear ghost mode on a message and bump the ticket updated_at.
+     *
+     * @return array<string, mixed>|null Published message row, or null if missing / not ghost
+     */
+    public function publishGhostMessage(int $messageId): ?array
+    {
+        $message = $this->getTicketMessage($messageId);
+        if ($message === null || empty($message['is_ghost'])) {
+            return null;
+        }
+
+        $now = date('c');
+        $updateMessage = $this->pdo->prepare(
+            'UPDATE ticket_messages
+             SET is_ghost = 0
+             WHERE id = :id
+               AND COALESCE(is_ghost, 0) = 1'
+        );
+        $updateMessage->execute([':id' => $messageId]);
+        if ($updateMessage->rowCount() < 1) {
+            return null;
+        }
+
+        $updateTicket = $this->pdo->prepare(
+            'UPDATE tickets SET updated_at = :updated_at WHERE id = :id'
+        );
+        $updateTicket->execute([
+            ':updated_at' => $now,
+            ':id' => (int) $message['ticket_id'],
+        ]);
+
+        $message['is_ghost'] = false;
+
+        return $message;
+    }
+
     public function isGhostAttachment(int $attachmentId): bool
     {
         if ($attachmentId <= 0) {

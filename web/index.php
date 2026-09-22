@@ -128,6 +128,7 @@ $apiUrl = 'api.php';
             title="<?= h(__('api_docs.corner_title')) ?>"><?= h(__('api_docs.corner_link')) ?></a>
     <?php endif; ?>
     <?php require __DIR__ . '/content/views/view_ticket_share_modal.php'; ?>
+    <?php require __DIR__ . '/content/views/view_publish_ghost_modal.php'; ?>
     <?php require __DIR__ . '/content/views/view_theevraagje_modal.php'; ?>
     <?php require __DIR__ . '/content/views/page_js.php'; ?>
     <?php require __DIR__ . '/content/views/bigscreen_js.php'; ?>

@@ -3355,6 +3355,101 @@
 
         var ticketShareModal = document.querySelector('[data-role="ticket-share-modal"]');
         var ticketShareUrlInput = ticketShareModal ? ticketShareModal.querySelector('[data-role="ticket-share-url-input"]') : null;
+        var publishGhostModal = document.querySelector('[data-role="publish-ghost-modal"]');
+        var publishGhostPendingMessage = null;
+        var publishGhostInFlight = false;
+
+        var closePublishGhostModal = function ()
+        {
+            if (!publishGhostModal)
+            {
+                return;
+            }
+
+            publishGhostModal.hidden = true;
+            publishGhostModal.classList.remove('is-open');
+            publishGhostPendingMessage = null;
+            document.documentElement.style.overflow = '';
+        };
+
+        var openPublishGhostModal = function (messageNode)
+        {
+            if (!publishGhostModal || !messageNode)
+            {
+                return;
+            }
+
+            publishGhostPendingMessage = messageNode;
+            publishGhostModal.hidden = false;
+            publishGhostModal.classList.add('is-open');
+            document.documentElement.style.overflow = 'hidden';
+        };
+
+        var applyPublishedGhostToMessage = function (messageNode)
+        {
+            if (!messageNode)
+            {
+                return;
+            }
+
+            messageNode.classList.remove('is-ghost');
+            messageNode.removeAttribute('data-ghost');
+            var publishButton = messageNode.querySelector('[data-role="publish-ghost-message"]');
+            if (publishButton)
+            {
+                publishButton.remove();
+            }
+            var metaActions = messageNode.querySelector('.message-meta-actions');
+            if (metaActions && !metaActions.querySelector('[data-role="translation-status"]') && !metaActions.querySelector('[data-role="publish-ghost-message"]'))
+            {
+                metaActions.remove();
+            }
+            if (typeof window.syncGhostWaveBorders === 'function')
+            {
+                window.syncGhostWaveBorders();
+            }
+        };
+
+        var confirmPublishGhostMessage = function ()
+        {
+            if (publishGhostInFlight || !publishGhostPendingMessage)
+            {
+                return;
+            }
+
+            var messageNode = publishGhostPendingMessage;
+            var messageId = Number(messageNode.getAttribute('data-message-id') || 0);
+            var ticketCard = messageNode.closest('details.ticket-card');
+            if (messageId <= 0 || typeof apiFetchJson !== 'function')
+            {
+                closePublishGhostModal();
+                return;
+            }
+
+            publishGhostInFlight = true;
+            apiFetchJson('publish_ghost_message', {
+                message_id: messageId,
+                ticket_id: ticketCard ? Number(ticketCard.getAttribute('data-ticket-id') || 0) : 0,
+                viewer_email: ticketPollPayload.viewer_email || '',
+                current_page: ticketPollPayload.current_page || 'admin.php',
+                is_admin_portal: !!ticketPollPayload.is_admin_portal
+            }).then(function (data)
+            {
+                publishGhostInFlight = false;
+                if (!data || data.success !== true)
+                {
+                    closePublishGhostModal();
+                    return;
+                }
+
+                applyPublishedGhostToMessage(messageNode);
+                closePublishGhostModal();
+            }).catch(function ()
+            {
+                publishGhostInFlight = false;
+                closePublishGhostModal();
+            });
+        };
 
         var closeTicketShareModal = function ()
         {
@@ -3651,6 +3746,37 @@
             if (ticketShareModal && event.target === ticketShareModal)
             {
                 closeTicketShareModal();
+                return;
+            }
+
+            var publishGhostButton = event.target.closest('[data-role="publish-ghost-message"]');
+            if (publishGhostButton)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+                openPublishGhostModal(publishGhostButton.closest('.message'));
+                return;
+            }
+
+            var publishGhostClose = event.target.closest('[data-role="publish-ghost-close"], [data-role="publish-ghost-cancel"]');
+            if (publishGhostClose)
+            {
+                event.preventDefault();
+                closePublishGhostModal();
+                return;
+            }
+
+            var publishGhostConfirm = event.target.closest('[data-role="publish-ghost-confirm"]');
+            if (publishGhostConfirm)
+            {
+                event.preventDefault();
+                confirmPublishGhostMessage();
+                return;
+            }
+
+            if (publishGhostModal && event.target === publishGhostModal)
+            {
+                closePublishGhostModal();
                 return;
             }
 
@@ -4106,7 +4232,14 @@
                     return;
                 }
 
-                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-custom-status-modal"].is-open, [data-role="ticket-share-modal"].is-open, [data-role="ticket-title-modal"].is-open, [data-role="ticket-resolution-note-modal"].is-open').forEach(function (modal)
+                if (publishGhostModal && publishGhostModal.classList.contains('is-open'))
+                {
+                    event.preventDefault();
+                    closePublishGhostModal();
+                    return;
+                }
+
+                document.querySelectorAll('[data-role="ticket-participants-modal"].is-open, [data-role="ticket-category-modal"].is-open, [data-role="ticket-custom-status-modal"].is-open, [data-role="ticket-share-modal"].is-open, [data-role="ticket-title-modal"].is-open, [data-role="ticket-resolution-note-modal"].is-open, [data-role="publish-ghost-modal"].is-open').forEach(function (modal)
                 {
                     modal.hidden = true;
                     modal.classList.remove('is-open');
@@ -7057,11 +7190,19 @@
                     return;
                 }
 
+                var metaActions = messageMeta.querySelector('.message-meta-actions');
+                if (!metaActions)
+                {
+                    metaActions = document.createElement('div');
+                    metaActions.className = 'message-meta-actions';
+                    messageMeta.appendChild(metaActions);
+                }
+
                 statusIndicator = document.createElement('button');
                 statusIndicator.type = 'button';
                 statusIndicator.className = 'translation-status-indicator';
                 statusIndicator.setAttribute('data-role', 'translation-status');
-                messageMeta.appendChild(statusIndicator);
+                metaActions.appendChild(statusIndicator);
             }
 
             statusIndicator.setAttribute('data-status', 'error');
@@ -7171,7 +7312,12 @@
                 var statusIndicator = messageNode.querySelector('[data-role="translation-status"]');
                 if (statusIndicator)
                 {
+                    var metaActions = statusIndicator.closest('.message-meta-actions');
                     statusIndicator.remove();
+                    if (metaActions && !metaActions.querySelector('[data-role="publish-ghost-message"]') && !metaActions.querySelector('[data-role="translation-status"]'))
+                    {
+                        metaActions.remove();
+                    }
                 }
 
                 var existingMsgToggle = messageNode.querySelector('[data-role="message-translation-toggle"]');
@@ -7190,7 +7336,15 @@
                         var messageMeta = messageNode.querySelector('.message-meta');
                         if (messageMeta)
                         {
-                            messageMeta.appendChild(msgToggleBtn);
+                            var metaActionsForToggle = messageMeta.querySelector('.message-meta-actions');
+                            if (metaActionsForToggle)
+                            {
+                                messageMeta.insertBefore(msgToggleBtn, metaActionsForToggle);
+                            }
+                            else
+                            {
+                                messageMeta.appendChild(msgToggleBtn);
+                            }
                         }
                     }
                     else

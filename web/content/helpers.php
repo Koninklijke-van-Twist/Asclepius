@@ -993,12 +993,25 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
                     data-label-translated="<?= h(__('ticket.show_translation')) ?>"
                     data-showing="translated"><?= h(__('ticket.show_original')) ?></button>
             <?php endif; ?>
-            <?php if ($translationPending): ?>
-                <div class="translation-status-indicator" data-role="translation-status" data-status="pending"
-                    title="<?= h(__('translation.loading_tooltip')) ?>">
-                    <span class="translation-flag-ghost"
-                        aria-hidden="true"><?= h(SUPPORTED_LANGUAGES[getCurrentLanguage()]['flag']) ?></span>
-                    <span class="translation-spinner-ring" aria-hidden="true"></span>
+            <?php if (!empty($message['is_ghost']) || $translationPending): ?>
+                <div class="message-meta-actions">
+                    <?php if (!empty($message['is_ghost'])): ?>
+                        <button type="button" class="publish-ghost-button" data-role="publish-ghost-message"
+                            data-message-id="<?= (int) ($message['id'] ?? 0) ?>"
+                            title="<?= h(__('ticket.publish_ghost_tooltip')) ?>"
+                            aria-label="<?= h(__('ticket.publish_ghost_tooltip')) ?>">
+                            <span class="publish-ghost-emoji" aria-hidden="true">👻</span>
+                            <span class="publish-ghost-ban" aria-hidden="true">🚫</span>
+                        </button>
+                    <?php endif; ?>
+                    <?php if ($translationPending): ?>
+                        <div class="translation-status-indicator" data-role="translation-status" data-status="pending"
+                            title="<?= h(__('translation.loading_tooltip')) ?>">
+                            <span class="translation-flag-ghost"
+                                aria-hidden="true"><?= h(SUPPORTED_LANGUAGES[getCurrentLanguage()]['flag']) ?></span>
+                            <span class="translation-spinner-ring" aria-hidden="true"></span>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>

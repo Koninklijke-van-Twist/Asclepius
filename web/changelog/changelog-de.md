@@ -1,3 +1,11 @@
+id: 2026-09-22-publish-ghost-message
+date: 2026-09-22
+title: Ghost-Nachricht für Admins veröffentlichen
+author: Tim Falken
+
+Admins sehen bei einer **Ghost-Nachricht** oben rechts ein Symbol (👻 mit Verbotszeichen). Damit kann die Nachricht aus dem Ghost-Modus geholt werden. Nach Bestätigung wird sie für den Benutzer sichtbar, und er erhält dieselbe Update-E-Mail wie bei einer neu gesendeten Nachricht.
+
+---
 id: 2026-09-18-waiting-user-mail-priority
 date: 2026-09-18
 title: Hohe Priorität bei Warten auf den Benutzer

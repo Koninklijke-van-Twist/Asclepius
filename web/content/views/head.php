@@ -1206,9 +1206,58 @@
             width: 22px;
             height: 22px;
             border-radius: 50%;
-            margin-left: auto;
             position: relative;
             opacity: 0.72;
+        }
+
+        .message-meta-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;
+        }
+
+        .publish-ghost-button {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            margin: 0;
+            padding: 0;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            background: transparent;
+            cursor: pointer;
+            line-height: 1;
+            opacity: 0.82;
+        }
+
+        .publish-ghost-button:hover {
+            opacity: 1;
+            border-color: rgba(91, 33, 182, 0.35);
+            background: rgba(91, 33, 182, 0.08);
+        }
+
+        .publish-ghost-emoji {
+            font-size: 15px;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .publish-ghost-ban {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            line-height: 1;
+            pointer-events: none;
+            user-select: none;
+            transform: scale(1.05);
+            filter: drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.9));
         }
 
         .translation-flag-ghost {
@@ -3955,7 +4004,8 @@
             .ticket-participants-modal[data-role="role-delete-modal"],
             .ticket-participants-modal[data-role="ticket-category-out-of-scope-modal"],
             .ticket-participants-modal[data-role="presence-join-modal"],
-            .ticket-participants-modal[data-role="ask-resolution-note-warning-modal"] {
+            .ticket-participants-modal[data-role="ask-resolution-note-warning-modal"],
+            .ticket-participants-modal[data-role="publish-ghost-modal"] {
                 z-index: 1800;
             }
 

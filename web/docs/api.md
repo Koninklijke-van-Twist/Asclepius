@@ -245,7 +245,7 @@ Body:
 | `ticket_id` | Ticketnummer. Ticket ophalen: `GET api.php?id=123` (optioneel `&include_ghosts=1`) |
 | `api_key` | Webhook-key, max. 1 uur. De bot stuurt die terug als `X-API-Key` of `api_key` |
 
-Met die `api_key` kan de bot o.a. het ticket lezen, `add_ticket_message` (inclusief `sender_name` / `sender_title` / `ghost`, en optioneel `status` / `assigned_email` in hetzelfde verzoek), `change_ticket_status`, `change_ticket_category`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date` en `ticket_lookups`.
+Met die `api_key` kan de bot o.a. het ticket lezen, `add_ticket_message` (inclusief `sender_name` / `sender_title` / `ghost`, en optioneel `status` / `assigned_email` in hetzelfde verzoek), `change_ticket_status`, `change_ticket_category`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date`, `publish_ghost_message` en `ticket_lookups`.
 
 ## GET/POST — `ticket_lookups`
 
@@ -335,13 +335,18 @@ Slaat per categorie alleen een rij op als het aantal open tickets is veranderd. 
 
 De vier mutaties hieronder (`change_ticket_status`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date`) gebruiken dezelfde autorisatie als `change_ticket_category`: geldige **service-key**, **webhook-key** (`apiClient.is_admin`), ICT-rechten van de sessie, of trusted localhost. Een client-meegegeven `user_is_admin` in de body wordt **genegeerd**.
 
+`publish_ghost_message` — zelfde autorisatie. Haalt een bestaand ghost-bericht uit ghost-modus en stuurt dezelfde updatemail naar deelnemers als een nieuw ICT-bericht (zonder statuswijziging).
+
 Gemeenschappelijke foutvorm (`success: false`):
 
 | HTTP | `error_code` | Wanneer |
 | --- | --- | --- |
 | `403` | `forbidden` | Geen service-key / webhook-key / ICT-rechten / trusted localhost |
 | `404` | `ticket_not_found` | Ticket bestaat niet of valt buiten de ICT-categorieën van een beperkte rol |
+| `404` | `message_not_found` | Alleen bij `publish_ghost_message`: bericht-id bestaat niet |
 | `422` | `ticket_id_required` | `ticket_id` / `id` ontbreekt of is geen positief geheel getal |
+| `422` | `message_id_required` | Alleen bij `publish_ghost_message`: `message_id` ontbreekt |
+| `422` | `not_ghost` | Alleen bij `publish_ghost_message`: bericht is geen ghost (meer) |
 
 ```json
 {
@@ -473,6 +478,29 @@ Succes → `200`:
 Al dezelfde due-date → `200` met `"unchanged": true` en dezelfde velden.
 
 Extra fout: `422` `invalid_due_date` (leeg, verkeerd formaat of onmogelijke kalenderdatum).
+
+#### `publish_ghost_message`
+
+`message_id` — verplicht. Zet `is_ghost` op `0` voor dat bericht (alleen als het nu een ghost is). Stuurt daarna dezelfde updatemail naar deelnemers als een nieuw ICT-bericht zonder statuswijziging (`email.subject_update` / `email.intro_update` + `email.intro_update_no_status`), zodat de eindgebruiker het niet kan onderscheiden van een net gepost bericht. Lege berichten zonder bijlagen worden wel gepubliceerd, maar zonder mail.
+
+```json
+{
+  "action": "publish_ghost_message",
+  "message_id": 4421
+}
+```
+
+Succes → `200`:
+
+```json
+{
+  "success": true,
+  "ticket_id": 776,
+  "message_id": 4421,
+  "is_ghost": false,
+  "notified": true
+}
+```
 
 `change_ticket_title` — `ticket_id`, `title` (niet leeg). Admin of trusted. Wist titelvertalingen.
 

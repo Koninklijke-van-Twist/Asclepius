@@ -1151,7 +1151,7 @@ function sendTicketMutationApiJson(array $response): void
         $errorCode = (string) ($response['error_code'] ?? '');
         $statusCode = match ($errorCode) {
             'forbidden' => 403,
-            'ticket_not_found' => 404,
+            'ticket_not_found', 'message_not_found' => 404,
             default => 422,
         };
     }
@@ -1312,6 +1312,107 @@ function handleChangeTicketStatusApiAction(TicketStore $store, array $payload, ?
         'resolved_at' => $updatedTicket['resolved_at'] ?? null,
         'message_id' => $messageId,
         'message_html' => renderTicketMessageHtml($messageForRender, $currentPage, !empty($payload['is_admin_portal'])),
+    ];
+}
+
+function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, ?array $apiClient, bool $hasValidServiceApiKey = false): array
+{
+    $access = resolveIctTicketMutationAccess($store, $payload, $apiClient, $hasValidServiceApiKey);
+    if (empty($access['allowed'])) {
+        return $access['error'];
+    }
+
+    $messageId = max(0, (int) ($payload['message_id'] ?? 0));
+    if ($messageId <= 0) {
+        return [
+            'success' => false,
+            'error' => 'message_id_required',
+            'error_code' => 'message_id_required',
+        ];
+    }
+
+    $message = $store->getTicketMessage($messageId);
+    if ($message === null) {
+        return [
+            'success' => false,
+            'error' => 'message_not_found',
+            'error_code' => 'message_not_found',
+        ];
+    }
+    if (empty($message['is_ghost'])) {
+        return [
+            'success' => false,
+            'error' => 'not_ghost',
+            'error_code' => 'not_ghost',
+        ];
+    }
+
+    $ticketId = (int) ($message['ticket_id'] ?? 0);
+    $viewerEmail = (string) $access['viewer_email'];
+    $ticket = loadTicketForIctMutation($store, $ticketId, $viewerEmail, $access['ict_access']);
+    if ($ticket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+            'error_code' => 'ticket_not_found',
+        ];
+    }
+
+    $published = $store->publishGhostMessage($messageId);
+    if ($published === null) {
+        return [
+            'success' => false,
+            'error' => 'not_ghost',
+            'error_code' => 'not_ghost',
+        ];
+    }
+
+    $actorEmail = resolveApiMutationActorEmail($ticket, $viewerEmail);
+    $updatedTicket = $store->getTicket($ticketId, true, $actorEmail, 'default', true);
+    if ($updatedTicket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+            'error_code' => 'ticket_not_found',
+        ];
+    }
+
+    $messageText = trim((string) ($published['message_text'] ?? ''));
+    $hasAttachments = $store->messageHasAttachments($messageId);
+    if ($messageText !== '' || $hasAttachments) {
+        $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
+        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
+            ? $updatedTicket['participant_emails']
+            : [(string) ($updatedTicket['user_email'] ?? '')];
+        $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
+        sendTicketNotification(
+            $store,
+            $ictUsersList,
+            $requesterRecipients,
+            __mail('email.subject_update', $reqLang, $ticketId),
+            buildNotificationBody(
+                $updatedTicket,
+                'email.intro_update',
+                $messageText,
+                false,
+                $reqLang,
+                __mail('email.intro_update_no_status', $reqLang)
+            ),
+            $actorEmail,
+            (string) ($updatedTicket['category'] ?? ''),
+            $ticketId,
+            null,
+            $actorEmail,
+            false
+        );
+    }
+
+    return [
+        'success' => true,
+        'ticket_id' => $ticketId,
+        'message_id' => $messageId,
+        'is_ghost' => false,
+        'notified' => $messageText !== '' || $hasAttachments,
     ];
 }
 
@@ -2792,6 +2893,10 @@ if ($method === 'POST') {
 
     if ($action === 'change_ticket_assignee') {
         sendTicketMutationApiJson(handleChangeTicketAssigneeApiAction($store, $payload, $apiClient, $hasValidServiceApiKey));
+    }
+
+    if ($action === 'publish_ghost_message') {
+        sendTicketMutationApiJson(handlePublishGhostMessageApiAction($store, $payload, $apiClient, $hasValidServiceApiKey));
     }
 
     if ($action === 'change_ticket_priority') {
