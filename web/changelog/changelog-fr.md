@@ -1,3 +1,11 @@
+id: 2026-09-18-waiting-user-mail-priority
+date: 2026-09-18
+title: Priorité haute en attente de l’utilisateur
+author: Tim Falken
+
+Lorsque l’ICT passe un ticket à **En attente de l’utilisateur**, l’e-mail de mise à jour vers le demandeur est marqué comme prioritaire. Les autres e-mails restent normaux.
+
+---
 id: 2026-09-18-api-message-status-assignee
 date: 2026-09-18
 title: Message, statut et attribution en un seul appel API

@@ -1,3 +1,11 @@
+id: 2026-09-18-waiting-user-mail-priority
+date: 2026-09-18
+title: Hohe Priorität bei Warten auf den Benutzer
+author: Tim Falken
+
+Wenn ICT ein Ticket auf **Wartet auf Benutzer** setzt, erhält die Update-E-Mail an den Anfragenden hohe Priorität im Posteingang. Andere E-Mails bleiben normal.
+
+---
 id: 2026-09-18-api-message-status-assignee
 date: 2026-09-18
 title: Nachricht, Status und Zuweisung in einem API-Aufruf

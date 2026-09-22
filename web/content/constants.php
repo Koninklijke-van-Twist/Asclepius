@@ -31,10 +31,11 @@ const TICKET_CATEGORIES = [
     'Telefoon Klaarmaken',
     'Anders',
 ];
+const TICKET_STATUS_WAITING_ON_USER = 'afwachtende op gebruiker';
 const TICKET_STATUSES = [
     'ingediend',
     'in behandeling',
-    'afwachtende op gebruiker',
+    TICKET_STATUS_WAITING_ON_USER,
     'afwachtende op bestelling',
     'afwachtende op derde partij',
     'afgehandeld',
@@ -43,7 +44,7 @@ const CUSTOM_TICKET_STATUS_MAX_LENGTH = 40;
 const STATUS_COLORS = [
     'ingediend' => '#2563eb',
     'in behandeling' => '#d97706',
-    'afwachtende op gebruiker' => '#7c3aed',
+    TICKET_STATUS_WAITING_ON_USER => '#7c3aed',
     'afwachtende op bestelling' => '#b45309',
     'afwachtende op derde partij' => '#0d9488',
     'afgehandeld' => '#15803d',
