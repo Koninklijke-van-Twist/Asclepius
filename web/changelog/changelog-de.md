@@ -1,3 +1,16 @@
+id: 2026-09-23-webhook-user-reply-reopen
+date: 2026-09-23
+title: Webhook bei Antwort und bei erneut geöffnetem Ticket
+author: Tim Falken
+
+Der ausgehende Webhook an ICT wird jetzt auch in zwei weiteren Situationen gesendet.
+
+- Steht ein Ticket auf **Wartet auf Benutzer** und der Anfragende schreibt danach eine Nachricht, folgt ein Webhook mit `type: user-reply`. In der Übersicht setzt diese Antwort den Status wieder auf **in Bearbeitung**; die Meldung geht trotzdem raus.
+- Wechselt ein Ticket von **Erledigt** in einen anderen Status, folgt ein Webhook mit `type: ticket-reopened`.
+
+Webhooks für ein neues Ticket und für erledigt bleiben gleich.
+
+---
 id: 2026-09-22-publish-ghost-message
 date: 2026-09-22
 title: Ghost-Nachricht für Admins veröffentlichen

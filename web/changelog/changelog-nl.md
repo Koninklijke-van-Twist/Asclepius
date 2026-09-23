@@ -1,3 +1,16 @@
+id: 2026-09-23-webhook-user-reply-reopen
+date: 2026-09-23
+title: Webhook bij antwoord en bij heropend ticket
+author: Tim Falken
+
+De uitgaande webhook naar ICT gaat nu ook af in twee extra situaties.
+
+- Staat een ticket op **afwachtende op gebruiker** en plaatst de aanvrager daarna een bericht, dan volgt een webhook met `type: user-reply`. In het overzicht zet dat antwoord de status weer op **in behandeling**; de melding gaat evengoed uit.
+- Gaat een ticket van **Afgehandeld** naar een andere status, dan volgt een webhook met `type: ticket-reopened`.
+
+Webhooks voor een nieuw ticket en voor afgehandeld blijven hetzelfde.
+
+---
 id: 2026-09-22-publish-ghost-message
 date: 2026-09-22
 title: Ghost-bericht publiceren voor beheerders

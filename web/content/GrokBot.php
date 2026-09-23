@@ -4,10 +4,15 @@ class GrokBot
 {
     public const EVENT_NEW_TICKET = 'new-ticket';
     public const EVENT_TICKET_SOLVED = 'ticket-solved';
+    public const EVENT_USER_REPLY = 'user-reply';
+    public const EVENT_TICKET_REOPENED = 'ticket-reopened';
 
     private const DEFAULT_SENDER = 'grok-bot@kvt.nl';
     private const WEBHOOK_TIMEOUT_SECONDS = 5;
     private const EPHEMERAL_KEY_TTL_SECONDS = 3600;
+
+    /** @var (callable(string, array<string, mixed>, string): void)|null */
+    private static $deliveryOverride = null;
 
     /**
      * @param array<string, mixed>|null $config
@@ -23,6 +28,57 @@ class GrokBot
     public static function notifyTicketSolved(TicketStore $store, int $ticketId, ?array $config = null): void
     {
         self::notifyTicketEvent($ticketId, self::EVENT_TICKET_SOLVED, $config);
+    }
+
+    /**
+     * User posted a non-ghost message while the ticket was waiting on the user.
+     * Status is the value from before this reply (the UI may already have moved
+     * the ticket to "in behandeling" by the time the webhook is delivered).
+     *
+     * @param array<string, mixed>|null $config
+     */
+    public static function notifyUserRepliedWhileWaiting(
+        TicketStore $store,
+        int $ticketId,
+        string $senderRole,
+        bool $isGhost,
+        string $statusBeforeReply,
+        string $messageText,
+        ?array $config = null
+    ): void {
+        if ($isGhost || $senderRole !== 'user' || trim($messageText) === '') {
+            return;
+        }
+        if (!self::isWaitingOnUserStatus($statusBeforeReply)) {
+            return;
+        }
+
+        self::notifyTicketEvent($ticketId, self::EVENT_USER_REPLY, $config);
+    }
+
+    /**
+     * @param array<string, mixed>|null $config
+     */
+    public static function notifyTicketReopened(TicketStore $store, int $ticketId, ?array $config = null): void
+    {
+        self::notifyTicketEvent($ticketId, self::EVENT_TICKET_REOPENED, $config);
+    }
+
+    /**
+     * @param (callable(string, array<string, mixed>, string): void)|null $override
+     */
+    public static function setDeliveryOverride(?callable $override): void
+    {
+        self::$deliveryOverride = $override;
+    }
+
+    private static function isWaitingOnUserStatus(string $status): bool
+    {
+        $canonical = defined('TICKET_STATUS_WAITING_ON_USER')
+            ? (string) TICKET_STATUS_WAITING_ON_USER
+            : 'afwachtende op gebruiker';
+
+        return strtolower(trim($status)) === $canonical;
     }
 
     /**
@@ -187,6 +243,11 @@ class GrokBot
     {
         $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if (!is_string($jsonPayload) || $jsonPayload === '') {
+            return;
+        }
+
+        if (self::$deliveryOverride !== null) {
+            (self::$deliveryOverride)($url, $payload, $sendKey);
             return;
         }
 

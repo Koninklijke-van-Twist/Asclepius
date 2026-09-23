@@ -2191,10 +2191,16 @@ class TicketStore
             throw $exception;
         }
 
-        if ($statusChanged && strtolower($status) === 'afgehandeld') {
+        $movedToSolved = strtolower($status) === 'afgehandeld';
+        $reopened = $currentStatus === 'afgehandeld' && !$movedToSolved;
+        if ($statusChanged && ($movedToSolved || $reopened)) {
             try {
                 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
-                GrokBot::notifyTicketSolved($this, $ticketId);
+                if ($movedToSolved) {
+                    GrokBot::notifyTicketSolved($this, $ticketId);
+                } else {
+                    GrokBot::notifyTicketReopened($this, $ticketId);
+                }
             } catch (Throwable) {
             }
         }

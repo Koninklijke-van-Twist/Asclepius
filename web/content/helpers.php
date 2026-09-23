@@ -2822,7 +2822,8 @@ function persistTicketReplyMessages(
     bool $isGhostMode,
     string $messageForStorage,
     ?string $senderDisplayName = null,
-    ?string $senderRoleTitle = null
+    ?string $senderRoleTitle = null,
+    ?string $statusBeforeReply = null
 ): array {
     $visibleMessageForMail = '';
     $statusMessageId = null;
@@ -2857,6 +2858,21 @@ function persistTicketReplyMessages(
             $senderRoleTitle
         );
         $visibleMessageForMail = $messageForStorage;
+    }
+
+    if ($messageId > 0 && $statusBeforeReply !== null) {
+        try {
+            require_once __DIR__ . DIRECTORY_SEPARATOR . 'GrokBot.php';
+            GrokBot::notifyUserRepliedWhileWaiting(
+                $store,
+                $ticketId,
+                $senderRole,
+                $isGhostMode,
+                $statusBeforeReply,
+                $message
+            );
+        } catch (Throwable) {
+        }
     }
 
     return [
