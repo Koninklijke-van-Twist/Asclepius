@@ -509,7 +509,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                 $message,
                 $files,
                 $isGhostMode,
-                $messageForStorage
+                $messageForStorage,
+                null,
+                null,
+                (string) ($ticket['status'] ?? '')
             );
             $visibleMessageForMail = $persistedReply['visible_message_for_mail'];
 

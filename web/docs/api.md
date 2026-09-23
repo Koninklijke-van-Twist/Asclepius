@@ -19,7 +19,7 @@ Drie soorten keys:
 
 - **Service-key** — vast, in `auth.php` (`$apiKeys`). Bedoeld voor bots en integraties. Heeft geen sessie-e-mail; stuur `user_email` / `sender_email` / `viewer_email` mee waar een actor nodig is.
 - **Sessie-key** — tijdelijke rotating key van de web-UI (hex, 64 tekens). Koppeling aan de ingelogde gebruiker (`email`, `is_admin`).
-- **Webhook-key** — hex, 64 tekens, zit in de uitgaande ticket-webhook (`new-ticket` / `ticket-solved`). ICT-rechten, maximaal **1 uur** geldig, daarna `401`.
+- **Webhook-key** — hex, 64 tekens, zit in de uitgaande ticket-webhook (`new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened`). ICT-rechten, maximaal **1 uur** geldig, daarna `401`.
 
 Bij een ongeldige key:
 
@@ -219,8 +219,12 @@ Als `$grokBot['enabled']` aan staat en `webhook_url` is gezet, POST’t Asclepiu
 
 - **elk nieuw ticket** (UI, API, sjabloon, pagina-toegang) — `type: "new-ticket"`
 - **elke overgang naar Afgehandeld** — `type: "ticket-solved"`
+- **elke overgang vanuit Afgehandeld naar een andere status** (UI of API) — `type: "ticket-reopened"`
+- **bericht van de aanvrager terwijl het ticket op `afwachtende op gebruiker` staat** — `type: "user-reply"`
 
-Dit zit **niet** in `hourly.php`. Geen instructies in de body: die heeft de bot zelf.
+`user-reply` geldt voor een niet-leeg bericht van de aanvrager (UI of API), geen ghost en geen ICT-/botbericht. De status op dat moment is `afwachtende op gebruiker`, ongeacht of ICT of de bot die status zette. In het ticketoverzicht zet zo'n antwoord de status daarna op **in behandeling**; de webhook gaat uit nadat het bericht is opgeslagen en houdt `type: "user-reply"`. Alleen de status wijzigen, zonder gebruikersbericht, vuurt `user-reply` niet.
+
+Dit zit **niet** in `hourly.php`. Geen instructies in de body: die heeft de bot zelf. Bestaande events (`new-ticket`, `ticket-solved`) houden dezelfde body.
 
 Timeout: 5 seconden. Een mislukte webhook houdt het ticket of de statuswijziging niet tegen.
 
@@ -241,7 +245,7 @@ Body:
 
 | Veld | Betekenis |
 | --- | --- |
-| `type` | `new-ticket` of `ticket-solved` |
+| `type` | `new-ticket`, `ticket-solved`, `user-reply` of `ticket-reopened` |
 | `ticket_id` | Ticketnummer. Ticket ophalen: `GET api.php?id=123` (optioneel `&include_ghosts=1`) |
 | `api_key` | Webhook-key, max. 1 uur. De bot stuurt die terug als `X-API-Key` of `api_key` |
 
@@ -360,7 +364,7 @@ Gemeenschappelijke foutvorm (`success: false`):
 
 #### `change_ticket_status`
 
-`ticket_id` (alias `id`), `status` (alias `ticket_status`). `status` is een vaste waarde uit `ticket_lookups.statuses` of een eigen label (zoals in de UI, max. 40 tekens). Zet een systeemnotitie, werkt `resolved_at` bij, en stuurt dezelfde meldingen als het ICT-overzicht. Overgang naar `afgehandeld` vuurt de `ticket-solved`-webhook.
+`ticket_id` (alias `id`), `status` (alias `ticket_status`). `status` is een vaste waarde uit `ticket_lookups.statuses` of een eigen label (zoals in de UI, max. 40 tekens). Zet een systeemnotitie, werkt `resolved_at` bij, en stuurt dezelfde meldingen als het ICT-overzicht. Overgang naar `afgehandeld` vuurt de `ticket-solved`-webhook. Overgang vanuit `afgehandeld` naar een andere status vuurt de `ticket-reopened`-webhook.
 
 ```json
 {

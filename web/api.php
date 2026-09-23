@@ -1859,7 +1859,8 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         $isGhost,
         $messageForStorage,
         $senderDisplayName,
-        $senderRoleTitle
+        $senderRoleTitle,
+        (string) ($ticket['status'] ?? '')
     );
     $messageId = (int) $persistedReply['message_id'];
 

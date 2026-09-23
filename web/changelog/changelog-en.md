@@ -1,3 +1,16 @@
+id: 2026-09-23-webhook-user-reply-reopen
+date: 2026-09-23
+title: Webhook on user reply and reopened ticket
+author: Tim Falken
+
+The outbound webhook to ICT now also fires in two extra situations.
+
+- When a ticket is **awaiting the user** and the requester then posts a message, a webhook follows with `type: user-reply`. In the overview that reply sets the status back to **in progress**; the notification is still sent.
+- When a ticket moves from **Resolved** to any other status, a webhook follows with `type: ticket-reopened`.
+
+Webhooks for a new ticket and for resolved stay the same.
+
+---
 id: 2026-09-22-publish-ghost-message
 date: 2026-09-22
 title: Publish ghost messages for admins

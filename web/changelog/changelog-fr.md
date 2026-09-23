@@ -1,3 +1,16 @@
+id: 2026-09-23-webhook-user-reply-reopen
+date: 2026-09-23
+title: Webhook lors d’une réponse et à la réouverture
+author: Tim Falken
+
+Le webhook sortant vers l’ICT part désormais aussi dans deux situations supplémentaires.
+
+- Si un ticket est **en attente de l’utilisateur** et que le demandeur publie ensuite un message, un webhook part avec `type: user-reply`. Dans l’aperçu, cette réponse remet le statut sur **en cours** ; la notification part quand même.
+- Si un ticket passe de **Résolu** à un autre statut, un webhook part avec `type: ticket-reopened`.
+
+Les webhooks pour un nouveau ticket et pour résolu restent les mêmes.
+
+---
 id: 2026-09-22-publish-ghost-message
 date: 2026-09-22
 title: Publier un message fantôme pour les admins
