@@ -6,6 +6,7 @@ class GrokBot
     public const EVENT_TICKET_SOLVED = 'ticket-solved';
     public const EVENT_USER_REPLY = 'user-reply';
     public const EVENT_TICKET_REOPENED = 'ticket-reopened';
+    public const EVENT_RE_EVALUATE_AND_ADVISE = 're-evaluate-ticket-and-advise';
 
     private const DEFAULT_SENDER = 'grok-bot@kvt.nl';
     private const WEBHOOK_TIMEOUT_SECONDS = 5;
@@ -65,6 +66,61 @@ class GrokBot
     }
 
     /**
+     * ICT requested a fresh AI review of an existing ticket.
+     * Payload field advice_prompt: optional free-text note from the AI Advies modal (may be empty).
+     *
+     * @param array<string, mixed>|null $config
+     */
+    public static function notifyReEvaluateAndAdvise(
+        TicketStore $store,
+        int $ticketId,
+        string $advicePrompt = '',
+        ?array $config = null
+    ): bool {
+        return self::notifyTicketEvent(
+            $ticketId,
+            self::EVENT_RE_EVALUATE_AND_ADVISE,
+            $config,
+            [
+                // Optional ICT note from the modal; empty string is valid and always sent.
+                'advice_prompt' => $advicePrompt,
+            ]
+        );
+    }
+
+    /**
+     * Whether a message sender is the configured Grok / AI assistant identity.
+     *
+     * @param array<string, mixed>|null $config
+     */
+    public static function isAiAssistantSender(string $senderEmail, ?array $config = null): bool
+    {
+        if ($config === null) {
+            global $grokBot;
+            $config = is_array($grokBot ?? null) ? $grokBot : [];
+        }
+
+        $configuredSender = strtolower(trim((string) ($config['sender_email'] ?? self::DEFAULT_SENDER)));
+        if ($configuredSender === '') {
+            $configuredSender = self::DEFAULT_SENDER;
+        }
+
+        $senderEmail = strtolower(trim($senderEmail));
+        return $senderEmail !== '' && $senderEmail === $configuredSender;
+    }
+
+    /**
+     * Treat Grok-bot pipeline messages (typically ghost posts as the configured sender) as AI replies.
+     *
+     * @param array<string, mixed> $message
+     * @param array<string, mixed>|null $config
+     */
+    public static function isAiAssistantMessage(array $message, ?array $config = null): bool
+    {
+        return self::isAiAssistantSender((string) ($message['sender_email'] ?? ''), $config);
+    }
+
+    /**
      * @param (callable(string, array<string, mixed>, string): void)|null $override
      */
     public static function setDeliveryOverride(?callable $override): void
@@ -84,9 +140,14 @@ class GrokBot
     /**
      * @param array<string, mixed>|null $config
      */
-    private static function notifyTicketEvent(int $ticketId, string $type, ?array $config = null): void {
+    /**
+     * @param array<string, mixed>|null $config
+     * @param array<string, mixed> $extra Extra JSON body fields merged after type/ticket_id/api_key.
+     */
+    private static function notifyTicketEvent(int $ticketId, string $type, ?array $config = null, array $extra = []): bool
+    {
         if ($ticketId <= 0) {
-            return;
+            return false;
         }
 
         if ($config === null) {
@@ -95,25 +156,28 @@ class GrokBot
         }
 
         if (empty($config['enabled'])) {
-            return;
+            return false;
         }
 
         $webhookUrl = trim((string) ($config['webhook_url'] ?? ''));
         if ($webhookUrl === '' || !filter_var($webhookUrl, FILTER_VALIDATE_URL)) {
-            return;
+            return false;
         }
 
         $issued = self::issueEphemeralApiKey($config, $ticketId);
         if ($issued === null) {
-            return;
+            return false;
         }
 
         $sendKey = trim((string) ($config['send_key'] ?? ($config['webhook_secret'] ?? '')));
-        self::postWebhook($webhookUrl, [
+        $payload = array_merge([
             'type' => $type,
             'ticket_id' => $ticketId,
             'api_key' => $issued['api_key'],
-        ], $sendKey);
+        ], $extra);
+        self::postWebhook($webhookUrl, $payload, $sendKey);
+
+        return true;
     }
 
     /**

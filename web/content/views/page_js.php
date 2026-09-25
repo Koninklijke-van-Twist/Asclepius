@@ -6575,10 +6575,187 @@
             }
         };
 
+        var syncAiAdviceButtonState = function (ticketCard, available, pending)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+
+            var button = ticketCard.querySelector('[data-role="ai-advice-open"]');
+            if (!button)
+            {
+                return;
+            }
+
+            var isAvailable = !!available;
+            button.disabled = !isAvailable;
+            button.classList.toggle('is-disabled', !isAvailable);
+            button.setAttribute('data-ai-advice-available', isAvailable ? '1' : '0');
+            if (typeof pending !== 'undefined' && pending !== null)
+            {
+                button.setAttribute('data-ai-advice-pending', String(pending));
+            }
+            button.title = isAvailable
+                ? <?= json_encode(__('ticket.ai_advice_button'), JSON_UNESCAPED_UNICODE) ?>
+                : <?= json_encode(__('ticket.ai_advice_disabled_tooltip'), JSON_UNESCAPED_UNICODE) ?>;
+        };
+
+        var closeAiAdviceModal = function (ticketCard)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+            var modal = ticketCard.querySelector('[data-role="ticket-ai-advice-modal"]');
+            if (!modal)
+            {
+                return;
+            }
+            modal.hidden = true;
+            modal.classList.remove('is-open');
+            document.documentElement.style.overflow = '';
+        };
+
+        var setAiAdviceFeedback = function (ticketCard, message, isError)
+        {
+            if (!ticketCard)
+            {
+                return;
+            }
+            var feedback = ticketCard.querySelector('[data-role="ai-advice-feedback"]');
+            if (!feedback)
+            {
+                return;
+            }
+            feedback.textContent = message || '';
+            feedback.classList.toggle('is-error', !!isError && !!message);
+        };
+
         document.addEventListener('click', function (event)
         {
+            var openAiAdviceButton = event.target.closest('[data-role="ai-advice-open"]');
+            if (openAiAdviceButton)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+                if (openAiAdviceButton.disabled || openAiAdviceButton.getAttribute('data-ai-advice-available') === '0')
+                {
+                    return;
+                }
+                var adviceCard = openAiAdviceButton.closest('details.ticket-card');
+                var adviceModal = adviceCard ? adviceCard.querySelector('[data-role="ticket-ai-advice-modal"]') : null;
+                if (!adviceModal)
+                {
+                    return;
+                }
+                var adviceInput = adviceModal.querySelector('[data-role="ai-advice-input"]');
+                if (adviceInput)
+                {
+                    adviceInput.value = '';
+                }
+                setAiAdviceFeedback(adviceCard, '', false);
+                adviceModal.hidden = false;
+                adviceModal.classList.add('is-open');
+                document.documentElement.style.overflow = 'hidden';
+                if (adviceInput)
+                {
+                    adviceInput.focus();
+                }
+                return;
+            }
+
+            var closeAiAdviceButton = event.target.closest('[data-role="ai-advice-close"], [data-role="ai-advice-cancel"]');
+            if (closeAiAdviceButton)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+                closeAiAdviceModal(closeAiAdviceButton.closest('details.ticket-card'));
+                return;
+            }
+
+            if (event.target.matches('[data-role="ticket-ai-advice-modal"]'))
+            {
+                event.preventDefault();
+                closeAiAdviceModal(event.target.closest('details.ticket-card'));
+                return;
+            }
+
+            var submitAiAdviceButton = event.target.closest('[data-role="ai-advice-submit"]');
+            if (submitAiAdviceButton)
+            {
+                event.preventDefault();
+                event.stopPropagation();
+                var submitCard = submitAiAdviceButton.closest('details.ticket-card');
+                var submitModal = submitCard ? submitCard.querySelector('[data-role="ticket-ai-advice-modal"]') : null;
+                if (!submitCard || !submitModal)
+                {
+                    return;
+                }
+
+                var ticketId = parseInt(submitCard.getAttribute('data-ticket-id') || '0', 10);
+                if (ticketId <= 0)
+                {
+                    return;
+                }
+
+                var promptInput = submitModal.querySelector('[data-role="ai-advice-input"]');
+                var advicePrompt = promptInput ? String(promptInput.value || '').trim() : '';
+
+                // Optimistic disable before the ghost arrives.
+                syncAiAdviceButtonState(submitCard, false, 1);
+                submitAiAdviceButton.disabled = true;
+                setAiAdviceFeedback(submitCard, '', false);
+
+                apiFetchJson('request_ai_advice', {
+                    csrf_token: csrfToken,
+                    ticket_id: ticketId,
+                    advice_prompt: advicePrompt,
+                    viewer_email: ticketPollPayload.viewer_email || '',
+                    user_is_admin: !!ticketPollPayload.user_is_admin,
+                    is_admin_portal: !!ticketPollPayload.is_admin_portal
+                }).then(function (data)
+                {
+                    if (!data || data.success !== true)
+                    {
+                        syncAiAdviceButtonState(submitCard, true, 0);
+                        setAiAdviceFeedback(
+                            submitCard,
+                            (data && data.error) ? data.error : <?= json_encode(__('ticket.ai_advice_feedback_error'), JSON_UNESCAPED_UNICODE) ?>,
+                            true
+                        );
+                        return;
+                    }
+
+                    syncAiAdviceButtonState(
+                        submitCard,
+                        false,
+                        typeof data.ai_advice_pending !== 'undefined' ? data.ai_advice_pending : 1
+                    );
+                    closeAiAdviceModal(submitCard);
+                }).catch(function ()
+                {
+                    syncAiAdviceButtonState(submitCard, true, 0);
+                    setAiAdviceFeedback(
+                        submitCard,
+                        <?= json_encode(__('ticket.ai_advice_feedback_error'), JSON_UNESCAPED_UNICODE) ?>,
+                        true
+                    );
+                }).finally(function ()
+                {
+                    submitAiAdviceButton.disabled = false;
+                });
+                return;
+            }
+
             var privateToggleLabel = event.target.closest('.private-ticket-toggle');
             if (privateToggleLabel)
+            {
+                event.stopPropagation();
+            }
+
+            var aiAdviceButtonClick = event.target.closest('[data-role="ai-advice-open"]');
+            if (aiAdviceButtonClick)
             {
                 event.stopPropagation();
             }
@@ -7888,6 +8065,15 @@
                     privateInput.checked = !!ticket.is_private;
                 }
                 syncPrivateToggleState(privateToggleLabelCard, !!ticket.is_private);
+            }
+
+            if (typeof ticket.ai_advice_available !== 'undefined')
+            {
+                syncAiAdviceButtonState(
+                    card,
+                    !!ticket.ai_advice_available,
+                    typeof ticket.ai_advice_pending !== 'undefined' ? ticket.ai_advice_pending : null
+                );
             }
 
             card.style.setProperty('--ticket-color-status', ticket.status_color || '');

@@ -476,6 +476,131 @@ assertSame(
 );
 resetCaptured();
 
+echo PHP_EOL . '--- AI Advies / re-evaluate-ticket-and-advise ---' . PHP_EOL;
+$GLOBALS['grokBot']['enabled'] = true;
+resetCaptured();
+
+$adviceTicket = $store->createTicket(
+    'AI advies ticket',
+    'Anders',
+    'user@kvt.nl',
+    'Beschrijving voor advies',
+    [],
+    0,
+    [],
+    null,
+    'ict@kvt.nl'
+);
+$adviceId = (int) $adviceTicket['ticket_id'];
+resetCaptured();
+
+assertTrue('AI advies beschikbaar na aanmaken', $store->isAiAdviceAvailable($adviceId));
+$adviceResult = handleRequestAiAdviceApiAction($store, [
+    'ticket_id' => $adviceId,
+    'advice_prompt' => 'Kijk vooral naar de printerdriver.',
+    'viewer_email' => 'ict@kvt.nl',
+    'user_is_admin' => true,
+    'is_admin_portal' => true,
+], $adminClient);
+assertTrue('AI advies request slaagt', !empty($adviceResult['success']));
+assertSame('AI advies pending na request', TicketStore::AI_ADVICE_AWAITING_AI, (int) ($adviceResult['ai_advice_pending'] ?? -1));
+assertFalse('AI advies niet beschikbaar tijdens pending', $store->isAiAdviceAvailable($adviceId));
+assertSame('AI advies webhook type', [GrokBot::EVENT_RE_EVALUATE_AND_ADVISE], capturedTypes());
+assertSame(
+    'AI advies payload velden',
+    ['type', 'ticket_id', 'api_key', 'advice_prompt'],
+    array_keys($captured[0]['payload'] ?? [])
+);
+assertSame(
+    'AI advies advice_prompt',
+    'Kijk vooral naar de printerdriver.',
+    (string) ($captured[0]['payload']['advice_prompt'] ?? '')
+);
+assertSame(
+    'AI advies type veld',
+    GrokBot::EVENT_RE_EVALUATE_AND_ADVISE,
+    (string) ($captured[0]['payload']['type'] ?? '')
+);
+resetCaptured();
+
+$duplicateAdvice = handleRequestAiAdviceApiAction($store, [
+    'ticket_id' => $adviceId,
+    'advice_prompt' => 'Nog een keer',
+    'viewer_email' => 'ict@kvt.nl',
+    'user_is_admin' => true,
+    'is_admin_portal' => true,
+], $adminClient);
+assertFalse('Tweede AI advies geweigerd tijdens pending', !empty($duplicateAdvice['success']));
+assertSame('Geen tweede webhook tijdens pending', [], capturedTypes());
+
+$earlyHuman = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $adviceId,
+    'message' => 'ICT typt iets voordat de bot antwoordt.',
+    'sender_email' => 'ict@kvt.nl',
+], $adminClient, false);
+assertTrue('Vroege ICT-bericht slaagt', !empty($earlyHuman['success']));
+$afterEarly = $store->getTicket($adviceId, true, 'ict@kvt.nl');
+assertSame(
+    'Pending blijft awaiting-AI zonder bot-ghost',
+    TicketStore::AI_ADVICE_AWAITING_AI,
+    (int) ($afterEarly['ai_advice_pending'] ?? -1)
+);
+assertFalse('Nog niet beschikbaar na vroege human', $store->isAiAdviceAvailable($adviceId));
+
+$botGhost = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $adviceId,
+    'message' => 'AI ghost advies antwoord.',
+    'ghost' => true,
+    'sender_email' => 'grok-bot@kvt.nl',
+], $webhookClient, false);
+assertTrue('Bot ghost slaagt', !empty($botGhost['success']));
+$afterGhost = $store->getTicket($adviceId, true, 'ict@kvt.nl');
+assertSame(
+    'Pending naar awaiting-human na bot ghost',
+    TicketStore::AI_ADVICE_AWAITING_HUMAN,
+    (int) ($afterGhost['ai_advice_pending'] ?? -1)
+);
+assertTrue('last_message_is_ai na bot', !empty($afterGhost['last_message_is_ai']));
+assertFalse('Nog niet beschikbaar na alleen bot ghost', $store->isAiAdviceAvailable($adviceId));
+
+$unlockHuman = handleAddTicketMessageApiAction($store, [
+    'ticket_id' => $adviceId,
+    'message' => 'ICT reageert na AI-advies.',
+    'sender_email' => 'ict@kvt.nl',
+], $adminClient, false);
+assertTrue('Unlock ICT-bericht slaagt', !empty($unlockHuman['success']));
+$afterUnlock = $store->getTicket($adviceId, true, 'ict@kvt.nl');
+assertSame(
+    'Pending idle na human na ghost',
+    TicketStore::AI_ADVICE_IDLE,
+    (int) ($afterUnlock['ai_advice_pending'] ?? -1)
+);
+assertFalse('last_message_is_ai false na human', !empty($afterUnlock['last_message_is_ai']));
+assertTrue('AI advies weer beschikbaar na cycle', $store->isAiAdviceAvailable($adviceId));
+
+$emptyPrompt = handleRequestAiAdviceApiAction($store, [
+    'ticket_id' => $adviceId,
+    'advice_prompt' => '',
+    'viewer_email' => 'ict@kvt.nl',
+    'user_is_admin' => true,
+    'is_admin_portal' => true,
+], $adminClient);
+assertTrue('AI advies met lege prompt slaagt', !empty($emptyPrompt['success']));
+assertSame(
+    'Lege advice_prompt blijft string',
+    '',
+    (string) ($captured[0]['payload']['advice_prompt'] ?? 'MISSING')
+);
+assertTrue(
+    'isAiAssistantSender herkent grok-bot',
+    GrokBot::isAiAssistantSender('grok-bot@kvt.nl')
+);
+assertFalse(
+    'isAiAssistantSender weigert ICT',
+    GrokBot::isAiAssistantSender('ict@kvt.nl')
+);
+resetCaptured();
+
 $GLOBALS['grokBot']['enabled'] = false;
 $store->updateTicket($reopenId, 'afgehandeld', 'ict@kvt.nl', 0, null);
 $store->updateTicket($reopenId, 'in behandeling', 'ict@kvt.nl', 0, null);

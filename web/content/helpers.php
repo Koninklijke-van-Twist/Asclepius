@@ -584,6 +584,8 @@ function buildTicketSnapshotSignature(array $tickets): string
             'assigned_email' => strtolower((string) ($ticket['assigned_email'] ?? '')),
             'message_count' => (int) ($ticket['message_count'] ?? 0),
             'is_private' => (int) ($ticket['is_private'] ?? 0),
+            'ai_advice_pending' => (int) ($ticket['ai_advice_pending'] ?? 0),
+            'last_message_is_ai' => (int) ($ticket['last_message_is_ai'] ?? 0),
         ];
     }, $tickets);
 
@@ -601,6 +603,33 @@ function buildTicketDetailArray(array $ticket, ?array $participantEmails, array 
         'participant_emails' => $participants,
         'messages' => $messages,
     ]);
+}
+
+/**
+ * AI Advies button: enabled only when no advise cycle is pending and the last
+ * message (including ghosts) is not from the configured AI assistant.
+ *
+ * @param array<string, mixed> $ticket
+ * @param list<array<string, mixed>>|null $messages Chronological messages when available
+ */
+function isTicketAiAdviceAvailable(array $ticket, ?array $messages = null): bool
+{
+    $pending = (int) ($ticket['ai_advice_pending'] ?? 0);
+    if ($pending !== TicketStore::AI_ADVICE_IDLE) {
+        return false;
+    }
+
+    if (is_array($messages) && $messages !== []) {
+        require_once __DIR__ . DIRECTORY_SEPARATOR . 'GrokBot.php';
+        $last = $messages[array_key_last($messages)];
+        if (is_array($last) && GrokBot::isAiAssistantMessage($last)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    return empty($ticket['last_message_is_ai']);
 }
 
 function buildTicketCardRenderContext(array $baseContext, array $ticket, int $openTicketId): array
@@ -1108,6 +1137,10 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     $displayTitle = (string) ($ticket['title'] ?? '');
     $titleIsTranslated = !empty($ticket['title_is_translated']) && $rawTitle !== '' && $displayTitle !== '' && $rawTitle !== $displayTitle;
     $hasDueDate = trim((string) ($ticket['due_date'] ?? '')) !== '';
+    $aiAdviceAvailable = $canManageTickets
+        ? isTicketAiAdviceAvailable($ticket, is_array($ticketDetail['messages'] ?? null) ? $ticketDetail['messages'] : null)
+        : false;
+    $aiAdvicePending = (int) ($ticket['ai_advice_pending'] ?? 0);
     $titleNeedsTrans = !empty($ticket['title_translation_pending']);
     $messagesNeedTrans = false;
     if ($includeMessages) {
@@ -1256,6 +1289,15 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                             <?= h(formatDurationSeconds($ticketOpenDuration)) ?></span>
                     <?php endif; ?>
                     <?php if ($canManageTickets): ?>
+                        <button type="button"
+                            class="status-pill ai-advice-button<?= $aiAdviceAvailable ? '' : ' is-disabled' ?>"
+                            data-role="ai-advice-open"
+                            data-ai-advice-available="<?= $aiAdviceAvailable ? '1' : '0' ?>"
+                            data-ai-advice-pending="<?= (int) $aiAdvicePending ?>"
+                            <?= $aiAdviceAvailable ? '' : 'disabled' ?>
+                            title="<?= h($aiAdviceAvailable ? __('ticket.ai_advice_button') : __('ticket.ai_advice_disabled_tooltip')) ?>">
+                            <?= h(__('ticket.ai_advice_button')) ?>
+                        </button>
                         <label class="private-ticket-toggle<?= !empty($ticket['is_private']) ? ' is-active' : '' ?>"
                             title="<?= h(__('ticket.private_label')) ?>">
                             <input type="checkbox" data-role="ticket-private-toggle" value="1"
@@ -1440,6 +1482,33 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                             </button>
                             <button type="button" data-role="change-title-save">
                                 <?= h(__('ticket.change_title_save')) ?>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ticket-participants-modal" data-role="ticket-ai-advice-modal" hidden>
+                    <div class="ticket-participants-modal-card">
+                        <div class="ticket-participants-modal-head">
+                            <h3><?= h(__('ticket.ai_advice_heading')) ?></h3>
+                            <button type="button" class="participant-modal-close" data-role="ai-advice-close"
+                                aria-label="<?= h(__('ticket.preview_close')) ?>">&times;</button>
+                        </div>
+
+                        <p class="hint" data-role="ai-advice-feedback"></p>
+
+                        <label>
+                            <?= h(__('ticket.ai_advice_label')) ?>
+                            <textarea rows="4" maxlength="4000" data-role="ai-advice-input"
+                                placeholder="<?= h(__('ticket.ai_advice_placeholder')) ?>"></textarea>
+                        </label>
+
+                        <div class="button-row">
+                            <button type="button" class="secondary-button" data-role="ai-advice-cancel">
+                                <?= h(__('ticket.ai_advice_cancel')) ?>
+                            </button>
+                            <button type="button" data-role="ai-advice-submit">
+                                <?= h(__('ticket.ai_advice_submit')) ?>
                             </button>
                         </div>
                     </div>
@@ -1715,6 +1784,12 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
         'assigned_label' => $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : __('ticket.unassigned'),
         'assigned_color' => emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl')),
         'is_private' => !empty($ticket['is_private']),
+        'ai_advice_pending' => (int) ($ticket['ai_advice_pending'] ?? 0),
+        'last_message_is_ai' => !empty($ticket['last_message_is_ai']),
+        'ai_advice_available' => isTicketAiAdviceAvailable(
+            $ticket,
+            is_array($ticketDetail['messages'] ?? null) ? $ticketDetail['messages'] : null
+        ),
         'message_count' => (int) ($ticket['message_count'] ?? 0),
         'time_open_label' => formatDurationSeconds($ticketOpenDuration),
         'meta_created_value' => formatDateTime((string) ($ticket['created_at'] ?? '')) . ' · ' . formatDurationSeconds($ticketOpenDuration),

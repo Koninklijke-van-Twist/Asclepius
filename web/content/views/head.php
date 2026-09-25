@@ -2496,6 +2496,31 @@
             opacity: 1;
         }
 
+        .ai-advice-button {
+            --ticket-color: #0ea5e9;
+            width: auto;
+            min-width: 92px;
+            justify-content: center;
+            opacity: 0.9;
+            cursor: pointer;
+            border: 0;
+            font: inherit;
+            transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+        }
+
+        .ai-advice-button:hover:not(:disabled):not(.is-disabled) {
+            opacity: 1;
+            transform: translateY(-1px);
+        }
+
+        .ai-advice-button:disabled,
+        .ai-advice-button.is-disabled {
+            --ticket-color: #94a3b8;
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .ticket-body {
             padding: 0 14px 14px;
             display: grid;

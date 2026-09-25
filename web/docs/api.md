@@ -19,7 +19,7 @@ Drie soorten keys:
 
 - **Service-key** — vast, in `auth.php` (`$apiKeys`). Bedoeld voor bots en integraties. Heeft geen sessie-e-mail; stuur `user_email` / `sender_email` / `viewer_email` mee waar een actor nodig is.
 - **Sessie-key** — tijdelijke rotating key van de web-UI (hex, 64 tekens). Koppeling aan de ingelogde gebruiker (`email`, `is_admin`).
-- **Webhook-key** — hex, 64 tekens, zit in de uitgaande ticket-webhook (`new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened`). ICT-rechten, maximaal **1 uur** geldig, daarna `401`.
+- **Webhook-key** — hex, 64 tekens, zit in de uitgaande ticket-webhook (`new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened`, `re-evaluate-ticket-and-advise`). ICT-rechten, maximaal **1 uur** geldig, daarna `401`.
 
 Bij een ongeldige key:
 
@@ -221,8 +221,11 @@ Als `$grokBot['enabled']` aan staat en `webhook_url` is gezet, POST’t Asclepiu
 - **elke overgang naar Afgehandeld** — `type: "ticket-solved"`
 - **elke overgang vanuit Afgehandeld naar een andere status** (UI of API) — `type: "ticket-reopened"`
 - **bericht van de aanvrager terwijl het ticket op `afwachtende op gebruiker` staat** — `type: "user-reply"`
+- **ICT vraagt opnieuw AI-advies via de knop AI Advies** — `type: "re-evaluate-ticket-and-advise"`
 
 `user-reply` geldt voor een niet-leeg bericht van de aanvrager (UI of API), geen ghost en geen ICT-/botbericht. De status op dat moment is `afwachtende op gebruiker`, ongeacht of ICT of de bot die status zette. In het ticketoverzicht zet zo'n antwoord de status daarna op **in behandeling**; de webhook gaat uit nadat het bericht is opgeslagen en houdt `type: "user-reply"`. Alleen de status wijzigen, zonder gebruikersbericht, vuurt `user-reply` niet.
+
+`re-evaluate-ticket-and-advise` wordt getriggerd vanuit het ICT-overzicht (knop **AI Advies**). De body bevat naast `type` / `ticket_id` / `api_key` ook `advice_prompt` (optionele vrije tekst uit de modal; mag leeg zijn). De knop blijft uit tot de bot een (ghost)antwoord heeft geplaatst en daarna een menselijk (ICT- of gebruikers)bericht volgt.
 
 Dit zit **niet** in `hourly.php`. Geen instructies in de body: die heeft de bot zelf. Bestaande events (`new-ticket`, `ticket-solved`) houden dezelfde body.
 
@@ -245,9 +248,10 @@ Body:
 
 | Veld | Betekenis |
 | --- | --- |
-| `type` | `new-ticket`, `ticket-solved`, `user-reply` of `ticket-reopened` |
+| `type` | `new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened` of `re-evaluate-ticket-and-advise` |
 | `ticket_id` | Ticketnummer. Ticket ophalen: `GET api.php?id=123` (optioneel `&include_ghosts=1`) |
 | `api_key` | Webhook-key, max. 1 uur. De bot stuurt die terug als `X-API-Key` of `api_key` |
+| `advice_prompt` | Alleen bij `re-evaluate-ticket-and-advise`: optionele toelichting uit de AI Advies-modal (mag `""` zijn) |
 
 Met die `api_key` kan de bot o.a. het ticket lezen, `add_ticket_message` (inclusief `sender_name` / `sender_title` / `ghost`, en optioneel `status` / `assigned_email` in hetzelfde verzoek), `change_ticket_status`, `change_ticket_category`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date`, `publish_ghost_message` en `ticket_lookups`.
 

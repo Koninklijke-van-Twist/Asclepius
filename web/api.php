@@ -1014,6 +1014,76 @@ function handleUpdateTicketPrivateApiAction(TicketStore $store, array $payload, 
     ];
 }
 
+function handleRequestAiAdviceApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
+    $isAdminPortal = !empty($payload['is_admin_portal']);
+    $canManageTickets = $isAdminPortal && $userIsAdmin;
+    if (!$canManageTickets && !isTrustedApiRequester()) {
+        return [
+            'success' => false,
+            'error' => __('flash.settings_admin_only'),
+        ];
+    }
+
+    $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
+    $advicePrompt = trim((string) ($payload['advice_prompt'] ?? $payload['prompt'] ?? $payload['note'] ?? ''));
+    if (function_exists('mb_substr')) {
+        $advicePrompt = mb_substr($advicePrompt, 0, 4000);
+    } else {
+        $advicePrompt = substr($advicePrompt, 0, 4000);
+    }
+
+    $ticket = $store->getTicket($ticketId, true, $viewerEmail);
+    if ($ticket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+        ];
+    }
+
+    if (!$store->isAiAdviceAvailable($ticketId)) {
+        return [
+            'success' => false,
+            'error' => __('flash.ai_advice_unavailable'),
+            'ai_advice_available' => false,
+            'ai_advice_pending' => (int) ($ticket['ai_advice_pending'] ?? 0),
+            'last_message_is_ai' => !empty($ticket['last_message_is_ai']),
+        ];
+    }
+
+    if (!$store->markAiAdviceRequested($ticketId)) {
+        return [
+            'success' => false,
+            'error' => __('flash.ai_advice_unavailable'),
+            'ai_advice_available' => false,
+        ];
+    }
+
+    require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
+    $sent = GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, $advicePrompt);
+    if (!$sent) {
+        $store->clearAiAdvicePending($ticketId);
+        return [
+            'success' => false,
+            'error' => __('flash.ai_advice_failed'),
+            'ai_advice_available' => true,
+        ];
+    }
+
+    $updated = $store->getTicket($ticketId, true, $viewerEmail);
+
+    return [
+        'success' => true,
+        'message' => __('flash.ai_advice_sent'),
+        'ticket_id' => $ticketId,
+        'ai_advice_available' => false,
+        'ai_advice_pending' => (int) ($updated['ai_advice_pending'] ?? TicketStore::AI_ADVICE_AWAITING_AI),
+        'last_message_is_ai' => !empty($updated['last_message_is_ai']),
+    ];
+}
+
 /**
  * @return array{allowed: bool, viewer_email: string, ict_access: array, error?: array}
  */
@@ -2910,6 +2980,10 @@ if ($method === 'POST') {
 
     if ($action === 'update_ticket_private') {
         sendJson(200, handleUpdateTicketPrivateApiAction($store, $payload, $apiClient));
+    }
+
+    if ($action === 'request_ai_advice') {
+        sendJson(200, handleRequestAiAdviceApiAction($store, $payload, $apiClient));
     }
 
     if ($action === 'save_admin_email_preferences') {

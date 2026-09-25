@@ -11,7 +11,14 @@ class TicketStore
 
     private const REQUESTER_RESPONSE_STATUS = 'afwachtende op gebruiker';
 
-    private const TICKET_LIST_COLUMNS = 't.id, t.title, t.category, t.user_email, t.assigned_email, t.status, t.priority, t.created_at, t.updated_at, t.due_date, t.resolved_at, t.is_private';
+    /** AI advice button idle — available when last message is also non-AI. */
+    public const AI_ADVICE_IDLE = 0;
+    /** Webhook fired; waiting for a bot ghost reply. */
+    public const AI_ADVICE_AWAITING_AI = 1;
+    /** Bot ghost arrived after request; waiting for a human (ICT/user) message. */
+    public const AI_ADVICE_AWAITING_HUMAN = 2;
+
+    private const TICKET_LIST_COLUMNS = 't.id, t.title, t.category, t.user_email, t.assigned_email, t.status, t.priority, t.created_at, t.updated_at, t.due_date, t.resolved_at, t.is_private, t.ai_advice_pending, t.last_message_is_ai';
 
     private PDO $pdo;
     private string $databasePath;
@@ -1984,6 +1991,125 @@ class TicketStore
         return $statement->rowCount() > 0;
     }
 
+    public function isAiAdviceAvailable(int $ticketId): bool
+    {
+        if ($ticketId <= 0) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT COALESCE(ai_advice_pending, 0) AS ai_advice_pending,
+                    COALESCE(last_message_is_ai, 0) AS last_message_is_ai
+             FROM tickets
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $statement->execute([':id' => $ticketId]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return false;
+        }
+
+        return (int) ($row['ai_advice_pending'] ?? 0) === self::AI_ADVICE_IDLE
+            && (int) ($row['last_message_is_ai'] ?? 0) === 0;
+    }
+
+    /**
+     * Mark that ICT requested AI advice (optimistic lock until ghost then human message).
+     */
+    public function markAiAdviceRequested(int $ticketId): bool
+    {
+        if ($ticketId <= 0 || !$this->isAiAdviceAvailable($ticketId)) {
+            return false;
+        }
+
+        // SQLite PDO drops integer 0 when passed via execute(array) named params; use literals.
+        $statement = $this->pdo->prepare(
+            'UPDATE tickets
+             SET ai_advice_pending = :pending,
+                 updated_at = :updated_at
+             WHERE id = :id
+               AND COALESCE(ai_advice_pending, 0) = 0
+               AND COALESCE(last_message_is_ai, 0) = 0'
+        );
+        $statement->execute([
+            ':pending' => self::AI_ADVICE_AWAITING_AI,
+            ':updated_at' => date('c'),
+            ':id' => $ticketId,
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function clearAiAdvicePending(int $ticketId): bool
+    {
+        if ($ticketId <= 0) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'UPDATE tickets
+             SET ai_advice_pending = :pending,
+                 updated_at = :updated_at
+             WHERE id = :id'
+        );
+        $statement->execute([
+            ':pending' => self::AI_ADVICE_IDLE,
+            ':updated_at' => date('c'),
+            ':id' => $ticketId,
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    /**
+     * After a message is stored: track last_message_is_ai and advance AI-advice unlock state.
+     * Unlock path: pending(awaiting AI) --AI ghost--> awaiting human --human message--> idle.
+     */
+    private function syncAiAdviceStateAfterMessage(int $ticketId, string $senderEmail): void
+    {
+        if ($ticketId <= 0) {
+            return;
+        }
+
+        require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
+        $isAi = GrokBot::isAiAssistantSender($senderEmail);
+
+        $select = $this->pdo->prepare(
+            'SELECT COALESCE(ai_advice_pending, 0) AS ai_advice_pending
+             FROM tickets
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $select->execute([':id' => $ticketId]);
+        $row = $select->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return;
+        }
+
+        $pending = (int) ($row['ai_advice_pending'] ?? 0);
+        $newPending = $pending;
+        if ($isAi) {
+            if ($pending === self::AI_ADVICE_AWAITING_AI) {
+                $newPending = self::AI_ADVICE_AWAITING_HUMAN;
+            }
+        } elseif ($pending === self::AI_ADVICE_AWAITING_HUMAN) {
+            $newPending = self::AI_ADVICE_IDLE;
+        }
+
+        $statement = $this->pdo->prepare(
+            'UPDATE tickets
+             SET last_message_is_ai = :last_message_is_ai,
+                 ai_advice_pending = :ai_advice_pending
+             WHERE id = :id'
+        );
+        $statement->execute([
+            ':last_message_is_ai' => $isAi ? 1 : 0,
+            ':ai_advice_pending' => $newPending,
+            ':id' => $ticketId,
+        ]);
+    }
+
     public function deleteTextTranslationsForEntity(string $entityType, int $entityId): void
     {
         $normalizedEntityType = trim($entityType);
@@ -2246,6 +2372,8 @@ class TicketStore
             ':updated_at' => $now,
             ':id' => $ticketId,
         ]);
+
+        $this->syncAiAdviceStateAfterMessage($ticketId, $senderEmail);
 
         return $messageId;
     }
@@ -3942,6 +4070,9 @@ class TicketStore
         $this->ensureColumn('tickets', 'resolved_at', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'due_date', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'is_private', 'INTEGER NOT NULL DEFAULT 0');
+        // 0=idle, 1=awaiting AI ghost after AI Advies click, 2=awaiting human after that ghost
+        $this->ensureColumn('tickets', 'ai_advice_pending', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn('tickets', 'last_message_is_ai', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_messages', 'message_text', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('ticket_messages', 'is_ghost', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_messages', 'sender_display_name', 'TEXT DEFAULT NULL');
