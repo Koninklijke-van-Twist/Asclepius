@@ -233,6 +233,94 @@ if (strpos($companyQueryCall['url'], "https://bc.example:7148/Sandbox/ODataV4/Co
     fail('query-fallback bouwde niet de Sandbox-URL: ' . json_encode($companyQueryCall));
 }
 
+odata_mimir_circuit_reset();
+$auth_list = [
+    'Production' => ['mode' => 'basic', 'user' => 'bcuser', 'pass' => 'bc-secret'],
+];
+$callsBeforeMismatch = count($calls);
+$mismatch = null;
+try {
+    odata_get_all(
+        "https://mimir.invalid/Sandbox/ODataV4/Company('Hunter%20van%20Twist')/AppWerkorders?\$select=No",
+        ['mode' => 'basic', 'user' => 'bcuser', 'pass' => 'bc-secret'],
+        30
+    );
+    fail('Sandbox zonder auth_list-entry mag Production-credentials niet gebruiken');
+} catch (Throwable $exception) {
+    $mismatch = $exception;
+}
+if (!$mismatch instanceof Throwable || strpos($mismatch->getMessage(), 'Mímir') === false) {
+    fail('Sandbox zonder credentials moet de Mímir-fout teruggeven: ' . ($mismatch instanceof Throwable ? $mismatch->getMessage() : 'geen'));
+}
+if (count($calls) !== $callsBeforeMismatch) {
+    fail('Sandbox zonder auth_list-entry mag de BC-stub niet aanroepen');
+}
+if (!odata_mimir_circuit_open()) {
+    fail('een Mímir-fout moet het circuit openen, ook als het gevraagde environment geen credentials heeft');
+}
+
+$previousFetch = $GLOBALS['ASCLEPIUS_ODATA_BC_FETCH'];
+$GLOBALS['ASCLEPIUS_ODATA_BC_FETCH'] = static function (string $url, array $auth, int $ttl) use (&$calls): array {
+    $calls[] = [
+        'url' => $url,
+        'user' => (string) ($auth['user'] ?? ''),
+        'ttl' => $ttl,
+    ];
+    if (strpos($url, '/Broken/') !== false) {
+        throw new Exception('BC environment down');
+    }
+    if (preg_match('#/ODataV4/Company(?:\\?|$)#', $url) === 1) {
+        return [
+            ['Name' => 'KVT Gas'],
+            ['Name' => 'Hunter van Twist'],
+            ['name' => 'Koninklijke van Twist'],
+        ];
+    }
+    return [['No' => 'WO-1']];
+};
+$auth_list = [
+    'Broken' => ['mode' => 'basic', 'user' => 'broken-user', 'pass' => 'broken-secret'],
+    'Production' => ['mode' => 'basic', 'user' => 'bcuser', 'pass' => 'bc-secret'],
+];
+odata_mimir_circuit_reset();
+$callsBeforeDiscovery = count($calls);
+$partialNames = odata_mimir_list_companies(null);
+if ($partialNames !== ['Hunter van Twist', 'Koninklijke van Twist', 'KVT Gas']) {
+    fail('een stuk environment mag de bedrijfslijst niet leegmaken: ' . json_encode($partialNames));
+}
+$sawBroken = false;
+$sawProductionCompany = false;
+for ($i = $callsBeforeDiscovery; $i < count($calls); $i++) {
+    if (strpos($calls[$i]['url'], '/Broken/') !== false) {
+        $sawBroken = true;
+        if ($calls[$i]['user'] !== 'broken-user') {
+            fail('Broken-environment gebruikte niet de eigen credentials: ' . json_encode($calls[$i]));
+        }
+    }
+    if (strpos($calls[$i]['url'], '/Production/ODataV4/Company') !== false) {
+        $sawProductionCompany = true;
+    }
+}
+if (!$sawBroken || !$sawProductionCompany) {
+    fail('company-discovery moet elk environment proberen: ' . json_encode(array_slice($calls, $callsBeforeDiscovery)));
+}
+$GLOBALS['ASCLEPIUS_ODATA_BC_FETCH'] = $previousFetch;
+
+odata_mimir_circuit_reset();
+$loggedBeforeBadUrl = fallback_count();
+$callsBeforeBadUrl = count($calls);
+try {
+    odata_mimir_fetch_all('https://mimir.invalid/not-an-odata-url', 10);
+    fail('een onvertaalbare URL moet een fout geven');
+} catch (Throwable $badUrl) {
+    if (strpos($badUrl->getMessage(), 'kon niet worden vertaald') === false) {
+        fail('onvertaalbare URL gaf een andere fout: ' . $badUrl->getMessage());
+    }
+}
+if (odata_mimir_circuit_open() || fallback_count() !== $loggedBeforeBadUrl || count($calls) !== $callsBeforeBadUrl) {
+    fail('een onvertaalbare URL mag het circuit niet openen en geen fallback starten');
+}
+
 $loggedBeforeRethrow = fallback_count();
 $callsBeforeRethrow = count($calls);
 odata_mimir_circuit_reset();

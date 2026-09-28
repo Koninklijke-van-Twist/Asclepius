@@ -7,7 +7,9 @@ Les données OData passent d’abord par Mímir. Si l’appel échoue, Asclepius
 
 Les identifiants Business Central dans `auth.php` doivent rester à côté de la clé Mímir. Sans clé Mímir, rien ne change.
 
-Une société dans un autre environnement BC est alors lue dans cet environnement, avec ses propres identifiants. Seule une vraie panne de Mímir bascule, et une seule fois par requête.
+Une société dans un autre environnement BC est alors lue dans cet environnement, avec ses propres identifiants. S’ils manquent, les identifiants d’un autre environnement ne sont pas utilisés. Lors de la liste des sociétés, un environnement injoignable ne bloque pas les autres.
+
+Toute erreur venant de Mímir lui-même (connexion, délai, erreur HTTP, réponse invalide ou message d’erreur) bascule, une seule fois par requête. Une URL qu’Asclepius ne peut pas traduire lui-même ne le fait pas.
 
 ---
 id: 2026-09-23-webhook-user-reply-reopen

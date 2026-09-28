@@ -7,7 +7,9 @@ OData data is requested through Mímir first. If that call fails, Asclepius load
 
 Keep the Business Central credentials in `auth.php` next to the Mímir key. With no Mímir key, nothing changes.
 
-A company that lives in another BC environment is loaded from that environment, with its own credentials. Only a real Mímir outage switches over, and only once per request.
+A company that lives in another BC environment is loaded from that environment, with its own credentials. If those credentials are missing, credentials from another environment are not used. When listing companies, one unreachable environment does not block the others.
+
+Every failure that comes from Mímir itself (connection, timeout, HTTP error, invalid response, or an error message) switches over, once per request. A URL that Asclepius itself cannot translate does not.
 
 ---
 id: 2026-09-23-webhook-user-reply-reopen

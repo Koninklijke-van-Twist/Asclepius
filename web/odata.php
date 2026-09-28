@@ -397,18 +397,47 @@ function odata_bc_auth_for_named_environment(?string $env): ?array
     return null;
 }
 
+function odata_bc_has_named_credentials(): bool
+{
+    global $auth_list;
+    if (!isset($auth_list) || !is_array($auth_list)) {
+        return false;
+    }
+    foreach ($auth_list as $key => $entry) {
+        if (!odata_auth_is_usable($entry)) {
+            continue;
+        }
+        $candidate = trim((string) $key);
+        if ($candidate === '' || strcasecmp($candidate, 'mimir') === 0) {
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
 /**
- * Auth van het gevraagde environment. $passed / $auth alleen als dat environment onbekend is.
+ * Auth van het gevraagde environment.
+ * $passed / globale $auth alleen zonder benoemde credentials, of als het
+ * gevraagde environment het geconfigureerde primaire environment is.
  *
  * @return array<string, mixed>|null
  */
 function odata_bc_auth_for_company_env(?string $env, array $passed): ?array
 {
-    $matched = odata_bc_auth_for_named_environment($env);
+    $requested = $env !== null ? trim($env) : '';
+    if ($requested === '' || strcasecmp($requested, 'mimir') === 0) {
+        return odata_bc_auth_for_fallback($passed);
+    }
+    $matched = odata_bc_auth_for_named_environment($requested);
     if ($matched !== null) {
         return $matched;
     }
-    return odata_bc_auth_for_fallback($passed);
+    $primary = odata_bc_environment();
+    if (!odata_bc_has_named_credentials() || ($primary !== null && strcasecmp($primary, $requested) === 0)) {
+        return odata_bc_auth_for_fallback($passed);
+    }
+    return null;
 }
 
 function odata_bc_auth_for_fallback(array $passed): ?array
@@ -665,7 +694,7 @@ function odata_mimir_companies_as_rows_impl(?string $environment = null): array
     $response = odata_mimir_request('GET', 'companies.php');
     $items = $response['value'] ?? null;
     if (!is_array($items)) {
-        throw new Exception("Mímir companies-antwoord mist 'value'.");
+        odata_mimir_fail(new Exception("Mímir companies-antwoord mist 'value'."));
     }
     $rows = [];
     foreach ($items as $item) {
@@ -705,14 +734,20 @@ function odata_direct_companies_as_rows(?string $environmentFilter = null): arra
 
     $prefix = rtrim($base, '/');
     $out = [];
-    $attempted = false;
+    $completed = false;
+    $lastError = null;
     foreach ($envs as $env) {
         $auth = odata_bc_auth_for_company_env($env, []);
         if ($auth === null) {
             continue;
         }
-        $attempted = true;
-        $rows = odata_get_all_direct($prefix . '/' . rawurlencode($env) . '/ODataV4/Company', $auth, 300);
+        try {
+            $rows = odata_get_all_direct($prefix . '/' . rawurlencode($env) . '/ODataV4/Company', $auth, 300);
+            $completed = true;
+        } catch (Throwable $exception) {
+            $lastError = $exception;
+            continue;
+        }
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 continue;
@@ -725,7 +760,10 @@ function odata_direct_companies_as_rows(?string $environmentFilter = null): arra
             $out[] = ['Name' => $name, 'environment' => $env];
         }
     }
-    if (!$attempted) {
+    if (!$completed) {
+        if ($lastError instanceof Throwable) {
+            throw $lastError;
+        }
         $previous = odata_mimir_last_error();
         if ($previous instanceof Throwable) {
             throw $previous;
@@ -840,7 +878,7 @@ function odata_mimir_query_impl(string $company, string $table, array $odataQuer
 
     $response = odata_mimir_request('POST', 'query.php', $body);
     if (!isset($response['value']) || !is_array($response['value'])) {
-        throw new Exception("Mímir query-antwoord mist 'value'.");
+        odata_mimir_fail(new Exception("Mímir query-antwoord mist 'value'."));
     }
     /** @var list<array<string, mixed>> $value */
     $value = $response['value'];
@@ -1002,7 +1040,11 @@ function odata_get_all(string $url, array $auth, $ttlSeconds = 300): array
                 }
                 $directAuth = odata_bc_auth_for_company_env($env, $auth);
                 if ($directAuth === null) {
-                    $directAuth = $auth;
+                    $previous = odata_mimir_last_error();
+                    if ($previous instanceof Throwable) {
+                        throw $previous;
+                    }
+                    throw new Exception('Mímir mislukt.');
                 }
                 return odata_get_all_direct($directUrl, $directAuth, $ttlSeconds);
             }
