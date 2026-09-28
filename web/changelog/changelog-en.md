@@ -1,3 +1,13 @@
+id: 2026-09-28-mimir-odata-fallback
+date: 2026-09-28
+title: Business Central stays available when Mímir is down
+author: Tim Falken
+
+OData data is requested through Mímir first. If that call fails, Asclepius loads the same data directly from Business Central. The rest of that request skips Mímir, in the web app and in CLI scripts such as the nightly job.
+
+Keep the Business Central credentials in `auth.php` next to the Mímir key. With no Mímir key, nothing changes.
+
+---
 id: 2026-09-23-webhook-user-reply-reopen
 date: 2026-09-23
 title: Webhook on user reply and reopened ticket
