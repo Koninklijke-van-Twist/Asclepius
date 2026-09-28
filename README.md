@@ -22,6 +22,8 @@ $mimirBase = 'https://sleutels.kvt.nl/mimir/api';
 
 Met `$mimirApi` gezet proberen company-discovery en alle OData-fetches via `odata_get_all` eerst Mímir. Faalt die aanroep (verbinding/timeout, non-2xx, ongeldige JSON of een Mímir-foutpayload), dan haalt Asclepius dezelfde gegevens op via het oude Business Central-pad (`$baseUrl`, `$auth` / `$auth_list`, `$environment`, lokale odata-filecache) en slaat Mímir voor de rest van dat PHP-verzoek over. Laat die BC-credentials in `auth.php` naast `$mimirApi` staan; ontbreken ze, dan gaat de oorspronkelijke Mímir-fout door. Zonder `$mimirApi` blijft het bestaande directe BC-pad + lokale filecache ongewijzigd.
 
+Die fallback hoort in `web/odata.php`. Tim Falken heeft op 2026-09-28 goedgekeurd dat dit bestand daarvoor gewijzigd mag worden; verder blijft de richtlijn om `odata.php` niet aan te passen.
+
 Asclepius mixt tickets / Magnum / Grok / Graph met een gedeelde `odata.php`. Alleen OData/discovery loopt via Mímir (met directe BC-fallback); ticket-, webhook- en Graph-paden blijven onaangetast. Live pagina's (`index.php` / `admin.php` via `content/bootstrap.php`, `api.php`) én cron-scripts (`nightly.php`, `hourly.php`) laden `auth.php` volledig, ook als `$mimirApi` gezet is, zodat de fallback de BC-credentials heeft. Een CLI-run (`php nightly.php`, `PHP_SAPI=cli`) houdt de lange Mímir-timeout; webverzoeken gebruiken een kortere.
 
 **max_age-beleid**

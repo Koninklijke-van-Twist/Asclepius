@@ -7,7 +7,7 @@
 
 ## Niet wijzigen
 - Bestand `web/logincheck.php` niet aanpassen.
-- Bestand `web/odata.php` niet aanpassen.
+- Bestand `web/odata.php` niet aanpassen. Uitzondering, goedgekeurd door Tim Falken op 2026-09-28: de Mímir-fallback naar directe Business Central (circuit, per-company environment en de directe BC-route) mag in dit bestand.
 - Bestand `web/auth.php` alleen aanpassen na expliciete gebruikersvraag.
 
 ## Data en logica werkorders
@@ -68,7 +68,7 @@
   - geen class-definities tussen page-load code in gecombineerde scriptbestanden
 - Respecteer altijd bestaande uitzonderingen uit deze instructies:
   - `web/logincheck.php` niet aanpassen
-  - `web/odata.php` niet aanpassen
+  - `web/odata.php` niet aanpassen, behalve de op 2026-09-28 door Tim Falken goedgekeurde Mímir-fallback naar directe Business Central
   - `web/auth.php` alleen aanpassen na expliciete gebruikersvraag
 
 ## Lokalisatie (meertaligheid)
