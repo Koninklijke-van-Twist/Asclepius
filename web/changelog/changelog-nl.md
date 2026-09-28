@@ -7,6 +7,8 @@ OData-gegevens komen eerst via Mímir. Lukt dat niet, dan haalt Asclepius dezelf
 
 De Business Central-gegevens in `auth.php` moeten naast de Mímir-sleutel blijven staan. Zonder Mímir-sleutel verandert er niets.
 
+Een bedrijf in een ander BC-environment wordt bij die fallback in dát environment opgehaald, met de bijbehorende gegevens. Alleen een echte Mímir-storing schakelt over; dat gebeurt één keer per verzoek.
+
 ---
 id: 2026-09-23-webhook-user-reply-reopen
 date: 2026-09-23

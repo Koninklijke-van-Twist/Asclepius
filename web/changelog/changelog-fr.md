@@ -7,6 +7,8 @@ Les données OData passent d’abord par Mímir. Si l’appel échoue, Asclepius
 
 Les identifiants Business Central dans `auth.php` doivent rester à côté de la clé Mímir. Sans clé Mímir, rien ne change.
 
+Une société dans un autre environnement BC est alors lue dans cet environnement, avec ses propres identifiants. Seule une vraie panne de Mímir bascule, et une seule fois par requête.
+
 ---
 id: 2026-09-23-webhook-user-reply-reopen
 date: 2026-09-23

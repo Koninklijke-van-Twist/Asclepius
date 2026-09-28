@@ -7,6 +7,8 @@ OData-Daten laufen zuerst über Mímir. Schlägt der Aufruf fehl, holt Asclepius
 
 Die Business-Central-Zugangsdaten in `auth.php` müssen neben dem Mímir-Schlüssel stehen. Ohne Mímir-Schlüssel ändert sich nichts.
 
+Ein Unternehmen in einem anderen BC-Environment wird bei diesem Fallback aus genau diesem Environment geladen, mit den passenden Zugangsdaten. Nur ein echter Mímir-Ausfall schaltet um, und nur einmal pro Anfrage.
+
 ---
 id: 2026-09-23-webhook-user-reply-reopen
 date: 2026-09-23
