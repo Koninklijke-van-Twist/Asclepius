@@ -3,6 +3,8 @@
 /**
  * Hourly snapshot endpoint (GET).
  * Called by an external scheduler every hour to store sparse open-ticket counts per category.
+ * auth.php is always loaded, including when $mimirApi is set, so Business Central
+ * credentials stay available for the direct OData fallback (CLI keeps the long timeout).
  */
 
 declare(strict_types=1);

@@ -4,6 +4,8 @@
  * Nightly endpoint (GET).
  * Called by an external scheduler around 01:00 for daily maintenance tasks (theevraagje).
  * Open-ticket trend snapshots are collected hourly via hourly.php.
+ * auth.php is always loaded, including when $mimirApi is set, so Business Central
+ * credentials stay available for the direct OData fallback (CLI keeps the long timeout).
  */
 
 declare(strict_types=1);
