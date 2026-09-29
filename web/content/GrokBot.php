@@ -1,5 +1,19 @@
 <?php
 
+/**
+ * Outbound Grok webhooks.
+ *
+ * The global webhook from auth.php ($grokBot) keeps firing for every ticket
+ * event when it is enabled, with that config's sender_email, default_name
+ * and default_title.
+ *
+ * A personal webhook saved under Voorkeuren fires for the same event as well
+ * when the ticket assignee has one configured, and when an acting ICT user is
+ * known (AI Advies). The same person is called once. An identical URL and send
+ * key to the global webhook is not called a second time. The personal callback
+ * uses that user's email and display name, with the title "Assistent". The bot
+ * may still override name and title on add_ticket_message.
+ */
 class GrokBot
 {
     public const EVENT_NEW_TICKET = 'new-ticket';
@@ -8,27 +22,36 @@ class GrokBot
     public const EVENT_TICKET_REOPENED = 'ticket-reopened';
     public const EVENT_RE_EVALUATE_AND_ADVISE = 're-evaluate-ticket-and-advise';
 
+    public const USER_WEBHOOK_PREF_KEY = 'grok_webhook';
+    public const USER_DEFAULT_TITLE = 'Assistent';
+
     private const DEFAULT_SENDER = 'grok-bot@kvt.nl';
     private const WEBHOOK_TIMEOUT_SECONDS = 5;
     private const EPHEMERAL_KEY_TTL_SECONDS = 3600;
+    private const USER_WEBHOOK_URL_MAX_LENGTH = 2000;
+    private const USER_WEBHOOK_KEY_MAX_LENGTH = 500;
 
     /** @var (callable(string, array<string, mixed>, string): void)|null */
     private static $deliveryOverride = null;
 
     /**
      * @param array<string, mixed>|null $config
+     * @param array<string, mixed> $context assigned_email and optional actor_email
      */
-    public static function notifyTicketCreated(TicketStore $store, int $ticketId, ?array $config = null): void
+    public static function notifyTicketCreated(TicketStore $store, int $ticketId, ?array $config = null, array $context = []): void
     {
-        self::notifyTicketEvent($ticketId, self::EVENT_NEW_TICKET, $config);
+        $context['store'] = $store;
+        self::notifyTicketEvent($ticketId, self::EVENT_NEW_TICKET, $config, [], $context);
     }
 
     /**
      * @param array<string, mixed>|null $config
+     * @param array<string, mixed> $context assigned_email and optional actor_email
      */
-    public static function notifyTicketSolved(TicketStore $store, int $ticketId, ?array $config = null): void
+    public static function notifyTicketSolved(TicketStore $store, int $ticketId, ?array $config = null, array $context = []): void
     {
-        self::notifyTicketEvent($ticketId, self::EVENT_TICKET_SOLVED, $config);
+        $context['store'] = $store;
+        self::notifyTicketEvent($ticketId, self::EVENT_TICKET_SOLVED, $config, [], $context);
     }
 
     /**
@@ -37,6 +60,7 @@ class GrokBot
      * the ticket to "in behandeling" by the time the webhook is delivered).
      *
      * @param array<string, mixed>|null $config
+     * @param array<string, mixed> $context assigned_email; the replying user is not a webhook recipient
      */
     public static function notifyUserRepliedWhileWaiting(
         TicketStore $store,
@@ -45,7 +69,8 @@ class GrokBot
         bool $isGhost,
         string $statusBeforeReply,
         string $messageText,
-        ?array $config = null
+        ?array $config = null,
+        array $context = []
     ): void {
         if ($isGhost || $senderRole !== 'user' || trim($messageText) === '') {
             return;
@@ -54,15 +79,19 @@ class GrokBot
             return;
         }
 
-        self::notifyTicketEvent($ticketId, self::EVENT_USER_REPLY, $config);
+        $context['store'] = $store;
+        unset($context['actor_email']);
+        self::notifyTicketEvent($ticketId, self::EVENT_USER_REPLY, $config, [], $context);
     }
 
     /**
      * @param array<string, mixed>|null $config
+     * @param array<string, mixed> $context assigned_email and optional actor_email
      */
-    public static function notifyTicketReopened(TicketStore $store, int $ticketId, ?array $config = null): void
+    public static function notifyTicketReopened(TicketStore $store, int $ticketId, ?array $config = null, array $context = []): void
     {
-        self::notifyTicketEvent($ticketId, self::EVENT_TICKET_REOPENED, $config);
+        $context['store'] = $store;
+        self::notifyTicketEvent($ticketId, self::EVENT_TICKET_REOPENED, $config, [], $context);
     }
 
     /**
@@ -70,13 +99,17 @@ class GrokBot
      * Payload field advice_prompt: optional free-text note from the AI Advies modal (may be empty).
      *
      * @param array<string, mixed>|null $config
+     * @param array<string, mixed> $context assigned_email and actor_email (the ICT user who asked)
      */
     public static function notifyReEvaluateAndAdvise(
         TicketStore $store,
         int $ticketId,
         string $advicePrompt = '',
-        ?array $config = null
+        ?array $config = null,
+        array $context = []
     ): bool {
+        $context['store'] = $store;
+
         return self::notifyTicketEvent(
             $ticketId,
             self::EVENT_RE_EVALUATE_AND_ADVISE,
@@ -84,7 +117,8 @@ class GrokBot
             [
                 // Optional ICT note from the modal; empty string is valid and always sent.
                 'advice_prompt' => $advicePrompt,
-            ]
+            ],
+            $context
         );
     }
 
@@ -117,7 +151,115 @@ class GrokBot
      */
     public static function isAiAssistantMessage(array $message, ?array $config = null): bool
     {
+        if ((int) ($message['is_ai_assistant'] ?? 0) === 1) {
+            return true;
+        }
+
         return self::isAiAssistantSender((string) ($message['sender_email'] ?? ''), $config);
+    }
+
+    /**
+     * Voorkeuren view of the logged-in user's webhook. The send key is never included.
+     *
+     * @return array{configured: bool, webhook_url: string, has_send_key: bool}
+     */
+    public static function publicUserWebhook(string $email): array
+    {
+        $stored = self::readUserWebhook($email);
+        if ($stored === null) {
+            return [
+                'configured' => false,
+                'webhook_url' => '',
+                'has_send_key' => false,
+            ];
+        }
+
+        return [
+            'configured' => true,
+            'webhook_url' => $stored['webhook_url'],
+            'has_send_key' => $stored['send_key'] !== '',
+        ];
+    }
+
+    /**
+     * Store a personal webhook in the existing user-prefs JSON (web/data, not in git).
+     * An empty send key keeps the key already stored for this user.
+     *
+     * @return array{ok: bool, error_code: string, webhook: array{configured: bool, webhook_url: string, has_send_key: bool}}
+     */
+    public static function saveUserWebhook(string $email, string $webhookUrl, string $sendKey, ?string $displayName = null): array
+    {
+        $email = strtolower(trim($email));
+        $empty = [
+            'configured' => false,
+            'webhook_url' => '',
+            'has_send_key' => false,
+        ];
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !function_exists('saveUserPref')) {
+            return [
+                'ok' => false,
+                'error_code' => 'invalid_user',
+                'webhook' => self::publicUserWebhook($email),
+            ];
+        }
+
+        $webhookUrl = trim($webhookUrl);
+        $sendKey = trim($sendKey);
+        if (!self::isAllowedWebhookUrl($webhookUrl)) {
+            return [
+                'ok' => false,
+                'error_code' => 'invalid_webhook_url',
+                'webhook' => self::publicUserWebhook($email),
+            ];
+        }
+
+        $existing = self::readUserWebhook($email);
+        if ($sendKey === '' && $existing !== null) {
+            $sendKey = $existing['send_key'];
+        }
+        if ($sendKey === '') {
+            return [
+                'ok' => false,
+                'error_code' => 'send_key_required',
+                'webhook' => $existing === null ? $empty : self::publicUserWebhook($email),
+            ];
+        }
+        if (strlen($sendKey) > self::USER_WEBHOOK_KEY_MAX_LENGTH) {
+            return [
+                'ok' => false,
+                'error_code' => 'send_key_required',
+                'webhook' => self::publicUserWebhook($email),
+            ];
+        }
+
+        $name = trim((string) $displayName);
+        if ($name === '') {
+            $name = self::captureUserDisplayName($email, $existing['display_name'] ?? '');
+        }
+
+        saveUserPref($email, self::USER_WEBHOOK_PREF_KEY, [
+            'webhook_url' => $webhookUrl,
+            'send_key' => $sendKey,
+            'display_name' => $name,
+            'updated_at' => date('c'),
+        ]);
+        self::restrictUserPrefsFile($email);
+
+        return [
+            'ok' => true,
+            'error_code' => '',
+            'webhook' => self::publicUserWebhook($email),
+        ];
+    }
+
+    public static function clearUserWebhook(string $email): void
+    {
+        if (!function_exists('deleteUserPref')) {
+            return;
+        }
+
+        deleteUserPref($email, self::USER_WEBHOOK_PREF_KEY);
+        self::restrictUserPrefsFile($email);
     }
 
     /**
@@ -138,13 +280,13 @@ class GrokBot
     }
 
     /**
-     * @param array<string, mixed>|null $config
-     */
-    /**
-     * @param array<string, mixed>|null $config
+     * Global webhook first, then personal webhooks for the assignee and acting user.
+     *
+     * @param array<string, mixed>|null $config Global $grokBot config, or a test override.
      * @param array<string, mixed> $extra Extra JSON body fields merged after type/ticket_id/api_key.
+     * @param array<string, mixed> $context store, assigned_email, actor_email
      */
-    private static function notifyTicketEvent(int $ticketId, string $type, ?array $config = null, array $extra = []): bool
+    private static function notifyTicketEvent(int $ticketId, string $type, ?array $config = null, array $extra = [], array $context = []): bool
     {
         if ($ticketId <= 0) {
             return false;
@@ -155,7 +297,30 @@ class GrokBot
             $config = is_array($grokBot ?? null) ? $grokBot : [];
         }
 
-        if (empty($config['enabled'])) {
+        $sent = self::deliverWebhook($ticketId, $type, $config, $extra);
+        if (!empty($context['skip_personal'])) {
+            return $sent;
+        }
+
+        foreach (self::personalWebhookConfigs($ticketId, $context) as $personalConfig) {
+            if (self::sameWebhookDestination($config, $personalConfig)) {
+                continue;
+            }
+            if (self::deliverWebhook($ticketId, $type, $personalConfig, $extra)) {
+                $sent = true;
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $extra
+     */
+    private static function deliverWebhook(int $ticketId, string $type, array $config, array $extra = []): bool
+    {
+        if ($ticketId <= 0 || empty($config['enabled'])) {
             return false;
         }
 
@@ -181,9 +346,180 @@ class GrokBot
     }
 
     /**
-     * @param array<string, mixed> $config
+     * Personal webhooks alongside the global one: ticket assignee, plus the acting
+     * ICT user when the caller knows who that is (AI Advies).
+     *
+     * @param array<string, mixed> $context
+     * @return list<array<string, mixed>>
      */
-    public static function resolveDefaultIdentity(string $senderEmail, array $config = []): array
+    private static function personalWebhookConfigs(int $ticketId, array $context): array
+    {
+        $emails = [];
+        $assigned = strtolower(trim((string) ($context['assigned_email'] ?? '')));
+        $store = $context['store'] ?? null;
+        if ($assigned === '' && $ticketId > 0 && $store instanceof TicketStore && method_exists($store, 'getTicketAssigneeEmail')) {
+            $assigned = strtolower(trim($store->getTicketAssigneeEmail($ticketId)));
+        }
+        if ($assigned !== '' && filter_var($assigned, FILTER_VALIDATE_EMAIL)) {
+            $emails[$assigned] = $assigned;
+        }
+
+        $actor = strtolower(trim((string) ($context['actor_email'] ?? '')));
+        if ($actor !== '' && filter_var($actor, FILTER_VALIDATE_EMAIL)) {
+            $emails[$actor] = $actor;
+        }
+
+        $configs = [];
+        foreach ($emails as $email) {
+            $personal = self::userWebhookDeliveryConfig($email);
+            if ($personal !== null) {
+                $configs[] = $personal;
+            }
+        }
+
+        return $configs;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function userWebhookDeliveryConfig(string $email): ?array
+    {
+        $stored = self::readUserWebhook($email);
+        if ($stored === null) {
+            return null;
+        }
+
+        return [
+            'enabled' => true,
+            'webhook_url' => $stored['webhook_url'],
+            'send_key' => $stored['send_key'],
+            'sender_email' => $email,
+            'default_name' => self::captureUserDisplayName($email, $stored['display_name']),
+            'default_title' => self::USER_DEFAULT_TITLE,
+        ];
+    }
+
+    /**
+     * Skip a second POST when the personal webhook is the same bot as auth.php.
+     *
+     * @param array<string, mixed> $global
+     * @param array<string, mixed> $personal
+     */
+    private static function sameWebhookDestination(array $global, array $personal): bool
+    {
+        if (empty($global['enabled'])) {
+            return false;
+        }
+
+        $globalUrl = trim((string) ($global['webhook_url'] ?? ''));
+        $personalUrl = trim((string) ($personal['webhook_url'] ?? ''));
+        $globalKey = trim((string) ($global['send_key'] ?? ($global['webhook_secret'] ?? '')));
+        $personalKey = trim((string) ($personal['send_key'] ?? ($personal['webhook_secret'] ?? '')));
+
+        return $globalUrl !== '' && $globalUrl === $personalUrl && $globalKey === $personalKey;
+    }
+
+    /**
+     * @return array{webhook_url: string, send_key: string, display_name: string}|null
+     */
+    private static function readUserWebhook(string $email): ?array
+    {
+        if (!function_exists('loadUserPrefs')) {
+            return null;
+        }
+
+        $email = strtolower(trim($email));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return null;
+        }
+
+        $prefs = loadUserPrefs($email);
+        $stored = $prefs[self::USER_WEBHOOK_PREF_KEY] ?? null;
+        if (!is_array($stored)) {
+            return null;
+        }
+
+        $url = trim((string) ($stored['webhook_url'] ?? ''));
+        $sendKey = trim((string) ($stored['send_key'] ?? ''));
+        if (!self::isAllowedWebhookUrl($url) || $sendKey === '') {
+            return null;
+        }
+
+        return [
+            'webhook_url' => $url,
+            'send_key' => $sendKey,
+            'display_name' => trim((string) ($stored['display_name'] ?? '')),
+        ];
+    }
+
+    private static function isAllowedWebhookUrl(string $url): bool
+    {
+        if ($url === '' || strlen($url) > self::USER_WEBHOOK_URL_MAX_LENGTH) {
+            return false;
+        }
+        if (filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return false;
+        }
+
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        $host = trim((string) parse_url($url, PHP_URL_HOST));
+
+        return ($scheme === 'http' || $scheme === 'https') && $host !== '';
+    }
+
+    private static function captureUserDisplayName(string $email, string $stored = ''): string
+    {
+        $email = strtolower(trim($email));
+        $stored = trim($stored);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $sessionEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+            if ($sessionEmail === $email) {
+                foreach (['name', 'display_name', 'naam', 'full_name'] as $sessionKey) {
+                    $sessionName = trim((string) ($_SESSION['user'][$sessionKey] ?? ''));
+                    if ($sessionName !== '' && strtolower($sessionName) !== $email) {
+                        return $sessionName;
+                    }
+                }
+            }
+        }
+
+        if (function_exists('formatUserDisplayName')) {
+            $live = trim(formatUserDisplayName($email));
+            if ($live !== '' && strtolower($live) !== $email) {
+                return $live;
+            }
+        }
+
+        if ($stored !== '') {
+            return $stored;
+        }
+
+        return $email;
+    }
+
+    private static function restrictUserPrefsFile(string $email): void
+    {
+        if (!function_exists('getUserPrefsPath')) {
+            return;
+        }
+
+        $path = getUserPrefsPath($email);
+        if ($path !== null && is_file($path)) {
+            @chmod($path, 0640);
+        }
+    }
+
+    /**
+     * Global auth.php identity when the sender is that bot. Personal webhook
+     * callbacks carry default_name / default_title on the ephemeral API client
+     * so a normal message from the same user does not pick up the bot title.
+     *
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $apiClient
+     * @return array{name: string, title: string}
+     */
+    public static function resolveDefaultIdentity(string $senderEmail, array $config = [], array $apiClient = []): array
     {
         if ($config === []) {
             global $grokBot;
@@ -192,16 +528,34 @@ class GrokBot
 
         $configuredSender = strtolower(trim((string) ($config['sender_email'] ?? self::DEFAULT_SENDER)));
         $senderEmail = strtolower(trim($senderEmail));
-        if ($configuredSender === '' || $senderEmail === '' || $senderEmail !== $configuredSender) {
+        if ($configuredSender !== '' && $senderEmail !== '' && $senderEmail === $configuredSender) {
             return [
-                'name' => '',
-                'title' => '',
+                'name' => trim((string) ($config['default_name'] ?? '')),
+                'title' => trim((string) ($config['default_title'] ?? '')),
             ];
         }
 
+        $clientEmail = strtolower(trim((string) ($apiClient['email'] ?? '')));
+        $kind = (string) ($apiClient['kind'] ?? '');
+        $oid = (string) ($apiClient['oid'] ?? '');
+        $isGrokClient = $kind === 'grok_bot_ephemeral' || $oid === 'grok-bot';
+        if ($isGrokClient && $clientEmail !== '' && $clientEmail === $senderEmail) {
+            $name = trim((string) ($apiClient['default_name'] ?? ''));
+            $title = trim((string) ($apiClient['default_title'] ?? ''));
+            if ($name !== '' && $title === '') {
+                $title = self::USER_DEFAULT_TITLE;
+            }
+            if ($name !== '' || $title !== '') {
+                return [
+                    'name' => $name,
+                    'title' => $title,
+                ];
+            }
+        }
+
         return [
-            'name' => trim((string) ($config['default_name'] ?? '')),
-            'title' => trim((string) ($config['default_title'] ?? '')),
+            'name' => '',
+            'title' => '',
         ];
     }
 
@@ -261,6 +615,8 @@ class GrokBot
             'email' => $senderEmail,
             'is_admin' => true,
             'kind' => 'grok_bot_ephemeral',
+            'default_name' => trim((string) ($config['default_name'] ?? '')),
+            'default_title' => trim((string) ($config['default_title'] ?? '')),
             'ticket_id' => $ticketId,
             'expires_at' => $expiresAt,
             'created_at' => date('c'),

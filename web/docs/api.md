@@ -234,7 +234,22 @@ Timeout: 5 seconden. Een mislukte webhook houdt het ticket of de statuswijziging
 Headers:
 
 - `Content-Type: application/json`
-- `Authorization: Bearer <send_key>` — `send_key` uit de serverconfig (`$grokBot['send_key']`)
+- `Authorization: Bearer <send_key>` — `send_key` van de webhook die wordt aangeroepen (centraal: `$grokBot['send_key']` in `auth.php`; persoonlijk: de verzendsleutel uit Voorkeuren)
+
+### Welke webhook
+
+De centrale webhook uit `auth.php` (`$grokBot`) blijft bij elke gebeurtenis hierboven aangeroepen worden, zolang `enabled` aan staat en `webhook_url` geldig is. Afzender, weergavenaam en titel blijven `sender_email`, `default_name` en `default_title` uit die config.
+
+Daarnaast kan een beheerder onder **Voorkeuren** een eigen webhook-URL en verzendsleutel zetten (`save_grok_webhook`). Die persoonlijke webhook krijgt **dezelfde gebeurtenis erbij** wanneer:
+
+- het ticket aan die gebruiker is toegewezen, of
+- die gebruiker AI-advies aanvraagt (`re-evaluate-ticket-and-advise`; dan ook als die persoon niet de behandelaar is)
+
+Dezelfde persoon wordt één keer aangeroepen. Zijn URL én verzendsleutel gelijk aan de centrale webhook, dan volgt geen tweede aanroep: de centrale afzender blijft dan gelden.
+
+De `api_key` van een persoonlijke webhook hoort bij het e-mailadres van die gebruiker. Zonder `sender_name` / `sender_title` in `add_ticket_message` wordt de weergavenaam de naam van die gebruiker en de titel `Assistent`. De bot mag naam en titel in dat verzoek nog steeds zelf zetten. Een gewoon bericht van dezelfde gebruiker (niet via deze webhook-key) krijgt die titel niet.
+
+Staat de centrale webhook uit en heeft de behandelaar wél een persoonlijke webhook, dan gaat alleen die persoonlijke webhook uit.
 
 Body:
 
@@ -547,6 +562,21 @@ Vereisen geldige `csrf_token` uit de browsersessie.
 `save_ticket_appearance_preferences` — admin. `appearance` (of losse velden). Response: `appearance`.
 
 `save_ask_resolution_note` — admin. `enabled`. Of bij afhandelen de modal voor de technische oplossing getoond wordt. Standaard aan. Response: `ask_resolution_note`.
+
+`save_grok_webhook` — ingelogde beheerder (sessie). Slaat de persoonlijke webhook van **die** sessie-gebruiker op; `viewer_email` in de body wijst niet naar iemand anders. `csrf_token` verplicht. Velden: `webhook_url` (http of https), `send_key` (verplicht bij de eerste keer; leeg laten houdt de bestaande sleutel). `clear: true` verwijdert de persoonlijke webhook. De verzendsleutel komt niet terug in het antwoord.
+
+```json
+{
+  "success": true,
+  "grok_webhook": {
+    "configured": true,
+    "webhook_url": "https://example.invalid/mijn-webhook",
+    "has_send_key": true
+  }
+}
+```
+
+Fouten: `csrf`, `invalid_user`, `invalid_webhook_url`, `send_key_required`. Zie **Welke webhook** bij de uitgaande ticket-webhook.
 
 `save_ticket_overview_search` — `search_query`. Slaat de zoekterm in de overzichtsfilters van de gebruiker op.
 

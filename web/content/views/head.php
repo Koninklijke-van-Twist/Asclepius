@@ -1155,6 +1155,8 @@
         input[type="text"],
         input[type="search"],
         input[type="email"],
+        input[type="url"],
+        input[type="password"],
         select,
         textarea {
             width: 100%;
@@ -2999,10 +3001,15 @@
             margin-top: 2px;
         }
 
+        .grok-webhook-prefs,
         .appearance-prefs {
             margin-top: 28px;
             padding-top: 22px;
             border-top: 1px solid var(--line);
+        }
+
+        .grok-webhook-prefs .form-grid {
+            max-width: 720px;
         }
 
         .appearance-prefs-heading {

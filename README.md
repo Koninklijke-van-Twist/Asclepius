@@ -40,6 +40,17 @@ Tim moet `$mimirApi` (en optioneel `$mimirBase`) lokaal/op de server zetten, mé
 
 Geen `auth.php` in deze repository (staat in `.gitignore`). Lokaal/op de server de Mímir-sleutel zetten zoals hierboven, en `$baseUrl`, `$auth` / `$auth_list` en `$environment` daarnaast laten staan voor de directe BC-fallback. Graph-credentials (`$graphCredentials`), mail, web-push, API-keys en Grok blijven zoals voorheen.
 
+## Grok-webhooks
+
+De centrale bot staat in `web/auth.php` als `$grokBot` (niet in git). Die webhook blijft bij elke ticketgebeurtenis (`new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened`, `re-evaluate-ticket-and-advise`) aangeroepen worden, met `sender_email`, `default_name` en `default_title` uit die config.
+
+Daarnaast kan elke beheerder onder **Voorkeuren** een eigen webhook-URL en verzendsleutel zetten. Die staat in de gebruikersvoorkeuren (`web/data/user_prefs/`, niet in git), niet in `auth.php`. Dezelfde gebeurtenis gaat óók naar die persoonlijke webhook wanneer:
+
+- het ticket aan die gebruiker is toegewezen, of
+- die gebruiker AI-advies aanvraagt.
+
+Is dat dezelfde URL én dezelfde sleutel als de centrale webhook, dan volgt geen tweede aanroep. De api-key van de persoonlijke webhook gebruikt het e-mailadres en de naam van die gebruiker, met titel `Assistent`. De bot mag naam en titel in `add_ticket_message` nog steeds zelf zetten. Zie `web/docs/api.md`.
+
 ## Tests
 
 ```bash

@@ -1,3 +1,13 @@
+id: 2026-09-29-personal-grok-webhook
+date: 2026-09-29
+title: Eigen Grok-webhook in Voorkeuren
+author: Tim Falken
+
+In Voorkeuren kun je een eigen webhook-URL en verzendsleutel instellen, naast de centrale Grok-bot.
+
+De centrale webhook blijft alle meldingen ontvangen. Jouw webhook krijgt dezelfde melding erbij wanneer een ticket aan jou is toegewezen, of wanneer jij AI-advies aanvraagt. Antwoorden via jouw webhook verschijnen met jouw naam en e-mailadres en de titel Assistent. De bot kan die naam en titel nog steeds zelf aanpassen.
+
+---
 id: 2026-09-28-mimir-odata-fallback
 date: 2026-09-28
 title: Business Central blijft bereikbaar als Mímir uitvalt

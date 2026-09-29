@@ -401,6 +401,11 @@
         var DRAFT_ATTACHMENT_IN_MESSAGE_LABEL = <?= json_encode(__('ticket.draft_attachment_in_message'), JSON_UNESCAPED_UNICODE) ?>;
         var EMAIL_PREFS_SAVED_LABEL = <?= json_encode(__('email_prefs.saved'), JSON_UNESCAPED_UNICODE) ?>;
         var EMAIL_PREFS_SAVE_FAILED_LABEL = <?= json_encode(__('email_prefs.save_failed'), JSON_UNESCAPED_UNICODE) ?>;
+        var GROK_WEBHOOK_SAVED_LABEL = <?= json_encode(__('grok_webhook.saved'), JSON_UNESCAPED_UNICODE) ?>;
+        var GROK_WEBHOOK_CLEARED_LABEL = <?= json_encode(__('grok_webhook.cleared'), JSON_UNESCAPED_UNICODE) ?>;
+        var GROK_WEBHOOK_SAVE_FAILED_LABEL = <?= json_encode(__('grok_webhook.save_failed'), JSON_UNESCAPED_UNICODE) ?>;
+        var GROK_WEBHOOK_KEY_PLACEHOLDER = <?= json_encode(__('grok_webhook.send_key_placeholder'), JSON_UNESCAPED_UNICODE) ?>;
+        var GROK_WEBHOOK_KEY_PLACEHOLDER_SET = <?= json_encode(__('grok_webhook.send_key_placeholder_set'), JSON_UNESCAPED_UNICODE) ?>;
         var CHANGELOG_SAVED_LABEL = <?= json_encode(__('changelog.saved'), JSON_UNESCAPED_UNICODE) ?>;
         var CHANGELOG_SAVE_FAILED_LABEL = <?= json_encode(__('changelog.save_failed'), JSON_UNESCAPED_UNICODE) ?>;
 
@@ -1357,6 +1362,138 @@
                     {
                         askResolutionNoteCheckbox.checked = !enabled;
                         showEmailPrefsFeedback(EMAIL_PREFS_SAVE_FAILED_LABEL, true);
+                    });
+                });
+            }
+        }
+
+        var grokWebhookRoot = document.querySelector('[data-grok-webhook-prefs]');
+        if (grokWebhookRoot)
+        {
+            var grokWebhookForm = grokWebhookRoot.querySelector('[data-grok-webhook-form]');
+            var grokWebhookUrl = grokWebhookRoot.querySelector('[data-grok-webhook-url]');
+            var grokWebhookKey = grokWebhookRoot.querySelector('[data-grok-webhook-key]');
+            var grokWebhookClear = grokWebhookRoot.querySelector('[data-grok-webhook-clear]');
+            var grokWebhookFeedback = grokWebhookRoot.querySelector('[data-grok-webhook-feedback]');
+            var grokWebhookFeedbackTimer = null;
+            var grokWebhookViewerEmail = (document.querySelector('[data-preferences-section]') || grokWebhookRoot)
+                .getAttribute('data-viewer-email') || '';
+            var grokWebhookUserIsAdmin = (document.querySelector('[data-preferences-section]') || grokWebhookRoot)
+                .getAttribute('data-user-is-admin') === '1';
+            var showGrokWebhookFeedback = function (message, isError)
+            {
+                if (!grokWebhookFeedback)
+                {
+                    return;
+                }
+
+                grokWebhookFeedback.textContent = message;
+                grokWebhookFeedback.hidden = false;
+                grokWebhookFeedback.classList.toggle('is-error', !!isError);
+                if (grokWebhookFeedbackTimer)
+                {
+                    clearTimeout(grokWebhookFeedbackTimer);
+                }
+
+                grokWebhookFeedbackTimer = setTimeout(function ()
+                {
+                    if (grokWebhookFeedback)
+                    {
+                        grokWebhookFeedback.hidden = true;
+                    }
+                }, 2800);
+            };
+            var applyGrokWebhookState = function (webhook, cleared)
+            {
+                var configured = !!(webhook && webhook.configured);
+                var hasKey = !!(webhook && webhook.has_send_key);
+                if (grokWebhookUrl && webhook && typeof webhook.webhook_url === 'string')
+                {
+                    grokWebhookUrl.value = webhook.webhook_url;
+                }
+                if (cleared && grokWebhookUrl)
+                {
+                    grokWebhookUrl.value = '';
+                }
+                if (grokWebhookKey)
+                {
+                    grokWebhookKey.value = '';
+                    grokWebhookKey.placeholder = hasKey ? GROK_WEBHOOK_KEY_PLACEHOLDER_SET : GROK_WEBHOOK_KEY_PLACEHOLDER;
+                }
+                if (grokWebhookClear)
+                {
+                    grokWebhookClear.hidden = !configured;
+                }
+                grokWebhookRoot.setAttribute('data-has-send-key', hasKey ? '1' : '0');
+            };
+            var postGrokWebhook = function (body)
+            {
+                body.action = 'save_grok_webhook';
+                body.csrf_token = csrfToken;
+                body.viewer_email = grokWebhookViewerEmail;
+                body.user_is_admin = grokWebhookUserIsAdmin;
+                body.is_admin_portal = true;
+                return fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body)
+                }).then(function (response)
+                {
+                    return response.json().then(function (data)
+                    {
+                        return { ok: response.ok, data: data };
+                    });
+                });
+            };
+
+            if (grokWebhookForm)
+            {
+                grokWebhookForm.addEventListener('submit', function (event)
+                {
+                    event.preventDefault();
+                    postGrokWebhook({
+                        webhook_url: grokWebhookUrl ? grokWebhookUrl.value : '',
+                        send_key: grokWebhookKey ? grokWebhookKey.value : ''
+                    }).then(function (result)
+                    {
+                        var data = result.data || {};
+                        if (!result.ok || !data.success)
+                        {
+                            showGrokWebhookFeedback(data.error || GROK_WEBHOOK_SAVE_FAILED_LABEL, true);
+                            return;
+                        }
+
+                        applyGrokWebhookState(data.grok_webhook, false);
+                        showGrokWebhookFeedback(GROK_WEBHOOK_SAVED_LABEL, false);
+                    }).catch(function ()
+                    {
+                        showGrokWebhookFeedback(GROK_WEBHOOK_SAVE_FAILED_LABEL, true);
+                    });
+                });
+            }
+
+            if (grokWebhookClear)
+            {
+                grokWebhookClear.addEventListener('click', function ()
+                {
+                    postGrokWebhook({ clear: 1 }).then(function (result)
+                    {
+                        var data = result.data || {};
+                        if (!result.ok || !data.success)
+                        {
+                            showGrokWebhookFeedback(data.error || GROK_WEBHOOK_SAVE_FAILED_LABEL, true);
+                            return;
+                        }
+
+                        applyGrokWebhookState(data.grok_webhook, true);
+                        showGrokWebhookFeedback(GROK_WEBHOOK_CLEARED_LABEL, false);
+                    }).catch(function ()
+                    {
+                        showGrokWebhookFeedback(GROK_WEBHOOK_SAVE_FAILED_LABEL, true);
                     });
                 });
             }

@@ -1,3 +1,13 @@
+id: 2026-09-29-personal-grok-webhook
+date: 2026-09-29
+title: Personal Grok webhook in Preferences
+author: Tim Falken
+
+In Preferences you can set your own webhook URL and send key, alongside the central Grok bot.
+
+The central webhook still receives every notification. Your webhook receives the same notification as well when a ticket is assigned to you, or when you request AI advice. Replies through your webhook show your name and email address, with the title Assistent. The bot can still set the name and title itself.
+
+---
 id: 2026-09-28-mimir-odata-fallback
 date: 2026-09-28
 title: Business Central stays available when Mímir is down

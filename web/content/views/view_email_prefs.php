@@ -263,6 +263,40 @@
             </li>
         </ul>
 
+        <?php
+            require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'GrokBot.php';
+            $grokWebhookPrefs = GrokBot::publicUserWebhook((string) $userEmail);
+        ?>
+        <div class="grok-webhook-prefs" data-grok-webhook-prefs
+            data-has-send-key="<?= !empty($grokWebhookPrefs['has_send_key']) ? '1' : '0' ?>">
+            <h2 class="appearance-prefs-heading"><?= h(__('grok_webhook.heading')) ?></h2>
+            <p class="panel-intro"><?= h(__('grok_webhook.intro')) ?></p>
+            <p class="hint email-prefs-feedback" data-grok-webhook-feedback hidden></p>
+            <form class="form-grid" data-grok-webhook-form>
+                <label>
+                    <?= h(__('grok_webhook.url_label')) ?>
+                    <input type="url" name="webhook_url" data-grok-webhook-url
+                        value="<?= h((string) ($grokWebhookPrefs['webhook_url'] ?? '')) ?>"
+                        inputmode="url" autocomplete="off" spellcheck="false"
+                        placeholder="https://">
+                </label>
+                <label>
+                    <?= h(__('grok_webhook.send_key_label')) ?>
+                    <input type="password" name="send_key" data-grok-webhook-key value=""
+                        autocomplete="new-password" spellcheck="false"
+                        placeholder="<?= h(!empty($grokWebhookPrefs['has_send_key'])
+                            ? __('grok_webhook.send_key_placeholder_set')
+                            : __('grok_webhook.send_key_placeholder')) ?>">
+                </label>
+                <p class="hint"><?= h(__('grok_webhook.send_key_help')) ?></p>
+                <div class="button-row">
+                    <button type="submit" class="primary-button" data-grok-webhook-save><?= h(__('grok_webhook.save')) ?></button>
+                    <button type="button" class="secondary-button" data-grok-webhook-clear
+                        <?= !empty($grokWebhookPrefs['configured']) ? '' : 'hidden' ?>><?= h(__('grok_webhook.clear')) ?></button>
+                </div>
+            </form>
+        </div>
+
         <div class="appearance-prefs" data-appearance-prefs>
             <h2 class="appearance-prefs-heading"><?= h(__('appearance.heading')) ?></h2>
             <p class="panel-intro"><?= h(__('appearance.intro')) ?></p>
