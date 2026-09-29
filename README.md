@@ -49,7 +49,9 @@ Daarnaast kan elke beheerder onder **Voorkeuren** een eigen webhook-URL en verze
 - het ticket aan die gebruiker is toegewezen, of
 - die gebruiker AI-advies aanvraagt.
 
-Is dat dezelfde URL én dezelfde sleutel als de centrale webhook, dan volgt geen tweede aanroep. De api-key van de persoonlijke webhook gebruikt het e-mailadres en de naam van die gebruiker, met titel `Assistent`. De bot mag naam en titel in `add_ticket_message` nog steeds zelf zetten. Zie `web/docs/api.md`.
+Is dat dezelfde URL én dezelfde sleutel als de centrale webhook, dan volgt geen tweede aanroep. De api-key van de persoonlijke webhook gebruikt het e-mailadres en de naam van die gebruiker, met titel `Assistent`. De bot mag naam en titel in `add_ticket_message` nog steeds zelf zetten.
+
+Zowel de centrale URL als een persoonlijke URL moet `http` of `https` zijn. Een host die naar loopback, een privénetwerk, link-local, CGNAT of een metadata-adres wijst, wordt geweigerd bij het opslaan en opnieuw vlak voor verzending. Een redirect wordt niet gevolgd. Zie `web/docs/api.md`.
 
 ## Tests
 

@@ -238,7 +238,7 @@ Headers:
 
 ### Welke webhook
 
-De centrale webhook uit `auth.php` (`$grokBot`) blijft bij elke gebeurtenis hierboven aangeroepen worden, zolang `enabled` aan staat en `webhook_url` geldig is. Afzender, weergavenaam en titel blijven `sender_email`, `default_name` en `default_title` uit die config.
+De centrale webhook uit `auth.php` (`$grokBot`) blijft bij elke gebeurtenis hierboven aangeroepen worden, zolang `enabled` aan staat en `webhook_url` geldig is. Afzender, weergavenaam en titel blijven `sender_email`, `default_name` en `default_title` uit die config. Een URL is geldig als het `http` of `https` is en de host niet naar loopback, een privénetwerk, link-local, CGNAT of een metadata-adres wijst. Die controle gebeurt opnieuw vlak voor verzending; het verzoek gaat naar het dan gecontroleerde adres en volgt geen redirect.
 
 Daarnaast kan een beheerder onder **Voorkeuren** een eigen webhook-URL en verzendsleutel zetten (`save_grok_webhook`). Die persoonlijke webhook krijgt **dezelfde gebeurtenis erbij** wanneer:
 
@@ -563,7 +563,7 @@ Vereisen geldige `csrf_token` uit de browsersessie.
 
 `save_ask_resolution_note` — admin. `enabled`. Of bij afhandelen de modal voor de technische oplossing getoond wordt. Standaard aan. Response: `ask_resolution_note`.
 
-`save_grok_webhook` — ingelogde beheerder (sessie). Slaat de persoonlijke webhook van **die** sessie-gebruiker op; `viewer_email` in de body wijst niet naar iemand anders. `csrf_token` verplicht. Velden: `webhook_url` (http of https), `send_key` (verplicht bij de eerste keer; leeg laten houdt de bestaande sleutel). `clear: true` verwijdert de persoonlijke webhook. De verzendsleutel komt niet terug in het antwoord.
+`save_grok_webhook` — ingelogde beheerder (sessie). Slaat de persoonlijke webhook van **die** sessie-gebruiker op; `viewer_email` in de body wijst niet naar iemand anders. `csrf_token` verplicht. Velden: `webhook_url` (http of https; geen loopback, privénetwerk, link-local, CGNAT of metadata-adres, ook niet via DNS), `send_key` (verplicht bij de eerste keer; leeg laten houdt de bestaande sleutel). `clear: true` verwijdert de persoonlijke webhook. De verzendsleutel komt niet terug in het antwoord. Dezelfde adrescontrole geldt voor de centrale `$grokBot`-URL en wordt vlak voor verzending herhaald; redirects worden niet gevolgd.
 
 ```json
 {

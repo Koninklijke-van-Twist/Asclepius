@@ -7,6 +7,8 @@ In Voorkeuren kun je een eigen webhook-URL en verzendsleutel instellen, naast de
 
 De centrale webhook blijft alle meldingen ontvangen. Jouw webhook krijgt dezelfde melding erbij wanneer een ticket aan jou is toegewezen, of wanneer jij AI-advies aanvraagt. Antwoorden via jouw webhook verschijnen met jouw naam en e-mailadres en de titel Assistent. De bot kan die naam en titel nog steeds zelf aanpassen.
 
+Een webhook-URL moet http of https zijn en mag niet naar een lokaal, privé- of metadata-adres wijzen. Dat wordt gecontroleerd bij het opslaan en nogmaals vlak voor het versturen.
+
 ---
 id: 2026-09-28-mimir-odata-fallback
 date: 2026-09-28

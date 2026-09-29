@@ -11,3 +11,4 @@ Naast `$grokBot` in `auth.php` kan elke beheerder in Voorkeuren een eigen webhoo
 - De persoonlijke webhook krijgt dezelfde gebeurtenis erbij als het ticket aan die persoon is toegewezen, of als die persoon AI-advies aanvraagt.
 - Dezelfde URL én dezelfde verzendsleutel als de centrale webhook wordt niet een tweede keer aangeroepen.
 - De `api_key` van een persoonlijke webhook hoort bij het e-mailadres van die gebruiker. Standaardnaam is de naam van de gebruiker, standaardtitel is `Assistent`. `sender_name` en `sender_title` in `add_ticket_message` overschrijven dat nog steeds.
+- Zowel de centrale URL als een persoonlijke URL moet `http` of `https` zijn. Lokale, privé- en metadata-adressen worden geweigerd bij het opslaan en opnieuw vlak voor verzending.

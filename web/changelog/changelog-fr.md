@@ -7,6 +7,8 @@ Dans Préférences, tu peux enregistrer ta propre URL de webhook et ta clé d’
 
 Le webhook central continue de recevoir toutes les notifications. Ton webhook reçoit la même notification en plus lorsqu’un ticket t’est assigné, ou lorsque tu demandes un conseil IA. Les réponses via ton webhook affichent ton nom et ton e-mail, avec le titre Assistent. Le bot peut toujours choisir lui-même le nom et le titre.
 
+Une URL de webhook doit être en http ou https et ne peut pas viser une adresse locale, privée ou de métadonnées. Ce contrôle a lieu à l’enregistrement et à nouveau juste avant l’envoi.
+
 ---
 id: 2026-09-28-mimir-odata-fallback
 date: 2026-09-28

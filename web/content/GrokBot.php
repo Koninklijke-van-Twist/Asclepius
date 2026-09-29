@@ -13,6 +13,11 @@
  * key to the global webhook is not called a second time. The personal callback
  * uses that user's email and display name, with the title "Assistent". The bot
  * may still override name and title on add_ticket_message.
+ *
+ * Both the global URL and a personal URL must be http or https. Hosts that
+ * resolve to loopback, private, link-local, CGNAT, or metadata addresses are
+ * rejected when the URL is saved and again immediately before delivery. The
+ * resolved address is pinned for that request so a DNS change cannot retarget it.
  */
 class GrokBot
 {
@@ -33,6 +38,9 @@ class GrokBot
 
     /** @var (callable(string, array<string, mixed>, string): void)|null */
     private static $deliveryOverride = null;
+
+    /** @var (callable(string): list<string>)|null */
+    private static $dnsOverride = null;
 
     /**
      * @param array<string, mixed>|null $config
@@ -270,6 +278,17 @@ class GrokBot
         self::$deliveryOverride = $override;
     }
 
+    /**
+     * Test seam: replace DNS for webhook host checks. The callable receives the
+     * hostname and returns IP strings. Null restores real DNS.
+     *
+     * @param (callable(string): list<string>)|null $resolver
+     */
+    public static function setWebhookDnsOverride(?callable $resolver): void
+    {
+        self::$dnsOverride = $resolver;
+    }
+
     private static function isWaitingOnUserStatus(string $status): bool
     {
         $canonical = defined('TICKET_STATUS_WAITING_ON_USER')
@@ -325,7 +344,8 @@ class GrokBot
         }
 
         $webhookUrl = trim((string) ($config['webhook_url'] ?? ''));
-        if ($webhookUrl === '' || !filter_var($webhookUrl, FILTER_VALIDATE_URL)) {
+        $destination = self::safeWebhookDestination($webhookUrl);
+        if ($destination === null) {
             return false;
         }
 
@@ -340,7 +360,7 @@ class GrokBot
             'ticket_id' => $ticketId,
             'api_key' => $issued['api_key'],
         ], $extra);
-        self::postWebhook($webhookUrl, $payload, $sendKey);
+        self::postWebhook($webhookUrl, $payload, $sendKey, $destination);
 
         return true;
     }
@@ -442,7 +462,7 @@ class GrokBot
 
         $url = trim((string) ($stored['webhook_url'] ?? ''));
         $sendKey = trim((string) ($stored['send_key'] ?? ''));
-        if (!self::isAllowedWebhookUrl($url) || $sendKey === '') {
+        if (!self::isWebhookUrlShape($url) || $sendKey === '') {
             return null;
         }
 
@@ -455,6 +475,11 @@ class GrokBot
 
     private static function isAllowedWebhookUrl(string $url): bool
     {
+        return self::safeWebhookDestination($url) !== null;
+    }
+
+    private static function isWebhookUrlShape(string $url): bool
+    {
         if ($url === '' || strlen($url) > self::USER_WEBHOOK_URL_MAX_LENGTH) {
             return false;
         }
@@ -462,10 +487,367 @@ class GrokBot
             return false;
         }
 
-        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-        $host = trim((string) parse_url($url, PHP_URL_HOST));
+        $parts = parse_url($url);
+        if (!is_array($parts)) {
+            return false;
+        }
+        if (isset($parts['user']) || isset($parts['pass'])) {
+            return false;
+        }
 
-        return ($scheme === 'http' || $scheme === 'https') && $host !== '';
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = trim((string) ($parts['host'] ?? ''));
+        if (($scheme !== 'http' && $scheme !== 'https') || $host === '') {
+            return false;
+        }
+        if (strpos($host, '%') !== false || strpos($host, '\\') !== false) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Resolve the URL and keep one public address to connect to.
+     * Returns null when the URL is not http(s) or any address is unsafe.
+     *
+     * @return array{host: string, port: int, ip: string}|null
+     */
+    private static function safeWebhookDestination(string $url): ?array
+    {
+        if (!self::isWebhookUrlShape($url)) {
+            return null;
+        }
+
+        $parts = parse_url($url);
+        if (!is_array($parts)) {
+            return null;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $resolveHost = trim((string) ($parts['host'] ?? ''), '[]');
+        $dnsHost = strtolower(rtrim($resolveHost, '.'));
+        if ($dnsHost === '' || self::isBlockedWebhookHostname($dnsHost)) {
+            return null;
+        }
+
+        $port = isset($parts['port']) ? (int) $parts['port'] : ($scheme === 'https' ? 443 : 80);
+        if ($port < 1 || $port > 65535) {
+            return null;
+        }
+
+        $literal = self::webhookLiteralIp($dnsHost);
+        if ($literal === false) {
+            return null;
+        }
+        if (is_string($literal)) {
+            $ips = [$literal];
+        } else {
+            $ips = self::resolveWebhookHost($dnsHost);
+        }
+        if ($ips === []) {
+            return null;
+        }
+
+        foreach ($ips as $ip) {
+            if (!is_string($ip) || $ip === '' || self::isBlockedWebhookIp($ip)) {
+                return null;
+            }
+        }
+
+        $pin = self::preferredWebhookIp($ips);
+        if ($pin === null) {
+            return null;
+        }
+
+        return [
+            'host' => $resolveHost,
+            'port' => $port,
+            'ip' => $pin,
+        ];
+    }
+
+    private static function isBlockedWebhookHostname(string $host): bool
+    {
+        if ($host === 'localhost' || $host === 'localhost.localdomain' || $host === 'metadata.google.internal') {
+            return true;
+        }
+
+        return substr($host, -10) === '.localhost';
+    }
+
+    /**
+     * @return string|false|null string IP, null when the host is a name, false when it is an illegal numeric host
+     */
+    private static function webhookLiteralIp(string $host)
+    {
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return $host;
+        }
+
+        $aton = self::inetAton($host);
+        if ($aton !== null) {
+            return $aton;
+        }
+        if (self::hostLooksNumeric($host)) {
+            return false;
+        }
+
+        return null;
+    }
+
+    private static function hostLooksNumeric(string $host): bool
+    {
+        return preg_match('/^(?:0[xX][0-9a-fA-F.]+|[0-9.]+)$/', $host) === 1;
+    }
+
+    /**
+     * glibc-style inet_aton, including the short, octal, and hex forms cURL accepts.
+     */
+    private static function inetAton(string $host): ?string
+    {
+        if ($host === '' || substr_count($host, '.') > 3) {
+            return null;
+        }
+
+        $parts = explode('.', $host);
+        $nums = [];
+        foreach ($parts as $part) {
+            $parsed = self::parseInetComponent($part);
+            if ($parsed === null) {
+                return null;
+            }
+            $nums[] = $parsed;
+        }
+
+        $count = count($nums);
+        if ($count === 1) {
+            $value = $nums[0];
+        } elseif ($count === 2 && $nums[0] <= 0xFF && $nums[1] <= 0xFFFFFF) {
+            $value = ($nums[0] << 24) | $nums[1];
+        } elseif ($count === 3 && $nums[0] <= 0xFF && $nums[1] <= 0xFF && $nums[2] <= 0xFFFF) {
+            $value = ($nums[0] << 24) | ($nums[1] << 16) | $nums[2];
+        } elseif ($count === 4 && $nums[0] <= 0xFF && $nums[1] <= 0xFF && $nums[2] <= 0xFF && $nums[3] <= 0xFF) {
+            $value = ($nums[0] << 24) | ($nums[1] << 16) | ($nums[2] << 8) | $nums[3];
+        } else {
+            return null;
+        }
+
+        if ($value < 0 || $value > 0xFFFFFFFF) {
+            return null;
+        }
+
+        return long2ip($value);
+    }
+
+    private static function parseInetComponent(string $part): ?int
+    {
+        if ($part === '') {
+            return null;
+        }
+        if (preg_match('/^0[xX]([0-9a-fA-F]+)$/', $part, $matches) === 1) {
+            if (strlen($matches[1]) > 8) {
+                return null;
+            }
+            $value = hexdec($matches[1]);
+
+            return $value <= 0xFFFFFFFF ? (int) $value : null;
+        }
+        if ($part[0] === '0') {
+            if (preg_match('/^[0-7]+$/', $part) !== 1 || strlen($part) > 11) {
+                return null;
+            }
+            $value = octdec($part);
+
+            return $value <= 0xFFFFFFFF ? (int) $value : null;
+        }
+        if (preg_match('/^[0-9]+$/', $part) !== 1 || strlen($part) > 10) {
+            return null;
+        }
+        $value = (int) $part;
+
+        return $value <= 0xFFFFFFFF ? $value : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function resolveWebhookHost(string $host): array
+    {
+        if (self::$dnsOverride !== null) {
+            $resolved = (self::$dnsOverride)($host);
+            if (!is_array($resolved)) {
+                return [];
+            }
+            $ips = [];
+            foreach ($resolved as $ip) {
+                if (is_string($ip) && $ip !== '') {
+                    $ips[$ip] = $ip;
+                }
+            }
+
+            return array_values($ips);
+        }
+
+        $ips = [];
+        if (function_exists('dns_get_record')) {
+            $records = @dns_get_record($host, DNS_A + DNS_AAAA);
+            if (is_array($records)) {
+                foreach ($records as $record) {
+                    if (!is_array($record)) {
+                        continue;
+                    }
+                    if (isset($record['ip']) && is_string($record['ip'])) {
+                        $ips[$record['ip']] = $record['ip'];
+                    }
+                    if (isset($record['ipv6']) && is_string($record['ipv6'])) {
+                        $ips[$record['ipv6']] = $record['ipv6'];
+                    }
+                }
+            }
+        }
+        if (function_exists('gethostbynamel')) {
+            $v4 = @gethostbynamel($host);
+            if (is_array($v4)) {
+                foreach ($v4 as $ip) {
+                    if (is_string($ip) && $ip !== '') {
+                        $ips[$ip] = $ip;
+                    }
+                }
+            }
+        }
+
+        return array_values($ips);
+    }
+
+    /**
+     * @param list<string> $ips
+     */
+    private static function preferredWebhookIp(array $ips): ?string
+    {
+        $v6 = null;
+        foreach ($ips as $ip) {
+            if (strpos($ip, ':') === false) {
+                return $ip;
+            }
+            if ($v6 === null) {
+                $v6 = $ip;
+            }
+        }
+
+        return $v6;
+    }
+
+    private static function isBlockedWebhookIp(string $ip): bool
+    {
+        $packed = @inet_pton($ip);
+        if ($packed === false) {
+            return true;
+        }
+        if (strlen($packed) === 16) {
+            $embedded = self::embeddedIpv4($packed);
+            if ($embedded !== null) {
+                return self::isBlockedIpv4($embedded);
+            }
+
+            return self::isBlockedIpv6($packed);
+        }
+        if (strlen($packed) === 4) {
+            return self::isBlockedIpv4($packed);
+        }
+
+        return true;
+    }
+
+    private static function embeddedIpv4(string $packed): ?string
+    {
+        $mapped = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff";
+        if (substr($packed, 0, 12) === $mapped) {
+            return substr($packed, 12, 4);
+        }
+
+        $nat64 = @inet_pton('64:ff9b::');
+        if ($nat64 !== false && substr($packed, 0, 12) === substr($nat64, 0, 12)) {
+            return substr($packed, 12, 4);
+        }
+
+        if (ord($packed[0]) === 0x20 && ord($packed[1]) === 0x02) {
+            return substr($packed, 2, 4);
+        }
+
+        return null;
+    }
+
+    private static function isBlockedIpv4(string $packed): bool
+    {
+        $ranges = [
+            ['0.0.0.0', 8],
+            ['10.0.0.0', 8],
+            ['100.64.0.0', 10],
+            ['127.0.0.0', 8],
+            ['169.254.0.0', 16],
+            ['172.16.0.0', 12],
+            ['192.0.0.0', 24],
+            ['192.0.2.0', 24],
+            ['192.88.99.0', 24],
+            ['192.168.0.0', 16],
+            ['198.18.0.0', 15],
+            ['198.51.100.0', 24],
+            ['203.0.113.0', 24],
+            ['224.0.0.0', 4],
+            ['240.0.0.0', 4],
+        ];
+        foreach ($ranges as $range) {
+            if (self::packedInCidr($packed, $range[0], $range[1])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function isBlockedIpv6(string $packed): bool
+    {
+        $ranges = [
+            ['::', 96],
+            ['100::', 64],
+            ['2001::', 32],
+            ['2001:2::', 48],
+            ['2001:db8::', 32],
+            ['64:ff9b:1::', 48],
+            ['fc00::', 7],
+            ['fe80::', 10],
+            ['fec0::', 10],
+            ['ff00::', 8],
+        ];
+        foreach ($ranges as $range) {
+            if (self::packedInCidr($packed, $range[0], $range[1])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function packedInCidr(string $packed, string $network, int $bits): bool
+    {
+        $net = @inet_pton($network);
+        if ($net === false || strlen($net) !== strlen($packed) || $bits < 0) {
+            return false;
+        }
+
+        $bytes = $bits >> 3;
+        $remainder = $bits & 7;
+        if ($bytes > 0 && substr($packed, 0, $bytes) !== substr($net, 0, $bytes)) {
+            return false;
+        }
+        if ($remainder === 0) {
+            return true;
+        }
+
+        $mask = (0xFF << (8 - $remainder)) & 0xFF;
+
+        return (ord($packed[$bytes]) & $mask) === (ord($net[$bytes]) & $mask);
     }
 
     private static function captureUserDisplayName(string $email, string $stored = ''): string
@@ -658,8 +1040,9 @@ class GrokBot
 
     /**
      * @param array<string, mixed> $payload
+     * @param array{host: string, port: int, ip: string} $destination Address pinned at send time.
      */
-    private static function postWebhook(string $url, array $payload, string $sendKey = ''): void
+    private static function postWebhook(string $url, array $payload, string $sendKey = '', array $destination = []): void
     {
         $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if (!is_string($jsonPayload) || $jsonPayload === '') {
@@ -680,6 +1063,10 @@ class GrokBot
             $headers[] = 'Authorization: Bearer ' . $sendKey;
         }
 
+        $pinHost = (string) ($destination['host'] ?? '');
+        $pinPort = (int) ($destination['port'] ?? 0);
+        $pinIp = (string) ($destination['ip'] ?? '');
+
         if (function_exists('curl_init')) {
             $curlHandle = curl_init($url);
             if ($curlHandle === false) {
@@ -692,20 +1079,73 @@ class GrokBot
             curl_setopt($curlHandle, CURLOPT_POSTFIELDS, $jsonPayload);
             curl_setopt($curlHandle, CURLOPT_TIMEOUT, self::WEBHOOK_TIMEOUT_SECONDS);
             curl_setopt($curlHandle, CURLOPT_CONNECTTIMEOUT, self::WEBHOOK_TIMEOUT_SECONDS);
+            curl_setopt($curlHandle, CURLOPT_FOLLOWLOCATION, false);
+            curl_setopt($curlHandle, CURLOPT_MAXREDIRS, 0);
+            if (defined('CURLOPT_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+                curl_setopt($curlHandle, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+            }
+            if (defined('CURLOPT_REDIR_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+                curl_setopt($curlHandle, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+            }
+            if ($pinHost !== '' && $pinPort > 0 && $pinIp !== '') {
+                $resolvedIp = strpos($pinIp, ':') !== false ? '[' . $pinIp . ']' : $pinIp;
+                curl_setopt($curlHandle, CURLOPT_RESOLVE, [$pinHost . ':' . $pinPort . ':' . $resolvedIp]);
+            }
             curl_exec($curlHandle);
             curl_close($curlHandle);
 
             return;
         }
 
-        @file_get_contents($url, false, stream_context_create([
+        $connectUrl = $url;
+        if ($pinIp !== '' && $pinHost !== '') {
+            $connectUrl = self::webhookUrlWithHost($url, $pinIp);
+            $hostHeader = $pinHost;
+            $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+            $defaultPort = $scheme === 'https' ? 443 : 80;
+            if ($pinPort > 0 && $pinPort !== $defaultPort) {
+                $hostHeader .= ':' . $pinPort;
+            }
+            $headers[] = 'Host: ' . $hostHeader;
+        }
+
+        $ssl = [];
+        if (stripos($connectUrl, 'https://') === 0 && $pinHost !== '') {
+            $ssl = [
+                'peer_name' => $pinHost,
+                'SNI_enabled' => true,
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ];
+        }
+
+        @file_get_contents($connectUrl, false, stream_context_create([
             'http' => [
                 'method' => 'POST',
                 'header' => implode("\r\n", $headers),
                 'content' => $jsonPayload,
                 'timeout' => self::WEBHOOK_TIMEOUT_SECONDS,
                 'ignore_errors' => true,
+                'follow_location' => 0,
+                'max_redirects' => 0,
             ],
+            'ssl' => $ssl,
         ]));
+    }
+
+    private static function webhookUrlWithHost(string $url, string $host): string
+    {
+        $parts = parse_url($url);
+        if (!is_array($parts)) {
+            return $url;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? 'http'));
+        $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+        $path = (string) ($parts['path'] ?? '');
+        $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+        $displayHost = strpos($host, ':') !== false ? '[' . $host . ']' : $host;
+
+        return $scheme . '://' . $displayHost . $port . $path . $query;
     }
 }

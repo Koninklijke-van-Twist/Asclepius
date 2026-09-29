@@ -7,6 +7,8 @@ In Preferences you can set your own webhook URL and send key, alongside the cent
 
 The central webhook still receives every notification. Your webhook receives the same notification as well when a ticket is assigned to you, or when you request AI advice. Replies through your webhook show your name and email address, with the title Assistent. The bot can still set the name and title itself.
 
+A webhook URL must be http or https and cannot point at a local, private, or metadata address. That is checked when you save it and again just before it is sent.
+
 ---
 id: 2026-09-28-mimir-odata-fallback
 date: 2026-09-28

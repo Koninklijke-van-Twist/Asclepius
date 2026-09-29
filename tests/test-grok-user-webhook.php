@@ -58,6 +58,7 @@ $prefEmails = [
 
 register_shutdown_function(static function () use ($authPath, $createdStubAuth, &$captured, $prefEmails): void {
     GrokBot::setDeliveryOverride(null);
+    GrokBot::setWebhookDnsOverride(null);
     $directory = GrokBot::apiClientsDirectory();
     foreach ($captured as $event) {
         $apiKey = (string) ($event['payload']['api_key'] ?? '');
@@ -136,6 +137,9 @@ $GLOBALS['grokBot'] = [
     'default_name' => 'Grok',
     'default_title' => 'Bot',
 ];
+GrokBot::setWebhookDnsOverride(static function (string $host): array {
+    return ['93.184.216.34'];
+});
 GrokBot::setDeliveryOverride(static function (string $url, array $payload, string $sendKey) use (&$captured): void {
     $captured[] = [
         'url' => $url,
@@ -378,6 +382,108 @@ $cleared = handleSaveGrokWebhookApiAction([
 ], null);
 assertTrue('API wissen slaagt', !empty($cleared['success']));
 assertFalse('API wissen leegt de webhook', !empty($cleared['grok_webhook']['configured']));
+
+echo PHP_EOL . "--- SSRF: geblokkeerde en toegestane webhook-hosts ---" . PHP_EOL;
+
+$blockedUrls = [
+    'http://127.0.0.1/hook',
+    'http://10.1.2.3/hook',
+    'http://192.168.1.20/hook',
+    'http://172.16.5.5/hook',
+    'http://169.254.169.254/latest/meta-data',
+    'http://0.0.0.0/hook',
+    'http://100.64.1.1/hook',
+    'http://2130706433/hook',
+    'http://0177.0.0.1/hook',
+    'http://127.1/hook',
+    'http://0x7f000001/hook',
+    'http://[::1]/hook',
+    'http://[fd00::1]/hook',
+    'http://[fe80::1]/hook',
+    'http://[::ffff:127.0.0.1]/hook',
+    'http://[64:ff9b::7f00:1]/hook',
+    'https://localhost/hook',
+    'https://metadata.google.internal/hook',
+    'http://user:secret@1.1.1.1/hook',
+];
+foreach ($blockedUrls as $blockedUrl) {
+    $blocked = GrokBot::saveUserWebhook('assignee-webhook@example.com', $blockedUrl, 'blocked-key', 'Tim Falken');
+    assertSame('Geblokkeerd ' . $blockedUrl, 'invalid_webhook_url', (string) ($blocked['error_code'] ?? ''));
+}
+
+$allowedUrls = [
+    'https://1.1.1.1/hook',
+    'http://8.8.8.8/hook',
+    'https://93.184.216.34/hook',
+    'http://[2606:4700:4700::1111]/hook',
+    'http://[::ffff:8.8.8.8]/hook',
+];
+foreach ($allowedUrls as $allowedUrl) {
+    $allowed = GrokBot::saveUserWebhook('assignee-webhook@example.com', $allowedUrl, 'allowed-key', 'Tim Falken');
+    assertTrue('Toegestaan ' . $allowedUrl, !empty($allowed['ok']));
+}
+
+GrokBot::setWebhookDnsOverride(static function (string $host): array {
+    $map = [
+        'rebind.example' => ['127.0.0.1'],
+        'mixed.example' => ['1.1.1.1', '10.0.0.8'],
+        'linklocal.example' => ['169.254.169.254'],
+        'public.example' => ['93.184.216.34', '2606:4700:4700::1111'],
+        'localhost' => ['93.184.216.34'],
+    ];
+
+    return $map[strtolower($host)] ?? ['93.184.216.34'];
+});
+$rebindSave = GrokBot::saveUserWebhook('assignee-webhook@example.com', 'https://rebind.example/hook', 'rebind-key', 'Tim Falken');
+assertSame('Hostname naar loopback', 'invalid_webhook_url', (string) ($rebindSave['error_code'] ?? ''));
+$mixedSave = GrokBot::saveUserWebhook('assignee-webhook@example.com', 'https://mixed.example/hook', 'mixed-key', 'Tim Falken');
+assertSame('Mix van publiek en privé', 'invalid_webhook_url', (string) ($mixedSave['error_code'] ?? ''));
+$linkSave = GrokBot::saveUserWebhook('assignee-webhook@example.com', 'http://linklocal.example/hook', 'link-key', 'Tim Falken');
+assertSame('Hostname naar metadata', 'invalid_webhook_url', (string) ($linkSave['error_code'] ?? ''));
+$publicName = GrokBot::saveUserWebhook('assignee-webhook@example.com', 'https://public.example/hook', 'public-key', 'Tim Falken');
+assertTrue('Publieke hostname', !empty($publicName['ok']));
+$localhostName = GrokBot::saveUserWebhook('assignee-webhook@example.com', 'http://localhost/hook', 'local-key', 'Tim Falken');
+assertSame('localhost blijft geblokkeerd', 'invalid_webhook_url', (string) ($localhostName['error_code'] ?? ''));
+
+GrokBot::setWebhookDnsOverride(static function (string $host): array {
+    return strtolower($host) === 'rebind.example' ? ['93.184.216.34'] : ['93.184.216.34'];
+});
+$storedRebind = GrokBot::saveUserWebhook('assignee-webhook@example.com', 'https://rebind.example/personal', 'rebind-key', 'Tim Falken');
+assertTrue('Opslaan terwijl DNS nog publiek is', !empty($storedRebind['ok']));
+GrokBot::setWebhookDnsOverride(static function (string $host): array {
+    return strtolower($host) === 'rebind.example' ? ['127.0.0.1'] : ['93.184.216.34'];
+});
+resetCaptured();
+$clientsBefore = count(glob(GrokBot::apiClientsDirectory() . DIRECTORY_SEPARATOR . '*.json') ?: []);
+$GLOBALS['grokBot'] = [
+    'enabled' => true,
+    'webhook_url' => 'https://rebind.example/global',
+    'send_key' => 'global-send-key',
+    'sender_email' => 'grok-bot@kvt.nl',
+    'default_name' => 'Grok',
+    'default_title' => 'Bot',
+];
+$rebindSent = GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, '', null, [
+    'assigned_email' => 'assignee-webhook@example.com',
+    'actor_email' => 'assignee-webhook@example.com',
+]);
+$clientsAfter = count(glob(GrokBot::apiClientsDirectory() . DIRECTORY_SEPARATOR . '*.json') ?: []);
+assertFalse('Geen levering na DNS-rebind', $rebindSent);
+assertSame('Geen aanroep na DNS-rebind', [], capturedUrls());
+assertSame('Geen ephemeral key bij geblokkeerde bestemming', $clientsBefore, $clientsAfter);
+
+GrokBot::setWebhookDnsOverride(static function (string $host): array {
+    return ['93.184.216.34'];
+});
+resetCaptured();
+$GLOBALS['grokBot']['webhook_url'] = 'https://example.com/global-webhook';
+GrokBot::notifyTicketSolved($store, $ticketId, null, [
+    'assigned_email' => 'assignee-webhook@example.com',
+]);
+assertSame('Na publieke DNS weer centraal en persoonlijk', [
+    'https://example.com/global-webhook',
+    'https://rebind.example/personal',
+], capturedUrls());
 
 echo PHP_EOL;
 if ($failed === 0) {
