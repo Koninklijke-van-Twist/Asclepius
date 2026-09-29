@@ -151,6 +151,9 @@ function loadApiClientByToken(string $providedKey): ?array
         'api_key' => $storedApiKey,
         'email' => strtolower(trim((string) ($decoded['email'] ?? ''))),
         'is_admin' => !empty($decoded['is_admin']),
+        'kind' => trim((string) ($decoded['kind'] ?? '')),
+        'default_name' => trim((string) ($decoded['default_name'] ?? '')),
+        'default_title' => trim((string) ($decoded['default_title'] ?? '')),
     ];
 }
 
@@ -1062,7 +1065,10 @@ function handleRequestAiAdviceApiAction(TicketStore $store, array $payload, ?arr
     }
 
     require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
-    $sent = GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, $advicePrompt);
+    $sent = GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, $advicePrompt, null, [
+        'actor_email' => $viewerEmail,
+        'assigned_email' => strtolower(trim((string) ($ticket['assigned_email'] ?? ''))),
+    ]);
     if (!$sent) {
         $store->clearAiAdvicePending($ticketId);
         return [
@@ -1827,6 +1833,10 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
     $senderRole = $canPostAsAdmin ? 'admin' : 'user';
     $senderDisplayName = null;
     $senderRoleTitle = null;
+    $isGrokWebhookPost = is_array($apiClient) && (
+        (string) ($apiClient['kind'] ?? '') === 'grok_bot_ephemeral'
+        || (string) ($apiClient['oid'] ?? '') === 'grok-bot'
+    );
     if ($canPostAsAdmin) {
         $senderDisplayName = trim((string) (
             $payload['sender_name']
@@ -1843,7 +1853,11 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         ));
         if ($senderDisplayName === '' || $senderRoleTitle === '') {
             require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
-            $defaults = GrokBot::resolveDefaultIdentity($senderEmail);
+            $defaults = GrokBot::resolveDefaultIdentity(
+                $senderEmail,
+                [],
+                $isGrokWebhookPost ? $apiClient : []
+            );
             if ($senderDisplayName === '') {
                 $senderDisplayName = $defaults['name'];
             }
@@ -1930,7 +1944,8 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         $messageForStorage,
         $senderDisplayName,
         $senderRoleTitle,
-        (string) ($ticket['status'] ?? '')
+        (string) ($ticket['status'] ?? ''),
+        $isGrokWebhookPost
     );
     $messageId = (int) $persistedReply['message_id'];
 
@@ -2211,6 +2226,79 @@ function handleSaveAskResolutionNoteApiAction(array $payload, ?array $apiClient)
     return [
         'success' => true,
         'ask_resolution_note' => $enabled,
+    ];
+}
+
+function handleSaveGrokWebhookApiAction(array $payload, ?array $apiClient): array
+{
+    ensureApiSessionStarted();
+    $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+    $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+    if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
+        return [
+            'success' => false,
+            'error' => 'csrf',
+        ];
+    }
+
+    $sessionEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+    $sessionIsAdmin = !empty($_SESSION['user']['admin']);
+    $apiClientIsAdmin = is_array($apiClient) && !empty($apiClient['is_admin']);
+    $apiClientEmail = strtolower(trim((string) ($apiClient['email'] ?? '')));
+    if ($sessionEmail === '' && $apiClientIsAdmin && filter_var($apiClientEmail, FILTER_VALIDATE_EMAIL)) {
+        $sessionEmail = $apiClientEmail;
+    }
+    if (!$sessionIsAdmin && !$apiClientIsAdmin) {
+        return [
+            'success' => false,
+            'error' => __('flash.settings_admin_only'),
+        ];
+    }
+    if ($sessionEmail === '' || !filter_var($sessionEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_user',
+        ];
+    }
+    if ($apiClientEmail !== '' && $apiClientEmail !== $sessionEmail && !$sessionIsAdmin) {
+        return [
+            'success' => false,
+            'error' => 'invalid_user',
+        ];
+    }
+
+    require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
+    if (isApiTruthy($payload['clear'] ?? false)) {
+        GrokBot::clearUserWebhook($sessionEmail);
+
+        return [
+            'success' => true,
+            'grok_webhook' => GrokBot::publicUserWebhook($sessionEmail),
+        ];
+    }
+
+    $saved = GrokBot::saveUserWebhook(
+        $sessionEmail,
+        (string) ($payload['webhook_url'] ?? ''),
+        (string) ($payload['send_key'] ?? '')
+    );
+    if (empty($saved['ok'])) {
+        $errorCode = (string) ($saved['error_code'] ?? 'invalid_webhook_url');
+        $errorKey = $errorCode === 'send_key_required'
+            ? 'grok_webhook.key_required'
+            : ($errorCode === 'invalid_user' ? 'invalid_user' : 'grok_webhook.invalid_url');
+
+        return [
+            'success' => false,
+            'error' => __($errorKey) === $errorKey ? $errorCode : __($errorKey),
+            'error_code' => $errorCode,
+            'grok_webhook' => $saved['webhook'] ?? GrokBot::publicUserWebhook($sessionEmail),
+        ];
+    }
+
+    return [
+        'success' => true,
+        'grok_webhook' => $saved['webhook'],
     ];
 }
 
@@ -2996,6 +3084,10 @@ if ($method === 'POST') {
 
     if ($action === 'save_ask_resolution_note') {
         sendJson(200, handleSaveAskResolutionNoteApiAction($payload, $apiClient));
+    }
+
+    if ($action === 'save_grok_webhook') {
+        sendJson(200, handleSaveGrokWebhookApiAction($payload, $apiClient));
     }
 
     if ($action === 'save_ticket_overview_search') {

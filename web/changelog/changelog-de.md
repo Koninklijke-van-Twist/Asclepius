@@ -1,3 +1,15 @@
+id: 2026-09-29-personal-grok-webhook
+date: 2026-09-29
+title: Eigener Grok-Webhook unter Präferenzen
+author: Tim Falken
+
+Unter Präferenzen kannst du eine eigene Webhook-URL und einen Sendeschlüssel einstellen, zusätzlich zum zentralen Grok-Bot.
+
+Der zentrale Webhook erhält weiterhin alle Meldungen. Dein Webhook erhält dieselbe Meldung zusätzlich, wenn ein Ticket dir zugewiesen ist oder wenn du KI-Beratung anforderst. Antworten über deinen Webhook erscheinen mit deinem Namen und deiner E-Mail-Adresse und dem Titel Assistent. Der Bot kann Name und Titel weiterhin selbst setzen.
+
+Eine Webhook-URL muss http oder https sein und darf nicht auf eine lokale, private oder Metadata-Adresse zeigen. Das wird beim Speichern und noch einmal unmittelbar vor dem Senden geprüft.
+
+---
 id: 2026-09-28-mimir-odata-fallback
 date: 2026-09-28
 title: Business Central bleibt erreichbar, wenn Mímir ausfällt

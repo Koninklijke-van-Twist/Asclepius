@@ -200,6 +200,20 @@ const TRANSLATIONS = [
         'email_prefs.ask_resolution_note' => 'Vraag om technische oplossing bij afhandelen ticket',
         'email_prefs.ask_resolution_note_warning' => 'Let op: Het is belangrijk dat je in de ticket documenteert hoe een probleem op een technisch vlak opgelost is. Doe dit met een ghost-bericht voor je de ticket op afgehandeld zet, tenzij het bericht naar de gebruiker die informatie al voldoende bevat.',
         'email_prefs.ask_resolution_note_understand' => 'Ik begrijp het',
+        'grok_webhook.heading' => 'Persoonlijke Grok-webhook',
+        'grok_webhook.intro' => 'Stel een eigen webhook in, naast de centrale Grok-bot. Die centrale webhook blijft alle ticketmeldingen ontvangen. Jouw webhook krijgt dezelfde melding erbij als een ticket aan jou is toegewezen, of als jij AI-advies aanvraagt. Berichten die via jouw webhook terugkomen, gebruiken jouw e-mailadres en naam, met de titel Assistent. De bot mag naam en titel in het antwoord nog zelf invullen.',
+        'grok_webhook.url_label' => 'Webhook-URL',
+        'grok_webhook.send_key_label' => 'Verzendsleutel',
+        'grok_webhook.send_key_help' => 'Gaat mee als Authorization: Bearer. Laat leeg om de huidige sleutel te houden.',
+        'grok_webhook.send_key_placeholder' => 'Plak de verzendsleutel',
+        'grok_webhook.send_key_placeholder_set' => 'Sleutel is ingesteld — leeg laten houdt de huidige sleutel',
+        'grok_webhook.save' => 'Opslaan',
+        'grok_webhook.clear' => 'Wissen',
+        'grok_webhook.saved' => 'Webhook opgeslagen',
+        'grok_webhook.cleared' => 'Webhook verwijderd',
+        'grok_webhook.save_failed' => 'Opslaan mislukt',
+        'grok_webhook.invalid_url' => 'Vul een geldige http- of https-URL in. Lokale en privé-adressen zijn niet toegestaan.',
+        'grok_webhook.key_required' => 'Vul een verzendsleutel in.',
         'appearance.heading' => 'Uiterlijk',
         'appearance.intro' => 'Pas aan hoe tickets er voor jou uitzien. Wijzigingen worden direct opgeslagen en gelden overal.',
         'appearance.show_priority_markers' => 'Statusbolletjes',
@@ -849,6 +863,20 @@ const TRANSLATIONS = [
         'email_prefs.ask_resolution_note' => 'Ask for a technical solution when resolving a ticket',
         'email_prefs.ask_resolution_note_warning' => 'Note: It is important that you document in the ticket how a problem was solved at a technical level. Do this with a ghost message before you mark the ticket as resolved, unless the message to the user already contains that information.',
         'email_prefs.ask_resolution_note_understand' => 'I understand',
+        'grok_webhook.heading' => 'Personal Grok webhook',
+        'grok_webhook.intro' => 'Set your own webhook alongside the central Grok bot. That central webhook still receives every ticket notification. Your webhook receives the same notification as well when a ticket is assigned to you, or when you request AI advice. Messages that come back through your webhook use your email address and name, with the title Assistent. The bot can still fill in the name and title in its reply.',
+        'grok_webhook.url_label' => 'Webhook URL',
+        'grok_webhook.send_key_label' => 'Send key',
+        'grok_webhook.send_key_help' => 'Sent as Authorization: Bearer. Leave empty to keep the current key.',
+        'grok_webhook.send_key_placeholder' => 'Paste the send key',
+        'grok_webhook.send_key_placeholder_set' => 'A key is set — leave empty to keep the current key',
+        'grok_webhook.save' => 'Save',
+        'grok_webhook.clear' => 'Clear',
+        'grok_webhook.saved' => 'Webhook saved',
+        'grok_webhook.cleared' => 'Webhook removed',
+        'grok_webhook.save_failed' => 'Save failed',
+        'grok_webhook.invalid_url' => 'Enter a valid http or https URL. Local and private addresses are not allowed.',
+        'grok_webhook.key_required' => 'Enter a send key.',
         'appearance.heading' => 'Appearance',
         'appearance.intro' => 'Choose how tickets look for you. Changes are saved immediately and apply everywhere.',
         'appearance.show_priority_markers' => 'Priority dots',
@@ -1498,6 +1526,20 @@ const TRANSLATIONS = [
         'email_prefs.ask_resolution_note' => 'Bei Abschluss eines Tickets nach der technischen Lösung fragen',
         'email_prefs.ask_resolution_note_warning' => 'Achtung: Es ist wichtig, dass Sie im Ticket dokumentieren, wie ein Problem technisch gelöst wurde. Tun Sie das mit einer Ghost-Nachricht, bevor Sie das Ticket auf erledigt setzen, es sei denn, die Nachricht an den Benutzer enthält diese Information bereits ausreichend.',
         'email_prefs.ask_resolution_note_understand' => 'Ich verstehe',
+        'grok_webhook.heading' => 'Persönlicher Grok-Webhook',
+        'grok_webhook.intro' => 'Stelle einen eigenen Webhook ein, zusätzlich zum zentralen Grok-Bot. Dieser zentrale Webhook erhält weiterhin alle Ticketmeldungen. Dein Webhook erhält dieselbe Meldung zusätzlich, wenn ein Ticket dir zugewiesen ist oder wenn du KI-Beratung anforderst. Nachrichten, die über deinen Webhook zurückkommen, nutzen deine E-Mail-Adresse und deinen Namen, mit dem Titel Assistent. Der Bot darf Name und Titel in der Antwort weiterhin selbst setzen.',
+        'grok_webhook.url_label' => 'Webhook-URL',
+        'grok_webhook.send_key_label' => 'Sendeschlüssel',
+        'grok_webhook.send_key_help' => 'Wird als Authorization: Bearer mitgesendet. Leer lassen, um den aktuellen Schlüssel zu behalten.',
+        'grok_webhook.send_key_placeholder' => 'Sendeschlüssel einfügen',
+        'grok_webhook.send_key_placeholder_set' => 'Schlüssel ist gesetzt — leer lassen behält den aktuellen Schlüssel',
+        'grok_webhook.save' => 'Speichern',
+        'grok_webhook.clear' => 'Löschen',
+        'grok_webhook.saved' => 'Webhook gespeichert',
+        'grok_webhook.cleared' => 'Webhook entfernt',
+        'grok_webhook.save_failed' => 'Speichern fehlgeschlagen',
+        'grok_webhook.invalid_url' => 'Gib eine gültige http- oder https-URL ein. Lokale und private Adressen sind nicht erlaubt.',
+        'grok_webhook.key_required' => 'Gib einen Sendeschlüssel ein.',
         'appearance.heading' => 'Darstellung',
         'appearance.intro' => 'Legen Sie fest, wie Tickets für Sie aussehen. Änderungen werden sofort gespeichert und gelten überall.',
         'appearance.show_priority_markers' => 'Prioritätspunkte',
@@ -2147,6 +2189,20 @@ const TRANSLATIONS = [
         'email_prefs.ask_resolution_note' => 'Demander la solution technique lors du traitement d’un ticket',
         'email_prefs.ask_resolution_note_warning' => 'Attention : il est important de documenter dans le ticket comment un problème a été résolu sur le plan technique. Faites-le avec un message ghost avant de marquer le ticket comme traité, sauf si le message à l’utilisateur contient déjà suffisamment cette information.',
         'email_prefs.ask_resolution_note_understand' => 'J’ai compris',
+        'grok_webhook.heading' => 'Webhook Grok personnel',
+        'grok_webhook.intro' => 'Enregistre ton propre webhook, en plus du bot Grok central. Ce webhook central continue de recevoir toutes les notifications de tickets. Ton webhook reçoit la même notification en plus lorsqu’un ticket t’est assigné, ou lorsque tu demandes un conseil IA. Les messages qui reviennent via ton webhook utilisent ton e-mail et ton nom, avec le titre Assistent. Le bot peut toujours renseigner lui-même le nom et le titre dans sa réponse.',
+        'grok_webhook.url_label' => 'URL du webhook',
+        'grok_webhook.send_key_label' => 'Clé d’envoi',
+        'grok_webhook.send_key_help' => 'Envoyée comme Authorization: Bearer. Laisse vide pour conserver la clé actuelle.',
+        'grok_webhook.send_key_placeholder' => 'Colle la clé d’envoi',
+        'grok_webhook.send_key_placeholder_set' => 'Une clé est enregistrée — laisse vide pour la conserver',
+        'grok_webhook.save' => 'Enregistrer',
+        'grok_webhook.clear' => 'Effacer',
+        'grok_webhook.saved' => 'Webhook enregistré',
+        'grok_webhook.cleared' => 'Webhook supprimé',
+        'grok_webhook.save_failed' => 'Échec de l’enregistrement',
+        'grok_webhook.invalid_url' => 'Saisis une URL http ou https valide. Les adresses locales et privées ne sont pas autorisées.',
+        'grok_webhook.key_required' => 'Saisis une clé d’envoi.',
         'appearance.heading' => 'Apparence',
         'appearance.intro' => 'Choisissez l\'apparence des tickets pour vous. Les modifications sont enregistrées immédiatement et s\'appliquent partout.',
         'appearance.show_priority_markers' => 'Pastilles de priorité',
@@ -2650,6 +2706,20 @@ function saveUserPref(string $email, string $key, mixed $value): void
     }
     $prefs = loadUserPrefs($email);
     $prefs[$key] = $value;
+    file_put_contents($path, json_encode($prefs, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+}
+
+function deleteUserPref(string $email, string $key): void
+{
+    $path = getUserPrefsPath($email);
+    if ($path === null || !is_file($path)) {
+        return;
+    }
+    $prefs = loadUserPrefs($email);
+    if (!array_key_exists($key, $prefs)) {
+        return;
+    }
+    unset($prefs[$key]);
     file_put_contents($path, json_encode($prefs, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 }
 

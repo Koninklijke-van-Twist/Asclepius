@@ -1863,7 +1863,9 @@ class TicketStore
 
             try {
                 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
-                GrokBot::notifyTicketCreated($this, $ticketId);
+                GrokBot::notifyTicketCreated($this, $ticketId, null, [
+                    'assigned_email' => strtolower(trim((string) ($assignee ?? ''))),
+                ]);
             } catch (Throwable) {
             }
 
@@ -2066,14 +2068,14 @@ class TicketStore
      * After a message is stored: track last_message_is_ai and advance AI-advice unlock state.
      * Unlock path: pending(awaiting AI) --AI ghost--> awaiting human --human message--> idle.
      */
-    private function syncAiAdviceStateAfterMessage(int $ticketId, string $senderEmail): void
+    private function syncAiAdviceStateAfterMessage(int $ticketId, string $senderEmail, bool $isAiAssistant = false): void
     {
         if ($ticketId <= 0) {
             return;
         }
 
         require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
-        $isAi = GrokBot::isAiAssistantSender($senderEmail);
+        $isAi = $isAiAssistant || GrokBot::isAiAssistantSender($senderEmail);
 
         $select = $this->pdo->prepare(
             'SELECT COALESCE(ai_advice_pending, 0) AS ai_advice_pending
@@ -2322,10 +2324,13 @@ class TicketStore
         if ($statusChanged && ($movedToSolved || $reopened)) {
             try {
                 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
+                $webhookContext = [
+                    'assigned_email' => strtolower(trim((string) ($assignedEmail ?? ''))),
+                ];
                 if ($movedToSolved) {
-                    GrokBot::notifyTicketSolved($this, $ticketId);
+                    GrokBot::notifyTicketSolved($this, $ticketId, null, $webhookContext);
                 } else {
-                    GrokBot::notifyTicketReopened($this, $ticketId);
+                    GrokBot::notifyTicketReopened($this, $ticketId, null, $webhookContext);
                 }
             } catch (Throwable) {
             }
@@ -2340,17 +2345,20 @@ class TicketStore
         array $files = [],
         bool $isGhost = false,
         ?string $senderDisplayName = null,
-        ?string $senderRoleTitle = null
+        ?string $senderRoleTitle = null,
+        bool $isAiAssistant = false
     ): int {
         $now = date('c');
+        require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
+        $markAi = $isAiAssistant || GrokBot::isAiAssistantSender($senderEmail);
         $statement = $this->pdo->prepare(
             'INSERT INTO ticket_messages (
                 ticket_id, sender_email, sender_role, sender_display_name, sender_role_title,
-                message_text, created_at, is_ghost
+                message_text, created_at, is_ghost, is_ai_assistant
              )
              VALUES (
                 :ticket_id, :sender_email, :sender_role, :sender_display_name, :sender_role_title,
-                :message_text, :created_at, :is_ghost
+                :message_text, :created_at, :is_ghost, :is_ai_assistant
              )'
         );
         $statement->execute([
@@ -2362,6 +2370,7 @@ class TicketStore
             ':message_text' => $messageText,
             ':created_at' => $now,
             ':is_ghost' => $isGhost ? 1 : 0,
+            ':is_ai_assistant' => $markAi ? 1 : 0,
         ]);
 
         $messageId = (int) $this->pdo->lastInsertId();
@@ -2373,7 +2382,7 @@ class TicketStore
             ':id' => $ticketId,
         ]);
 
-        $this->syncAiAdviceStateAfterMessage($ticketId, $senderEmail);
+        $this->syncAiAdviceStateAfterMessage($ticketId, $senderEmail, $markAi);
 
         return $messageId;
     }
@@ -3165,6 +3174,24 @@ class TicketStore
         return isset($order[$status]) ? (int) $order[$status] : 999;
     }
 
+    public function getTicketAssigneeEmail(int $ticketId): string
+    {
+        if ($ticketId <= 0) {
+            return '';
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT assigned_email
+             FROM tickets
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $statement->execute([':id' => $ticketId]);
+        $assigned = $statement->fetchColumn();
+
+        return strtolower(trim((string) ($assigned !== false ? $assigned : '')));
+    }
+
     public function getTicket(int $ticketId, bool $isAdmin, string $userEmail, string $browseMode = 'default', bool $includeGhostMessages = false, ?array $accessCategories = null): ?array
     {
         $conditions = ['id = :id'];
@@ -3311,6 +3338,7 @@ class TicketStore
 
             $message['attachments'] = $attachmentsByTicketAndMessage[$ticketId][$messageId] ?? [];
             $message['is_ghost'] = !empty($message['is_ghost']);
+            $message['is_ai_assistant'] = (int) ($message['is_ai_assistant'] ?? 0) === 1;
             $messagesByTicket[$ticketId][] = $message;
         }
 
@@ -4077,6 +4105,7 @@ class TicketStore
         $this->ensureColumn('ticket_messages', 'is_ghost', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_messages', 'sender_display_name', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_messages', 'sender_role_title', 'TEXT DEFAULT NULL');
+        $this->ensureColumn('ticket_messages', 'is_ai_assistant', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_attachments', 'mime_type', 'TEXT DEFAULT NULL');
         $this->ensureColumn('ticket_attachments', 'file_size', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_text_translations', 'source_language', 'TEXT NOT NULL DEFAULT ""');
@@ -4606,6 +4635,7 @@ class TicketStore
             $messageId = (int) $message['id'];
             $message['attachments'] = $attachmentsByMessage[$messageId] ?? [];
             $message['is_ghost'] = !empty($message['is_ghost']);
+            $message['is_ai_assistant'] = (int) ($message['is_ai_assistant'] ?? 0) === 1;
             $customName = trim((string) ($message['sender_display_name'] ?? ''));
             if ($customName !== '') {
                 $message['sender_name'] = $customName;

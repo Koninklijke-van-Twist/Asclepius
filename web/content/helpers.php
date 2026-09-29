@@ -2898,7 +2898,8 @@ function persistTicketReplyMessages(
     string $messageForStorage,
     ?string $senderDisplayName = null,
     ?string $senderRoleTitle = null,
-    ?string $statusBeforeReply = null
+    ?string $statusBeforeReply = null,
+    bool $isAiAssistant = false
 ): array {
     $visibleMessageForMail = '';
     $statusMessageId = null;
@@ -2906,7 +2907,17 @@ function persistTicketReplyMessages(
 
     if ($isGhostMode) {
         if ($messageForStorage !== '') {
-            $statusMessageId = $store->addMessage($ticketId, $senderEmail, 'admin', $messageForStorage, []);
+            $statusMessageId = $store->addMessage(
+                $ticketId,
+                $senderEmail,
+                'admin',
+                $messageForStorage,
+                [],
+                false,
+                null,
+                null,
+                $isAiAssistant
+            );
             $visibleMessageForMail = $messageForStorage;
         }
         if ($message !== '' || $files !== []) {
@@ -2918,7 +2929,8 @@ function persistTicketReplyMessages(
                 $files,
                 true,
                 $senderDisplayName,
-                $senderRoleTitle
+                $senderRoleTitle,
+                $isAiAssistant
             );
         }
     } elseif ($messageForStorage !== '' || $files !== []) {
@@ -2930,7 +2942,8 @@ function persistTicketReplyMessages(
             $files,
             false,
             $senderDisplayName,
-            $senderRoleTitle
+            $senderRoleTitle,
+            $isAiAssistant
         );
         $visibleMessageForMail = $messageForStorage;
     }
