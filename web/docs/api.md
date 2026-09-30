@@ -202,6 +202,8 @@ Rechten:
 
 Succes → `200` met `ticket_id`, `message_id`, `is_ghost`, `sender_email`, `sender_name`, `sender_role`, `sender_title`, `message`.
 
+Ontbrak `sender_email` / `viewer_email` / `user_email`, `sender_name` / `display_name` / `sender_display_name` en/of `sender_title` / `role_title` / `function_title` / `sender_role_title`, en is dat veld aangevuld met een standaardwaarde, dan bevat het succesantwoord ook `hints` (zie **hints** hieronder). Stonden alle drie expliciet in het verzoek, dan ontbreekt die identiteitshint. Het verzoek blijft slagen; bestaande velden veranderen niet.
+
 Als `status` en/of `assigned_email` (of hun aliassen) in het verzoek stonden, extra velden:
 
 - `status`, `status_changed`
@@ -212,6 +214,31 @@ Als `status` en/of `assigned_email` (of hun aliassen) in het verzoek stonden, ex
 Fouten: `422` (`ticket_id_required`, `message_required`, `invalid_user`, `invalid_status`, `invalid_employee`, `self_assignment_not_allowed`, `employee_away`), `404` (`ticket_not_found`), `403` (`ghost_forbidden`, `forbidden`).
 
 Bij mutatiefouten is `error_code` de machineleesbare code; `error` is die code of een gelokaliseerde flash-tekst (zelfde als de `change_*`-acties). Bestaande callers die alleen een bericht sturen blijven werken: zonder status/assignee-velden verandert er niets aan het ticket.
+
+### `hints`
+
+Alleen op een geslaagd antwoord, en alleen als er iets aan te bevelen is. Anders ontbreekt `hints` (geen lege lijst). Het veld is extra; bestaande clients kunnen het negeren.
+
+```json
+"hints": [
+  {
+    "hint": "Korte aanbeveling",
+    "explanation": "Hoe je dat via de API doet"
+  }
+]
+```
+
+Identiteit — username, title en/of email zijn weggelaten en aangevuld:
+
+- `hint`: `Geef username, title en email expliciet mee.`
+- `explanation`: stuur `sender_email` (email), `sender_name` (username) en `sender_title` (title), in JSON of als formulierveld. Voorbeeld: `{"action":"add_ticket_message","ticket_id":123,"message":"Tekst","sender_email":"naam@kvt.nl","sender_name":"Naam","sender_title":"ICT"}`.
+
+Status los van het bericht — een echte statuswijziging via de API (`change_ticket_status`, of `add_ticket_message` mét een status die verandert) en een bericht via `add_ticket_message` op **hetzelfde ticket** vallen binnen ongeveer **één minuut**, in welke volgorde dan ook. De hint staat op het antwoord van de latere aanroep. Een statuswijziging in dezelfde POST als het bericht krijgt deze hint niet.
+
+- `hint`: `Met voorkeur je statuswijziging in dezelfde POST als je bericht plaatsen`
+- `explanation`: één POST met `action` `add_ticket_message`, `ticket_id` (of `id`), `message` (of `message_text`) en `status` (of `ticket_status`). Voorbeeld: `{"action":"add_ticket_message","ticket_id":123,"message":"Tekst","status":"in behandeling"}`.
+
+Meerdere hints kunnen samen in `hints` staan. Een ongewijzigde status (`unchanged: true`) telt niet als statuswijziging.
 
 ## Uitgaande webhook — ticket
 
@@ -410,7 +437,9 @@ Succes na wijziging → `200`:
 }
 ```
 
-Al dezelfde status → `200` met `"unchanged": true`. Dezelfde velden als hierboven, **zonder** `message_id` en `message_html`.
+Al dezelfde status → `200` met `"unchanged": true`. Dezelfde velden als hierboven, **zonder** `message_id` en `message_html`. Dat telt niet als statuswijziging voor `hints`.
+
+Is er op hetzelfde ticket via `add_ticket_message` een bericht geplaatst binnen ongeveer een minuut (ervoor of erna), dan bevat het succesantwoord van de latere aanroep `hints` met het advies om `status` in dezelfde POST als het bericht te zetten. Zie **hints** bij `add_ticket_message`.
 
 Extra fout: `422` `invalid_status` (leeg of ongeldig label).
 

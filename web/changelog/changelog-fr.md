@@ -1,3 +1,13 @@
+id: 2026-09-30-api-response-hints
+date: 2026-09-30
+title: Recommandations dans les réponses API
+author: Tim Falken
+
+Un message via l’API reste accepté si le username, le titre ou l’e-mail manque et est complété par une valeur par défaut. La réponse contient alors une liste `hints` qui recommande d’envoyer ces trois champs soi-même.
+
+Si un changement de statut via l’API et un message via l’API concernent le même ticket dans un délai d’environ une minute, dans un sens ou dans l’autre, une indication supplémentaire demande de placer le statut dans le même appel que le message. S’ils sont déjà dans un seul appel, cette indication n’apparaît pas.
+
+---
 id: 2026-09-29-personal-grok-webhook
 date: 2026-09-29
 title: Webhook Grok personnel dans Préférences
