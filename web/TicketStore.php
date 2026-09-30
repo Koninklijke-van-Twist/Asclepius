@@ -3882,6 +3882,54 @@ class TicketStore
         return $redacted;
     }
 
+    /**
+     * Recent API message posts and status changes, so a later call can tell
+     * they happened on the same ticket within a short window.
+     */
+    public function recordApiTicketEvent(int $ticketId, string $kind, ?int $createdAt = null): void
+    {
+        if ($ticketId <= 0 || ($kind !== 'message' && $kind !== 'status')) {
+            return;
+        }
+
+        $createdAt = $createdAt ?? time();
+        $prune = $this->pdo->prepare('DELETE FROM api_ticket_events WHERE created_at < :cutoff');
+        $prune->execute([':cutoff' => time() - 600]);
+
+        $insert = $this->pdo->prepare(
+            'INSERT INTO api_ticket_events (ticket_id, kind, created_at)
+             VALUES (:ticket_id, :kind, :created_at)'
+        );
+        $insert->execute([
+            ':ticket_id' => $ticketId,
+            ':kind' => $kind,
+            ':created_at' => $createdAt,
+        ]);
+    }
+
+    public function hasRecentApiTicketEvent(int $ticketId, string $kind, int $withinSeconds = 60): bool
+    {
+        if ($ticketId <= 0 || $withinSeconds < 0 || ($kind !== 'message' && $kind !== 'status')) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT 1
+             FROM api_ticket_events
+             WHERE ticket_id = :ticket_id
+               AND kind = :kind
+               AND created_at >= :cutoff
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':ticket_id' => $ticketId,
+            ':kind' => $kind,
+            ':cutoff' => time() - $withinSeconds,
+        ]);
+
+        return $statement->fetchColumn() !== false;
+    }
+
     private function initialize(): void
     {
         $this->pdo->exec(
@@ -4121,7 +4169,17 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_due_date ON tickets(due_date)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_updated_at ON tickets(updated_at)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_status_created_at ON tickets(status, created_at)');
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS api_ticket_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                kind TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )'
+        );
+
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id)');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_api_ticket_events_lookup ON api_ticket_events(ticket_id, kind, created_at)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_id ON ticket_status_transitions(ticket_id)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_status_transitions_ticket_status ON ticket_status_transitions(ticket_id, status)');

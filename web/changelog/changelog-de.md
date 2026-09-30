@@ -1,3 +1,13 @@
+id: 2026-09-30-api-response-hints
+date: 2026-09-30
+title: Empfehlungen in API-Antworten
+author: Tim Falken
+
+Eine Nachricht über die API bleibt erfolgreich, wenn Username, Titel oder E-Mail fehlen und mit einem Standardwert ergänzt werden. Die Antwort enthält dann eine `hints`-Liste mit der Empfehlung, diese drei Felder selbst mitzuschicken.
+
+Liegen eine Statusänderung über die API und eine Nachricht über die API beim selben Ticket innerhalb von etwa einer Minute, in beliebiger Reihenfolge, bittet ein zusätzlicher Hinweis darum, den Status im selben Aufruf wie die Nachricht zu senden. Stehen sie schon in einem Aufruf, entfällt dieser Hinweis.
+
+---
 id: 2026-09-29-personal-grok-webhook
 date: 2026-09-29
 title: Eigener Grok-Webhook unter Präferenzen

@@ -1,3 +1,13 @@
+id: 2026-09-30-api-response-hints
+date: 2026-09-30
+title: Recommendations in API responses
+author: Tim Falken
+
+A message posted through the API still succeeds when username, title, or email is missing and filled in with a default. The response then includes a `hints` list recommending that you send those three fields yourself.
+
+If a status change through the API and a message through the API land on the same ticket within about a minute, in either order, an extra hint asks you to send the status in the same request as the message. When they are already in one request, that hint is left out.
+
+---
 id: 2026-09-29-personal-grok-webhook
 date: 2026-09-29
 title: Personal Grok webhook in Preferences

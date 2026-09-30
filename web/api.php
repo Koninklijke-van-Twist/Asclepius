@@ -1377,7 +1377,7 @@ function handleChangeTicketStatusApiAction(TicketStore $store, array $payload, ?
         'attachments' => [],
     ];
 
-    return [
+    $response = [
         'success' => true,
         'unchanged' => false,
         'message' => __('flash.ticket_status_changed'),
@@ -1389,6 +1389,14 @@ function handleChangeTicketStatusApiAction(TicketStore $store, array $payload, ?
         'message_id' => $messageId,
         'message_html' => renderTicketMessageHtml($messageForRender, $currentPage, !empty($payload['is_admin_portal'])),
     ];
+
+    if ($store->hasRecentApiTicketEvent($ticketId, 'message', apiStatusMessagePairWindowSeconds())) {
+        $statusHint = apiSeparateStatusChangeHint();
+        appendApiResponseHint($response, $statusHint['hint'], $statusHint['explanation']);
+    }
+    $store->recordApiTicketEvent($ticketId, 'status');
+
+    return $response;
 }
 
 function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, ?array $apiClient, bool $hasValidServiceApiKey = false): array
@@ -1750,6 +1758,59 @@ function buildTicketLookupsApiPayload(string $action = 'ticket_lookups'): array
     return $payload;
 }
 
+function apiCallerSuppliedIdentityField(array $payload, array $keys): bool
+{
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $payload)) {
+            continue;
+        }
+        if (trim((string) $payload[$key]) !== '') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function appendApiResponseHint(array &$response, string $hint, string $explanation): void
+{
+    if (!isset($response['hints']) || !is_array($response['hints'])) {
+        $response['hints'] = [];
+    }
+
+    $response['hints'][] = [
+        'hint' => $hint,
+        'explanation' => $explanation,
+    ];
+}
+
+/**
+ * @return array{hint: string, explanation: string}
+ */
+function apiMissingIdentityHint(): array
+{
+    return [
+        'hint' => 'Geef username, title en email expliciet mee.',
+        'explanation' => 'Stuur bij add_ticket_message (JSON of form) de velden sender_email (email), sender_name (username) en sender_title (title). Voorbeeld: {"action":"add_ticket_message","ticket_id":123,"message":"Tekst","sender_email":"naam@kvt.nl","sender_name":"Naam","sender_title":"ICT"}.',
+    ];
+}
+
+/**
+ * @return array{hint: string, explanation: string}
+ */
+function apiSeparateStatusChangeHint(): array
+{
+    return [
+        'hint' => 'Met voorkeur je statuswijziging in dezelfde POST als je bericht plaatsen',
+        'explanation' => 'Zet status (of ticket_status) in dezelfde POST als het bericht: action add_ticket_message, met ticket_id (of id), message (of message_text) en status. Voorbeeld: {"action":"add_ticket_message","ticket_id":123,"message":"Tekst","status":"in behandeling"}.',
+    ];
+}
+
+function apiStatusMessagePairWindowSeconds(): int
+{
+    return 60;
+}
+
 function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?array $apiClient, bool $hasValidServiceApiKey): array
 {
     $viewerEmail = strtolower(trim((string) (
@@ -1815,6 +1876,10 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         ];
     }
 
+    $callerSuppliedEmail = apiCallerSuppliedIdentityField($payload, ['sender_email', 'viewer_email', 'user_email']);
+    $callerSuppliedName = apiCallerSuppliedIdentityField($payload, ['sender_name', 'display_name', 'sender_display_name']);
+    $callerSuppliedTitle = apiCallerSuppliedIdentityField($payload, ['sender_title', 'role_title', 'function_title', 'sender_role_title']);
+
     $senderEmail = $viewerEmail;
     if ($senderEmail === '' || !filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) {
         if (!$userIsAdmin && $mutationAccess === null) {
@@ -1872,6 +1937,13 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
             $senderRoleTitle = null;
         }
     }
+
+    $emailDefaulted = $canPostAsAdmin && !$callerSuppliedEmail && $senderEmail !== '';
+    $nameDefaulted = $canPostAsAdmin && !$callerSuppliedName;
+    $titleDefaulted = $canPostAsAdmin
+        && !$callerSuppliedTitle
+        && $senderRoleTitle !== null
+        && $senderRoleTitle !== '';
 
     $actorEmail = $mutationAccess !== null
         ? resolveApiMutationActorEmail($ticket, (string) $mutationAccess['viewer_email'])
@@ -2004,6 +2076,21 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         if (!empty($persistedReply['status_message_id'])) {
             $response['status_message_id'] = (int) $persistedReply['status_message_id'];
         }
+    }
+
+    if ($emailDefaulted || $nameDefaulted || $titleDefaulted) {
+        $identityHint = apiMissingIdentityHint();
+        appendApiResponseHint($response, $identityHint['hint'], $identityHint['explanation']);
+    }
+
+    if (!$wantsStatus && $store->hasRecentApiTicketEvent($ticketId, 'status', apiStatusMessagePairWindowSeconds())) {
+        $statusHint = apiSeparateStatusChangeHint();
+        appendApiResponseHint($response, $statusHint['hint'], $statusHint['explanation']);
+    }
+
+    $store->recordApiTicketEvent($ticketId, 'message');
+    if ($statusChanged) {
+        $store->recordApiTicketEvent($ticketId, 'status');
     }
 
     return $response;

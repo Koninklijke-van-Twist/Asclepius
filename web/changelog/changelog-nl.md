@@ -1,3 +1,13 @@
+id: 2026-09-30-api-response-hints
+date: 2026-09-30
+title: Aanbevelingen in API-antwoorden
+author: Tim Falken
+
+Een bericht via de API blijft slagen als username, title of e-mail ontbreekt en met een standaardwaarde wordt aangevuld. Het antwoord bevat dan een `hints`-lijst met het advies om die drie velden zelf mee te sturen.
+
+Verandert de status via de API en staat er binnen ongeveer een minuut ook een bericht via de API op hetzelfde ticket (of andersom), dan vraagt een extra hint om de status in dezelfde aanroep als het bericht te zetten. Staan ze al in één aanroep, dan blijft die hint weg.
+
+---
 id: 2026-09-29-personal-grok-webhook
 date: 2026-09-29
 title: Eigen Grok-webhook in Voorkeuren
