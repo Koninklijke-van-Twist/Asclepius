@@ -385,7 +385,7 @@ Slaat per categorie alleen een rij op als het aantal open tickets is veranderd. 
 
 De vier mutaties hieronder (`change_ticket_status`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date`) gebruiken dezelfde autorisatie als `change_ticket_category`: geldige **service-key**, **webhook-key** (`apiClient.is_admin`), ICT-rechten van de sessie, of trusted localhost. Een client-meegegeven `user_is_admin` in de body wordt **genegeerd**.
 
-`publish_ghost_message` — zelfde autorisatie. Haalt een bestaand ghost-bericht uit ghost-modus en stuurt dezelfde updatemail naar deelnemers als een nieuw ICT-bericht (zonder statuswijziging).
+`publish_ghost_message` — zelfde autorisatie. Haalt een bestaand ghost-bericht uit ghost-modus en stuurt dezelfde updatemail naar deelnemers als een nieuw ICT-bericht (zonder statuswijziging). Optioneel `message` of `message_text` vervangt de concepttekst vóór publiceren en vóór die mail.
 
 Gemeenschappelijke foutvorm (`success: false`):
 
@@ -535,10 +535,13 @@ Extra fout: `422` `invalid_due_date` (leeg, verkeerd formaat of onmogelijke kale
 
 `message_id` — verplicht. Zet `is_ghost` op `0` voor dat bericht (alleen als het nu een ghost is). Stuurt daarna dezelfde updatemail naar deelnemers als een nieuw ICT-bericht zonder statuswijziging (`email.subject_update` / `email.intro_update` + `email.intro_update_no_status`), zodat de eindgebruiker het niet kan onderscheiden van een net gepost bericht. Lege berichten zonder bijlagen worden wel gepubliceerd, maar zonder mail.
 
+Optioneel `message` of `message_text`: als een van beide meekomt, vervangt die string de opgeslagen concepttekst vóór het publiceren en vóór de mail. Ontbreekt het veld, dan blijft de bestaande tekst staan. Een lege string is geldig (bijvoorbeeld alleen bijlagen). `message_text` heeft voorrang als beide velden meekomen.
+
 ```json
 {
   "action": "publish_ghost_message",
-  "message_id": 4421
+  "message_id": 4421,
+  "message_text": "Aangepaste tekst die de gebruiker te zien krijgt."
 }
 ```
 
@@ -550,9 +553,13 @@ Succes → `200`:
   "ticket_id": 776,
   "message_id": 4421,
   "is_ghost": false,
-  "notified": true
+  "notified": true,
+  "message_text": "Aangepaste tekst die de gebruiker te zien krijgt.",
+  "message_html": "Aangepaste tekst die de gebruiker te zien krijgt."
 }
 ```
+
+`message_html` is de gerenderde Markdown van `message_text` (veilig geëscaped), inclusief inline bijlagen van dat bericht. Zonder opmaak is dat de geëscapete tekst zelf.
 
 `change_ticket_title` — `ticket_id`, `title` (niet leeg). Admin of trusted. Wist titelvertalingen.
 

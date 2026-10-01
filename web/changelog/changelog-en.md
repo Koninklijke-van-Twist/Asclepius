@@ -1,3 +1,11 @@
+id: 2026-10-01-ghost-publish-edit
+date: 2026-10-01
+title: Edit a ghost message before publishing
+author: Tim Falken
+
+When you publish a ghost message, you can still change the text in the confirmation window. The edited text is what gets published and included in the update email.
+
+---
 id: 2026-09-30-api-response-hints
 date: 2026-09-30
 title: Recommendations in API responses

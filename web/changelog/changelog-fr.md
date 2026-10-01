@@ -1,3 +1,11 @@
+id: 2026-10-01-ghost-publish-edit
+date: 2026-10-01
+title: Modifier un message fantôme avant publication
+author: Tim Falken
+
+Lors de la publication d’un message fantôme, vous pouvez encore modifier le texte dans la fenêtre de confirmation. C’est ce texte modifié qui est publié et inclus dans l’e-mail de mise à jour.
+
+---
 id: 2026-09-30-api-response-hints
 date: 2026-09-30
 title: Recommandations dans les réponses API

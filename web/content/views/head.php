@@ -4024,6 +4024,16 @@
                 max-height: none;
             }
 
+            .ticket-participants-modal-card.publish-ghost-card {
+                width: min(560px, 100%);
+                max-height: min(90vh, 760px);
+            }
+
+            .ticket-participants-modal-card.publish-ghost-card textarea[data-role="publish-ghost-text"] {
+                min-height: 8.5em;
+                font-weight: 400;
+            }
+
             .ticket-participants-modal-card.resolution-note-card {
                 width: min(560px, 100%);
             }

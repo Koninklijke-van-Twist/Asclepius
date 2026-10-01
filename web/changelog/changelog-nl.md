@@ -1,3 +1,11 @@
+id: 2026-10-01-ghost-publish-edit
+date: 2026-10-01
+title: Ghost-bericht aanpassen vóór publiceren
+author: Tim Falken
+
+Bij Ghost-publiceren kun je de tekst nog wijzigen in het bevestigingsvenster. De aangepaste tekst wordt gepubliceerd en in de updatemail meegestuurd.
+
+---
 id: 2026-09-30-api-response-hints
 date: 2026-09-30
 title: Aanbevelingen in API-antwoorden

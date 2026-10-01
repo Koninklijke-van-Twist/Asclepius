@@ -4775,25 +4775,50 @@ class TicketStore
     /**
      * Clear ghost mode on a message and bump the ticket updated_at.
      *
+     * When $messageText is not null, that string replaces the stored draft
+     * before the message leaves ghost mode.
+     *
      * @return array<string, mixed>|null Published message row, or null if missing / not ghost
      */
-    public function publishGhostMessage(int $messageId): ?array
+    public function publishGhostMessage(int $messageId, ?string $messageText = null): ?array
     {
         $message = $this->getTicketMessage($messageId);
         if ($message === null || empty($message['is_ghost'])) {
             return null;
         }
 
+        $previousText = (string) ($message['message_text'] ?? '');
+        $nextText = $messageText === null ? $previousText : $messageText;
+        $textChanged = $nextText !== $previousText;
+
         $now = date('c');
-        $updateMessage = $this->pdo->prepare(
-            'UPDATE ticket_messages
-             SET is_ghost = 0
-             WHERE id = :id
-               AND COALESCE(is_ghost, 0) = 1'
-        );
-        $updateMessage->execute([':id' => $messageId]);
+        if ($messageText === null) {
+            $updateMessage = $this->pdo->prepare(
+                'UPDATE ticket_messages
+                 SET is_ghost = 0
+                 WHERE id = :id
+                   AND COALESCE(is_ghost, 0) = 1'
+            );
+            $updateMessage->execute([':id' => $messageId]);
+        } else {
+            $updateMessage = $this->pdo->prepare(
+                'UPDATE ticket_messages
+                 SET is_ghost = 0,
+                     message_text = :message_text
+                 WHERE id = :id
+                   AND COALESCE(is_ghost, 0) = 1'
+            );
+            $updateMessage->execute([
+                ':id' => $messageId,
+                ':message_text' => $messageText,
+            ]);
+        }
         if ($updateMessage->rowCount() < 1) {
             return null;
+        }
+
+        if ($textChanged) {
+            $this->deleteTextTranslationsForEntity('ticket_message', $messageId);
         }
 
         $updateTicket = $this->pdo->prepare(
@@ -4805,6 +4830,7 @@ class TicketStore
         ]);
 
         $message['is_ghost'] = false;
+        $message['message_text'] = $nextText;
 
         return $message;
     }

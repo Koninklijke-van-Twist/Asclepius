@@ -1,3 +1,11 @@
+id: 2026-10-01-ghost-publish-edit
+date: 2026-10-01
+title: Ghost-Nachricht vor dem Veröffentlichen anpassen
+author: Tim Falken
+
+Beim Veröffentlichen einer Ghost-Nachricht kannst du den Text im Bestätigungsfenster noch ändern. Veröffentlicht und in der Update-Mail steht der angepasste Text.
+
+---
 id: 2026-09-30-api-response-hints
 date: 2026-09-30
 title: Empfehlungen in API-Antworten

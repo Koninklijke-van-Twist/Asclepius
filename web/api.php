@@ -1442,7 +1442,18 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
         ];
     }
 
-    $published = $store->publishGhostMessage($messageId);
+    $replacementText = null;
+    if (array_key_exists('message_text', $payload) || array_key_exists('message', $payload)) {
+        $rawReplacement = array_key_exists('message_text', $payload)
+            ? $payload['message_text']
+            : ($payload['message'] ?? '');
+        if (is_array($rawReplacement) || is_object($rawReplacement)) {
+            $rawReplacement = '';
+        }
+        $replacementText = str_replace(["\r\n", "\r"], "\n", (string) $rawReplacement);
+    }
+
+    $published = $store->publishGhostMessage($messageId, $replacementText);
     if ($published === null) {
         return [
             'success' => false,
@@ -1461,7 +1472,8 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
         ];
     }
 
-    $messageText = trim((string) ($published['message_text'] ?? ''));
+    $storedText = (string) ($published['message_text'] ?? '');
+    $messageText = trim($storedText);
     $hasAttachments = $store->messageHasAttachments($messageId);
     if ($messageText !== '' || $hasAttachments) {
         $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
@@ -1477,7 +1489,7 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
             buildNotificationBody(
                 $updatedTicket,
                 'email.intro_update',
-                $messageText,
+                $storedText,
                 false,
                 $reqLang,
                 __mail('email.intro_update_no_status', $reqLang)
@@ -1491,12 +1503,24 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
         );
     }
 
+    $messageHtml = '';
+    foreach (($updatedTicket['messages'] ?? []) as $ticketMessage) {
+        if ((int) ($ticketMessage['id'] ?? 0) !== $messageId) {
+            continue;
+        }
+        $attachments = is_array($ticketMessage['attachments'] ?? null) ? $ticketMessage['attachments'] : [];
+        $messageHtml = formatTicketMessageText($storedText, $messageId, $attachments);
+        break;
+    }
+
     return [
         'success' => true,
         'ticket_id' => $ticketId,
         'message_id' => $messageId,
         'is_ghost' => false,
         'notified' => $messageText !== '' || $hasAttachments,
+        'message_text' => $storedText,
+        'message_html' => $messageHtml,
     ];
 }
 
