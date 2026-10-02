@@ -1,3 +1,27 @@
+id: 2026-10-02-message-reactions
+date: 2026-10-02
+title: Réactions sur les messages
+author: Tim Falken
+
+Sur chaque message, vous pouvez donner +1 ou −1. Un second clic sur la même réaction la retire ; l’autre choix la remplace. Les totaux restent visibles. Aucun e-mail ni notification n’est envoyé.
+
+---
+id: 2026-10-02-ticket-participants-anyone
+date: 2026-10-02
+title: Tout le monde peut gérer les utilisateurs
+author: Tim Falken
+
+Toute personne qui peut ouvrir un ticket peut ajouter et retirer des utilisateurs. Le dernier utilisateur reste toujours sur le ticket.
+
+---
+id: 2026-10-02-attachment-download-name
+date: 2026-10-02
+title: Nom de téléchargement des pièces jointes
+author: Tim Falken
+
+Une pièce jointe se télécharge avec le numéro de ticket et le demandeur, par exemple `42_jan.pdf`, au lieu d’un long nom de fichier technique.
+
+---
 id: 2026-10-01-ghost-publish-edit
 date: 2026-10-01
 title: Modifier un message fantôme avant publication

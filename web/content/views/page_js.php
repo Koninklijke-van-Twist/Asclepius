@@ -929,15 +929,6 @@
             }
 
             var toggles = Array.prototype.slice.call(ticketCard.querySelectorAll('[data-role="participant-remove-toggle"]'));
-            if (toggles.length <= 1)
-            {
-                toggles.forEach(function (toggle)
-                {
-                    toggle.classList.add('is-lock-protected');
-                });
-                return;
-            }
-
             var pending = toggles.filter(function (toggle)
             {
                 return toggle.classList.contains('is-pending-remove');
@@ -945,10 +936,18 @@
 
             toggles.forEach(function (toggle)
             {
-                var lockProtected = !toggle.classList.contains('is-pending-remove') && pending.length >= toggles.length - 1;
+                var lockProtected = toggles.length <= 1
+                    || (!toggle.classList.contains('is-pending-remove') && pending.length >= toggles.length - 1);
                 toggle.classList.toggle('is-lock-protected', lockProtected);
+                toggle.disabled = lockProtected;
+                toggle.setAttribute('aria-disabled', lockProtected ? 'true' : 'false');
             });
         };
+
+        document.querySelectorAll('details.ticket-card').forEach(function (ticketCard)
+        {
+            refreshPendingRemoveConstraints(ticketCard);
+        });
 
         var renderParticipantManagerList = function (ticketCard, participantEmails, creatorEmail)
         {
@@ -6722,6 +6721,96 @@
             modal.classList.remove('is-open');
             document.documentElement.style.overflow = '';
         };
+
+        var applyMessageReactionState = function (messageNode, data)
+        {
+            if (!messageNode || !data)
+            {
+                return;
+            }
+
+            var mine = Number(data.value || 0);
+            messageNode.setAttribute('data-my-reaction', String(mine));
+            var bar = messageNode.querySelector('[data-role="message-reactions"]');
+            if (!bar)
+            {
+                return;
+            }
+
+            var plus = Number(data.plus || 0);
+            var minus = Number(data.minus || 0);
+            bar.classList.toggle('has-counts', plus > 0 || minus > 0);
+            bar.querySelectorAll('[data-role="message-reaction"]').forEach(function (button)
+            {
+                var buttonValue = Number(button.getAttribute('data-value') || 0);
+                var count = buttonValue > 0 ? plus : minus;
+                var countNode = button.querySelector('[data-role="reaction-count"]');
+                if (countNode)
+                {
+                    countNode.textContent = count > 0 ? String(count) : '';
+                    countNode.hidden = count <= 0;
+                }
+                button.classList.toggle('is-mine', mine !== 0 && mine === buttonValue);
+                button.setAttribute('aria-pressed', mine !== 0 && mine === buttonValue ? 'true' : 'false');
+                var users = buttonValue > 0 ? data.plus_users : data.minus_users;
+                var label = button.getAttribute('data-label') || '';
+                var people = Array.isArray(users) ? users.filter(Boolean) : [];
+                button.title = people.length > 0 ? (label + ': ' + people.join(', ')) : label;
+            });
+        };
+
+        document.addEventListener('click', function (event)
+        {
+            var reactionButton = event.target.closest('[data-role="message-reaction"]');
+            if (!reactionButton)
+            {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            if (reactionButton.disabled)
+            {
+                return;
+            }
+
+            var messageNode = reactionButton.closest('.message[data-message-id]');
+            var ticketCard = reactionButton.closest('details.ticket-card[data-ticket-id]');
+            if (!messageNode || !ticketCard || typeof apiFetchJson !== 'function')
+            {
+                return;
+            }
+
+            var messageId = parseInt(messageNode.getAttribute('data-message-id') || '0', 10);
+            var ticketId = parseInt(ticketCard.getAttribute('data-ticket-id') || '0', 10);
+            var clickedValue = Number(reactionButton.getAttribute('data-value') || 0);
+            var currentMine = Number(messageNode.getAttribute('data-my-reaction') || 0);
+            if (messageId <= 0 || ticketId <= 0 || (clickedValue !== 1 && clickedValue !== -1))
+            {
+                return;
+            }
+
+            var nextValue = currentMine === clickedValue ? 0 : clickedValue;
+            reactionButton.disabled = true;
+            apiFetchJson('set_message_reaction', {
+                csrf_token: csrfToken,
+                ticket_id: ticketId,
+                message_id: messageId,
+                value: nextValue,
+                viewer_email: ticketPollPayload.viewer_email || ''
+            }).then(function (data)
+            {
+                reactionButton.disabled = false;
+                if (!data || data.success !== true)
+                {
+                    return;
+                }
+                applyMessageReactionState(messageNode, data);
+            }).catch(function ()
+            {
+                reactionButton.disabled = false;
+            });
+        });
 
         document.addEventListener('submit', function (event)
         {

@@ -64,7 +64,7 @@ Alle ticketkolommen plus:
 - `participant_emails` — array van e-mailadressen
 - `messages` — array, standaard **zonder** ghost-berichten
 
-Berichtvelden o.a.: `id`, `ticket_id`, `sender_email`, `sender_role` (`admin` of `user`), `message_text`, `created_at`, `is_ghost`, `attachments`.
+Berichtvelden o.a.: `id`, `ticket_id`, `sender_email`, `sender_role` (`admin` of `user`), `message_text`, `created_at`, `is_ghost`, `attachments`, `reactions` (`plus`, `minus`, `mine` als `1`, `-1` of `0`, `plus_users`, `minus_users`). Reacties sturen geen mail, melding of webhook.
 
 Optioneel, als de afzender ze gezet heeft (bots via `add_ticket_message`):
 
@@ -379,7 +379,7 @@ Slaat per categorie alleen een rij op als het aantal open tickets is veranderd. 
 
 ### Tickets beheren (ICT / trusted)
 
-`manage_ticket_participants` — `operation`: `add` | `remove` | `apply`. Velden: `ticket_id`, `participant_emails` (toevoegen), `participant_email` of `remove_participant_emails` (verwijderen). Minimaal één deelnemer. Admin of trusted.
+`manage_ticket_participants` — `operation`: `add` | `remove` | `apply`. Velden: `ticket_id`, `participant_emails` (toevoegen), `participant_email` of `remove_participant_emails` (verwijderen). Minimaal één deelnemer. Elke ingelogde kijker die het ticket mag openen (deelnemer, ICT of trusted). Een meegestuurde `user_is_admin` geeft geen extra rechten. De laatste deelnemer blijft staan (`flash.ticket_participant_minimum`).
 
 `change_ticket_category` — `ticket_id`, `category` (moet in `ticket_lookups.categories` zitten), optioneel `reassign` (bool). Zet een systeemnotitie. ICT, service-key, webhook-key of trusted.
 
@@ -566,6 +566,8 @@ Succes → `200`:
 `update_ticket_private` — `ticket_id`, `is_private`. ICT-overzicht (`is_admin_portal` + admin) of trusted.
 
 `update_ticket_message_checkbox` — vink een markdown-checkbox in een bericht aan/uit. `ticket_id`, `message_id`, `line_index`, `checked`, `csrf_token`. Admin of trusted + geldige sessie-CSRF. Response: `message_text`.
+
+`set_message_reaction` — zet +1, −1 of wis (`value` `0`) de reactie van de ingelogde kijker op een bericht. `ticket_id`, `message_id`, `value` (`1`, `-1` of `0`), `csrf_token`. Zelfde tickettoegang als het ticket openen. Eén reactie per gebruiker per bericht. Response: `value` (de keuze van de kijker), `plus`, `minus`, `plus_users`, `minus_users`. Geen mail, geen melding, geen webhook. `403` `csrf`, `404` `ticket_not_found` / `message_not_found`, `422` `invalid_reaction`.
 
 `translate_ticket` — vertaal titel en berichten. `ticket_id`, `language` (`nl`/`en`/`de`/`fr`), `viewer_email`, optioneel `user_is_admin`, `is_admin_portal`. Response: `title`, `title_raw`, `title_is_translated`, `messages[]` met `message_text` / `message_text_raw` en gerenderde HTML `message_text_html` / `message_text_raw_html` (Markdown, veilig geëscaped; inline bijlagen en toets-iconen blijven intact). Ghosts volgen gewone `getTicket`-regels (niet inbegrepen tenzij admin-overzicht).
 

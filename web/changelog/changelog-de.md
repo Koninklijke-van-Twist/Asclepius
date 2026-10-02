@@ -1,3 +1,27 @@
+id: 2026-10-02-message-reactions
+date: 2026-10-02
+title: Reaktionen auf Nachrichten
+author: Tim Falken
+
+Auf jeder Nachricht kannst du +1 oder −1 geben. Nochmal auf dieselbe Reaktion klicken nimmt sie weg; die andere Auswahl wechselt. Die Anzahl bleibt sichtbar. Es geht keine E-Mail und keine Meldung raus.
+
+---
+id: 2026-10-02-ticket-participants-anyone
+date: 2026-10-02
+title: Jeder kann Benutzer verwalten
+author: Tim Falken
+
+Wer ein Ticket öffnen darf, kann Benutzer hinzufügen und entfernen. Der letzte Benutzer bleibt immer im Ticket.
+
+---
+id: 2026-10-02-attachment-download-name
+date: 2026-10-02
+title: Downloadname von Anhängen
+author: Tim Falken
+
+Ein Anhang wird als Ticketnummer und Anfragender heruntergeladen, zum Beispiel `42_jan.pdf`, statt eines langen technischen Dateinamens.
+
+---
 id: 2026-10-01-ghost-publish-edit
 date: 2026-10-01
 title: Ghost-Nachricht vor dem Veröffentlichen anpassen

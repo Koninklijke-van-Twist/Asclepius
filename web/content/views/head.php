@@ -2582,10 +2582,60 @@
         }
 
         .message {
+            position: relative;
             border-radius: 14px;
-            padding: 12px;
+            padding: 12px 12px 34px;
             border: 1px solid var(--line);
             background: #fbfdff;
+        }
+
+        .message-reactions {
+            position: absolute;
+            right: 8px;
+            bottom: 6px;
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .message:hover .message-reactions,
+        .message:focus-within .message-reactions,
+        .message-reactions.has-counts {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .message-reaction-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: #334155;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        .message-reaction-button.is-mine[data-value="1"] {
+            background: #dbeafe;
+            border-color: #2563eb;
+            color: #1e3a8a;
+        }
+
+        .message-reaction-button.is-mine[data-value="-1"] {
+            background: #fee4e2;
+            border-color: #b42318;
+            color: #b42318;
+        }
+
+        .message.is-ghost .message-reaction-button {
+            background: #fff;
         }
 
         .message.admin {

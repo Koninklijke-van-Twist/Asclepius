@@ -866,6 +866,65 @@ function formatFileSize(int $bytes): string
     return round($bytes / pow(1024, $i), 2) . ' ' . $sizes[$i];
 }
 
+function attachmentFileExtension(array $attachment): string
+{
+    $candidates = [
+        (string) ($attachment['original_name'] ?? ''),
+        (string) ($attachment['stored_name'] ?? ''),
+    ];
+    foreach ($candidates as $name) {
+        $extension = strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
+        $extension = preg_replace('/[^a-z0-9]/', '', $extension) ?? '';
+        if ($extension !== '' && strlen($extension) <= 10) {
+            return $extension;
+        }
+    }
+
+    return '';
+}
+
+function sanitizeAttachmentRequesterToken(string $requester): string
+{
+    $requester = trim($requester);
+    if (str_contains($requester, '@')) {
+        $requester = (string) strstr($requester, '@', true);
+    }
+
+    $requester = str_replace(['\\', '/', '"', "'", "\r", "\n", "\0"], '', $requester);
+    $requester = preg_replace('/[^A-Za-z0-9._-]+/', '_', $requester) ?? '';
+    $requester = trim($requester, '._-');
+    if ($requester === '' || $requester === '.' || $requester === '..') {
+        return 'aanvrager';
+    }
+
+    if (strlen($requester) > 60) {
+        $requester = rtrim(substr($requester, 0, 60), '._-');
+    }
+
+    return $requester !== '' ? $requester : 'aanvrager';
+}
+
+function buildAttachmentDownloadFilename(array $attachment, string $requesterEmail): string
+{
+    $ticketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
+    $name = (string) $ticketId . '_' . sanitizeAttachmentRequesterToken($requesterEmail);
+    $extension = attachmentFileExtension($attachment);
+    if ($extension !== '') {
+        $name .= '.' . $extension;
+    }
+
+    return $name;
+}
+
+function buildAttachmentDownloadHref(int $attachmentId): string
+{
+    if ($attachmentId <= 0) {
+        return '';
+    }
+
+    return '?download=' . $attachmentId;
+}
+
 function buildAttachmentDirectUrl(array $attachment): string
 {
     $ticketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
@@ -932,9 +991,11 @@ function findAttachmentByOriginalName(array $attachments, string $name): ?array
 
 function renderMessageInlineAttachmentHtml(array $attachment): string
 {
-    $downloadUrl = buildAttachmentDirectUrl($attachment);
+    $previewUrl = buildAttachmentDirectUrl($attachment);
     $originalName = (string) ($attachment['original_name'] ?? '');
     $attachmentId = (int) ($attachment['id'] ?? 0);
+    $downloadHref = buildAttachmentDownloadHref($attachmentId);
+    $downloadName = buildAttachmentDownloadFilename($attachment, (string) ($attachment['requester_email'] ?? ''));
     $isImageAttachment = isImageAttachment($attachment);
     $fileThumbUrl = 'preview.php?id=' . $attachmentId . '&thumbnail=1';
     $fileCheckUrl = 'preview.php?id=' . $attachmentId . '&check=1';
@@ -942,13 +1003,13 @@ function renderMessageInlineAttachmentHtml(array $attachment): string
     ob_start();
     ?>
     <div class="message-inline-attachment">
-        <?php if ($isImageAttachment && $downloadUrl !== ''): ?>
+        <?php if ($isImageAttachment && $previewUrl !== ''): ?>
             <div class="message-inline-attachment-preview">
                 <button type="button" class="attachment-thumb-button" data-image-preview-trigger
-                    data-preview-src="<?= h($downloadUrl) ?>"
+                    data-preview-src="<?= h($previewUrl) ?>"
                     data-preview-alt="<?= h($originalName) ?>"
                     aria-label="<?= h(__('ticket.preview_image')) ?>">
-                    <img class="attachment-inline-image" data-thumb-src="<?= h($downloadUrl) ?>" src=""
+                    <img class="attachment-inline-image" data-thumb-src="<?= h($previewUrl) ?>" src=""
                         alt="<?= h($originalName) ?>" loading="lazy" decoding="async">
                 </button>
             </div>
@@ -962,13 +1023,72 @@ function renderMessageInlineAttachmentHtml(array $attachment): string
                 </button>
             </div>
         <?php endif; ?>
-        <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link message-inline-attachment-link"
-            <?= $downloadUrl !== '' ? 'download target="_blank" rel="noopener noreferrer"' : '' ?>>
+        <a href="<?= h($downloadHref !== '' ? $downloadHref : '#') ?>" class="attachment-download-link message-inline-attachment-link"
+            <?= $downloadHref !== '' ? 'download="' . h($downloadName) . '" rel="noopener noreferrer"' : '' ?>>
             <?= h($originalName) ?>
         </a>
     </div>
     <?php
     return (string) ob_get_clean();
+}
+
+function reactionPeopleTitle(string $label, array $emails): string
+{
+    $names = [];
+    foreach ($emails as $email) {
+        $name = formatUserDisplayName((string) $email);
+        if ($name !== '') {
+            $names[] = $name;
+        }
+    }
+
+    if ($names === []) {
+        return $label;
+    }
+
+    return $label . ': ' . implode(', ', $names);
+}
+
+function renderMessageReactionsHtml(array $message): string
+{
+    $reactions = is_array($message['reactions'] ?? null) ? $message['reactions'] : [];
+    $plus = max(0, (int) ($reactions['plus'] ?? 0));
+    $minus = max(0, (int) ($reactions['minus'] ?? 0));
+    $mine = (int) ($reactions['mine'] ?? 0);
+    if ($mine !== 1 && $mine !== -1) {
+        $mine = 0;
+    }
+    $plusUsers = is_array($reactions['plus_users'] ?? null) ? $reactions['plus_users'] : [];
+    $minusUsers = is_array($reactions['minus_users'] ?? null) ? $reactions['minus_users'] : [];
+    $plusTitle = reactionPeopleTitle(__('ticket.reaction_plus_title'), $plusUsers);
+    $minusTitle = reactionPeopleTitle(__('ticket.reaction_minus_title'), $minusUsers);
+    $hasCounts = $plus > 0 || $minus > 0;
+
+    ob_start();
+    ?>
+    <div class="message-reactions<?= $hasCounts ? ' has-counts' : '' ?>" data-role="message-reactions">
+        <button type="button" class="message-reaction-button<?= $mine === 1 ? ' is-mine' : '' ?>"
+            data-role="message-reaction" data-value="1"
+            data-label="<?= h(__('ticket.reaction_plus_title')) ?>"
+            title="<?= h($plusTitle) ?>"
+            aria-pressed="<?= $mine === 1 ? 'true' : 'false' ?>"
+            aria-label="<?= h(__('ticket.reaction_plus')) ?>">
+            <span aria-hidden="true">+1</span>
+            <span data-role="reaction-count"<?= $plus > 0 ? '' : ' hidden' ?>><?= $plus > 0 ? $plus : '' ?></span>
+        </button>
+        <button type="button" class="message-reaction-button<?= $mine === -1 ? ' is-mine' : '' ?>"
+            data-role="message-reaction" data-value="-1"
+            data-label="<?= h(__('ticket.reaction_minus_title')) ?>"
+            title="<?= h($minusTitle) ?>"
+            aria-pressed="<?= $mine === -1 ? 'true' : 'false' ?>"
+            aria-label="<?= h(__('ticket.reaction_minus')) ?>">
+            <span aria-hidden="true">−1</span>
+            <span data-role="reaction-count"<?= $minus > 0 ? '' : ' hidden' ?>><?= $minus > 0 ? $minus : '' ?></span>
+        </button>
+    </div>
+    <?php
+
+    return trim((string) ob_get_clean());
 }
 
 function renderTicketMessageHtml(array $message, string $currentPage, bool $enableUserProfile = false): string
@@ -989,6 +1109,10 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
     ));
     $messageIsTranslated = !empty($message['message_is_translated']) && $rawMessageText !== '' && $displayMessageText !== '' && $rawMessageText !== $displayMessageText;
     $translationPending = !empty($message['translation_pending']);
+    $reactionMine = (int) (($message['reactions']['mine'] ?? 0));
+    if ($reactionMine !== 1 && $reactionMine !== -1) {
+        $reactionMine = 0;
+    }
 
     ob_start();
     ?>
@@ -996,6 +1120,7 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
         data-message-id="<?= (int) ($message['id'] ?? 0) ?>"
         data-message-text="<?= h((string) json_encode($rawMessageText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
         data-translation-status="<?= $translationPending ? 'pending' : 'loaded' ?>"
+        data-my-reaction="<?= $reactionMine ?>"
         <?= !empty($message['is_ghost']) ? 'data-ghost="1"' : '' ?>>
         <div class="message-meta">
             <?php
@@ -1060,21 +1185,23 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
             <ul class="attachment-list">
                 <?php foreach ($listAttachments as $attachmentIndex => $attachment): ?>
                     <?php
-                    $downloadUrl = buildAttachmentDirectUrl($attachment);
+                    $attachmentId = (int) ($attachment['id'] ?? 0);
+                    $previewUrl = buildAttachmentDirectUrl($attachment);
+                    $downloadHref = buildAttachmentDownloadHref($attachmentId);
+                    $downloadName = buildAttachmentDownloadFilename($attachment, (string) ($attachment['requester_email'] ?? ''));
                     $isImageAttachment = isImageAttachment($attachment);
                     $thumbLoading = $attachmentIndex < 3 ? 'eager' : 'lazy';
                     $thumbFetchPriority = $attachmentIndex < 3 ? 'high' : 'auto';
-                    $attachmentId = (int) ($attachment['id'] ?? 0);
                     $fileThumbUrl = 'preview.php?id=' . $attachmentId . '&thumbnail=1';
                     $fileCheckUrl = 'preview.php?id=' . $attachmentId . '&check=1';
                     ?>
                     <li class="attachment-item">
-                        <?php if ($isImageAttachment && $downloadUrl !== ''): ?>
+                        <?php if ($isImageAttachment && $previewUrl !== ''): ?>
                             <button type="button" class="attachment-thumb-button" data-image-preview-trigger
-                                data-preview-src="<?= h($downloadUrl) ?>"
+                                data-preview-src="<?= h($previewUrl) ?>"
                                 data-preview-alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
                                 aria-label="<?= h(__('ticket.preview_image')) ?>">
-                                <img class="attachment-thumb" data-thumb-src="<?= h($downloadUrl) ?>" src=""
+                                <img class="attachment-thumb" data-thumb-src="<?= h($previewUrl) ?>" src=""
                                     alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="<?= h($thumbLoading) ?>"
                                     fetchpriority="<?= h($thumbFetchPriority) ?>" decoding="async">
                             </button>
@@ -1087,8 +1214,8 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
                                     sandbox="allow-scripts allow-same-origin" scrolling="no"></iframe>
                             </button>
                         <?php endif; ?>
-                        <a href="<?= h($downloadUrl !== '' ? $downloadUrl : '#') ?>" class="attachment-download-link"
-                            <?= $downloadUrl !== '' ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"' ?>>
+                        <a href="<?= h($downloadHref !== '' ? $downloadHref : '#') ?>" class="attachment-download-link"
+                            <?= $downloadHref !== '' ? 'download="' . h($downloadName) . '" rel="noopener noreferrer"' : 'aria-disabled="true"' ?>>
                             <?= h((string) ($attachment['original_name'] ?? '')) ?>
                         </a>
                         <span class="attachment-size">(<?= formatFileSize(max(0, (int) ($attachment['file_size'] ?? 0))) ?>)</span>
@@ -1096,6 +1223,7 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>
+        <?= renderMessageReactionsHtml($message) ?>
     </article>
     <?php
 
@@ -1355,16 +1483,18 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         </select>
                     </div>
                     <div class="meta-item">
-                        <span class="meta-label"><?= h(__('ticket.participants_admin_heading')) ?></span>
-                        <button type="button" class="secondary-button" data-role="manage-participants-open">
-                            <?= h(__('ticket.manage_participants_button')) ?>
-                        </button>
-                    </div>
-                    <div class="meta-item">
                         <span class="meta-label"><?= h(__('ticket.meta_category')) ?></span>
                         <button type="button" class="secondary-button" data-role="change-category-open"
                             data-current-category="<?= h((string) ($ticket['category'] ?? '')) ?>">
                             <?= h(__('ticket.change_category_button')) ?>
+                        </button>
+                    </div>
+                <?php endif; ?>
+                <?php if (!$isReadOnlyTicket): ?>
+                    <div class="meta-item">
+                        <span class="meta-label"><?= h(__('ticket.participants_admin_heading')) ?></span>
+                        <button type="button" class="secondary-button" data-role="manage-participants-open">
+                            <?= h(__('ticket.manage_participants_button')) ?>
                         </button>
                     </div>
                 <?php endif; ?>
@@ -1411,7 +1541,7 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                 </ul>
             </div>
 
-            <?php if ($canManageTickets): ?>
+            <?php if (!$isReadOnlyTicket): ?>
                 <div class="ticket-participants-modal" data-role="ticket-participants-modal" hidden>
                     <div class="ticket-participants-modal-card">
                         <div class="ticket-participants-modal-head">
@@ -1424,9 +1554,11 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
 
                         <div class="participant-chip-list" data-role="participant-chip-list"
                             data-creator-email="<?= h($requesterEmail) ?>">
+                            <?php $participantCount = count($requesterParticipants); ?>
                             <?php foreach ($requesterParticipants as $participantEmail): ?>
-                                <button type="button" class="participant-chip-form" data-role="participant-remove-toggle"
-                                    data-participant-email="<?= h($participantEmail) ?>">
+                                <button type="button" class="participant-chip-form<?= $participantCount <= 1 ? ' is-lock-protected' : '' ?>" data-role="participant-remove-toggle"
+                                    data-participant-email="<?= h($participantEmail) ?>"
+                                    <?= $participantCount <= 1 ? 'disabled' : '' ?>>
                                     <span
                                         class="participant-chip<?= $participantEmail === $requesterEmail ? ' is-requester' : '' ?>"
                                         title="<?= h(formatUserDisplayName($participantEmail) !== $participantEmail ? $participantEmail : '') ?>">
@@ -1459,7 +1591,9 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
                         </form>
                     </div>
                 </div>
+            <?php endif; ?>
 
+            <?php if ($canManageTickets): ?>
                 <div class="ticket-participants-modal" data-role="ticket-title-modal" hidden>
                     <div class="ticket-participants-modal-card">
                         <div class="ticket-participants-modal-head">

@@ -1,3 +1,27 @@
+id: 2026-10-02-message-reactions
+date: 2026-10-02
+title: Reactions on messages
+author: Tim Falken
+
+On every message you can give +1 or −1. Clicking the same reaction again removes it; the other choice switches. The counts stay visible. No email or notification is sent.
+
+---
+id: 2026-10-02-ticket-participants-anyone
+date: 2026-10-02
+title: Anyone can manage users
+author: Tim Falken
+
+Anyone who can open a ticket can add and remove users. The last user always stays on the ticket.
+
+---
+id: 2026-10-02-attachment-download-name
+date: 2026-10-02
+title: Attachment download names
+author: Tim Falken
+
+An attachment downloads as the ticket number and requester, for example `42_jan.pdf`, instead of a long technical file name.
+
+---
 id: 2026-10-01-ghost-publish-edit
 date: 2026-10-01
 title: Edit a ghost message before publishing
