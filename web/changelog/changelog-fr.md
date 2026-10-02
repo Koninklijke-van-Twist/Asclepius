@@ -1,9 +1,9 @@
 id: 2026-10-02-message-reactions
 date: 2026-10-02
-title: Réactions sur les messages
+title: Pouce vers le haut ou vers le bas
 author: Tim Falken
 
-Sur chaque message, vous pouvez donner +1 ou −1. Un second clic sur la même réaction la retire ; l’autre choix la remplace. Les totaux restent visibles. Aucun e-mail ni notification n’est envoyé.
+Sur chaque message, vous pouvez donner 👍 ou 👎 : c’était la bonne ou la mauvaise réponse. Un second clic sur le même pouce retire votre vote ; l’autre pouce le déplace. Les totaux sont collés à l’emoji, par exemple 👍2 et 👎5. Votre choix s’allume quand vous survolez le message. Survolez un emoji pour voir qui a réagi. Aucun e-mail ni notification n’est envoyé.
 
 ---
 id: 2026-10-02-ticket-participants-anyone

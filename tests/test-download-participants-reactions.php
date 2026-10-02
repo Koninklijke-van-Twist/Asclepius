@@ -229,10 +229,15 @@ assertSame('Opnieuw +1 blijft één rij per gebruiker', 2, (int) ($afterRepeat['
 $switched = $store->setMessageReaction($ticketId, $messageId, 'user@kvt.nl', -1);
 assertSame('Wisselen haalt de +1 weg bij deze gebruiker', 1, (int) ($switched['plus'] ?? 0));
 assertSame('Wisselen zet −1', 1, (int) ($switched['minus'] ?? 0));
+assertSame('Wisselen telt als dislike', 1, (int) ($switched['dislikes'] ?? 0));
+assertSame('Wisselen haalt de like-count weg bij deze gebruiker', 1, (int) ($switched['likes'] ?? 0));
 assertSame('Eigen keuze is −1', -1, (int) ($switched['mine'] ?? 0));
+assertSame('Na wisselen staat deze gebruiker bij de dislikes', 'user@kvt.nl', (string) ($switched['minus_users'][0] ?? ''));
+assertFalse('Na wisselen staat deze gebruiker niet ook bij de likes', in_array('user@kvt.nl', $switched['plus_users'] ?? [], true));
 $cleared = $store->setMessageReaction($ticketId, $messageId, 'user@kvt.nl', 0);
 assertSame('Wissen haalt de eigen reactie weg', 0, (int) ($cleared['mine'] ?? 0));
 assertSame('Andermans +1 blijft', 1, (int) ($cleared['plus'] ?? 0));
+assertSame('Andermans like blijft', 1, (int) ($cleared['likes'] ?? 0));
 
 $detail = $store->getTicket($ticketId, true, 'user@kvt.nl', 'default', true);
 $loaded = null;
@@ -244,6 +249,41 @@ foreach (($detail['messages'] ?? []) as $message) {
 }
 assertTrue('Berichtpayload bevat reacties', is_array($loaded['reactions'] ?? null));
 assertSame('Geladen plus-count', 1, (int) ($loaded['reactions']['plus'] ?? 0));
+assertSame('Geladen like-count', 1, (int) ($loaded['reactions']['likes'] ?? 0));
+assertSame('Geladen like is het e-mailadres', 'collega@kvt.nl', (string) ($loaded['reactions']['plus_users'][0] ?? ''));
+
+rememberUserDirectoryName('user@kvt.nl', 'Jan Gebruiker');
+rememberUserDirectoryName('collega@kvt.nl', 'Collega Piet');
+$reactionHtml = renderMessageReactionsHtml([
+    'reactions' => [
+        'plus' => 2,
+        'minus' => 5,
+        'mine' => 1,
+        'plus_users' => ['user@kvt.nl'],
+        'minus_users' => ['collega@kvt.nl', 'ict@kvt.nl'],
+    ],
+]);
+assertContains('Duim omhoog in plaats van +1', '👍', $reactionHtml);
+assertContains('Duim omlaag in plaats van −1', '👎', $reactionHtml);
+assertFalse('Geen +1-label meer', str_contains($reactionHtml, '+1') || str_contains($reactionHtml, '−1'));
+assertContains('Aantal staat direct achter de duim', '👍</span><span class="message-reaction-count" data-role="reaction-count">2</span>', $reactionHtml);
+assertContains('Dislike-aantal staat direct achter de duim', '👎</span><span class="message-reaction-count" data-role="reaction-count">5</span>', $reactionHtml);
+assertContains('Eigen like is gemarkeerd voor hover-highlight', 'is-mine', $reactionHtml);
+assertContains('Titel noemt wie 👍 gaf', 'Jan Gebruiker', $reactionHtml);
+assertContains('Titel noemt wie 👎 gaf', 'Collega Piet', $reactionHtml);
+
+$enriched = enrichApiResponseWithUserNames([
+    'success' => true,
+    'plus' => 1,
+    'minus' => 1,
+    'likes' => 1,
+    'dislikes' => 1,
+    'plus_users' => ['user@kvt.nl'],
+    'minus_users' => ['collega@kvt.nl'],
+]);
+assertSame('API-like houdt het e-mailadres', 'user@kvt.nl', (string) ($enriched['like_users'][0]['email'] ?? ''));
+assertSame('API-like heeft de weergavenaam', 'Jan Gebruiker', (string) ($enriched['like_users'][0]['name'] ?? ''));
+assertSame('API-dislike houdt het e-mailadres', 'collega@kvt.nl', (string) ($enriched['dislike_users'][0]['email'] ?? ''));
 
 $_SESSION['user']['email'] = 'user@kvt.nl';
 $_SERVER['REMOTE_ADDR'] = '203.0.113.10';
@@ -257,6 +297,16 @@ $apiPlus = handleSetMessageReactionApiAction($store, [
 ], ['email' => 'stranger@kvt.nl', 'is_admin' => false]);
 assertTrue('API zet +1 voor de sessiegebruiker', !empty($apiPlus['success']));
 assertSame('API negeert een ander viewer_email', 1, (int) ($apiPlus['value'] ?? 0));
+assertSame('API-response telt likes', 2, (int) ($apiPlus['likes'] ?? 0));
+$apiPlusView = enrichApiResponseWithUserNames($apiPlus);
+$apiLikeEmails = [];
+foreach (($apiPlusView['like_users'] ?? []) as $likeUser) {
+    if (is_array($likeUser)) {
+        $apiLikeEmails[] = (string) ($likeUser['email'] ?? '');
+    }
+}
+assertContains('API like_users noemt de kijker', 'user@kvt.nl', implode(',', $apiLikeEmails));
+assertContains('API like_users noemt de andere stem', 'collega@kvt.nl', implode(',', $apiLikeEmails));
 $apiClear = handleSetMessageReactionApiAction($store, [
     'ticket_id' => $ticketId,
     'message_id' => $messageId,

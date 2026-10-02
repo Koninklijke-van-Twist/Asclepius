@@ -700,14 +700,10 @@ function handleSetMessageReactionApiAction(TicketStore $store, array $payload, ?
         'value' => (int) ($summary['mine'] ?? 0),
         'plus' => (int) ($summary['plus'] ?? 0),
         'minus' => (int) ($summary['minus'] ?? 0),
-        'plus_users' => array_map(
-            static fn(string $email): string => formatUserDisplayName($email),
-            $summary['plus_users'] ?? []
-        ),
-        'minus_users' => array_map(
-            static fn(string $email): string => formatUserDisplayName($email),
-            $summary['minus_users'] ?? []
-        ),
+        'likes' => (int) ($summary['likes'] ?? 0),
+        'dislikes' => (int) ($summary['dislikes'] ?? 0),
+        'plus_users' => array_values(is_array($summary['plus_users'] ?? null) ? $summary['plus_users'] : []),
+        'minus_users' => array_values(is_array($summary['minus_users'] ?? null) ? $summary['minus_users'] : []),
     ];
 }
 

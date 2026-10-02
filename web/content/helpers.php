@@ -1072,18 +1072,16 @@ function renderMessageReactionsHtml(array $message): string
             data-label="<?= h(__('ticket.reaction_plus_title')) ?>"
             title="<?= h($plusTitle) ?>"
             aria-pressed="<?= $mine === 1 ? 'true' : 'false' ?>"
-            aria-label="<?= h(__('ticket.reaction_plus')) ?>">
-            <span aria-hidden="true">+1</span>
-            <span data-role="reaction-count"<?= $plus > 0 ? '' : ' hidden' ?>><?= $plus > 0 ? $plus : '' ?></span>
+            aria-label="<?= h($plusTitle) ?>">
+            <span class="message-reaction-emoji" aria-hidden="true">👍</span><span class="message-reaction-count" data-role="reaction-count"<?= $plus > 0 ? '' : ' hidden' ?>><?= $plus > 0 ? $plus : '' ?></span>
         </button>
         <button type="button" class="message-reaction-button<?= $mine === -1 ? ' is-mine' : '' ?>"
             data-role="message-reaction" data-value="-1"
             data-label="<?= h(__('ticket.reaction_minus_title')) ?>"
             title="<?= h($minusTitle) ?>"
             aria-pressed="<?= $mine === -1 ? 'true' : 'false' ?>"
-            aria-label="<?= h(__('ticket.reaction_minus')) ?>">
-            <span aria-hidden="true">−1</span>
-            <span data-role="reaction-count"<?= $minus > 0 ? '' : ' hidden' ?>><?= $minus > 0 ? $minus : '' ?></span>
+            aria-label="<?= h($minusTitle) ?>">
+            <span class="message-reaction-emoji" aria-hidden="true">👎</span><span class="message-reaction-count" data-role="reaction-count"<?= $minus > 0 ? '' : ' hidden' ?>><?= $minus > 0 ? $minus : '' ?></span>
         </button>
     </div>
     <?php

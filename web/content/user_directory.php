@@ -361,10 +361,10 @@ function collectEmailsFromApiPayload(mixed $value, array &$emails): void
             $emails[] = $item;
         }
 
-        if ($key === 'participant_emails' && is_array($item)) {
-            foreach ($item as $participantEmail) {
-                if (is_string($participantEmail)) {
-                    $emails[] = $participantEmail;
+        if (is_string($key) && in_array($key, ['participant_emails', 'plus_users', 'minus_users'], true) && is_array($item)) {
+            foreach ($item as $listedEmail) {
+                if (is_string($listedEmail)) {
+                    $emails[] = $listedEmail;
                 }
             }
         }
@@ -373,6 +373,43 @@ function collectEmailsFromApiPayload(mixed $value, array &$emails): void
             collectEmailsFromApiPayload($item, $emails);
         }
     }
+}
+
+/**
+ * Zelfde identiteit als andere gebruikers in de API: e-mail plus weergavenaam.
+ *
+ * @param list<mixed> $emails
+ * @return list<array{email: string, name: string}>
+ */
+function reactionUsersForApi(array $emails): array
+{
+    $people = [];
+    foreach ($emails as $email) {
+        if (!is_string($email)) {
+            continue;
+        }
+
+        $trimmed = trim($email);
+        if ($trimmed === '') {
+            continue;
+        }
+
+        $normalizedEmail = normalizeDirectoryEmail($trimmed);
+        if ($normalizedEmail === '' || !filter_var($normalizedEmail, FILTER_VALIDATE_EMAIL)) {
+            $people[] = [
+                'email' => $trimmed,
+                'name' => $trimmed,
+            ];
+            continue;
+        }
+
+        $people[] = [
+            'email' => $normalizedEmail,
+            'name' => formatUserDisplayName($normalizedEmail),
+        ];
+    }
+
+    return $people;
 }
 
 function enrichApiValueWithUserNames(mixed $value): mixed
@@ -434,6 +471,23 @@ function enrichApiValueWithUserNames(mixed $value): mixed
         }
 
         $result['participants'] = $participants;
+    }
+
+    if (array_key_exists('plus_users', $result) || array_key_exists('minus_users', $result)) {
+        if (!array_key_exists('likes', $result) && array_key_exists('plus', $result)) {
+            $result['likes'] = (int) $result['plus'];
+        }
+        if (!array_key_exists('dislikes', $result) && array_key_exists('minus', $result)) {
+            $result['dislikes'] = (int) $result['minus'];
+        }
+        if (!array_key_exists('like_users', $result)) {
+            $plusUsers = is_array($result['plus_users'] ?? null) ? $result['plus_users'] : [];
+            $result['like_users'] = reactionUsersForApi($plusUsers);
+        }
+        if (!array_key_exists('dislike_users', $result)) {
+            $minusUsers = is_array($result['minus_users'] ?? null) ? $result['minus_users'] : [];
+            $result['dislike_users'] = reactionUsersForApi($minusUsers);
+        }
     }
 
     return $result;

@@ -6737,9 +6737,44 @@
                 return;
             }
 
-            var plus = Number(data.plus || 0);
-            var minus = Number(data.minus || 0);
+            var plus = Number(data.plus != null ? data.plus : (data.likes || 0));
+            var minus = Number(data.minus != null ? data.minus : (data.dislikes || 0));
             bar.classList.toggle('has-counts', plus > 0 || minus > 0);
+            var reactionPeople = function (identities, fallbackUsers)
+            {
+                var people = [];
+                if (Array.isArray(identities))
+                {
+                    identities.forEach(function (person)
+                    {
+                        if (!person)
+                        {
+                            return;
+                        }
+                        if (typeof person === 'string')
+                        {
+                            people.push(person);
+                            return;
+                        }
+                        var label = String(person.name || person.email || '').trim();
+                        if (label !== '')
+                        {
+                            people.push(label);
+                        }
+                    });
+                }
+                if (people.length === 0 && Array.isArray(fallbackUsers))
+                {
+                    fallbackUsers.forEach(function (user)
+                    {
+                        if (user)
+                        {
+                            people.push(String(user));
+                        }
+                    });
+                }
+                return people;
+            };
             bar.querySelectorAll('[data-role="message-reaction"]').forEach(function (button)
             {
                 var buttonValue = Number(button.getAttribute('data-value') || 0);
@@ -6752,10 +6787,13 @@
                 }
                 button.classList.toggle('is-mine', mine !== 0 && mine === buttonValue);
                 button.setAttribute('aria-pressed', mine !== 0 && mine === buttonValue ? 'true' : 'false');
-                var users = buttonValue > 0 ? data.plus_users : data.minus_users;
+                var people = buttonValue > 0
+                    ? reactionPeople(data.like_users, data.plus_users)
+                    : reactionPeople(data.dislike_users, data.minus_users);
                 var label = button.getAttribute('data-label') || '';
-                var people = Array.isArray(users) ? users.filter(Boolean) : [];
-                button.title = people.length > 0 ? (label + ': ' + people.join(', ')) : label;
+                var title = people.length > 0 ? (label + ': ' + people.join(', ')) : label;
+                button.title = title;
+                button.setAttribute('aria-label', title);
             });
         };
 

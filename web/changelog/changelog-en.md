@@ -1,9 +1,9 @@
 id: 2026-10-02-message-reactions
 date: 2026-10-02
-title: Reactions on messages
+title: Thumbs up or down on messages
 author: Tim Falken
 
-On every message you can give +1 or −1. Clicking the same reaction again removes it; the other choice switches. The counts stay visible. No email or notification is sent.
+On every message you can give 👍 or 👎: this was the right or the wrong answer. Clicking the same thumb again removes your vote; the other thumb moves it. Counts sit right after the emoji, for example 👍2 and 👎5. Your own choice lights up when you hover the message. Hover an emoji to see who reacted. No email or notification is sent.
 
 ---
 id: 2026-10-02-ticket-participants-anyone

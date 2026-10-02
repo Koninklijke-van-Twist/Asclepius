@@ -4679,10 +4679,11 @@ class TicketStore
     }
 
     /**
-     * Store +1, −1, or clear (0) for one user on one message.
+     * Store 👍 (1), 👎 (−1), or clear (0) for one user on one message.
+     * One row per user: the other vote replaces the previous one.
      * Does not notify, mail, or touch the ticket timestamp.
      *
-     * @return array{plus: int, minus: int, mine: int, plus_users: list<string>, minus_users: list<string>}|null
+     * @return array{plus: int, minus: int, likes: int, dislikes: int, mine: int, plus_users: list<string>, minus_users: list<string>}|null
      */
     public function setMessageReaction(int $ticketId, int $messageId, string $userEmail, int $value): ?array
     {
@@ -4750,13 +4751,15 @@ class TicketStore
     }
 
     /**
-     * @return array{plus: int, minus: int, mine: int, plus_users: list<string>, minus_users: list<string>}
+     * @return array{plus: int, minus: int, likes: int, dislikes: int, mine: int, plus_users: list<string>, minus_users: list<string>}
      */
     public function getMessageReactionSummary(int $messageId, string $viewerEmail = ''): array
     {
         $summary = [
             'plus' => 0,
             'minus' => 0,
+            'likes' => 0,
+            'dislikes' => 0,
             'mine' => 0,
             'plus_users' => [],
             'minus_users' => [],
@@ -4778,13 +4781,15 @@ class TicketStore
 
     /**
      * @param list<array<string, mixed>> $rows
-     * @return array{plus: int, minus: int, mine: int, plus_users: list<string>, minus_users: list<string>}
+     * @return array{plus: int, minus: int, likes: int, dislikes: int, mine: int, plus_users: list<string>, minus_users: list<string>}
      */
     private function summarizeReactionRows(array $rows, string $viewerEmail): array
     {
         $summary = [
             'plus' => 0,
             'minus' => 0,
+            'likes' => 0,
+            'dislikes' => 0,
             'mine' => 0,
             'plus_users' => [],
             'minus_users' => [],
@@ -4798,9 +4803,11 @@ class TicketStore
             }
             if ($value === 1) {
                 $summary['plus']++;
+                $summary['likes']++;
                 $summary['plus_users'][] = $email;
             } else {
                 $summary['minus']++;
+                $summary['dislikes']++;
                 $summary['minus_users'][] = $email;
             }
             if ($viewerEmail !== '' && $email === $viewerEmail) {
