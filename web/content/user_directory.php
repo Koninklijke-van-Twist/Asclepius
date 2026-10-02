@@ -270,6 +270,15 @@ function collectEmailsForUserDirectoryWarmup(array $tickets, array $participants
 
         foreach ($messages as $message) {
             $emails[] = (string) ($message['sender_email'] ?? '');
+            $reactions = is_array($message['reactions'] ?? null) ? $message['reactions'] : [];
+            foreach (['plus_users', 'minus_users'] as $reactionKey) {
+                if (!is_array($reactions[$reactionKey] ?? null)) {
+                    continue;
+                }
+                foreach ($reactions[$reactionKey] as $reactionEmail) {
+                    $emails[] = (string) $reactionEmail;
+                }
+            }
         }
     }
 

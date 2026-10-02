@@ -3290,7 +3290,7 @@ class TicketStore
      * @param list<int> $ticketIds
      * @return array<int, list<array<string, mixed>>>
      */
-    public function getTicketMessagesBatch(array $ticketIds, bool $includeGhostMessages = false): array
+    public function getTicketMessagesBatch(array $ticketIds, bool $includeGhostMessages = false, string $viewerEmail = ''): array
     {
         $ticketIds = $this->normalizeTicketIds($ticketIds);
         if ($ticketIds === []) {
@@ -3328,6 +3328,23 @@ class TicketStore
             $attachmentsByTicketAndMessage[$ticketId][$messageId][] = $attachment;
         }
 
+        $reactionStatement = $this->pdo->prepare(
+            'SELECT message_id, user_email, value
+             FROM ticket_message_reactions
+             WHERE ticket_id IN (' . $inClause . ')
+             ORDER BY user_email ASC'
+        );
+        $reactionStatement->execute($parameters);
+        $reactionsByMessage = [];
+        foreach ($reactionStatement->fetchAll(PDO::FETCH_ASSOC) as $reactionRow) {
+            $reactionMessageId = (int) ($reactionRow['message_id'] ?? 0);
+            if ($reactionMessageId <= 0) {
+                continue;
+            }
+            $reactionsByMessage[$reactionMessageId][] = $reactionRow;
+        }
+        $viewerEmail = strtolower(trim($viewerEmail));
+
         $messagesByTicket = [];
         foreach ($messages as $message) {
             $ticketId = (int) ($message['ticket_id'] ?? 0);
@@ -3337,6 +3354,7 @@ class TicketStore
             }
 
             $message['attachments'] = $attachmentsByTicketAndMessage[$ticketId][$messageId] ?? [];
+            $message['reactions'] = $this->summarizeReactionRows($reactionsByMessage[$messageId] ?? [], $viewerEmail);
             $message['is_ghost'] = !empty($message['is_ghost']);
             $message['is_ai_assistant'] = (int) ($message['is_ai_assistant'] ?? 0) === 1;
             $messagesByTicket[$ticketId][] = $message;

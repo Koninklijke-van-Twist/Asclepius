@@ -659,7 +659,7 @@ function buildTicketPollItemsFromTickets(TicketStore $store, array $tickets, arr
     $messageTicketIds = $openTicketId > 0 ? [$openTicketId] : [];
     $includeGhostMessages = !empty($context['includeGhostMessages']);
     $messagesByTicketId = $messageTicketIds !== []
-        ? $store->getTicketMessagesBatch($messageTicketIds, $includeGhostMessages)
+        ? $store->getTicketMessagesBatch($messageTicketIds, $includeGhostMessages, (string) ($context['viewerEmail'] ?? ''))
         : [];
     warmUserDirectoryForContext(collectEmailsForUserDirectoryWarmup(
         $tickets,

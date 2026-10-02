@@ -251,6 +251,16 @@ assertTrue('Berichtpayload bevat reacties', is_array($loaded['reactions'] ?? nul
 assertSame('Geladen plus-count', 1, (int) ($loaded['reactions']['plus'] ?? 0));
 assertSame('Geladen like-count', 1, (int) ($loaded['reactions']['likes'] ?? 0));
 assertSame('Geladen like is het e-mailadres', 'collega@kvt.nl', (string) ($loaded['reactions']['plus_users'][0] ?? ''));
+$batch = $store->getTicketMessagesBatch([$ticketId], true, 'user@kvt.nl');
+$batchMessage = null;
+foreach (($batch[$ticketId] ?? []) as $batchRow) {
+    if ((int) ($batchRow['id'] ?? 0) === $messageId) {
+        $batchMessage = $batchRow;
+        break;
+    }
+}
+assertSame('Lijstweergave telt dezelfde like', 1, (int) ($batchMessage['reactions']['likes'] ?? 0));
+assertSame('Lijstweergave kent de eigen stem', 0, (int) ($batchMessage['reactions']['mine'] ?? -1));
 
 rememberUserDirectoryName('user@kvt.nl', 'Jan Gebruiker');
 rememberUserDirectoryName('collega@kvt.nl', 'Collega Piet');
