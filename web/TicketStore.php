@@ -3242,7 +3242,7 @@ class TicketStore
         }
 
         $ticket['participant_emails'] = $this->getTicketParticipants((int) $ticket['id']);
-        $ticket['messages'] = $this->getMessagesForTicket((int) $ticket['id'], $includeGhostMessages);
+        $ticket['messages'] = $this->getMessagesForTicket((int) $ticket['id'], $includeGhostMessages, $userEmail);
 
         return $ticket;
     }
@@ -4188,6 +4188,21 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_user_email ON ticket_participants(user_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_templates_name ON ticket_templates(name)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_text_translations_lookup ON ticket_text_translations(entity_type, entity_id, target_language, source_hash)');
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_message_reactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id INTEGER NOT NULL,
+                ticket_id INTEGER NOT NULL,
+                user_email TEXT NOT NULL,
+                value INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(message_id, user_email),
+                FOREIGN KEY(message_id) REFERENCES ticket_messages(id) ON DELETE CASCADE,
+                FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+            )'
+        );
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_message_reactions_message ON ticket_message_reactions(message_id)');
         $this->ensureColumn('ticket_templates', 'sort_order', 'INTEGER NOT NULL DEFAULT 0');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_browser_notifications_user_delivered ON browser_notifications(user_email, delivered_at, created_at)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user_email ON web_push_subscriptions(user_email)');
@@ -4663,7 +4678,140 @@ class TicketStore
         return $row !== false ? $row['user_email'] : null;
     }
 
-    private function getMessagesForTicket(int $ticketId, bool $includeGhostMessages = false): array
+    /**
+     * Store +1, −1, or clear (0) for one user on one message.
+     * Does not notify, mail, or touch the ticket timestamp.
+     *
+     * @return array{plus: int, minus: int, mine: int, plus_users: list<string>, minus_users: list<string>}|null
+     */
+    public function setMessageReaction(int $ticketId, int $messageId, string $userEmail, int $value): ?array
+    {
+        $userEmail = strtolower(trim($userEmail));
+        if ($ticketId <= 0 || $messageId <= 0 || $userEmail === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+            return null;
+        }
+        if ($value > 0) {
+            $value = 1;
+        } elseif ($value < 0) {
+            $value = -1;
+        } else {
+            $value = 0;
+        }
+
+        $messageStatement = $this->pdo->prepare(
+            'SELECT id
+             FROM ticket_messages
+             WHERE id = :id
+               AND ticket_id = :ticket_id
+             LIMIT 1'
+        );
+        $messageStatement->execute([
+            ':id' => $messageId,
+            ':ticket_id' => $ticketId,
+        ]);
+        if ($messageStatement->fetchColumn() === false) {
+            return null;
+        }
+
+        if ($value === 0) {
+            $delete = $this->pdo->prepare(
+                'DELETE FROM ticket_message_reactions
+                 WHERE message_id = :message_id
+                   AND lower(user_email) = :user_email'
+            );
+            $delete->execute([
+                ':message_id' => $messageId,
+                ':user_email' => $userEmail,
+            ]);
+        } else {
+            $now = date('c');
+            $upsert = $this->pdo->prepare(
+                'INSERT INTO ticket_message_reactions (
+                    message_id, ticket_id, user_email, value, created_at, updated_at
+                 ) VALUES (
+                    :message_id, :ticket_id, :user_email, :value, :created_at, :updated_at
+                 )
+                 ON CONFLICT(message_id, user_email) DO UPDATE SET
+                    value = excluded.value,
+                    ticket_id = excluded.ticket_id,
+                    updated_at = excluded.updated_at'
+            );
+            $upsert->execute([
+                ':message_id' => $messageId,
+                ':ticket_id' => $ticketId,
+                ':user_email' => $userEmail,
+                ':value' => $value,
+                ':created_at' => $now,
+                ':updated_at' => $now,
+            ]);
+        }
+
+        return $this->getMessageReactionSummary($messageId, $userEmail);
+    }
+
+    /**
+     * @return array{plus: int, minus: int, mine: int, plus_users: list<string>, minus_users: list<string>}
+     */
+    public function getMessageReactionSummary(int $messageId, string $viewerEmail = ''): array
+    {
+        $summary = [
+            'plus' => 0,
+            'minus' => 0,
+            'mine' => 0,
+            'plus_users' => [],
+            'minus_users' => [],
+        ];
+        if ($messageId <= 0) {
+            return $summary;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT user_email, value
+             FROM ticket_message_reactions
+             WHERE message_id = :message_id
+             ORDER BY user_email ASC'
+        );
+        $statement->execute([':message_id' => $messageId]);
+
+        return $this->summarizeReactionRows($statement->fetchAll(PDO::FETCH_ASSOC), $viewerEmail);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array{plus: int, minus: int, mine: int, plus_users: list<string>, minus_users: list<string>}
+     */
+    private function summarizeReactionRows(array $rows, string $viewerEmail): array
+    {
+        $summary = [
+            'plus' => 0,
+            'minus' => 0,
+            'mine' => 0,
+            'plus_users' => [],
+            'minus_users' => [],
+        ];
+        $viewerEmail = strtolower(trim($viewerEmail));
+        foreach ($rows as $row) {
+            $email = strtolower(trim((string) ($row['user_email'] ?? '')));
+            $value = (int) ($row['value'] ?? 0);
+            if ($email === '' || ($value !== 1 && $value !== -1)) {
+                continue;
+            }
+            if ($value === 1) {
+                $summary['plus']++;
+                $summary['plus_users'][] = $email;
+            } else {
+                $summary['minus']++;
+                $summary['minus_users'][] = $email;
+            }
+            if ($viewerEmail !== '' && $email === $viewerEmail) {
+                $summary['mine'] = $value;
+            }
+        }
+
+        return $summary;
+    }
+
+    private function getMessagesForTicket(int $ticketId, bool $includeGhostMessages = false, string $viewerEmail = ''): array
     {
         $ghostSql = $includeGhostMessages ? '' : ' AND COALESCE(is_ghost, 0) = 0';
         $messageStatement = $this->pdo->prepare(
@@ -4683,15 +4831,35 @@ class TicketStore
         );
         $attachmentStatement->execute([':ticket_id' => $ticketId]);
 
+        $requesterEmail = $this->getTicketRequesterEmail($ticketId);
         $attachmentsByMessage = [];
         foreach ($attachmentStatement->fetchAll(PDO::FETCH_ASSOC) as $attachment) {
+            $attachment['requester_email'] = $requesterEmail;
             $messageId = (int) ($attachment['message_id'] ?? 0);
             $attachmentsByMessage[$messageId][] = $attachment;
         }
 
+        $reactionsByMessage = [];
+        $reactionStatement = $this->pdo->prepare(
+            'SELECT message_id, user_email, value
+             FROM ticket_message_reactions
+             WHERE ticket_id = :ticket_id
+             ORDER BY user_email ASC'
+        );
+        $reactionStatement->execute([':ticket_id' => $ticketId]);
+        foreach ($reactionStatement->fetchAll(PDO::FETCH_ASSOC) as $reactionRow) {
+            $reactionMessageId = (int) ($reactionRow['message_id'] ?? 0);
+            if ($reactionMessageId <= 0) {
+                continue;
+            }
+            $reactionsByMessage[$reactionMessageId][] = $reactionRow;
+        }
+        $viewerEmail = strtolower(trim($viewerEmail));
+
         foreach ($messages as &$message) {
             $messageId = (int) $message['id'];
             $message['attachments'] = $attachmentsByMessage[$messageId] ?? [];
+            $message['reactions'] = $this->summarizeReactionRows($reactionsByMessage[$messageId] ?? [], $viewerEmail);
             $message['is_ghost'] = !empty($message['is_ghost']);
             $message['is_ai_assistant'] = (int) ($message['is_ai_assistant'] ?? 0) === 1;
             $customName = trim((string) ($message['sender_display_name'] ?? ''));
@@ -4775,25 +4943,50 @@ class TicketStore
     /**
      * Clear ghost mode on a message and bump the ticket updated_at.
      *
+     * When $messageText is not null, that string replaces the stored draft
+     * before the message leaves ghost mode.
+     *
      * @return array<string, mixed>|null Published message row, or null if missing / not ghost
      */
-    public function publishGhostMessage(int $messageId): ?array
+    public function publishGhostMessage(int $messageId, ?string $messageText = null): ?array
     {
         $message = $this->getTicketMessage($messageId);
         if ($message === null || empty($message['is_ghost'])) {
             return null;
         }
 
+        $previousText = (string) ($message['message_text'] ?? '');
+        $nextText = $messageText === null ? $previousText : $messageText;
+        $textChanged = $nextText !== $previousText;
+
         $now = date('c');
-        $updateMessage = $this->pdo->prepare(
-            'UPDATE ticket_messages
-             SET is_ghost = 0
-             WHERE id = :id
-               AND COALESCE(is_ghost, 0) = 1'
-        );
-        $updateMessage->execute([':id' => $messageId]);
+        if ($messageText === null) {
+            $updateMessage = $this->pdo->prepare(
+                'UPDATE ticket_messages
+                 SET is_ghost = 0
+                 WHERE id = :id
+                   AND COALESCE(is_ghost, 0) = 1'
+            );
+            $updateMessage->execute([':id' => $messageId]);
+        } else {
+            $updateMessage = $this->pdo->prepare(
+                'UPDATE ticket_messages
+                 SET is_ghost = 0,
+                     message_text = :message_text
+                 WHERE id = :id
+                   AND COALESCE(is_ghost, 0) = 1'
+            );
+            $updateMessage->execute([
+                ':id' => $messageId,
+                ':message_text' => $messageText,
+            ]);
+        }
         if ($updateMessage->rowCount() < 1) {
             return null;
+        }
+
+        if ($textChanged) {
+            $this->deleteTextTranslationsForEntity('ticket_message', $messageId);
         }
 
         $updateTicket = $this->pdo->prepare(
@@ -4805,6 +4998,7 @@ class TicketStore
         ]);
 
         $message['is_ghost'] = false;
+        $message['message_text'] = $nextText;
 
         return $message;
     }

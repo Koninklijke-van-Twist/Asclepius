@@ -64,7 +64,7 @@ Alle ticketkolommen plus:
 - `participant_emails` — array van e-mailadressen
 - `messages` — array, standaard **zonder** ghost-berichten
 
-Berichtvelden o.a.: `id`, `ticket_id`, `sender_email`, `sender_role` (`admin` of `user`), `message_text`, `created_at`, `is_ghost`, `attachments`.
+Berichtvelden o.a.: `id`, `ticket_id`, `sender_email`, `sender_role` (`admin` of `user`), `message_text`, `created_at`, `is_ghost`, `attachments`, `reactions` (`plus`, `minus`, `mine` als `1`, `-1` of `0`, `plus_users`, `minus_users`). Reacties sturen geen mail, melding of webhook.
 
 Optioneel, als de afzender ze gezet heeft (bots via `add_ticket_message`):
 
@@ -379,13 +379,13 @@ Slaat per categorie alleen een rij op als het aantal open tickets is veranderd. 
 
 ### Tickets beheren (ICT / trusted)
 
-`manage_ticket_participants` — `operation`: `add` | `remove` | `apply`. Velden: `ticket_id`, `participant_emails` (toevoegen), `participant_email` of `remove_participant_emails` (verwijderen). Minimaal één deelnemer. Admin of trusted.
+`manage_ticket_participants` — `operation`: `add` | `remove` | `apply`. Velden: `ticket_id`, `participant_emails` (toevoegen), `participant_email` of `remove_participant_emails` (verwijderen). Minimaal één deelnemer. Elke ingelogde kijker die het ticket mag openen (deelnemer, ICT of trusted). Een meegestuurde `user_is_admin` geeft geen extra rechten. De laatste deelnemer blijft staan (`flash.ticket_participant_minimum`).
 
 `change_ticket_category` — `ticket_id`, `category` (moet in `ticket_lookups.categories` zitten), optioneel `reassign` (bool). Zet een systeemnotitie. ICT, service-key, webhook-key of trusted.
 
 De vier mutaties hieronder (`change_ticket_status`, `change_ticket_assignee`, `change_ticket_priority`, `change_ticket_due_date`) gebruiken dezelfde autorisatie als `change_ticket_category`: geldige **service-key**, **webhook-key** (`apiClient.is_admin`), ICT-rechten van de sessie, of trusted localhost. Een client-meegegeven `user_is_admin` in de body wordt **genegeerd**.
 
-`publish_ghost_message` — zelfde autorisatie. Haalt een bestaand ghost-bericht uit ghost-modus en stuurt dezelfde updatemail naar deelnemers als een nieuw ICT-bericht (zonder statuswijziging).
+`publish_ghost_message` — zelfde autorisatie. Haalt een bestaand ghost-bericht uit ghost-modus en stuurt dezelfde updatemail naar deelnemers als een nieuw ICT-bericht (zonder statuswijziging). Optioneel `message` of `message_text` vervangt de concepttekst vóór publiceren en vóór die mail.
 
 Gemeenschappelijke foutvorm (`success: false`):
 
@@ -535,10 +535,13 @@ Extra fout: `422` `invalid_due_date` (leeg, verkeerd formaat of onmogelijke kale
 
 `message_id` — verplicht. Zet `is_ghost` op `0` voor dat bericht (alleen als het nu een ghost is). Stuurt daarna dezelfde updatemail naar deelnemers als een nieuw ICT-bericht zonder statuswijziging (`email.subject_update` / `email.intro_update` + `email.intro_update_no_status`), zodat de eindgebruiker het niet kan onderscheiden van een net gepost bericht. Lege berichten zonder bijlagen worden wel gepubliceerd, maar zonder mail.
 
+Optioneel `message` of `message_text`: als een van beide meekomt, vervangt die string de opgeslagen concepttekst vóór het publiceren en vóór de mail. Ontbreekt het veld, dan blijft de bestaande tekst staan. Een lege string is geldig (bijvoorbeeld alleen bijlagen). `message_text` heeft voorrang als beide velden meekomen.
+
 ```json
 {
   "action": "publish_ghost_message",
-  "message_id": 4421
+  "message_id": 4421,
+  "message_text": "Aangepaste tekst die de gebruiker te zien krijgt."
 }
 ```
 
@@ -550,15 +553,21 @@ Succes → `200`:
   "ticket_id": 776,
   "message_id": 4421,
   "is_ghost": false,
-  "notified": true
+  "notified": true,
+  "message_text": "Aangepaste tekst die de gebruiker te zien krijgt.",
+  "message_html": "Aangepaste tekst die de gebruiker te zien krijgt."
 }
 ```
+
+`message_html` is de gerenderde Markdown van `message_text` (veilig geëscaped), inclusief inline bijlagen van dat bericht. Zonder opmaak is dat de geëscapete tekst zelf.
 
 `change_ticket_title` — `ticket_id`, `title` (niet leeg). Admin of trusted. Wist titelvertalingen.
 
 `update_ticket_private` — `ticket_id`, `is_private`. ICT-overzicht (`is_admin_portal` + admin) of trusted.
 
 `update_ticket_message_checkbox` — vink een markdown-checkbox in een bericht aan/uit. `ticket_id`, `message_id`, `line_index`, `checked`, `csrf_token`. Admin of trusted + geldige sessie-CSRF. Response: `message_text`.
+
+`set_message_reaction` — zet +1, −1 of wis (`value` `0`) de reactie van de ingelogde kijker op een bericht. `ticket_id`, `message_id`, `value` (`1`, `-1` of `0`), `csrf_token`. Zelfde tickettoegang als het ticket openen. Eén reactie per gebruiker per bericht. Response: `value` (de keuze van de kijker), `plus`, `minus`, `plus_users`, `minus_users`. Geen mail, geen melding, geen webhook. `403` `csrf`, `404` `ticket_not_found` / `message_not_found`, `422` `invalid_reaction`.
 
 `translate_ticket` — vertaal titel en berichten. `ticket_id`, `language` (`nl`/`en`/`de`/`fr`), `viewer_email`, optioneel `user_is_admin`, `is_admin_portal`. Response: `title`, `title_raw`, `title_is_translated`, `messages[]` met `message_text` / `message_text_raw` en gerenderde HTML `message_text_html` / `message_text_raw_html` (Markdown, veilig geëscaped; inline bijlagen en toets-iconen blijven intact). Ghosts volgen gewone `getTicket`-regels (niet inbegrepen tenzij admin-overzicht).
 

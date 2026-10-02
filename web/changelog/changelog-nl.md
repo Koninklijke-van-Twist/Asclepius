@@ -1,3 +1,35 @@
+id: 2026-10-02-message-reactions
+date: 2026-10-02
+title: Reacties op berichten
+author: Tim Falken
+
+Op elk bericht kun je +1 of −1 geven. Nog een keer op dezelfde reactie klikken haalt hem weg; de andere keuze wisselt. De aantallen blijven zichtbaar. Er gaat geen mail of melding uit.
+
+---
+id: 2026-10-02-ticket-participants-anyone
+date: 2026-10-02
+title: Iedereen kan gebruikers beheren
+author: Tim Falken
+
+Wie een ticket mag openen, kan gebruikers toevoegen en weghalen. De laatste gebruiker blijft altijd op het ticket.
+
+---
+id: 2026-10-02-attachment-download-name
+date: 2026-10-02
+title: Downloadnaam van bijlagen
+author: Tim Falken
+
+Een bijlage downloadt als ticketnummer en aanvrager, bijvoorbeeld `42_jan.pdf`, in plaats van een lange technische bestandsnaam.
+
+---
+id: 2026-10-01-ghost-publish-edit
+date: 2026-10-01
+title: Ghost-bericht aanpassen vóór publiceren
+author: Tim Falken
+
+Bij Ghost-publiceren kun je de tekst nog wijzigen in het bevestigingsvenster. De aangepaste tekst wordt gepubliceerd en in de updatemail meegestuurd.
+
+---
 id: 2026-09-30-api-response-hints
 date: 2026-09-30
 title: Aanbevelingen in API-antwoorden

@@ -592,20 +592,162 @@ function handleWebPushSubscriptionApiAction(TicketStore $store, array $payload, 
     return ['success' => true];
 }
 
-function handleManageTicketParticipantsApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+function handleSetMessageReactionApiAction(TicketStore $store, array $payload, ?array $apiClient): array
 {
-    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
-    $userIsAdmin = !empty($apiClient['is_admin']) || !empty($payload['user_is_admin']);
-    if (!$userIsAdmin && !isTrustedApiRequester()) {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        $sessionCookieName = session_name();
+        if ($sessionCookieName !== '' && !empty($_COOKIE[$sessionCookieName])) {
+            session_start(['read_and_close' => true]);
+        }
+    }
+
+    $csrfToken = trim((string) ($payload['csrf_token'] ?? ''));
+    $sessionToken = (string) ($_SESSION['csrf_token'] ?? '');
+    if ($sessionToken === '' || !hash_equals($sessionToken, $csrfToken)) {
         return [
             'success' => false,
-            'error' => __('flash.settings_admin_only'),
+            'error' => 'csrf',
+            'error_code' => 'csrf',
         ];
     }
 
+    $sessionEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+    $viewerEmail = ($sessionEmail !== '' && filter_var($sessionEmail, FILTER_VALIDATE_EMAIL))
+        ? $sessionEmail
+        : strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    if ($viewerEmail === '' || !filter_var($viewerEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'error' => 'viewer_missing',
+            'error_code' => 'viewer_missing',
+        ];
+    }
+
+    $ticketId = max(0, (int) ($payload['ticket_id'] ?? 0));
+    $messageId = max(0, (int) ($payload['message_id'] ?? 0));
+    if ($ticketId <= 0 || $messageId <= 0) {
+        return [
+            'success' => false,
+            'error' => 'message_id_required',
+            'error_code' => 'message_id_required',
+        ];
+    }
+    if (!array_key_exists('value', $payload) || !is_numeric($payload['value'])) {
+        return [
+            'success' => false,
+            'error' => 'invalid_reaction',
+            'error_code' => 'invalid_reaction',
+        ];
+    }
+    $value = (int) $payload['value'];
+    if (!in_array($value, [-1, 0, 1], true)) {
+        return [
+            'success' => false,
+            'error' => 'invalid_reaction',
+            'error_code' => 'invalid_reaction',
+        ];
+    }
+
+    $trusted = isTrustedApiRequester();
+    $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
+    $ictAccess = resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true);
+    $isLimitedIct = !empty($ictAccess['is_limited_ict']) && empty($ictAccess['is_full_ict_admin']);
+    $isAdminViewer = $trusted
+        || !empty($apiClient['is_admin'])
+        || !empty($ictAccess['is_full_ict_admin'])
+        || $isLimitedIct;
+    $accessCategories = ($isLimitedIct && !$trusted && is_array($ictAccess['access_categories'] ?? null))
+        ? $ictAccess['access_categories']
+        : null;
+    $ticket = $store->getTicket(
+        $ticketId,
+        $isAdminViewer,
+        $viewerEmail,
+        'default',
+        $isAdminViewer,
+        $accessCategories
+    );
+    if ($ticket === null) {
+        return [
+            'success' => false,
+            'error' => __('flash.ticket_not_found'),
+            'error_code' => 'ticket_not_found',
+        ];
+    }
+
+    $message = $store->getTicketMessage($messageId);
+    if ($message === null || (int) ($message['ticket_id'] ?? 0) !== $ticketId || (!empty($message['is_ghost']) && !$isAdminViewer)) {
+        return [
+            'success' => false,
+            'error' => 'message_not_found',
+            'error_code' => 'message_not_found',
+        ];
+    }
+
+    $summary = $store->setMessageReaction($ticketId, $messageId, $viewerEmail, $value);
+    if ($summary === null) {
+        return [
+            'success' => false,
+            'error' => 'message_not_found',
+            'error_code' => 'message_not_found',
+        ];
+    }
+
+    return [
+        'success' => true,
+        'ticket_id' => $ticketId,
+        'message_id' => $messageId,
+        'value' => (int) ($summary['mine'] ?? 0),
+        'plus' => (int) ($summary['plus'] ?? 0),
+        'minus' => (int) ($summary['minus'] ?? 0),
+        'plus_users' => array_map(
+            static fn(string $email): string => formatUserDisplayName($email),
+            $summary['plus_users'] ?? []
+        ),
+        'minus_users' => array_map(
+            static fn(string $email): string => formatUserDisplayName($email),
+            $summary['minus_users'] ?? []
+        ),
+    ];
+}
+
+function handleManageTicketParticipantsApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+    $trusted = isTrustedApiRequester();
+    if ($viewerEmail === '' || !filter_var($viewerEmail, FILTER_VALIDATE_EMAIL)) {
+        if (!$trusted) {
+            return [
+                'success' => false,
+                'error' => __('flash.settings_admin_only'),
+            ];
+        }
+        $viewerEmail = strtolower(trim((string) ($payload['viewer_email'] ?? '')));
+    }
+
+    $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
+    $ictAccess = $viewerEmail !== ''
+        ? resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true)
+        : [];
+    $isLimitedIct = !empty($ictAccess['is_limited_ict']) && empty($ictAccess['is_full_ict_admin']);
+    $isAdminViewer = $trusted
+        || !empty($apiClient['is_admin'])
+        || !empty($ictAccess['is_full_ict_admin'])
+        || $isLimitedIct;
+    $accessCategories = ($isLimitedIct && !$trusted && is_array($ictAccess['access_categories'] ?? null))
+        ? $ictAccess['access_categories']
+        : null;
+
     $operation = strtolower(trim((string) ($payload['operation'] ?? '')));
     $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
-    $ticket = $store->getTicket($ticketId, true, $viewerEmail);
+    $ticket = $store->getTicket(
+        $ticketId,
+        $isAdminViewer,
+        $viewerEmail !== '' ? $viewerEmail : 'ict@kvt.nl',
+        'default',
+        false,
+        $accessCategories
+    );
     if ($ticket === null) {
         return [
             'success' => false,
@@ -710,7 +852,7 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
     $participantChangeNotifiedViaUpdate = false;
     $participantChangeNote = buildParticipantChangeNote($newParticipants, $removedParticipants);
     if ($participantChangeNote !== '') {
-        $store->addMessage($ticketId, $actorEmail, 'admin', $participantChangeNote);
+        $store->addMessage($ticketId, $actorEmail, $isAdminViewer ? 'admin' : 'user', $participantChangeNote);
         $updatedTicket = $store->getTicket($ticketId, true, $actorEmail) ?? $updatedTicket;
         $participantsAfter = is_array($updatedTicket['participant_emails'] ?? null) ? $updatedTicket['participant_emails'] : $participantsAfter;
 
@@ -754,6 +896,13 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
     }
 
     if ($addedCount <= 0 && $removedCount <= 0) {
+        if ($removeParticipantEmails !== [] && count($participantsAfter) <= 1) {
+            return [
+                'success' => false,
+                'error' => __('flash.ticket_participant_minimum'),
+            ];
+        }
+
         return [
             'success' => false,
             'error' => __('flash.ticket_participant_add_none'),
@@ -1442,7 +1591,18 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
         ];
     }
 
-    $published = $store->publishGhostMessage($messageId);
+    $replacementText = null;
+    if (array_key_exists('message_text', $payload) || array_key_exists('message', $payload)) {
+        $rawReplacement = array_key_exists('message_text', $payload)
+            ? $payload['message_text']
+            : ($payload['message'] ?? '');
+        if (is_array($rawReplacement) || is_object($rawReplacement)) {
+            $rawReplacement = '';
+        }
+        $replacementText = str_replace(["\r\n", "\r"], "\n", (string) $rawReplacement);
+    }
+
+    $published = $store->publishGhostMessage($messageId, $replacementText);
     if ($published === null) {
         return [
             'success' => false,
@@ -1461,7 +1621,8 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
         ];
     }
 
-    $messageText = trim((string) ($published['message_text'] ?? ''));
+    $storedText = (string) ($published['message_text'] ?? '');
+    $messageText = trim($storedText);
     $hasAttachments = $store->messageHasAttachments($messageId);
     if ($messageText !== '' || $hasAttachments) {
         $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
@@ -1477,7 +1638,7 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
             buildNotificationBody(
                 $updatedTicket,
                 'email.intro_update',
-                $messageText,
+                $storedText,
                 false,
                 $reqLang,
                 __mail('email.intro_update_no_status', $reqLang)
@@ -1491,12 +1652,24 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
         );
     }
 
+    $messageHtml = '';
+    foreach (($updatedTicket['messages'] ?? []) as $ticketMessage) {
+        if ((int) ($ticketMessage['id'] ?? 0) !== $messageId) {
+            continue;
+        }
+        $attachments = is_array($ticketMessage['attachments'] ?? null) ? $ticketMessage['attachments'] : [];
+        $messageHtml = formatTicketMessageText($storedText, $messageId, $attachments);
+        break;
+    }
+
     return [
         'success' => true,
         'ticket_id' => $ticketId,
         'message_id' => $messageId,
         'is_ghost' => false,
         'notified' => $messageText !== '' || $hasAttachments,
+        'message_text' => $storedText,
+        'message_html' => $messageHtml,
     ];
 }
 
@@ -3123,6 +3296,20 @@ if ($method === 'POST') {
 
     if ($action === 'manage_ticket_participants') {
         sendJson(200, handleManageTicketParticipantsApiAction($store, $payload, $apiClient));
+    }
+
+    if ($action === 'set_message_reaction') {
+        $reactionResponse = handleSetMessageReactionApiAction($store, $payload, $apiClient);
+        if (!empty($reactionResponse['success'])) {
+            sendJson(200, $reactionResponse);
+        }
+        $reactionError = (string) ($reactionResponse['error_code'] ?? '');
+        $reactionStatus = match ($reactionError) {
+            'csrf' => 403,
+            'ticket_not_found', 'message_not_found' => 404,
+            default => 422,
+        };
+        sendJson($reactionStatus, $reactionResponse);
     }
 
     if ($action === 'change_ticket_category') {

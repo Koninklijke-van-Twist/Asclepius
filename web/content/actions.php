@@ -59,7 +59,10 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
         exit(__('flash.attachment_not_found'));
     }
 
-    $downloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($attachment['original_name'] ?? 'bijlage')) ?: 'bijlage';
+    $downloadName = buildAttachmentDownloadFilename(
+        $attachment,
+        (string) ($attachmentTicket['user_email'] ?? '')
+    );
     clearstatcache(true, $storedPath);
     $fileSize = filesize($storedPath);
     if ($fileSize === false) {
@@ -232,12 +235,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
         }
 
         if ($formAction === 'add_ticket_participants') {
-            if (!$canManageTickets) {
-                throw new RuntimeException(__('flash.settings_admin_only'));
-            }
-
             $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
-            $ticket = $store->getTicket($ticketId, true, $userEmail, 'default', false, $ticketAccessCategories);
+            $ticket = $store->getTicket($ticketId, $canManageTickets, $userEmail, 'default', false, $ticketAccessCategories);
             if ($ticket === null) {
                 throw new RuntimeException(__('flash.ticket_not_found'));
             }
@@ -272,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
                 $participantChangeNote = buildParticipantChangeNote($newParticipants, []);
                 if ($participantChangeNote !== '') {
-                    $store->addMessage($ticketId, $userEmail, 'admin', $participantChangeNote);
+                    $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $participantChangeNote);
                     $updatedTicket = $store->getTicket($ticketId, true, $userEmail) ?? $updatedTicket;
 
                     $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
@@ -320,13 +319,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
         }
 
         if ($formAction === 'remove_ticket_participant') {
-            if (!$canManageTickets) {
-                throw new RuntimeException(__('flash.settings_admin_only'));
-            }
-
             $ticketId = max(1, (int) ($_POST['ticket_id'] ?? 0));
             $participantEmail = strtolower(trim((string) ($_POST['participant_email'] ?? '')));
-            $ticket = $store->getTicket($ticketId, true, $userEmail, 'default', false, $ticketAccessCategories);
+            $ticket = $store->getTicket($ticketId, $canManageTickets, $userEmail, 'default', false, $ticketAccessCategories);
             if ($ticket === null) {
                 throw new RuntimeException(__('flash.ticket_not_found'));
             }
@@ -353,7 +348,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
                 $participantChangeNote = buildParticipantChangeNote([], $removedParticipants);
                 if ($participantChangeNote !== '') {
-                    $store->addMessage($ticketId, $userEmail, 'admin', $participantChangeNote);
+                    $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $participantChangeNote);
                     $updatedTicket = $store->getTicket($ticketId, true, $userEmail) ?? $updatedTicket;
 
                     $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
