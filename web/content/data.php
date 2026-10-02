@@ -191,7 +191,7 @@ if ($store instanceof TicketStore) {
     $messageTicketIds = $openTicketId > 0 ? [$openTicketId] : [];
     $includeGhostMessages = shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view);
     $messagesByTicketId = $messageTicketIds !== []
-        ? $store->getTicketMessagesBatch($messageTicketIds, $includeGhostMessages)
+        ? $store->getTicketMessagesBatch($messageTicketIds, $includeGhostMessages, $userEmail)
         : [];
 
     foreach ($tickets as $ticket) {

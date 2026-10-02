@@ -64,7 +64,17 @@ Alle ticketkolommen plus:
 - `participant_emails` — array van e-mailadressen
 - `messages` — array, standaard **zonder** ghost-berichten
 
-Berichtvelden o.a.: `id`, `ticket_id`, `sender_email`, `sender_role` (`admin` of `user`), `message_text`, `created_at`, `is_ghost`, `attachments`, `reactions` (`plus`, `minus`, `mine` als `1`, `-1` of `0`, `plus_users`, `minus_users`). Reacties sturen geen mail, melding of webhook.
+Berichtvelden o.a.: `id`, `ticket_id`, `sender_email`, `sender_role` (`admin` of `user`), `message_text`, `created_at`, `is_ghost`, `attachments`, `reactions`. Reacties sturen geen mail, melding of webhook.
+
+`reactions` op een bericht (wiki-signaal voor wie het antwoord beoordeelt):
+
+- `likes` — aantal 👍. Iemand vond dit het **juiste** antwoord.
+- `dislikes` — aantal 👎. Iemand vond dit het **onjuiste** antwoord.
+- `mine` — stem van de kijker: `1` (like), `-1` (dislike) of `0`. Zonder kijker (service-key) is dit `0`.
+- `like_users` / `dislike_users` — wie die stem zette. Zelfde identiteit als andere gebruikers: `{ "email", "name" }`.
+- `plus`, `minus`, `plus_users`, `minus_users` — dezelfde totalen; `plus_users` en `minus_users` zijn e-mailadressen. `plus` = `likes`, `minus` = `dislikes`. Blijven staan naast de like/dislike-velden.
+
+Een gebruiker heeft hooguit één stem per bericht (nooit 👍 én 👎). Bestaande +1/−1-rijen blijven dezelfde stem (`1` of `-1`).
 
 Optioneel, als de afzender ze gezet heeft (bots via `add_ticket_message`):
 
@@ -567,7 +577,24 @@ Succes → `200`:
 
 `update_ticket_message_checkbox` — vink een markdown-checkbox in een bericht aan/uit. `ticket_id`, `message_id`, `line_index`, `checked`, `csrf_token`. Admin of trusted + geldige sessie-CSRF. Response: `message_text`.
 
-`set_message_reaction` — zet +1, −1 of wis (`value` `0`) de reactie van de ingelogde kijker op een bericht. `ticket_id`, `message_id`, `value` (`1`, `-1` of `0`), `csrf_token`. Zelfde tickettoegang als het ticket openen. Eén reactie per gebruiker per bericht. Response: `value` (de keuze van de kijker), `plus`, `minus`, `plus_users`, `minus_users`. Geen mail, geen melding, geen webhook. `403` `csrf`, `404` `ticket_not_found` / `message_not_found`, `422` `invalid_reaction`.
+`set_message_reaction` — zet 👍 (`value` `1`), 👎 (`value` `-1`) of wis (`value` `0`) de stem van de ingelogde kijker op een bericht. `ticket_id`, `message_id`, `value` (`1`, `-1` of `0`), `csrf_token`. Zelfde tickettoegang als het ticket openen. Eén stem per gebruiker: dezelfde waarde nog eens wist de stem, de andere waarde verplaatst hem. `1` = juist antwoord (like), `-1` = onjuist antwoord (dislike). Response: `value`, `likes`, `dislikes`, `like_users`, `dislike_users` (`{ "email", "name" }`), plus `plus`, `minus`, `plus_users`, `minus_users` (e-mailadressen). Geen mail, geen melding, geen webhook. `403` `csrf`, `404` `ticket_not_found` / `message_not_found`, `422` `invalid_reaction`.
+
+```json
+{
+  "success": true,
+  "ticket_id": 776,
+  "message_id": 4421,
+  "value": 1,
+  "likes": 2,
+  "dislikes": 5,
+  "like_users": [{ "email": "jan@kvt.nl", "name": "Jan" }],
+  "dislike_users": [{ "email": "piet@kvt.nl", "name": "Piet" }],
+  "plus": 2,
+  "minus": 5,
+  "plus_users": ["jan@kvt.nl"],
+  "minus_users": ["piet@kvt.nl"]
+}
+```
 
 `translate_ticket` — vertaal titel en berichten. `ticket_id`, `language` (`nl`/`en`/`de`/`fr`), `viewer_email`, optioneel `user_is_admin`, `is_admin_portal`. Response: `title`, `title_raw`, `title_is_translated`, `messages[]` met `message_text` / `message_text_raw` en gerenderde HTML `message_text_html` / `message_text_raw_html` (Markdown, veilig geëscaped; inline bijlagen en toets-iconen blijven intact). Ghosts volgen gewone `getTicket`-regels (niet inbegrepen tenzij admin-overzicht).
 

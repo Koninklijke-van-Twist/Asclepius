@@ -1,9 +1,9 @@
 id: 2026-10-02-message-reactions
 date: 2026-10-02
-title: Reaktionen auf Nachrichten
+title: Daumen hoch oder runter bei Nachrichten
 author: Tim Falken
 
-Auf jeder Nachricht kannst du +1 oder −1 geben. Nochmal auf dieselbe Reaktion klicken nimmt sie weg; die andere Auswahl wechselt. Die Anzahl bleibt sichtbar. Es geht keine E-Mail und keine Meldung raus.
+Auf jeder Nachricht kannst du 👍 oder 👎 geben: das war die richtige oder die falsche Antwort. Nochmal auf denselben Daumen klicken nimmt die Stimme weg; der andere Daumen verschiebt sie. Die Anzahl steht direkt hinter dem Emoji, zum Beispiel 👍2 und 👎5. Die eigene Wahl leuchtet auf, wenn du über die Nachricht gehst. Wer reagiert hat, siehst du beim Darüberfahren über das Emoji. Es geht keine E-Mail und keine Meldung raus.
 
 ---
 id: 2026-10-02-ticket-participants-anyone

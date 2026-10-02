@@ -1,9 +1,9 @@
 id: 2026-10-02-message-reactions
 date: 2026-10-02
-title: Reacties op berichten
+title: Duim omhoog of omlaag op berichten
 author: Tim Falken
 
-Op elk bericht kun je +1 of −1 geven. Nog een keer op dezelfde reactie klikken haalt hem weg; de andere keuze wisselt. De aantallen blijven zichtbaar. Er gaat geen mail of melding uit.
+Op elk bericht kun je 👍 of 👎 geven: dit was het juiste of het onjuiste antwoord. Nog een keer op dezelfde duim klikken haalt je stem weg; de andere duim verplaatst je stem. De aantallen staan direct achter de emoji, bijvoorbeeld 👍2 en 👎5. Je eigen keuze licht op als je over het bericht gaat. Wie er reageerde zie je als je over de emoji gaat. Er gaat geen mail of melding uit.
 
 ---
 id: 2026-10-02-ticket-participants-anyone

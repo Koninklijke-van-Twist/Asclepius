@@ -3290,7 +3290,7 @@ class TicketStore
      * @param list<int> $ticketIds
      * @return array<int, list<array<string, mixed>>>
      */
-    public function getTicketMessagesBatch(array $ticketIds, bool $includeGhostMessages = false): array
+    public function getTicketMessagesBatch(array $ticketIds, bool $includeGhostMessages = false, string $viewerEmail = ''): array
     {
         $ticketIds = $this->normalizeTicketIds($ticketIds);
         if ($ticketIds === []) {
@@ -3328,6 +3328,23 @@ class TicketStore
             $attachmentsByTicketAndMessage[$ticketId][$messageId][] = $attachment;
         }
 
+        $reactionStatement = $this->pdo->prepare(
+            'SELECT message_id, user_email, value
+             FROM ticket_message_reactions
+             WHERE ticket_id IN (' . $inClause . ')
+             ORDER BY user_email ASC'
+        );
+        $reactionStatement->execute($parameters);
+        $reactionsByMessage = [];
+        foreach ($reactionStatement->fetchAll(PDO::FETCH_ASSOC) as $reactionRow) {
+            $reactionMessageId = (int) ($reactionRow['message_id'] ?? 0);
+            if ($reactionMessageId <= 0) {
+                continue;
+            }
+            $reactionsByMessage[$reactionMessageId][] = $reactionRow;
+        }
+        $viewerEmail = strtolower(trim($viewerEmail));
+
         $messagesByTicket = [];
         foreach ($messages as $message) {
             $ticketId = (int) ($message['ticket_id'] ?? 0);
@@ -3337,6 +3354,7 @@ class TicketStore
             }
 
             $message['attachments'] = $attachmentsByTicketAndMessage[$ticketId][$messageId] ?? [];
+            $message['reactions'] = $this->summarizeReactionRows($reactionsByMessage[$messageId] ?? [], $viewerEmail);
             $message['is_ghost'] = !empty($message['is_ghost']);
             $message['is_ai_assistant'] = (int) ($message['is_ai_assistant'] ?? 0) === 1;
             $messagesByTicket[$ticketId][] = $message;
@@ -4679,10 +4697,11 @@ class TicketStore
     }
 
     /**
-     * Store +1, −1, or clear (0) for one user on one message.
+     * Store 👍 (1), 👎 (−1), or clear (0) for one user on one message.
+     * One row per user: the other vote replaces the previous one.
      * Does not notify, mail, or touch the ticket timestamp.
      *
-     * @return array{plus: int, minus: int, mine: int, plus_users: list<string>, minus_users: list<string>}|null
+     * @return array{plus: int, minus: int, likes: int, dislikes: int, mine: int, plus_users: list<string>, minus_users: list<string>}|null
      */
     public function setMessageReaction(int $ticketId, int $messageId, string $userEmail, int $value): ?array
     {
@@ -4750,13 +4769,15 @@ class TicketStore
     }
 
     /**
-     * @return array{plus: int, minus: int, mine: int, plus_users: list<string>, minus_users: list<string>}
+     * @return array{plus: int, minus: int, likes: int, dislikes: int, mine: int, plus_users: list<string>, minus_users: list<string>}
      */
     public function getMessageReactionSummary(int $messageId, string $viewerEmail = ''): array
     {
         $summary = [
             'plus' => 0,
             'minus' => 0,
+            'likes' => 0,
+            'dislikes' => 0,
             'mine' => 0,
             'plus_users' => [],
             'minus_users' => [],
@@ -4778,13 +4799,15 @@ class TicketStore
 
     /**
      * @param list<array<string, mixed>> $rows
-     * @return array{plus: int, minus: int, mine: int, plus_users: list<string>, minus_users: list<string>}
+     * @return array{plus: int, minus: int, likes: int, dislikes: int, mine: int, plus_users: list<string>, minus_users: list<string>}
      */
     private function summarizeReactionRows(array $rows, string $viewerEmail): array
     {
         $summary = [
             'plus' => 0,
             'minus' => 0,
+            'likes' => 0,
+            'dislikes' => 0,
             'mine' => 0,
             'plus_users' => [],
             'minus_users' => [],
@@ -4798,9 +4821,11 @@ class TicketStore
             }
             if ($value === 1) {
                 $summary['plus']++;
+                $summary['likes']++;
                 $summary['plus_users'][] = $email;
             } else {
                 $summary['minus']++;
+                $summary['dislikes']++;
                 $summary['minus_users'][] = $email;
             }
             if ($viewerEmail !== '' && $email === $viewerEmail) {
