@@ -1,3 +1,11 @@
+id: 2026-10-06-session-keepalive
+date: 2026-10-06
+title: Session stays signed in while Asclepius is open
+author: Cursor Agent
+
+While you keep Asclepius open, your login is refreshed every few minutes. A tab in the background does that more slowly. When you come back to the tab, it happens right away. If the session has expired anyway, a message shows the time and a button to sign in again. Text you were typing stays in that browser and comes back after you sign in. Choose attachments again.
+
+---
 id: 2026-10-02-message-reactions
 date: 2026-10-02
 title: Thumbs up or down on messages

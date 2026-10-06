@@ -134,6 +134,12 @@ if (!defined('APP_TIMEZONE')) {
     define('APP_TIMEZONE', 'Europe/Amsterdam');
 }
 
+/** Hoe vaak een zichtbaar tabblad de PHP-sessie ververst, in seconden. */
+const SESSION_KEEPALIVE_INTERVAL_SECONDS = 240;
+
+/** Trager ping-interval zolang het tabblad verborgen is, in seconden. */
+const SESSION_KEEPALIVE_HIDDEN_INTERVAL_SECONDS = 900;
+
 // Optional override for Janus hours API (localhost URL preferred for trusted auth).
 // Example: 'http://127.0.0.1/janus/hours_api.php'
 if (!defined('JANUS_HOURS_API_URL')) {

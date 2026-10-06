@@ -3353,8 +3353,29 @@
         }
 
         var sessionKeepaliveTimer = null;
-        var sessionKeepaliveInFlight = false;
+        var sessionKeepaliveHiddenTimer = null;
+        var sessionKeepalivePromise = null;
+        var sessionKeepaliveIntervalMs = 240000;
+        var sessionKeepaliveHiddenIntervalMs = 900000;
         var lastSessionKeepaliveOkAt = Date.now();
+        var sessionDraftStorageKey = 'asclepius_unsaved_form_drafts';
+        var sessionExpiredTitleDefault = <?= json_encode(__('session.expired_popup'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        var sessionExpiredTitleDrafts = <?= json_encode(__('session.expired_popup_drafts'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        var sessionExpiredNoticedTemplate = <?= json_encode(__('session.expired_noticed'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        var sessionExpiredMonths = <?= json_encode([
+            __('datetime.month.1'),
+            __('datetime.month.2'),
+            __('datetime.month.3'),
+            __('datetime.month.4'),
+            __('datetime.month.5'),
+            __('datetime.month.6'),
+            __('datetime.month.7'),
+            __('datetime.month.8'),
+            __('datetime.month.9'),
+            __('datetime.month.10'),
+            __('datetime.month.11'),
+            __('datetime.month.12'),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
         var webPushSyncInFlight = false;
         var sessionExpiredHandled = false;
         var sessionExpiredCountdownTimer = null;
@@ -3927,9 +3948,11 @@
         sessionExpiredModal.className = 'session-expired-modal';
         sessionExpiredModal.setAttribute('aria-hidden', 'true');
         sessionExpiredModal.innerHTML = '' +
-            '<div class="session-expired-card" role="alertdialog" aria-modal="true">' +
-            '<h2 class="session-expired-title"><?= addslashes(__('session.expired_popup')) ?></h2>' +
+            '<div class="session-expired-card" role="alertdialog" aria-modal="true" aria-labelledby="session-expired-title">' +
+            '<h2 id="session-expired-title" class="session-expired-title" data-session-expired-title><?= addslashes(__('session.expired_popup')) ?></h2>' +
+            '<p class="session-expired-noticed" data-session-expired-noticed></p>' +
             '<p class="session-expired-countdown" data-session-expired-countdown></p>' +
+            '<button type="button" class="primary-button session-expired-relogin" data-session-expired-relogin><?= addslashes(__('session.relogin')) ?></button>' +
             '</div>';
 
         if (document.body)
@@ -3938,6 +3961,9 @@
         }
 
         var sessionExpiredCountdown = sessionExpiredModal.querySelector('[data-session-expired-countdown]');
+        var sessionExpiredTitleNode = sessionExpiredModal.querySelector('[data-session-expired-title]');
+        var sessionExpiredNoticedNode = sessionExpiredModal.querySelector('[data-session-expired-noticed]');
+        var sessionExpiredReloginButton = sessionExpiredModal.querySelector('[data-session-expired-relogin]');
 
         var closeImagePreview = function ()
         {
@@ -4535,6 +4561,211 @@
             sessionExpiredCountdown.textContent = '<?= addslashes(__('session.auto_refresh_in', 0)) ?>'.replace('0', String(Math.max(0, secondsRemaining)));
         };
 
+        var cssAttributeValue = function (value)
+        {
+            return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        };
+
+        var collectSessionDrafts = function ()
+        {
+            var drafts = [];
+            document.querySelectorAll('form').forEach(function (form)
+            {
+                if (!form.querySelector('input[name="csrf_token"]'))
+                {
+                    return;
+                }
+
+                form.querySelectorAll('textarea, input[type="text"], input[type="search"], input[type="email"]').forEach(function (field)
+                {
+                    if (!field || field.disabled)
+                    {
+                        return;
+                    }
+
+                    var name = field.name || '';
+                    if (name === 'csrf_token' || name === 'form_action' || name === 'return_page')
+                    {
+                        return;
+                    }
+
+                    var value = String(field.value || '');
+                    if (value.trim() === '')
+                    {
+                        return;
+                    }
+
+                    if (value.length > 100000)
+                    {
+                        value = value.slice(0, 100000);
+                    }
+
+                    var ticketCard = form.closest('details.ticket-card');
+                    drafts.push({
+                        ticketId: ticketCard ? (ticketCard.getAttribute('data-ticket-id') || '') : '',
+                        name: name,
+                        id: field.id || '',
+                        value: value
+                    });
+                });
+            });
+
+            return drafts;
+        };
+
+        var saveSessionDrafts = function ()
+        {
+            var drafts = collectSessionDrafts();
+            try
+            {
+                if (drafts.length === 0)
+                {
+                    sessionStorage.removeItem(sessionDraftStorageKey);
+                }
+                else
+                {
+                    sessionStorage.setItem(sessionDraftStorageKey, JSON.stringify(drafts));
+                }
+            }
+            catch (storageError)
+            {
+                // Opslag vol of geblokkeerd; de melding blijft zichtbaar.
+            }
+
+            return drafts;
+        };
+
+        var findSessionDraftField = function (draft)
+        {
+            var name = draft.name || '';
+            var id = draft.id || '';
+            var ticketId = draft.ticketId || '';
+            if (ticketId !== '' && name !== '')
+            {
+                var card = document.querySelector('details.ticket-card[data-ticket-id="' + cssAttributeValue(ticketId) + '"]');
+                if (card)
+                {
+                    var named = card.querySelector('[name="' + cssAttributeValue(name) + '"]');
+                    if (named)
+                    {
+                        return named;
+                    }
+                }
+            }
+
+            if (id !== '')
+            {
+                var byId = document.getElementById(id);
+                if (byId)
+                {
+                    return byId;
+                }
+            }
+
+            if (name !== '' && ticketId === '')
+            {
+                return document.querySelector('form [name="' + cssAttributeValue(name) + '"]');
+            }
+
+            return null;
+        };
+
+        var restoreSessionDrafts = function ()
+        {
+            var raw = null;
+            try
+            {
+                raw = sessionStorage.getItem(sessionDraftStorageKey);
+            }
+            catch (storageError)
+            {
+                return;
+            }
+
+            if (!raw)
+            {
+                return;
+            }
+
+            var drafts = [];
+            try
+            {
+                drafts = JSON.parse(raw);
+            }
+            catch (parseError)
+            {
+                return;
+            }
+
+            if (!Array.isArray(drafts))
+            {
+                return;
+            }
+
+            var remaining = [];
+            drafts.forEach(function (draft)
+            {
+                if (!draft || typeof draft.value !== 'string' || draft.value === '')
+                {
+                    return;
+                }
+
+                var field = findSessionDraftField(draft);
+                if (!field)
+                {
+                    remaining.push(draft);
+                    return;
+                }
+
+                if (String(field.value || '') !== '')
+                {
+                    return;
+                }
+
+                field.value = draft.value;
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            try
+            {
+                if (remaining.length === 0)
+                {
+                    sessionStorage.removeItem(sessionDraftStorageKey);
+                }
+                else
+                {
+                    sessionStorage.setItem(sessionDraftStorageKey, JSON.stringify(remaining));
+                }
+            }
+            catch (storageError)
+            {
+                // Bewaarde tekst blijft staan tot een volgende geslaagde schrijfactie.
+            }
+        };
+
+        var formatSessionExpiredNoticed = function (date)
+        {
+            var hours = String(date.getHours()).padStart(2, '0');
+            var minutes = String(date.getMinutes()).padStart(2, '0');
+            var month = sessionExpiredMonths[date.getMonth()] || '';
+            return String(sessionExpiredNoticedTemplate)
+                .replace('%d', String(date.getDate()))
+                .replace('%s', month)
+                .replace('%d', String(date.getFullYear()))
+                .replace('%s', hours + ':' + minutes);
+        };
+
+        var reloadForSessionLogin = function ()
+        {
+            if (sessionExpiredCountdownTimer !== null)
+            {
+                window.clearInterval(sessionExpiredCountdownTimer);
+                sessionExpiredCountdownTimer = null;
+            }
+
+            window.location.replace(withAutoRefreshFlag(window.location.href));
+        };
+
         var clearTicketHtml = function ()
         {
             if (!liveTicketSection)
@@ -4557,6 +4788,7 @@
             }
 
             sessionExpiredHandled = true;
+            var savedDrafts = saveSessionDrafts();
             closeImagePreview();
             clearTicketHtml();
 
@@ -4578,10 +4810,33 @@
                 sessionKeepaliveTimer = null;
             }
 
+            if (sessionKeepaliveHiddenTimer !== null)
+            {
+                window.clearInterval(sessionKeepaliveHiddenTimer);
+                sessionKeepaliveHiddenTimer = null;
+            }
+
+            if (sessionExpiredTitleNode)
+            {
+                sessionExpiredTitleNode.textContent = savedDrafts.length > 0
+                    ? sessionExpiredTitleDrafts
+                    : sessionExpiredTitleDefault;
+            }
+
+            if (sessionExpiredNoticedNode)
+            {
+                sessionExpiredNoticedNode.textContent = formatSessionExpiredNoticed(new Date());
+            }
+
             if (sessionExpiredModal)
             {
                 sessionExpiredModal.classList.add('is-open');
                 sessionExpiredModal.setAttribute('aria-hidden', 'false');
+            }
+
+            if (sessionExpiredReloginButton && typeof sessionExpiredReloginButton.focus === 'function')
+            {
+                sessionExpiredReloginButton.focus();
             }
 
             document.documentElement.style.overflow = 'hidden';
@@ -4595,78 +4850,161 @@
                 if (secondsRemaining <= 0)
                 {
                     window.clearInterval(sessionExpiredCountdownTimer);
-                    window.location.replace(withAutoRefreshFlag(window.location.href));
+                    reloadForSessionLogin();
                 }
             }, 1000);
         };
 
         window.asclepiusHandleSessionExpired = handleSessionExpired;
 
-        var refreshSessionKeepalive = function (forceCheck)
+        if (sessionExpiredReloginButton)
         {
-            if (!sessionKeepaliveUrl || sessionExpiredHandled)
+            sessionExpiredReloginButton.addEventListener('click', function ()
             {
-                return Promise.resolve(false);
+                reloadForSessionLogin();
+            });
+        }
+
+        var isSessionExpiredResponse = function (response)
+        {
+            if (!response)
+            {
+                return false;
             }
 
-            if (sessionKeepaliveInFlight && !forceCheck)
+            if (response.type === 'opaqueredirect')
             {
-                return Promise.resolve(true);
+                return true;
             }
 
-            sessionKeepaliveInFlight = true;
-            return fetch(sessionKeepaliveUrl, {
+            var status = response.status;
+            return status === 401 || status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+        };
+
+        var refreshSessionKeepalive = function ()
+        {
+            if (!sessionKeepaliveUrl)
+            {
+                return Promise.resolve('unknown');
+            }
+
+            if (sessionExpiredHandled)
+            {
+                return Promise.resolve('expired');
+            }
+
+            if (sessionKeepalivePromise)
+            {
+                return sessionKeepalivePromise;
+            }
+
+            sessionKeepalivePromise = fetch(sessionKeepaliveUrl, {
                 method: 'GET',
                 credentials: 'same-origin',
+                cache: 'no-store',
+                redirect: 'manual',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'fetch'
                 }
             }).then(function (response)
             {
-                if (response.status === 401)
+                if (isSessionExpiredResponse(response))
                 {
                     handleSessionExpired();
-                    return false;
+                    return 'expired';
                 }
 
-                if (!response.ok)
+                if (response.status === 204)
                 {
-                    return false;
+                    lastSessionKeepaliveOkAt = Date.now();
+                    return 'ok';
                 }
 
-                return response.json();
-            }).then(function (data)
-            {
-                if (data === false)
+                var contentType = String(response.headers.get('Content-Type') || '');
+                if (contentType.indexOf('text/html') !== -1)
                 {
-                    return false;
+                    handleSessionExpired();
+                    return 'expired';
                 }
 
-                if (!data || !data.ok)
+                if (!response.ok || contentType.indexOf('application/json') === -1)
                 {
-                    return false;
+                    return 'unknown';
                 }
 
-                lastSessionKeepaliveOkAt = Date.now();
-
-                if (data.api_key && data.api_key !== apiKey)
+                return response.json().then(function (data)
                 {
-                    apiKey = data.api_key;
-                    if (document.body)
+                    if (!data || data.ok === false || data.reason === 'session_expired')
                     {
-                        document.body.setAttribute('data-api-key', apiKey);
+                        handleSessionExpired();
+                        return 'expired';
                     }
-                }
 
-                return true;
+                    lastSessionKeepaliveOkAt = Date.now();
+                    return 'ok';
+                }).catch(function ()
+                {
+                    return 'unknown';
+                });
             }).catch(function ()
             {
-                return false;
+                return 'unknown';
             }).finally(function ()
             {
-                sessionKeepaliveInFlight = false;
+                sessionKeepalivePromise = null;
             });
+
+            return sessionKeepalivePromise;
+        };
+
+        var clearSessionKeepaliveTimers = function ()
+        {
+            if (sessionKeepaliveTimer !== null)
+            {
+                window.clearInterval(sessionKeepaliveTimer);
+                sessionKeepaliveTimer = null;
+            }
+
+            if (sessionKeepaliveHiddenTimer !== null)
+            {
+                window.clearInterval(sessionKeepaliveHiddenTimer);
+                sessionKeepaliveHiddenTimer = null;
+            }
+        };
+
+        var armSessionKeepaliveTimers = function ()
+        {
+            clearSessionKeepaliveTimers();
+            if (sessionExpiredHandled || !sessionKeepaliveUrl)
+            {
+                return;
+            }
+
+            if (document.hidden)
+            {
+                sessionKeepaliveHiddenTimer = window.setInterval(function ()
+                {
+                    refreshSessionKeepalive();
+                }, sessionKeepaliveHiddenIntervalMs);
+                return;
+            }
+
+            sessionKeepaliveTimer = window.setInterval(function ()
+            {
+                refreshSessionKeepalive();
+            }, sessionKeepaliveIntervalMs);
+        };
+
+        var onSessionKeepaliveReturn = function ()
+        {
+            if (sessionExpiredHandled || !sessionKeepaliveUrl)
+            {
+                return;
+            }
+
+            refreshSessionKeepalive();
+            armSessionKeepaliveTimers();
         };
 
         var shouldPromptResolutionNote = function (form)
@@ -4807,14 +5145,10 @@
             event.preventDefault();
             var submitter = event.submitter || null;
 
-            refreshSessionKeepalive(true).then(function (sessionOk)
+            refreshSessionKeepalive().then(function (sessionState)
             {
-                if (!sessionOk)
+                if (sessionState === 'expired')
                 {
-                    if (!sessionExpiredHandled)
-                    {
-                        handleSessionExpired();
-                    }
                     return;
                 }
 
@@ -4858,13 +5192,7 @@
                 return;
             }
 
-            refreshSessionKeepalive(true).then(function (sessionOk)
-            {
-                if (!sessionOk && !sessionExpiredHandled)
-                {
-                    handleSessionExpired();
-                }
-            });
+            refreshSessionKeepalive();
         });
 
         var apiFetchJson = function (action, payload)
@@ -9389,15 +9717,35 @@
 
         if (sessionKeepaliveUrl)
         {
-            var sessionKeepaliveIntervalMs = parseInt((document.body && document.body.getAttribute('data-session-keepalive-interval')) || '120000', 10);
-            window.setTimeout(refreshSessionKeepalive, 15000);
-            sessionKeepaliveTimer = window.setInterval(refreshSessionKeepalive, Math.max(sessionKeepaliveIntervalMs, 60000));
+            sessionKeepaliveIntervalMs = Math.max(parseInt((document.body && document.body.getAttribute('data-session-keepalive-interval')) || String(sessionKeepaliveIntervalMs), 10) || sessionKeepaliveIntervalMs, 60000);
+            sessionKeepaliveHiddenIntervalMs = Math.max(parseInt((document.body && document.body.getAttribute('data-session-keepalive-hidden-interval')) || String(sessionKeepaliveHiddenIntervalMs), 10) || sessionKeepaliveHiddenIntervalMs, sessionKeepaliveIntervalMs);
+            restoreSessionDrafts();
+            window.setTimeout(function ()
+            {
+                if (!document.hidden && !sessionExpiredHandled)
+                {
+                    refreshSessionKeepalive();
+                }
+            }, 15000);
+            armSessionKeepaliveTimers();
             document.addEventListener('visibilitychange', function ()
             {
-                if (!document.hidden)
+                if (document.hidden)
                 {
-                    refreshSessionKeepalive(true);
+                    armSessionKeepaliveTimers();
+                    return;
                 }
+
+                onSessionKeepaliveReturn();
+            });
+            window.addEventListener('focus', function ()
+            {
+                if (document.hidden)
+                {
+                    return;
+                }
+
+                onSessionKeepaliveReturn();
             });
         }
 

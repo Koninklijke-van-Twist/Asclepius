@@ -1,37 +1,33 @@
 <?php
 
+/**
+ * Includes/requires
+ *
+ * Licht endpoint: ververst alleen de PHP-sessie. Geen ticketdata en geen
+ * secrets in het antwoord. logincheck.php slaat bij ASCLEPIUS_SESSION_KEEPALIVE
+ * de Entra-redirect (login/lib.php) over en antwoordt 401 als de sessie leeg is.
+ * De functies (inclusief array_any) laden vóór bootstrap, omdat keepalive
+ * login/lib.php niet meeneemt.
+ */
+
 define('ASCLEPIUS_SESSION_KEEPALIVE', true);
 
+require_once __DIR__ . '/content/session_keepalive.php';
 require_once __DIR__ . '/content/bootstrap.php';
-require_once __DIR__ . '/content/constants.php';
 
-if (!isset($_SESSION['user']['email']) || trim((string) $_SESSION['user']['email']) === '') {
-    while (ob_get_level() > 0) {
-        ob_end_clean();
-    }
+/**
+ * Page load
+ */
 
-    http_response_code(401);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => false, 'reason' => 'session_expired'], JSON_UNESCAPED_UNICODE);
-    exit;
+$sessionEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+if ($sessionEmail === '' || !filter_var($sessionEmail, FILTER_VALIDATE_EMAIL)) {
+    asclepiusFinishKeepaliveResponse(401, [
+        'ok' => false,
+        'reason' => 'session_expired',
+    ]);
 }
 
-$apiClientOid = strtolower(trim((string) ($_SESSION['user']['oid'] ?? ($_SESSION['users']['oid'] ?? ''))));
-$apiClientKey = '';
-if ($apiClientOid !== '' && preg_match('/^[a-z0-9-]{8,128}$/', $apiClientOid) === 1) {
-    $apiClientKey = hash('sha256', $apiClientOid . '|' . gmdate('d-m-Y'));
-    $_SESSION['user']['api_key'] = $apiClientKey;
-}
-
-$_SESSION['last_keepalive_at'] = time();
-
-while (ob_get_level() > 0) {
-    ob_end_clean();
-}
-
-header('Content-Type: application/json; charset=utf-8');
-echo json_encode([
-    'ok' => true,
-    'api_key' => $apiClientKey,
-], JSON_UNESCAPED_UNICODE);
-exit;
+$refreshedCookie = asclepiusTouchSessionKeepalive();
+asclepiusApplySessionCookieRefresh($refreshedCookie);
+session_write_close();
+asclepiusFinishKeepaliveResponse(204);

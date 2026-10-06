@@ -3712,10 +3712,15 @@
             color: var(--danger);
         }
 
+        .session-expired-noticed,
         .session-expired-countdown {
             margin: 14px 0 0;
             color: var(--muted);
             font-size: 14px;
+        }
+
+        .session-expired-relogin {
+            margin-top: 18px;
         }
 
         @media (max-width: 640px) {

@@ -1,3 +1,11 @@
+id: 2026-10-06-session-keepalive
+date: 2026-10-06
+title: Sitzung bleibt gültig, solange Asclepius offen ist
+author: Cursor Agent
+
+Solange Asclepius offen ist, wird die Anmeldung alle paar Minuten erneuert. Ein Tab im Hintergrund macht das seltener. Wenn Sie zum Tab zurückkehren, passiert es sofort. Ist die Sitzung doch abgelaufen, erscheinen eine Meldung mit der Uhrzeit und eine Schaltfläche zum erneuten Anmelden. Text, den Sie gerade geschrieben haben, bleibt in diesem Browser und kommt nach der Anmeldung zurück. Anhänge wählen Sie erneut.
+
+---
 id: 2026-10-02-message-reactions
 date: 2026-10-02
 title: Daumen hoch oder runter bei Nachrichten
