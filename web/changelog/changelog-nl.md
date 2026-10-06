@@ -3,7 +3,7 @@ date: 2026-10-06
 title: Sessie blijft geldig zolang Asclepius openstaat
 author: Cursor Agent
 
-Zolang je Asclepius open hebt, wordt je login elke paar minuten ververst. Een tabblad op de achtergrond doet dat trager. Kom je terug naar het tabblad, dan gebeurt het meteen. Is de sessie toch verlopen, dan verschijnt een melding met het tijdstip en een knop om opnieuw in te loggen. Tekst die je aan het typen was, blijft in die browser bewaard en komt terug na het inloggen. Bijlagen kies je opnieuw.
+Zolang je Asclepius open hebt, wordt je login elke paar minuten ververst. Een tabblad op de achtergrond doet dat trager. Kom je terug naar het tabblad, dan gebeurt het meteen. Is de sessie toch verlopen, dan verschijnt een melding met het tijdstip en een knop om opnieuw in te loggen. Tekst die je aan het typen was, blijft in die browser bewaard en komt terug als je weer met hetzelfde account inlogt. Logt iemand anders in dat tabblad in, dan wordt die tekst weggegooid. Bijlagen kies je opnieuw.
 
 ---
 id: 2026-10-02-message-reactions

@@ -3,7 +3,7 @@ date: 2026-10-06
 title: Sitzung bleibt gültig, solange Asclepius offen ist
 author: Cursor Agent
 
-Solange Asclepius offen ist, wird die Anmeldung alle paar Minuten erneuert. Ein Tab im Hintergrund macht das seltener. Wenn Sie zum Tab zurückkehren, passiert es sofort. Ist die Sitzung doch abgelaufen, erscheinen eine Meldung mit der Uhrzeit und eine Schaltfläche zum erneuten Anmelden. Text, den Sie gerade geschrieben haben, bleibt in diesem Browser und kommt nach der Anmeldung zurück. Anhänge wählen Sie erneut.
+Solange Asclepius offen ist, wird die Anmeldung alle paar Minuten erneuert. Ein Tab im Hintergrund macht das seltener. Wenn Sie zum Tab zurückkehren, passiert es sofort. Ist die Sitzung doch abgelaufen, erscheinen eine Meldung mit der Uhrzeit und eine Schaltfläche zum erneuten Anmelden. Text, den Sie gerade geschrieben haben, bleibt in diesem Browser und kommt zurück, wenn Sie sich wieder mit demselben Konto anmelden. Meldet sich jemand anderes in diesem Tab an, wird der Text verworfen. Anhänge wählen Sie erneut.
 
 ---
 id: 2026-10-02-message-reactions

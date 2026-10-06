@@ -140,6 +140,12 @@ const SESSION_KEEPALIVE_INTERVAL_SECONDS = 240;
 /** Trager ping-interval zolang het tabblad verborgen is, in seconden. */
 const SESSION_KEEPALIVE_HIDDEN_INTERVAL_SECONDS = 900;
 
+/**
+ * Servergeheim waarmee bewaarde concepten aan een gebruiker gekoppeld worden.
+ * Staat in web/data (niet in git) en wordt bij het eerste gebruik aangemaakt.
+ */
+const SESSION_DRAFT_SECRET_FILE = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'session_draft_secret.php';
+
 // Optional override for Janus hours API (localhost URL preferred for trusted auth).
 // Example: 'http://127.0.0.1/janus/hours_api.php'
 if (!defined('JANUS_HOURS_API_URL')) {

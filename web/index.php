@@ -4,6 +4,7 @@ require_once __DIR__ . '/content/bootstrap.php';
 require_once __DIR__ . '/content/constants.php';
 require_once __DIR__ . '/content/localization.php';
 require_once __DIR__ . '/content/helpers.php';
+require_once __DIR__ . '/content/session_keepalive.php';
 
 $isPersonalizedHtmlRequest =
     !isset($_GET['_partial'])
@@ -66,6 +67,7 @@ $apiUrl = 'api.php';
     data-session-keepalive-url="session_keepalive.php"
     data-session-keepalive-interval="<?= (int) (SESSION_KEEPALIVE_INTERVAL_SECONDS * 1000) ?>"
     data-session-keepalive-hidden-interval="<?= (int) (SESSION_KEEPALIVE_HIDDEN_INTERVAL_SECONDS * 1000) ?>"
+    data-session-draft-owner="<?= h(asclepiusSessionDraftOwnerKey((string) ($userEmail ?? ''))) ?>"
     data-max-upload-bytes="<?= (int) MAX_ATTACHMENT_BYTES ?>"
     data-post-max-bytes="<?= (int) parsePhpIniSize((string) ini_get('post_max_size')) ?>"
     data-presence-poll-interval="60000"

@@ -3359,6 +3359,9 @@
         var sessionKeepaliveHiddenIntervalMs = 900000;
         var lastSessionKeepaliveOkAt = Date.now();
         var sessionDraftStorageKey = 'asclepius_unsaved_form_drafts';
+        // Hash van de ingelogde gebruiker (HMAC van het e-mailadres, nooit het adres zelf).
+        // Bewaarde concepten horen bij deze sleutel; andermans concepten worden weggegooid.
+        var sessionDraftOwner = document.body ? (document.body.getAttribute('data-session-draft-owner') || '') : '';
         var sessionExpiredTitleDefault = <?= json_encode(__('session.expired_popup'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
         var sessionExpiredTitleDrafts = <?= json_encode(__('session.expired_popup_drafts'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
         var sessionExpiredNoticedTemplate = <?= json_encode(__('session.expired_noticed'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
@@ -4566,6 +4569,7 @@
             return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         };
 
+        /** Verzamelt ingevulde tekstvelden uit formulieren met CSRF-token. */
         var collectSessionDrafts = function ()
         {
             var drafts = [];
@@ -4613,28 +4617,39 @@
             return drafts;
         };
 
+        /** Schrijft concepten met de eigenaar-hash weg; zonder concepten of eigenaar wordt de opslag geleegd. */
+        var writeSessionDrafts = function (drafts)
+        {
+            if (!Array.isArray(drafts) || drafts.length === 0 || sessionDraftOwner === '')
+            {
+                sessionStorage.removeItem(sessionDraftStorageKey);
+                return false;
+            }
+
+            sessionStorage.setItem(sessionDraftStorageKey, JSON.stringify({
+                owner: sessionDraftOwner,
+                drafts: drafts
+            }));
+            return true;
+        };
+
+        /** Bewaart de huidige concepten bij een verlopen sessie en geeft terug wat echt bewaard is. */
         var saveSessionDrafts = function ()
         {
-            var drafts = collectSessionDrafts();
+            // Zonder bekende gebruiker valt een concept niet te koppelen; dan bewaren we niets.
+            var drafts = sessionDraftOwner === '' ? [] : collectSessionDrafts();
             try
             {
-                if (drafts.length === 0)
-                {
-                    sessionStorage.removeItem(sessionDraftStorageKey);
-                }
-                else
-                {
-                    sessionStorage.setItem(sessionDraftStorageKey, JSON.stringify(drafts));
-                }
+                return writeSessionDrafts(drafts) ? drafts : [];
             }
             catch (storageError)
             {
-                // Opslag vol of geblokkeerd; de melding blijft zichtbaar.
+                // Opslag vol of geblokkeerd; de melding blijft zichtbaar, zonder belofte over bewaarde tekst.
+                return [];
             }
-
-            return drafts;
         };
 
+        /** Zoekt het veld waar een bewaard concept thuishoort. */
         var findSessionDraftField = function (draft)
         {
             var name = draft.name || '';
@@ -4670,6 +4685,7 @@
             return null;
         };
 
+        /** Zet concepten terug als ze van de ingelogde gebruiker zijn; andermans concepten gaan weg. */
         var restoreSessionDrafts = function ()
         {
             var raw = null;
@@ -4687,18 +4703,49 @@
                 return;
             }
 
-            var drafts = [];
+            var stored = null;
             try
             {
-                drafts = JSON.parse(raw);
+                stored = JSON.parse(raw);
             }
             catch (parseError)
             {
+                stored = null;
+            }
+
+            var storedOwner = stored && typeof stored.owner === 'string' ? stored.owner : '';
+            var drafts = stored && Array.isArray(stored.drafts) ? stored.drafts : null;
+            if (storedOwner === '' || drafts === null)
+            {
+                // Onleesbaar of zonder eigenaar: nooit terugzetten.
+                try
+                {
+                    sessionStorage.removeItem(sessionDraftStorageKey);
+                }
+                catch (storageError)
+                {
+                    // Niets te doen; terugzetten gebeurt hoe dan ook niet.
+                }
                 return;
             }
 
-            if (!Array.isArray(drafts))
+            if (sessionDraftOwner === '')
             {
+                // Gebruiker onbekend: niets terugzetten, maar ook niets weggooien.
+                return;
+            }
+
+            if (storedOwner !== sessionDraftOwner)
+            {
+                // Iemand anders is ingelogd in dit tabblad: die concepten gaan weg.
+                try
+                {
+                    sessionStorage.removeItem(sessionDraftStorageKey);
+                }
+                catch (storageError)
+                {
+                    // Niets te doen; terugzetten gebeurt hoe dan ook niet.
+                }
                 return;
             }
 
@@ -4728,14 +4775,7 @@
 
             try
             {
-                if (remaining.length === 0)
-                {
-                    sessionStorage.removeItem(sessionDraftStorageKey);
-                }
-                else
-                {
-                    sessionStorage.setItem(sessionDraftStorageKey, JSON.stringify(remaining));
-                }
+                writeSessionDrafts(remaining);
             }
             catch (storageError)
             {
