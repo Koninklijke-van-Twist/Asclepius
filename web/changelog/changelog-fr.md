@@ -1,3 +1,11 @@
+id: 2026-10-06-session-keepalive
+date: 2026-10-06
+title: La session reste active tant qu’Asclepius est ouvert
+author: Cursor Agent
+
+Tant qu’Asclepius reste ouvert, la connexion est renouvelée toutes les quelques minutes. Un onglet en arrière-plan le fait plus lentement. En revenant sur l’onglet, c’est immédiat. Si la session a tout de même expiré, un message indique l’heure et un bouton pour se reconnecter. Le texte en cours de saisie reste dans ce navigateur et revient lorsque vous vous reconnectez avec le même compte. Si quelqu’un d’autre se connecte dans cet onglet, le texte est supprimé. Les pièces jointes sont à choisir de nouveau.
+
+---
 id: 2026-10-02-message-reactions
 date: 2026-10-02
 title: Pouce vers le haut ou vers le bas
