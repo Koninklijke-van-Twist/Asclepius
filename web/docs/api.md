@@ -399,6 +399,7 @@ Aliassen: `categories` (alleen categorieën) en `statuses` (alleen vaste statuss
   "success": true,
   "categories": [
     "hardware bestellen",
+    "Zakelijke telefoon bestellen",
     "software bestellen",
     "Printerproblemen",
     "licentie aanvragen",
@@ -756,6 +757,7 @@ Response: `{ "success": true, "templates": [ ] }`.
 Bron: `TICKET_CATEGORIES` in `content/constants.php`.
 
 - `hardware bestellen`
+- `Zakelijke telefoon bestellen`
 - `software bestellen`
 - `Printerproblemen`
 - `licentie aanvragen`
