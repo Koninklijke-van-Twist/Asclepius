@@ -16,6 +16,7 @@ const TEMPLATE_TICKET_CATEGORIES = [
 ];
 const TICKET_CATEGORIES = [
     'hardware bestellen',
+    'Zakelijke telefoon bestellen',
     'software bestellen',
     'Printerproblemen',
     'licentie aanvragen',
@@ -114,6 +115,7 @@ if (!defined('WEB_PUSH_SUBJECT')) {
 }
 const CATEGORY_COLORS = [
     'hardware bestellen' => '#0f766e',
+    'Zakelijke telefoon bestellen' => '#0e7490',
     'software bestellen' => '#1d4ed8',
     'Printerproblemen' => '#00aaaa',
     'licentie aanvragen' => '#2ba512',

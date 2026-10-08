@@ -616,6 +616,7 @@ const TRANSLATIONS = [
         'category.anders' => 'Anders',
         'category.laptop_klaarmaken' => 'Laptop Klaarmaken',
         'category.telefoon_klaarmaken' => 'Telefoon Klaarmaken',
+        'category.zakelijke_telefoon_bestellen' => 'Zakelijke telefoon bestellen',
 
         // Prioriteitslabels (zonder getal-prefix; voor formatPriorityLabel)
         'priority.label.0' => 'Normaal',
@@ -1287,6 +1288,7 @@ const TRANSLATIONS = [
         'category.anders' => 'Other',
         'category.laptop_klaarmaken' => 'Prepare laptop',
         'category.telefoon_klaarmaken' => 'Prepare phone',
+        'category.zakelijke_telefoon_bestellen' => 'Order business phone',
 
         // Priority labels (without number prefix)
         'priority.label.0' => 'Normal',
@@ -1958,6 +1960,7 @@ const TRANSLATIONS = [
         'category.anders' => 'Sonstiges',
         'category.laptop_klaarmaken' => 'Laptop vorbereiten',
         'category.telefoon_klaarmaken' => 'Telefon vorbereiten',
+        'category.zakelijke_telefoon_bestellen' => 'Diensttelefon bestellen',
 
         // Prioritätsbezeichnungen (ohne Zahlenpräfix)
         'priority.label.0' => 'Normal',
@@ -2629,6 +2632,7 @@ const TRANSLATIONS = [
         'category.anders' => 'Autre',
         'category.laptop_klaarmaken' => 'Préparer un laptop',
         'category.telefoon_klaarmaken' => 'Préparer un téléphone',
+        'category.zakelijke_telefoon_bestellen' => 'Commander un téléphone professionnel',
 
         // Libellés de priorité (sans préfixe numérique)
         'priority.label.0' => 'Normal',
