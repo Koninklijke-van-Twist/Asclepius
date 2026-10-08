@@ -199,7 +199,8 @@ Gecombineerd bericht + status + toewijzing (ICT-Bot):
 Velden:
 
 - `ticket_id` of `id` — verplicht
-- `message` of `message_text` — verplicht, niet leeg (ook als je status of assignee meegeeft)
+- `message` of `message_text` — verplicht, niet leeg (ook als je status of assignee meegeeft), behalve als je `attachments` meestuurt
+- `attachments` — optioneel; bijlagen en inline afbeeldingen, zie **Bijlagen** hieronder
 - `ghost` / `is_ghost` / `ghost_mode` — optioneel, default `false`
 - `sender_email` / `viewer_email` / `user_email` — actor; bij service-key verplicht voor een herkenbare afzender, anders `ict@kvt.nl`
 - `sender_name` / `display_name` / `sender_display_name` — optioneel; weergavenaam in de ticketthread. Alleen ICT-sessie, service-key of trusted localhost. Anders de naam bij het e-mailadres.
@@ -216,7 +217,7 @@ Rechten:
 - Eigen naam/titel alleen met dezelfde rechten als ghost; andere callers worden stil genegeerd
 - `status` / `assigned_email` alleen met dezelfde autorisatie als `change_ticket_status` / `change_ticket_assignee`: service-key, webhook-key (`apiClient.is_admin`), ICT-rechten van de sessie, of trusted localhost. Anders `403` `forbidden`. Een `user_is_admin` in de body geeft geen extra rechten.
 
-Succes → `200` met `ticket_id`, `message_id`, `is_ghost`, `sender_email`, `sender_name`, `sender_role`, `sender_title`, `message`.
+Succes → `200` met `ticket_id`, `message_id`, `is_ghost`, `sender_email`, `sender_name`, `sender_role`, `sender_title`, `message`. Met bijlagen ook `attachments` en `ticket_url`.
 
 Ontbrak `sender_email` / `viewer_email` / `user_email`, `sender_name` / `display_name` / `sender_display_name` en/of `sender_title` / `role_title` / `function_title` / `sender_role_title`, en is dat veld aangevuld met een standaardwaarde, dan bevat het succesantwoord ook `hints` (zie **hints** hieronder). Stonden alle drie expliciet in het verzoek, dan ontbreekt die identiteitshint. Het verzoek blijft slagen; bestaande velden veranderen niet.
 
@@ -228,6 +229,77 @@ Als `status` en/of `assigned_email` (of hun aliassen) in het verzoek stonden, ex
 - `status_message_id` — alleen bij ghost + echte statuswijziging (aparte zichtbare systeemnotitie)
 
 Fouten: `422` (`ticket_id_required`, `message_required`, `invalid_user`, `invalid_status`, `invalid_employee`, `self_assignment_not_allowed`, `employee_away`), `404` (`ticket_not_found`), `403` (`ghost_forbidden`, `forbidden`).
+
+### Bijlagen (`attachments`) en inline afbeeldingen
+
+Optioneel veld `attachments`: een lijst van objecten `{ "filename", "mime", "data_base64" }` (plus optioneel `"inline": true`). Werkt in een JSON-body en als formulierveld (dan als JSON-string, of als `attachments[0][filename]` enz.). Daarnaast mag je bij `multipart/form-data` gewone bestanden meesturen als `attachments[]`; die komen in de volgorde ná de base64-bijlagen.
+
+- `filename` (of `name`) — verplicht; wordt opgeschoond (geen pad, geen besturingstekens, geen `[ ] { } < > : " | ? *`, max 120 tekens). `../../x.png` wordt `x.png`. Twee keer dezelfde naam in één bericht → de tweede wordt `naam-2.png`.
+- `mime` (of `mime_type`) — optioneel; als je hem meegeeft moet hij bij de echte inhoud passen (`image/jpg` = `image/jpeg`, `application/octet-stream` mag altijd).
+- `data_base64` (of `data`) — verplicht; gewone base64, base64url of een data-URL (`data:image/png;base64,...`).
+- `inline` — optioneel; `true` zet de bijlage als inline afbeelding onderaan het bericht (als hij nog niet via een verwijzing in de tekst staat).
+
+Bijlagen worden opgeslagen **precies zoals een upload vanuit het antwoordformulier**: via `TicketStore::addMessage()` in `data/ticket_uploads/<ticket_id>/ticket_<uniqid>.<ext>`, met een rij in `ticket_attachments` (mime via `finfo`, `file_size`, `uploaded_by_email` = afzender) en dezelfde bestandsrechten.
+
+**Inline in de tekst.** De UI zet een geplakte/ingevoegde afbeelding als marker `[[attachment:bestandsnaam]]` op een eigen regel in het bericht. Op die plek toont de thread de afbeelding (klik = vergroten). Inline bijlagen staan niet nog eens in de bijlagenlijst onder het bericht. In e-mail wordt de marker `📎 bestandsnaam`. De API gebruikt hetzelfde formaat:
+
+- `{{attachment:0}}` — 0-based index in `attachments` — of `{{attachment:bestandsnaam}}` ergens in `message`. Dit wordt de marker op een eigen regel. Tekst ervoor en erna op dezelfde regel wordt een eigen regel.
+- `"inline": true` op de bijlage — marker onderaan het bericht.
+- `[[attachment:bestandsnaam]]` op een eigen regel mag ook direct (de opgeschoonde naam).
+
+Een verwijzing naar een index of naam die niet bestaat → `422` `attachment_reference_invalid`. Met bijlagen mag `message` leeg zijn.
+
+```json
+{
+  "action": "add_ticket_message",
+  "ticket_id": 123,
+  "sender_email": "ict-bot@kvt.nl",
+  "sender_name": "Metis",
+  "sender_title": "Assistent",
+  "message": "Hoi Ivan, zo ziet de Retourlijst in Consus er nu uit:\n{{attachment:0}}\nDe details staan in de pdf.",
+  "attachments": [
+    { "filename": "retourlijst.png", "mime": "image/png", "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" },
+    { "filename": "details.pdf", "mime": "application/pdf", "data_base64": "JVBERi0xLjQK..." },
+    { "filename": "extra.png", "mime": "image/png", "data_base64": "iVBORw0KGgo...", "inline": true }
+  ]
+}
+```
+
+Opgeslagen tekst: `Hoi Ivan, zo ziet de Retourlijst in Consus er nu uit:\n[[attachment:retourlijst.png]]\nDe details staan in de pdf.\n[[attachment:extra.png]]`. `details.pdf` staat in de bijlagenlijst onder het bericht.
+
+Limieten en controle (alles wordt gecontroleerd **vóórdat** het ticket of een bericht wordt aangepast, dus ook vóór een `status` of `assigned_email` in hetzelfde verzoek):
+
+- max **10** bijlagen per bericht, max **10 MB** per bestand, max **40 MB** samen. Ook de `post_max_size` van de server geldt (base64 is ongeveer 33% groter).
+- toegestane extensies: `png`, `jpg`, `jpeg`, `gif`, `webp`, `pdf`, `txt`, `log`, `csv`, `docx`, `xlsx`, `pptx`. De inhoud wordt met `finfo` gecontroleerd en moet bij de extensie passen. Een `.png` met html-inhoud wordt geweigerd. `svg`, `html` en scripts mogen niet (die zouden via de directe upload-URL uitgevoerd kunnen worden).
+- Het bericht en de bijlagen worden in één databasetransactie opgeslagen. Mislukt het opslaan van een bijlage, dan wordt het bericht teruggedraaid en worden al verplaatste bestanden verwijderd.
+
+Bijlagefouten (met `error_code`, een leesbare `error_message`, waar mogelijk `attachment_index` / `attachment_filename`, en `hints` met een voorbeeld):
+
+- `422`: `invalid_attachments`, `invalid_attachment`, `invalid_attachment_filename`, `attachment_data_required`, `invalid_attachment_data`, `too_many_attachments`, `attachment_type_not_allowed`, `attachment_content_mismatch`, `attachment_mime_mismatch`, `attachment_upload_error`, `attachment_reference_invalid`
+- `413`: `attachment_too_large`, `attachments_too_large`
+- `500`: `attachment_store_failed` (er is dan geen bericht geplaatst)
+
+Bij succes heeft het antwoord ook:
+
+```json
+"attachments": [
+  {
+    "id": 4711,
+    "filename": "retourlijst.png",
+    "mime_type": "image/png",
+    "size": 48213,
+    "inline": true,
+    "marker": "[[attachment:retourlijst.png]]",
+    "url": "https://sleutels.kvt.nl/asclepius/data/ticket_uploads/123/ticket_6704f1c2a1b3c4.12345678.png",
+    "download_url": "https://sleutels.kvt.nl/asclepius/index.php?download=4711"
+  }
+],
+"ticket_url": "https://sleutels.kvt.nl/asclepius/index.php?open=123"
+```
+
+`url` is de directe bestands-URL (die gebruikt de thread ook voor de afbeelding). Voor `download_url` moet je ingelogd zijn. Zonder `attachments` blijft het antwoord precies zoals hiervoor.
+
+Notificaties: een bericht met bijlagen volgt dezelfde regels als een bericht zonder bijlagen via de API. E-mail gaat alleen bij een status- of toewijzingswijziging in hetzelfde verzoek (bestaand gedrag). In die mail staan inline markers als `📎 bestandsnaam`, net als bij een UI-bericht. Bij `ghost: true` horen de bijlagen bij het ghost-bericht.
 
 Bij mutatiefouten is `error_code` de machineleesbare code; `error` is die code of een gelokaliseerde flash-tekst (zelfde als de `change_*`-acties). Bestaande callers die alleen een bericht sturen blijven werken: zonder status/assignee-velden verandert er niets aan het ticket.
 

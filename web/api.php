@@ -2057,6 +2057,469 @@ function apiStatusMessagePairWindowSeconds(): int
     return 60;
 }
 
+function apiMessageAttachmentMaxCount(): int
+{
+    return 10;
+}
+
+function apiMessageAttachmentMaxBytes(): int
+{
+    return min(10 * 1024 * 1024, (int) MAX_ATTACHMENT_BYTES);
+}
+
+function apiMessageAttachmentMaxTotalBytes(): int
+{
+    return 40 * 1024 * 1024;
+}
+
+/**
+ * Toegestane extensies → toegestane (door finfo herkende) MIME-types.
+ * Bewust zonder svg/html/scripts: die worden via de directe upload-URL getoond.
+ *
+ * @return array<string, list<string>>
+ */
+function apiMessageAttachmentAllowedTypes(): array
+{
+    $officeZip = ['application/zip', 'application/octet-stream'];
+
+    return [
+        'png' => ['image/png'],
+        'jpg' => ['image/jpeg', 'image/pjpeg'],
+        'jpeg' => ['image/jpeg', 'image/pjpeg'],
+        'gif' => ['image/gif'],
+        'webp' => ['image/webp'],
+        'pdf' => ['application/pdf'],
+        'txt' => ['text/plain'],
+        'log' => ['text/plain'],
+        'csv' => ['text/csv', 'text/plain', 'application/csv'],
+        'docx' => array_merge(['application/vnd.openxmlformats-officedocument.wordprocessingml.document'], $officeZip),
+        'xlsx' => array_merge(['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'], $officeZip),
+        'pptx' => array_merge(['application/vnd.openxmlformats-officedocument.presentationml.presentation'], $officeZip),
+    ];
+}
+
+function apiMessageAttachmentHint(): array
+{
+    return [
+        'hint' => 'Stuur bijlagen als attachments: lijst van {filename, mime, data_base64}; zet afbeeldingen inline met {{attachment:0}} in message of "inline": true.',
+        'explanation' => 'Max ' . apiMessageAttachmentMaxCount() . ' bestanden, max ' . (int) round(apiMessageAttachmentMaxBytes() / 1048576) . ' MB per bestand. Toegestaan: '
+            . implode(', ', array_keys(apiMessageAttachmentAllowedTypes()))
+            . '. De echte inhoud moet bij de extensie passen. Voorbeeld: {"action":"add_ticket_message","ticket_id":123,"message":"Zie screenshot:\n{{attachment:0}}","attachments":[{"filename":"retourlijst.png","mime":"image/png","data_base64":"iVBORw0KGgo..."}]}.',
+    ];
+}
+
+/**
+ * Bestandsnaam voor weergave (original_name). Geen paden, geen besturingstekens,
+ * geen [ of ] (die breken de [[attachment:…]]-marker).
+ */
+function sanitizeApiAttachmentFilename(string $filename): string
+{
+    $name = str_replace('\\', '/', $filename);
+    $name = (string) preg_replace('/[\x00-\x1F\x7F]+/u', '', $name);
+    $segments = array_values(array_filter(explode('/', $name), static fn(string $segment): bool => trim($segment) !== ''));
+    $name = $segments !== [] ? (string) end($segments) : '';
+    $name = (string) preg_replace('/[<>:"|?*\[\]{}]+/u', '', $name);
+    $name = (string) preg_replace('/\s+/u', ' ', $name);
+    $name = trim($name, " .\t");
+
+    if ($name === '' || $name === '..' || $name === '.') {
+        return '';
+    }
+
+    if (function_exists('mb_strlen') && mb_strlen($name, 'UTF-8') > 120) {
+        $extension = (string) pathinfo($name, PATHINFO_EXTENSION);
+        $base = (string) pathinfo($name, PATHINFO_FILENAME);
+        $name = mb_substr($base, 0, 110, 'UTF-8') . ($extension !== '' ? '.' . mb_substr($extension, 0, 8, 'UTF-8') : '');
+    } elseif (strlen($name) > 120) {
+        $name = substr($name, 0, 120);
+    }
+
+    return $name;
+}
+
+function apiAttachmentError(string $code, string $message, ?int $index = null, string $filename = ''): array
+{
+    $response = [
+        'success' => false,
+        'error' => $code,
+        'error_code' => $code,
+        'error_message' => $message,
+    ];
+    if ($index !== null) {
+        $response['attachment_index'] = $index;
+    }
+    if ($filename !== '') {
+        $response['attachment_filename'] = $filename;
+    }
+    $hint = apiMessageAttachmentHint();
+    appendApiResponseHint($response, $hint['hint'], $hint['explanation']);
+
+    return $response;
+}
+
+function cleanupApiAttachmentTempFiles(array $files): void
+{
+    foreach ($files as $file) {
+        if (!empty($file['api_temp']) && is_string($file['tmp_name'] ?? null) && is_file($file['tmp_name'])) {
+            @unlink($file['tmp_name']);
+        }
+    }
+}
+
+/**
+ * Leest de bijlagen uit het verzoek en valideert ze volledig vóórdat er iets wordt opgeslagen.
+ * Bronnen: payload['attachments'] (array of JSON-string) en multipart-uploads attachments[] ($_FILES).
+ *
+ * Elk resultaat-bestand heeft het formaat van normalizeUploadedFiles() (name, type, tmp_name, error, size),
+ * zodat TicketStore::addMessage() het exact zo opslaat als een UI-upload.
+ *
+ * @return array{ok: bool, files: list<array<string, mixed>>, inline: list<bool>, aliases: list<list<string>>, error?: array}
+ */
+function readApiMessageAttachments(array $payload, ?array $uploadedFiles = null): array
+{
+    $result = ['ok' => true, 'files' => [], 'inline' => [], 'aliases' => []];
+
+    $raw = $payload['attachments'] ?? null;
+    if (is_string($raw)) {
+        $trimmed = trim($raw);
+        if ($trimmed === '') {
+            $raw = null;
+        } else {
+            $decoded = json_decode($trimmed, true);
+            if (!is_array($decoded)) {
+                return ['ok' => false, 'files' => [], 'inline' => [], 'aliases' => [], 'error' => apiAttachmentError('invalid_attachments', 'attachments moet een lijst van {filename, mime, data_base64} zijn.')];
+            }
+            $raw = $decoded;
+        }
+    }
+    if ($raw !== null && !is_array($raw)) {
+        return ['ok' => false, 'files' => [], 'inline' => [], 'aliases' => [], 'error' => apiAttachmentError('invalid_attachments', 'attachments moet een lijst van {filename, mime, data_base64} zijn.')];
+    }
+    if (is_array($raw) && $raw !== [] && (isset($raw['data_base64']) || isset($raw['filename']))) {
+        $raw = [$raw];
+    }
+    $entries = is_array($raw) ? array_values($raw) : [];
+
+    if ($uploadedFiles === null) {
+        $uploadedFiles = isset($_FILES['attachments']) && function_exists('normalizeUploadedFiles')
+            ? normalizeUploadedFiles('attachments')
+            : [];
+    }
+
+    $total = count($entries) + count($uploadedFiles);
+    if ($total === 0) {
+        return $result;
+    }
+    if ($total > apiMessageAttachmentMaxCount()) {
+        return ['ok' => false, 'files' => [], 'inline' => [], 'aliases' => [], 'error' => apiAttachmentError('too_many_attachments', 'Maximaal ' . apiMessageAttachmentMaxCount() . ' bijlagen per bericht.')];
+    }
+
+    $maxBytes = apiMessageAttachmentMaxBytes();
+    $allowed = apiMessageAttachmentAllowedTypes();
+    $finfo = class_exists('finfo') ? new finfo(FILEINFO_MIME_TYPE) : null;
+    if (!$finfo instanceof finfo) {
+        return ['ok' => false, 'files' => [], 'inline' => [], 'aliases' => [], 'error' => apiAttachmentError('attachment_type_check_unavailable', 'Bestandstype kan niet worden gecontroleerd (finfo ontbreekt).')];
+    }
+
+    $files = [];
+    $usedNames = [];
+    $totalBytes = 0;
+    $fail = static function (array $error) use (&$files): array {
+        cleanupApiAttachmentTempFiles($files);
+        return ['ok' => false, 'files' => [], 'inline' => [], 'aliases' => [], 'error' => $error];
+    };
+
+    $candidates = [];
+    foreach ($entries as $entry) {
+        $candidates[] = ['kind' => 'base64', 'entry' => $entry];
+    }
+    foreach ($uploadedFiles as $upload) {
+        $candidates[] = ['kind' => 'upload', 'entry' => $upload];
+    }
+
+    foreach ($candidates as $index => $candidate) {
+        $entry = $candidate['entry'];
+        if (!is_array($entry)) {
+            return $fail(apiAttachmentError('invalid_attachment', 'Bijlage ' . $index . ' is geen object met filename, mime en data_base64.', $index));
+        }
+
+        $givenName = (string) ($candidate['kind'] === 'upload'
+            ? ($entry['name'] ?? '')
+            : ($entry['filename'] ?? $entry['name'] ?? ''));
+        $declaredMime = strtolower(trim((string) ($candidate['kind'] === 'upload'
+            ? ($entry['type'] ?? '')
+            : ($entry['mime'] ?? $entry['mime_type'] ?? $entry['type'] ?? ''))));
+        $name = sanitizeApiAttachmentFilename($givenName);
+        if ($name === '') {
+            return $fail(apiAttachmentError('invalid_attachment_filename', 'Bijlage ' . $index . ' heeft geen geldige bestandsnaam.', $index));
+        }
+
+        $extension = strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
+        if (!isset($allowed[$extension])) {
+            return $fail(apiAttachmentError('attachment_type_not_allowed', 'Bestandstype .' . $extension . ' is niet toegestaan voor ' . $name . '.', $index, $name));
+        }
+
+        if ($candidate['kind'] === 'upload') {
+            $uploadError = (int) ($entry['error'] ?? UPLOAD_ERR_OK);
+            if ($uploadError === UPLOAD_ERR_INI_SIZE || $uploadError === UPLOAD_ERR_FORM_SIZE) {
+                return $fail(apiAttachmentError('attachment_too_large', $name . ' is groter dan toegestaan.', $index, $name));
+            }
+            $tmpName = (string) ($entry['tmp_name'] ?? '');
+            if ($uploadError !== UPLOAD_ERR_OK || $tmpName === '' || !is_file($tmpName)) {
+                return $fail(apiAttachmentError('attachment_upload_error', $name . ' kon niet worden geüpload.', $index, $name));
+            }
+            $size = (int) filesize($tmpName);
+            $isApiTemp = false;
+        } else {
+            $data = $entry['data_base64'] ?? $entry['data'] ?? $entry['content_base64'] ?? null;
+            if (!is_string($data) || trim($data) === '') {
+                return $fail(apiAttachmentError('attachment_data_required', 'Bijlage ' . $name . ' mist data_base64.', $index, $name));
+            }
+            $data = trim($data);
+            if (preg_match('/^data:([^;,]*)(;[^,]*)?,/i', $data, $dataUrl) === 1) {
+                if ($declaredMime === '' && trim($dataUrl[1]) !== '') {
+                    $declaredMime = strtolower(trim($dataUrl[1]));
+                }
+                $data = substr($data, strlen($dataUrl[0]));
+            }
+            $data = (string) preg_replace('/\s+/', '', $data);
+            if (strlen($data) > (int) (ceil($maxBytes / 3) * 4) + 4) {
+                return $fail(apiAttachmentError('attachment_too_large', $name . ' is groter dan ' . (int) round($maxBytes / 1048576) . ' MB.', $index, $name));
+            }
+            $binary = base64_decode(strtr($data, '-_', '+/'), true);
+            if (!is_string($binary) || $binary === '') {
+                return $fail(apiAttachmentError('invalid_attachment_data', 'data_base64 van ' . $name . ' is geen geldige base64.', $index, $name));
+            }
+            $size = strlen($binary);
+            if ($size > $maxBytes) {
+                return $fail(apiAttachmentError('attachment_too_large', $name . ' is groter dan ' . (int) round($maxBytes / 1048576) . ' MB.', $index, $name));
+            }
+            $tmpName = tempnam(sys_get_temp_dir(), 'asc_api_');
+            if ($tmpName === false || file_put_contents($tmpName, $binary) !== $size) {
+                if (is_string($tmpName)) {
+                    @unlink($tmpName);
+                }
+                return $fail(apiAttachmentError('attachment_store_failed', $name . ' kon niet tijdelijk worden opgeslagen.', $index, $name));
+            }
+            // Zelfde rechten als move_uploaded_file() bij een UI-upload.
+            @chmod($tmpName, 0666 & ~umask());
+            unset($binary);
+            $isApiTemp = true;
+        }
+
+        $file = [
+            'name' => $name,
+            'type' => $declaredMime,
+            'tmp_name' => $tmpName,
+            'error' => UPLOAD_ERR_OK,
+            'size' => $size,
+            'api_temp' => $isApiTemp,
+        ];
+        $files[] = $file;
+
+        if ($size <= 0) {
+            return $fail(apiAttachmentError('invalid_attachment_data', $name . ' is leeg.', $index, $name));
+        }
+        if ($size > $maxBytes) {
+            return $fail(apiAttachmentError('attachment_too_large', $name . ' is groter dan ' . (int) round($maxBytes / 1048576) . ' MB.', $index, $name));
+        }
+        $totalBytes += $size;
+        if ($totalBytes > apiMessageAttachmentMaxTotalBytes()) {
+            return $fail(apiAttachmentError('attachments_too_large', 'Alle bijlagen samen mogen maximaal ' . (int) round(apiMessageAttachmentMaxTotalBytes() / 1048576) . ' MB zijn.', $index, $name));
+        }
+
+        $detectedMime = strtolower((string) $finfo->file($tmpName));
+        if (!in_array($detectedMime, $allowed[$extension], true)) {
+            return $fail(apiAttachmentError(
+                'attachment_content_mismatch',
+                'De inhoud van ' . $name . ' (' . ($detectedMime !== '' ? $detectedMime : 'onbekend') . ') past niet bij .' . $extension . '.',
+                $index,
+                $name
+            ));
+        }
+        $normalizedDeclared = $declaredMime === 'image/jpg' ? 'image/jpeg' : $declaredMime;
+        if ($normalizedDeclared !== ''
+            && $normalizedDeclared !== 'application/octet-stream'
+            && $normalizedDeclared !== $detectedMime
+            && !in_array($normalizedDeclared, $allowed[$extension], true)
+        ) {
+            return $fail(apiAttachmentError(
+                'attachment_mime_mismatch',
+                'Opgegeven mime ' . $declaredMime . ' komt niet overeen met de inhoud van ' . $name . ' (' . $detectedMime . ').',
+                $index,
+                $name
+            ));
+        }
+
+        // Unieke weergavenaam binnen het bericht, zodat [[attachment:naam]] precies één bijlage aanwijst.
+        $uniqueName = $name;
+        $suffix = 2;
+        while (isset($usedNames[strtolower($uniqueName)])) {
+            $base = (string) pathinfo($name, PATHINFO_FILENAME);
+            $uniqueName = $base . '-' . $suffix . ($extension !== '' ? '.' . $extension : '');
+            $suffix++;
+        }
+        $usedNames[strtolower($uniqueName)] = true;
+        $files[count($files) - 1]['name'] = $uniqueName;
+
+        $result['inline'][] = isApiTruthy($entry['inline'] ?? false);
+        $aliases = [$uniqueName, $name];
+        $trimmedGiven = trim($givenName);
+        if ($trimmedGiven !== '') {
+            $aliases[] = $trimmedGiven;
+        }
+        $result['aliases'][] = array_values(array_unique($aliases));
+    }
+
+    $result['files'] = $files;
+
+    return $result;
+}
+
+/**
+ * Zet verwijzingen naar meegestuurde bijlagen om naar de UI-marker [[attachment:naam]] op een eigen regel
+ * (exact wat de UI bij geplakte/ingevoegde afbeeldingen opslaat).
+ * - {{attachment:0}} (index, 0-based) of {{attachment:bestandsnaam}} in message
+ * - inline: true per bijlage → marker onderaan, als hij nog niet in de tekst staat
+ * - [[attachment:bestandsnaam]] op een eigen regel werkt ook direct
+ *
+ * @return array{ok: bool, message: string, inline_names: list<string>, error?: array}
+ */
+function applyApiMessageAttachmentReferences(string $message, array $files, array $inlineFlags, array $aliases): array
+{
+    $names = array_map(static fn(array $file): string => (string) ($file['name'] ?? ''), $files);
+    $tokens = [];
+    $invalidReference = null;
+
+    $message = (string) preg_replace_callback(
+        '/\{\{\s*attachment\s*:\s*([^{}]+?)\s*\}\}/iu',
+        static function (array $match) use ($names, $aliases, &$tokens, &$invalidReference): string {
+            $reference = trim((string) $match[1]);
+            $targetIndex = null;
+            if (preg_match('/^\d+$/', $reference) === 1 && isset($names[(int) $reference])) {
+                $targetIndex = (int) $reference;
+            } else {
+                foreach ($aliases as $index => $aliasList) {
+                    foreach ($aliasList as $alias) {
+                        if (strcasecmp($alias, $reference) === 0) {
+                            $targetIndex = (int) $index;
+                            break 2;
+                        }
+                    }
+                }
+            }
+            if ($targetIndex === null) {
+                $invalidReference ??= $reference;
+                return $match[0];
+            }
+            $token = "\x1A" . count($tokens) . "\x1A";
+            $tokens[$token] = buildAttachmentMessageMarker($names[$targetIndex]);
+            return $token;
+        },
+        $message
+    );
+
+    if ($invalidReference !== null) {
+        return [
+            'ok' => false,
+            'message' => $message,
+            'inline_names' => [],
+            'error' => apiAttachmentError('attachment_reference_invalid', 'Verwijzing {{attachment:' . $invalidReference . '}} wijst niet naar een meegestuurde bijlage.'),
+        ];
+    }
+
+    if ($tokens !== []) {
+        $lines = [];
+        foreach (explode("\n", str_replace(["\r\n", "\r"], "\n", $message)) as $line) {
+            if (!str_contains($line, "\x1A")) {
+                $lines[] = $line;
+                continue;
+            }
+            $parts = preg_split('/(\x1A\d+\x1A)/', $line, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($parts as $part) {
+                if (isset($tokens[$part])) {
+                    $lines[] = $tokens[$part];
+                } elseif (trim($part) !== '') {
+                    $lines[] = trim($part);
+                }
+            }
+        }
+        $message = implode("\n", $lines);
+    }
+
+    foreach ($names as $index => $name) {
+        if (empty($inlineFlags[$index])) {
+            continue;
+        }
+        $marker = buildAttachmentMessageMarker($name);
+        if (in_array($name, extractReferencedAttachmentNames($message), true)) {
+            continue;
+        }
+        $message = rtrim($message);
+        $message = ($message !== '' ? $message . "\n" : '') . $marker;
+    }
+
+    $referenced = extractReferencedAttachmentNames($message);
+
+    return [
+        'ok' => true,
+        'message' => $message,
+        'inline_names' => array_values(array_filter($names, static fn(string $name): bool => in_array($name, $referenced, true))),
+    ];
+}
+
+function buildApiAttachmentAbsoluteUrl(string $relativePath): string
+{
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'sleutels.kvt.nl'));
+    if ($host === '') {
+        $host = 'sleutels.kvt.nl';
+    }
+
+    return $scheme . '://' . $host . buildAsclepiusWebBasePath() . '/' . ltrim($relativePath, '/');
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function buildApiMessageAttachmentsResponse(?array $message, array $inlineNames): array
+{
+    $rows = [];
+    foreach ((is_array($message['attachments'] ?? null) ? $message['attachments'] : []) as $attachment) {
+        if (!is_array($attachment)) {
+            continue;
+        }
+        $attachmentId = (int) ($attachment['id'] ?? 0);
+        $name = (string) ($attachment['original_name'] ?? '');
+        $directUrl = buildAttachmentDirectUrl($attachment);
+        $rows[] = [
+            'id' => $attachmentId,
+            'filename' => $name,
+            'mime_type' => (string) ($attachment['mime_type'] ?? ''),
+            'size' => (int) ($attachment['file_size'] ?? 0),
+            'inline' => in_array($name, $inlineNames, true),
+            'marker' => buildAttachmentMessageMarker($name),
+            'url' => $directUrl !== '' ? buildApiAttachmentAbsoluteUrl($directUrl) : '',
+            'download_url' => $attachmentId > 0 ? buildApiAttachmentAbsoluteUrl('index.php?download=' . $attachmentId) : '',
+        ];
+    }
+
+    return $rows;
+}
+
+function payloadHasApiMessageAttachments(array $payload): bool
+{
+    $raw = $payload['attachments'] ?? null;
+    if (is_array($raw) && $raw !== []) {
+        return true;
+    }
+    if (is_string($raw) && trim($raw) !== '' && trim($raw) !== '[]') {
+        return true;
+    }
+
+    return isset($_FILES['attachments']) && function_exists('normalizeUploadedFiles') && normalizeUploadedFiles('attachments') !== [];
+}
+
 function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?array $apiClient, bool $hasValidServiceApiKey): array
 {
     $viewerEmail = strtolower(trim((string) (
@@ -2083,7 +2546,8 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
             'error_code' => 'ticket_id_required',
         ];
     }
-    if ($message === '') {
+    $hasAttachments = payloadHasApiMessageAttachments($payload);
+    if ($message === '' && !$hasAttachments) {
         return [
             'success' => false,
             'error' => 'message_required',
@@ -2231,6 +2695,34 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         }
     }
 
+    // Bijlagen: volledig valideren (aantal, grootte, type via finfo, naam, verwijzingen)
+    // vóórdat het ticket of een bericht wordt aangepast.
+    $attachmentFiles = [];
+    $inlineAttachmentNames = [];
+    if ($hasAttachments) {
+        $attachmentRead = readApiMessageAttachments($payload);
+        if (empty($attachmentRead['ok'])) {
+            return $attachmentRead['error'];
+        }
+        $attachmentFiles = $attachmentRead['files'];
+        $referenceResult = applyApiMessageAttachmentReferences(
+            $message,
+            $attachmentFiles,
+            $attachmentRead['inline'],
+            $attachmentRead['aliases']
+        );
+        if (empty($referenceResult['ok'])) {
+            cleanupApiAttachmentTempFiles($attachmentFiles);
+            return $referenceResult['error'];
+        }
+        $message = $referenceResult['message'];
+        $inlineAttachmentNames = $referenceResult['inline_names'];
+        $attachmentFiles = array_map(static function (array $file): array {
+            unset($file['api_temp']);
+            return $file;
+        }, $attachmentFiles);
+    }
+
     $composedReply = composeTicketReplyMessageForStorage(
         $message,
         $isGhost,
@@ -2251,20 +2743,34 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         persistTicketFieldUpdate($store, $ticket, $overrides);
     }
 
-    $persistedReply = persistTicketReplyMessages(
-        $store,
-        $ticketId,
-        $senderEmail,
-        $senderRole,
-        $message,
-        [],
-        $isGhost,
-        $messageForStorage,
-        $senderDisplayName,
-        $senderRoleTitle,
-        (string) ($ticket['status'] ?? ''),
-        $isGrokWebhookPost
-    );
+    try {
+        $persistedReply = persistTicketReplyMessages(
+            $store,
+            $ticketId,
+            $senderEmail,
+            $senderRole,
+            $message,
+            $attachmentFiles,
+            $isGhost,
+            $messageForStorage,
+            $senderDisplayName,
+            $senderRoleTitle,
+            (string) ($ticket['status'] ?? ''),
+            $isGrokWebhookPost
+        );
+    } catch (Throwable $exception) {
+        if ($attachmentFiles === []) {
+            throw $exception;
+        }
+        return apiAttachmentError('attachment_store_failed', 'Het bericht met bijlagen kon niet worden opgeslagen; er is niets geplaatst.');
+    } finally {
+        foreach ($attachmentFiles as $file) {
+            $tmpName = (string) ($file['tmp_name'] ?? '');
+            if ($tmpName !== '' && is_file($tmpName) && !is_uploaded_file($tmpName)) {
+                @unlink($tmpName);
+            }
+        }
+    }
     $messageId = (int) $persistedReply['message_id'];
 
     $updatedTicket = $store->getTicket($ticketId, true, $senderEmail, 'default', true);
@@ -2310,6 +2816,18 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         'sender_title' => $senderRoleTitle,
         'message' => $createdMessage,
     ];
+
+    if ($attachmentFiles !== []) {
+        $response['attachments'] = buildApiMessageAttachmentsResponse($createdMessage, $inlineAttachmentNames);
+        $response['ticket_url'] = buildAsclepiusTicketUrl($ticketId);
+        if (is_array($createdMessage) && is_array($createdMessage['attachments'] ?? null)) {
+            // Geen serverpaden in het antwoord.
+            $response['message']['attachments'] = array_map(static function (array $attachment): array {
+                unset($attachment['stored_path']);
+                return $attachment;
+            }, $createdMessage['attachments']);
+        }
+    }
 
     if ($wantsFieldChange) {
         $assignedEmail = strtolower(trim((string) ($updatedTicket['assigned_email'] ?? $newAssignee)));
@@ -3256,6 +3774,8 @@ if ($method === 'POST') {
             $statusCode = match ($error) {
                 'ticket_not_found' => 404,
                 'ghost_forbidden', 'forbidden' => 403,
+                'attachment_too_large', 'attachments_too_large' => 413,
+                'attachment_store_failed' => 500,
                 default => 422,
             };
         }
