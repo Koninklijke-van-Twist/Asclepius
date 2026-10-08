@@ -2351,6 +2351,11 @@ class TicketStore
         $now = date('c');
         require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'GrokBot.php';
         $markAi = $isAiAssistant || GrokBot::isAiAssistantSender($senderEmail);
+        // Bericht + bijlagen samen: een mislukte bijlage laat geen half bericht achter.
+        $ownsTransaction = $files !== [] && !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
         $statement = $this->pdo->prepare(
             'INSERT INTO ticket_messages (
                 ticket_id, sender_email, sender_role, sender_display_name, sender_role_title,
@@ -2374,7 +2379,19 @@ class TicketStore
         ]);
 
         $messageId = (int) $this->pdo->lastInsertId();
-        $this->storeAttachments($ticketId, $messageId, $files, $senderEmail);
+        if ($ownsTransaction) {
+            try {
+                $this->storeAttachments($ticketId, $messageId, $files, $senderEmail);
+                $this->pdo->commit();
+            } catch (Throwable $exception) {
+                if ($this->pdo->inTransaction()) {
+                    $this->pdo->rollBack();
+                }
+                throw $exception;
+            }
+        } else {
+            $this->storeAttachments($ticketId, $messageId, $files, $senderEmail);
+        }
 
         $updateStatement = $this->pdo->prepare('UPDATE tickets SET updated_at = :updated_at WHERE id = :id');
         $updateStatement->execute([
@@ -5125,6 +5142,32 @@ class TicketStore
              )'
         );
 
+        $storedPaths = [];
+        try {
+            $this->storeAttachmentRows($statement, $finfo, $ticketId, $messageId, $files, $uploadedByEmail, $ticketDirectory, $storedPaths);
+        } catch (Throwable $exception) {
+            foreach ($storedPaths as $storedPath) {
+                if (is_file($storedPath)) {
+                    @unlink($storedPath);
+                }
+            }
+            throw $exception;
+        }
+    }
+
+    /**
+     * @param list<string> $storedPaths gevuld met de paden die al verplaatst zijn (voor opruimen bij een fout)
+     */
+    private function storeAttachmentRows(
+        PDOStatement $statement,
+        ?finfo $finfo,
+        int $ticketId,
+        int $messageId,
+        array $files,
+        string $uploadedByEmail,
+        string $ticketDirectory,
+        array &$storedPaths
+    ): void {
         foreach ($files as $file) {
             $tmpName = $file['tmp_name'] ?? '';
             $originalName = trim((string) ($file['name'] ?? 'bestand'));
@@ -5139,6 +5182,7 @@ class TicketStore
             if (!$moved) {
                 throw new RuntimeException('Een bijlage kon niet worden opgeslagen.');
             }
+            $storedPaths[] = $storedPath;
 
             $mimeType = $finfo instanceof finfo ? (string) $finfo->file($storedPath) : ((string) ($file['type'] ?? 'application/octet-stream'));
 
