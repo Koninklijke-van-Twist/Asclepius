@@ -149,9 +149,14 @@ Succes → `201`:
   "success": true,
   "ticket_id": 123,
   "assigned_email": "ict@kvt.nl",
+  "ticket_url": "https://sleutels.kvt.nl/asclepius/index.php?open=123",
   "ticket": { }
 }
 ```
+
+`ticket_url` is dezelfde link als de knop "Ticketlink kopiëren" in de UI (`index.php?open=<id>`).
+
+Tip voor sleutels-apps die namens een gebruiker een ticket melden: gebruik de service-key (`asclepius_api_key` uit `login/cfg.php`), zet `user_email` op de ingelogde gebruiker en kies categorie `sleutels.kvt.nl web-applicatieproblemen`.
 
 Validatiefouten → `422` met `errors` (array van strings).
 

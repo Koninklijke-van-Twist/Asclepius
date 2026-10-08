@@ -3623,6 +3623,7 @@ if ($method === 'POST') {
             'success' => true,
             'ticket_id' => $ticketId,
             'assigned_email' => $result['assigned_email'] ?? null,
+            'ticket_url' => buildAsclepiusTicketUrl($ticketId),
             'ticket' => $ticket,
         ]);
     } catch (Throwable $exception) {
