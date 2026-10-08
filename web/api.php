@@ -202,6 +202,83 @@ function getRefreshRequiredUnauthorizedReason(string $providedKey): ?string
     return null;
 }
 
+/**
+ * Persoonlijke key van de gedeelde login (login/session_user.php: sha256(oid|d-m-Y UTC),
+ * in $_SESSION['user']['api_key']). Andere sleutels-apps kennen geen api_clients-bestand
+ * van Asclepius; daarom accepteren we die key hier ook zonder dat de gebruiker vandaag
+ * Asclepius heeft geopend — maar alleen om namens die gebruiker zelf een ticket aan te maken.
+ *
+ * Vereist naast de key ook `oid` en `user_email` (body/query of header X-User-Oid /
+ * X-User-Email). Kent Asclepius dit oid al (api_clients), dan moet het e-mailadres kloppen.
+ *
+ * @return array<string, mixed>|null
+ */
+function resolveLoginRotatingApiClient(string $providedKey, array $payload, array $server, ?int $now = null): ?array
+{
+    $apiKey = strtolower(trim($providedKey));
+    if ($apiKey === '' || preg_match('/^[a-f0-9]{64}$/', $apiKey) !== 1) {
+        return null;
+    }
+
+    $oid = strtolower(trim((string) ($server['HTTP_X_USER_OID'] ?? ($payload['oid'] ?? ''))));
+    $email = strtolower(trim((string) ($server['HTTP_X_USER_EMAIL'] ?? ($payload['user_email'] ?? ''))));
+    if ($oid === '' || preg_match('/^[a-z0-9-]{8,128}$/', $oid) !== 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return null;
+    }
+
+    $now = $now ?? time();
+    $todayKey = buildRotatingApiKeyForDate($oid, gmdate('d-m-Y', $now));
+    $yesterdayKey = buildRotatingApiKeyForDate($oid, gmdate('d-m-Y', $now - 86400));
+    if (!hash_equals($todayKey, $apiKey) && !hash_equals($yesterdayKey, $apiKey)) {
+        return null;
+    }
+
+    $knownEmail = findKnownApiClientEmailForOid($oid);
+    if ($knownEmail !== '' && !hash_equals($knownEmail, $email)) {
+        return null;
+    }
+
+    return [
+        'oid' => $oid,
+        'api_key' => $apiKey,
+        'email' => $email,
+        'is_admin' => false,
+        'kind' => 'login_rotating',
+        'default_name' => '',
+        'default_title' => '',
+    ];
+}
+
+function findKnownApiClientEmailForOid(string $oid, ?string $directory = null): string
+{
+    $directory = $directory ?? (__DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'api_clients');
+    if (!is_dir($directory)) {
+        return '';
+    }
+
+    foreach ((array) glob($directory . DIRECTORY_SEPARATOR . '*.json') as $file) {
+        if (!is_string($file) || !is_file($file)) {
+            continue;
+        }
+        $decoded = json_decode((string) file_get_contents($file), true);
+        if (!is_array($decoded) || strtolower(trim((string) ($decoded['oid'] ?? ''))) !== $oid) {
+            continue;
+        }
+        $email = strtolower(trim((string) ($decoded['email'] ?? '')));
+        if ($email !== '') {
+            return $email;
+        }
+    }
+
+    return '';
+}
+
+function isCreateTicketApiRequest(array $payload, array $server): bool
+{
+    return strtoupper((string) ($server['REQUEST_METHOD'] ?? 'GET')) === 'POST'
+        && trim((string) ($payload['action'] ?? '')) === '';
+}
+
 function getRequestBody(): array
 {
     $contentType = strtolower(trim((string) ($_SERVER['CONTENT_TYPE'] ?? '')));
@@ -3098,6 +3175,13 @@ if (!defined('ASCLEPIUS_API_SKIP_ROUTER')) {
 $providedApiKey = getApiKeyFromRequest();
 $apiClient = loadApiClientByToken($providedApiKey);
 $hasValidServiceApiKey = isValidApiKey($providedApiKey, $apiKeys ?? []);
+if ($apiClient === null && !$hasValidServiceApiKey && $providedApiKey !== '') {
+    // Persoonlijke key van de gedeelde login: alleen voor ticket aanmaken namens jezelf.
+    $loginKeyPayload = getRequestBody();
+    if (isCreateTicketApiRequest($loginKeyPayload, $_SERVER)) {
+        $apiClient = resolveLoginRotatingApiClient($providedApiKey, $loginKeyPayload, $_SERVER);
+    }
+}
 if (!isTrustedApiRequester() && $apiClient === null && !$hasValidServiceApiKey) {
     $unauthorizedReason = getRefreshRequiredUnauthorizedReason($providedApiKey);
     sendJson(401, [
@@ -3591,6 +3675,11 @@ if ($method === 'POST') {
 
     if ($userEmail === '') {
         $userEmail = strtolower(trim((string) ($payload['requester_email'] ?? '')));
+    }
+
+    // Met de persoonlijke login-key maak je alleen tickets op je eigen naam.
+    if (is_array($apiClient ?? null) && ($apiClient['kind'] ?? '') === 'login_rotating') {
+        $userEmail = (string) $apiClient['email'];
     }
 
     $errors = [];

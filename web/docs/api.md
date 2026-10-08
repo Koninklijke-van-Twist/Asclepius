@@ -15,10 +15,11 @@ Geef de key mee via:
 - header `X-API-Key: <key>`
 - of query/body-parameter `api_key`
 
-Drie soorten keys:
+Vier soorten keys:
 
 - **Service-key** — vast, in `auth.php` (`$apiKeys`). Bedoeld voor bots en integraties. Heeft geen sessie-e-mail; stuur `user_email` / `sender_email` / `viewer_email` mee waar een actor nodig is.
 - **Sessie-key** — tijdelijke rotating key van de web-UI (hex, 64 tekens). Koppeling aan de ingelogde gebruiker (`email`, `is_admin`).
+- **Persoonlijke login-key** — de tijdelijke key die de gedeelde login (`login/session_user.php`) bij het inloggen per gebruiker uitgeeft: `sha256(oid|d-m-Y)` (UTC-datum), in `$_SESSION['user']['api_key']`. Geldig vandaag en gisteren. Asclepius accepteert hem **alleen voor ticket aanmaken** (POST zonder `action`), met `oid` en `user_email` in de body (of headers `X-User-Oid` / `X-User-Email`). Het ticket komt altijd op naam van die gebruiker (`user_email` wordt genegeerd als het afwijkt). Kent Asclepius het oid al, dan moet het e-mailadres overeenkomen. Bedoeld voor andere sleutels-apps (bijv. Argus "Rapporteer aan ICT") die server-side namens de ingelogde gebruiker melden.
 - **Webhook-key** — hex, 64 tekens, zit in de uitgaande ticket-webhook (`new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened`, `re-evaluate-ticket-and-advise`). ICT-rechten, maximaal **1 uur** geldig, daarna `401`.
 
 Bij een ongeldige key:
