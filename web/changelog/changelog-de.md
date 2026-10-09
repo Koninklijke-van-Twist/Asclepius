@@ -1,3 +1,11 @@
+id: 2026-10-09-message-url-links
+date: 2026-10-09
+title: Links in Nachrichten bleiben intakt
+author: Tim Falken
+
+Ein Link mit einer langen Zahlenfolge, etwa ein bol.com-Produktlink, wurde manchmal kaputt und mit Codeschnipseln davor angezeigt. Links bleiben jetzt intakt, auch mit Bindestrichen, Sternchen, Unterstrichen, Klammern oder einem Punkt dahinter.
+
+---
 id: 2026-10-06-session-keepalive
 date: 2026-10-06
 title: Sitzung bleibt gültig, solange Asclepius offen ist

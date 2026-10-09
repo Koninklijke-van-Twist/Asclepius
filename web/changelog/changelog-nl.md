@@ -1,3 +1,11 @@
+id: 2026-10-09-message-url-links
+date: 2026-10-09
+title: Links in berichten blijven heel
+author: Tim Falken
+
+Een link met een lange cijferreeks, zoals een bol.com-productlink, werd soms kapot weergegeven met losse stukjes code ervoor. Links blijven nu heel, ook met streepjes, sterretjes, underscores, haakjes of een punt erachter.
+
+---
 id: 2026-10-06-session-keepalive
 date: 2026-10-06
 title: Sessie blijft geldig zolang Asclepius openstaat

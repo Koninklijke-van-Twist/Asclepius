@@ -1,3 +1,11 @@
+id: 2026-10-09-message-url-links
+date: 2026-10-09
+title: Links in messages stay intact
+author: Tim Falken
+
+A link containing a long number, such as a bol.com product link, was sometimes shown broken with bits of code in front of it. Links now stay intact, also with dashes, asterisks, underscores, parentheses or a full stop after them.
+
+---
 id: 2026-10-06-session-keepalive
 date: 2026-10-06
 title: Session stays signed in while Asclepius is open
