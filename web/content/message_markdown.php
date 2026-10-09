@@ -22,7 +22,7 @@ function sanitizeMessageMarkdownHref(string $rawUrl): ?string
 
     if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $url) === 1) {
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-        if (!in_array($scheme, ['http', 'https', 'mailto', 'tel'], true)) {
+        if (!in_array($scheme, ['http', 'https', 'mailto'], true)) {
             return null;
         }
 
@@ -74,49 +74,147 @@ function restoreMessageInlineCodePlaceholders(string $html, array $codes): strin
     return $html;
 }
 
-function applyMessageInlineMarkdown(string $escapedText, bool $forEmail = false): string
+/**
+ * Bold/italic on already-escaped text. Generated links are placeholders at
+ * this point, so `*` inside a URL can never become emphasis.
+ */
+function applyMessageInlineEmphasis(string $escapedText): string
 {
-    $escapedText = preg_replace_callback(
-        '/\[([^\]]+)\]\(([^)\s]+)\)/',
-        static function (array $match) use ($forEmail): string {
-            $href = sanitizeMessageMarkdownHref((string) $match[2]);
-            if ($href === null) {
-                return (string) $match[0];
-            }
-
-            $label = (string) $match[1];
-            $safeHref = h($href);
-            if ($forEmail) {
-                return '<a href="' . $safeHref . '">' . $label . '</a>';
-            }
-
-            $ticketId = extractAsclepiusTicketIdFromUrl($href);
-            $target = $ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
-
-            return '<a href="' . $safeHref . '"' . $target . '>' . $label . '</a>';
-        },
-        $escapedText
-    ) ?? $escapedText;
-
     $escapedText = preg_replace('/\*\*(?!\s)([^*\n]+?)(?<!\s)\*\*/', '<strong>$1</strong>', $escapedText) ?? $escapedText;
     $escapedText = preg_replace('/(?<!\*)\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)/', '<em>$1</em>', $escapedText) ?? $escapedText;
 
     return $escapedText;
 }
 
-function mapMessageHtmlTextSegments(string $html, callable $mapper): string
+/**
+ * Splits trailing sentence punctuation off a bare URL candidate (GFM-style).
+ * A closing parenthesis is only stripped when it is unbalanced, so
+ * `(https://x.nl/a)` loses the `)` but `https://x.nl/Foo_(bar)` keeps it.
+ *
+ * @return array{0: string, 1: string} [url, suffix]
+ */
+function splitMessageUrlTrailingPunctuation(string $candidate): array
 {
-    return preg_replace_callback(
-        '/(<[^>]+>)|([^<]+)/',
-        static function (array $match) use ($mapper): string {
-            if (($match[1] ?? '') !== '') {
-                return (string) $match[1];
+    $url = $candidate;
+    while ($url !== '') {
+        $last = substr($url, -1);
+        if (strpbrk($last, '.,;:!?*_~\'"]') !== false) {
+            $url = substr($url, 0, -1);
+            continue;
+        }
+        if ($last === ')' && substr_count($url, ')') > substr_count($url, '(')) {
+            $url = substr($url, 0, -1);
+            continue;
+        }
+        break;
+    }
+
+    return [$url, (string) substr($candidate, strlen($url))];
+}
+
+function buildMessageAnchorHtml(string $href, string $labelHtml, bool $forEmail, bool $allowNewTab = true): string
+{
+    $safeHref = h($href);
+    if ($forEmail || !$allowNewTab) {
+        return '<a href="' . $safeHref . '">' . $labelHtml . '</a>';
+    }
+
+    $ticketId = extractAsclepiusTicketIdFromUrl($href);
+    $target = $ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
+
+    return '<a href="' . $safeHref . '"' . $target . '>' . $labelHtml . '</a>';
+}
+
+/**
+ * Renders one line of inline message text to safe HTML.
+ *
+ * Tokenized so links are never matched inside generated HTML:
+ *  1. inline code, markdown links, bare URLs, e-mail addresses and phone
+ *     numbers are pulled out of the RAW text and replaced by placeholders
+ *     (their HTML is built and escaped individually);
+ *  2. the remaining text is HTML-escaped and gets bold/italic/shortcut markup;
+ *  3. the placeholders are put back.
+ */
+function renderMessageInlineHtml(string $text, bool $forEmail = false): string
+{
+    $inlineCode = extractMessageInlineCodePlaceholders($text);
+    $work = $inlineCode['text'];
+    $tokens = [];
+    $store = static function (string $html) use (&$tokens): string {
+        $key = "\x1AASCTOK" . count($tokens) . "\x1A";
+        $tokens[$key] = $html;
+
+        return $key;
+    };
+
+    // 1a. Markdown links [label](url). Only safe hrefs become links.
+    $work = preg_replace_callback(
+        '/\[([^\]\n]+)\]\(([^)\s\x1A]+)\)/',
+        static function (array $match) use ($forEmail, $store): string {
+            $href = sanitizeMessageMarkdownHref((string) $match[2]);
+            if ($href === null) {
+                return (string) $match[0];
             }
 
-            return (string) $mapper((string) ($match[2] ?? ''));
+            $labelHtml = applyMessageInlineEmphasis(h((string) $match[1]));
+
+            return $store(buildMessageAnchorHtml($href, $labelHtml, $forEmail));
         },
-        $html
-    ) ?? $html;
+        $work
+    ) ?? $work;
+
+    // 1b. Bare http(s):// and www. URLs.
+    $work = preg_replace_callback(
+        '~(?<![\w.@/-])(?:https?://|www\.)[^\s<>\x1A]+~i',
+        static function (array $match) use ($forEmail, $store): string {
+            [$url, $suffix] = splitMessageUrlTrailingPunctuation((string) $match[0]);
+            if (preg_match('~^(?:https?://|www\.)[^\s]+$~i', $url) !== 1 || preg_match('~^(?:https?://|www\.)$~i', $url) === 1) {
+                return (string) $match[0];
+            }
+
+            $href = str_starts_with(strtolower($url), 'www.') ? 'https://' . $url : $url;
+            $ticketId = extractAsclepiusTicketIdFromUrl($href);
+            $labelHtml = $ticketId > 0 ? h(formatTicketRefLabel($ticketId)) : h($url);
+
+            return $store(buildMessageAnchorHtml($href, $labelHtml, $forEmail)) . $suffix;
+        },
+        $work
+    ) ?? $work;
+
+    // 1c. E-mail addresses.
+    $work = preg_replace_callback(
+        '/(?<![\w.@\x1A])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i',
+        static function (array $match) use ($store): string {
+            $email = (string) $match[1];
+
+            return $store('<a href="mailto:' . h($email) . '">' . h($email) . '</a>');
+        },
+        $work
+    ) ?? $work;
+
+    // 1d. Phone numbers.
+    $work = preg_replace_callback(
+        '/(?<![\w\x1A])(\+?[0-9][0-9 \t()\/.-]{6,}[0-9])/',
+        static function (array $match) use ($store): string {
+            $phoneText = trim((string) $match[1]);
+            $phoneHref = preg_replace('/[^0-9+]/', '', $phoneText) ?? '';
+            if ($phoneHref === '') {
+                return (string) $match[0];
+            }
+
+            return $store('<a href="tel:' . h($phoneHref) . '">' . h($phoneText) . '</a>');
+        },
+        $work
+    ) ?? $work;
+
+    // 2. Escape and format the remaining text.
+    $html = applyMessageInlineEmphasis(h($work));
+    $html = renderShortcutMarkup($html, $forEmail);
+
+    // 3. Restore links, then inline code (link labels may contain code).
+    $html = $tokens !== [] ? strtr($html, $tokens) : $html;
+
+    return restoreMessageInlineCodePlaceholders($html, $inlineCode['codes']);
 }
 
 function renderMessageMarkdownCodeBlock(string $language, string $code): string

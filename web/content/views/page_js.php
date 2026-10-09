@@ -103,27 +103,6 @@
         {
             return String(TICKET_REF_LABEL || 'Ticket #%d').replace('%d', String(ticketId));
         };
-        var linkifyHttpUrlsInEscapedHtml = function (escaped)
-        {
-            return String(escaped || '').replace(/\b((?:https?:\/\/|www\.)[^\s<]+)/gi, function (match)
-            {
-                var trimmed = trimLinkTrailingPunctuation(match);
-                var suffix = match.slice(trimmed.length);
-                var href = trimmed.replace(/&amp;/g, '&');
-                if (/^www\./i.test(href))
-                {
-                    href = 'https://' + href;
-                }
-                if (!/^https?:\/\//i.test(href))
-                {
-                    return match;
-                }
-                var ticketId = extractAsclepiusTicketIdFromUrl(href);
-                var label = ticketId > 0 ? escapeHtml(formatTicketRefLabel(ticketId)) : trimmed;
-                var extraAttrs = ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
-                return '<a href="' + escapeHtml(href) + '"' + extraAttrs + '>' + label + '</a>' + suffix;
-            });
-        };
         var SHORTCUT_KEY_DEFINITIONS = <?= json_encode(getShortcutKeyDefinitions(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
         var SHORTCUT_KEY_ALIAS_MAP = {};
 
@@ -7596,6 +7575,7 @@
             }
         };
 
+        // ASCLEPIUS-INLINE-RENDERER-START (tested by tests/test-message-url-rendering.php)
         var sanitizeMessageMarkdownHref = function (rawUrl)
         {
             var url = String(rawUrl || '').trim();
@@ -7610,45 +7590,97 @@
             if (/^[a-z][a-z0-9+.-]*:/i.test(url))
             {
                 var scheme = url.split(':', 1)[0].toLowerCase();
-                return (scheme === 'http' || scheme === 'https' || scheme === 'mailto' || scheme === 'tel') ? url : '';
+                return (scheme === 'http' || scheme === 'https' || scheme === 'mailto') ? url : '';
             }
             return /^(?:[.#/?]|index\.php|admin\.php)/i.test(url) ? url : '';
         };
 
-        var applyMessageInlineMarkdown = function (escapedText)
+        var applyMessageInlineEmphasis = function (escapedText)
         {
-            var html = String(escapedText || '').replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (match, label, rawHref)
-            {
-                var href = sanitizeMessageMarkdownHref(String(rawHref || '').replace(/&amp;/g, '&'));
-                if (href === '')
-                {
-                    return match;
-                }
-                var ticketId = extractAsclepiusTicketIdFromUrl(href);
-                var extraAttrs = ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
-                return '<a href="' + escapeHtml(href) + '"' + extraAttrs + '>' + label + '</a>';
-            });
-            html = html.replace(/\*\*(\S(?:[^*\n]*\S)?)\*\*/g, '<strong>$1</strong>');
+            var html = String(escapedText || '').replace(/\*\*(\S(?:[^*\n]*\S)?)\*\*/g, '<strong>$1</strong>');
             return html.replace(/(^|[^*])\*(\S(?:[^*\n]*\S)?)\*(?!\*)/g, '$1<em>$2</em>');
         };
 
+        var splitMessageUrlTrailingPunctuation = function (candidate)
+        {
+            var url = String(candidate || '');
+            while (url !== '')
+            {
+                var last = url.charAt(url.length - 1);
+                if ('.,;:!?*_~\'"]'.indexOf(last) !== -1)
+                {
+                    url = url.slice(0, -1);
+                    continue;
+                }
+                if (last === ')' && (url.split(')').length > url.split('(').length))
+                {
+                    url = url.slice(0, -1);
+                    continue;
+                }
+                break;
+            }
+            return [url, String(candidate || '').slice(url.length)];
+        };
+
+        var buildMessageAnchorHtml = function (href, labelHtml)
+        {
+            var ticketId = extractAsclepiusTicketIdFromUrl(href);
+            var extraAttrs = ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
+            return '<a href="' + escapeHtml(href) + '"' + extraAttrs + '>' + labelHtml + '</a>';
+        };
+
+        // Tokenized: code, markdown links and bare URLs are extracted from the
+        // RAW text into placeholders first, the rest is escaped and formatted,
+        // then the placeholders are restored. Links never match inside HTML.
         var formatTicketMessageInlineHtml = function (text)
         {
             var source = String(text || '');
             var codes = [];
+            var tokens = [];
+            var store = function (html)
+            {
+                tokens.push(html);
+                return '\x1AASCTOK' + (tokens.length - 1) + '\x1A';
+            };
             source = source.replace(/`([^`\n]+)`/g, function (match, code)
             {
                 codes.push(code);
                 return '\x1AASCCODE' + (codes.length - 1) + '\x1A';
             });
-            var html = applyMessageInlineMarkdown(escapeHtml(source));
-            html = linkifyHttpUrlsInEscapedHtml(renderShortcutMarkup(html));
+            source = source.replace(/\[([^\]\n]+)\]\(([^)\s\x1A]+)\)/g, function (match, label, rawHref)
+            {
+                var href = sanitizeMessageMarkdownHref(rawHref);
+                if (href === '')
+                {
+                    return match;
+                }
+                return store(buildMessageAnchorHtml(href, applyMessageInlineEmphasis(escapeHtml(label))));
+            });
+            source = source.replace(/(^|[^\w.@\/-])((?:https?:\/\/|www\.)[^\s<>\x1A]+)/gi, function (match, prefix, candidate)
+            {
+                var parts = splitMessageUrlTrailingPunctuation(candidate);
+                var url = parts[0];
+                if (/^(?:https?:\/\/|www\.)$/i.test(url) || !/^(?:https?:\/\/|www\.)/i.test(url))
+                {
+                    return match;
+                }
+                var href = /^www\./i.test(url) ? 'https://' + url : url;
+                var ticketId = extractAsclepiusTicketIdFromUrl(href);
+                var labelHtml = ticketId > 0 ? escapeHtml(formatTicketRefLabel(ticketId)) : escapeHtml(url);
+                return prefix + store(buildMessageAnchorHtml(href, labelHtml)) + parts[1];
+            });
+            var html = renderShortcutMarkup(applyMessageInlineEmphasis(escapeHtml(source)));
+            html = html.replace(/\x1AASCTOK(\d+)\x1A/g, function (match, index)
+            {
+                return tokens[parseInt(index, 10)];
+            });
             codes.forEach(function (code, index)
             {
                 html = html.split('\x1AASCCODE' + index + '\x1A').join('<code class="message-md-code">' + escapeHtml(code) + '</code>');
             });
             return html;
         };
+        // ASCLEPIUS-INLINE-RENDERER-END
 
         var formatTicketMessageCheckboxHtml = function (line, messageId, lineIndex)
         {

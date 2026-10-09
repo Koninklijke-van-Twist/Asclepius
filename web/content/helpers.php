@@ -3395,59 +3395,7 @@ function formatTicketRefLabel(int $ticketId): string
 
 function makeTextInteractive(string $text, bool $forEmail = false): string
 {
-    $inlineCode = extractMessageInlineCodePlaceholders($text);
-    $escapedText = applyMessageInlineMarkdown(h($inlineCode['text']), $forEmail);
-    $escapedText = renderShortcutMarkup($escapedText, $forEmail);
-
-    $escapedText = mapMessageHtmlTextSegments(
-        $escapedText,
-        static function (string $segment) use ($forEmail): string {
-            $segment = preg_replace_callback(
-                '~(?:(https?://|www\.)[^\s<]+)~i',
-                static function (array $matches) use ($forEmail): string {
-                    $displayValue = $matches[0];
-                    $trimmed = preg_replace('/[.,;:!?)\]]+$/', '', $displayValue) ?? $displayValue;
-                    $suffix = substr($displayValue, strlen($trimmed));
-                    $href = html_entity_decode($trimmed, ENT_QUOTES, 'UTF-8');
-                    $href = str_starts_with(strtolower($href), 'www.') ? 'https://' . $href : $href;
-                    $safeHref = h($href);
-                    $ticketId = extractAsclepiusTicketIdFromUrl($href);
-                    $safeLabel = $ticketId > 0 ? h(formatTicketRefLabel($ticketId)) : $trimmed;
-
-                    if ($forEmail) {
-                        return '<a href="' . $safeHref . '">' . $safeLabel . '</a>' . $suffix;
-                    }
-
-                    $target = $ticketId > 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
-
-                    return '<a href="' . $safeHref . '"' . $target . '>' . $safeLabel . '</a>' . $suffix;
-                },
-                $segment
-            ) ?? $segment;
-
-            $segment = preg_replace(
-                '/(?<![\w.@])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i',
-                '<a href="mailto:$1">$1</a>',
-                $segment
-            ) ?? $segment;
-
-            return preg_replace_callback(
-                '/(?<![\w>])((?:\+?[0-9][0-9\s()\/.-]{6,}[0-9]))/',
-                static function (array $matches): string {
-                    $phoneText = trim($matches[1]);
-                    $phoneHref = preg_replace('/[^0-9+]/', '', $phoneText) ?? '';
-                    if ($phoneHref === '') {
-                        return $phoneText;
-                    }
-
-                    return '<a href="tel:' . h($phoneHref) . '">' . h($phoneText) . '</a>';
-                },
-                $segment
-            ) ?? $segment;
-        }
-    );
-
-    return restoreMessageInlineCodePlaceholders($escapedText, $inlineCode['codes']);
+    return renderMessageInlineHtml($text, $forEmail);
 }
 
 function formatTicketMessageText(?string $messageText, int $messageId = 0, array $attachments = []): string

@@ -1,3 +1,11 @@
+id: 2026-10-09-message-url-links
+date: 2026-10-09
+title: Les liens dans les messages restent intacts
+author: Tim Falken
+
+Un lien contenant une longue suite de chiffres, comme un lien produit bol.com, s'affichait parfois cassé avec des bouts de code devant. Les liens restent désormais intacts, même avec des tirets, des astérisques, des underscores, des parenthèses ou un point après.
+
+---
 id: 2026-10-06-session-keepalive
 date: 2026-10-06
 title: La session reste active tant qu’Asclepius est ouvert
