@@ -15,6 +15,12 @@
  * toegewezen tickets en voor AI-advies van die gebruiker. Zie README.md.
  */
 
+// --- Vertaling: Power Automate / Copilot. Zonder flowUrl blijft Lara ($laraTranslate) actief. ---
+// $copilotTranslate = [
+//     'flowUrl' => 'https://example.invalid/copilot-translate',
+//     'timeout' => 25,
+// ];
+
 // --- Grok-bot (centraal, in de echte auth.php op de server) ---
 // $grokBot = [
 //     'enabled' => true,

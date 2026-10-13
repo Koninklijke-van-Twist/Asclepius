@@ -1,3 +1,11 @@
+id: 2026-10-13-copilot-translate
+date: 2026-10-13
+title: Translation via the Copilot flow
+author: Cursor Agent
+
+Ticket translation uses the Copilot flow once that is set in the configuration. The reader's language, when a text is translated, and what is stored stay the same. If translation fails, the original text stays visible. Without a flow address, the previous translation service (Lara) stays active.
+
+---
 id: 2026-10-09-message-url-links
 date: 2026-10-09
 title: Links in messages stay intact

@@ -1,3 +1,11 @@
+id: 2026-10-13-copilot-translate
+date: 2026-10-13
+title: Traduction via le flux Copilot
+author: Cursor Agent
+
+La traduction des tickets passe par le flux Copilot dès qu'il est configuré. La langue du lecteur, le moment de la traduction et ce qui est enregistré restent les mêmes. Si la traduction échoue, le texte d'origine reste visible. Sans adresse de flux, l'ancien service de traduction (Lara) reste actif.
+
+---
 id: 2026-10-09-message-url-links
 date: 2026-10-09
 title: Les liens dans les messages restent intacts

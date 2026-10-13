@@ -20,6 +20,13 @@ function createTranslationProvider(): ?TranslationProvider
 
     $__translationProviderCache = ['initialized' => true, 'provider' => null];
 
+    $copilotProvider = createCopilotTranslationProvider();
+    if ($copilotProvider !== null) {
+        $__translationProviderCache['provider'] = $copilotProvider;
+
+        return $copilotProvider;
+    }
+
     if (!class_exists('Lara\\Translator') || !class_exists('Lara\\LaraCredentials')) {
         return null;
     }
@@ -40,6 +47,26 @@ function createTranslationProvider(): ?TranslationProvider
     } catch (Throwable) {
         return null;
     }
+}
+
+function createCopilotTranslationProvider(): ?CopilotTranslationProvider
+{
+    global $copilotTranslate;
+    if (!isset($copilotTranslate) || !is_array($copilotTranslate)) {
+        return null;
+    }
+
+    $flowUrl = trim((string) ($copilotTranslate['flowUrl'] ?? ''));
+    if (preg_match('~^https://~i', $flowUrl) !== 1) {
+        return null;
+    }
+
+    $timeoutSeconds = null;
+    if (isset($copilotTranslate['timeout']) && is_numeric($copilotTranslate['timeout'])) {
+        $timeoutSeconds = (float) $copilotTranslate['timeout'];
+    }
+
+    return new CopilotTranslationProvider($flowUrl, $timeoutSeconds);
 }
 
 function translateTicketTextForViewer(

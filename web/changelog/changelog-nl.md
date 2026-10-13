@@ -1,3 +1,11 @@
+id: 2026-10-13-copilot-translate
+date: 2026-10-13
+title: Vertaling via de Copilot-flow
+author: Cursor Agent
+
+Ticketvertaling gebruikt de Copilot-flow zodra die in de configuratie staat. De taal van de lezer, het moment van vertalen en wat er bewaard wordt, blijven hetzelfde. Lukt de vertaling niet, dan blijft het origineel staan. Zonder flow-adres blijft de vorige vertaaldienst (Lara) actief.
+
+---
 id: 2026-10-09-message-url-links
 date: 2026-10-09
 title: Links in berichten blijven heel

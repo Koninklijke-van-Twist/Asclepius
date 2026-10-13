@@ -1,0 +1,400 @@
+<?php
+/**
+ * Adapter van de Copilot-flow: parser, één aanroep per tekst, Lara-foutgedrag
+ * en fallback als flowUrl ontbreekt.
+ */
+
+echo "=== TEST: Copilot-vertaaladapter ===" . PHP_EOL . PHP_EOL;
+
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+$_SERVER['SERVER_ADDR'] = '127.0.0.1';
+$_SERVER['PHP_SELF'] = '/asclepius/index.php';
+$_SESSION = [];
+
+require __DIR__ . '/../web/content/constants.php';
+require __DIR__ . '/../web/TicketStore.php';
+require __DIR__ . '/../web/content/localization.php';
+require __DIR__ . '/../web/content/TranslationProvider.php';
+require __DIR__ . '/../web/content/LaraTranslationProvider.php';
+require __DIR__ . '/../web/content/CoPilotTranslate.php';
+require __DIR__ . '/../web/content/CopilotTranslationProvider.php';
+require __DIR__ . '/../web/content/translation.php';
+
+if (!extension_loaded('pdo_sqlite')) {
+    echo "FAIL: pdo_sqlite-extensie is niet beschikbaar." . PHP_EOL;
+    exit(1);
+}
+
+$passed = 0;
+$failed = 0;
+
+function assertCopilot(string $label, mixed $expected, mixed $actual): void
+{
+    global $passed, $failed;
+    if ($expected === $actual) {
+        echo "  ✓ {$label}" . PHP_EOL;
+        $passed++;
+        return;
+    }
+
+    echo "  ✗ {$label}" . PHP_EOL;
+    echo "      Verwacht : " . var_export($expected, true) . PHP_EOL;
+    echo "      Gekregen : " . var_export($actual, true) . PHP_EOL;
+    $failed++;
+}
+
+function assertCopilotTrue(string $label, bool $condition): void
+{
+    assertCopilot($label, true, $condition);
+}
+
+function copilotBundle(string $source, array $translations): string
+{
+    return json_encode(
+        ['source' => $source] + $translations,
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
+}
+
+function resetCopilotProviderCache(): void
+{
+    $GLOBALS['__translationProviderCache'] = null;
+}
+
+echo "Parser" . PHP_EOL;
+
+$fenced = "Hier is het antwoord:\n```json\n" . copilotBundle('fr', [
+    'nl' => 'De printer werkt niet',
+    'en' => 'The printer does not work',
+    'fr' => "L'imprimante ne fonctionne pas",
+    'de' => 'Der Drucker funktioniert nicht',
+]) . "\n```\nKlaar.";
+$parsedFence = cpt_parse_translations($fenced);
+assertCopilotTrue('Fence en rommel eromheen', is_array($parsedFence));
+assertCopilot('Nederlandse tekst uit fence', 'De printer werkt niet', (string) ($parsedFence['translations']['nl'] ?? ''));
+
+$wrapped = json_encode([
+    'text' => copilotBundle('en-GB', [
+        'nl' => 'Hallo',
+        'en' => 'Hello',
+        'fr' => 'Bonjour',
+        'de' => 'Hallo',
+    ]),
+], JSON_UNESCAPED_UNICODE);
+$parsedWrapped = cpt_parse_translations((string) $wrapped);
+assertCopilot('Ingepakt antwoord, bron en-GB', 'en', $parsedWrapped['source'] ?? null);
+
+$incomplete = cpt_parse_translations(copilotBundle('nl', [
+    'nl' => 'Alleen nl',
+    'en' => 'Only en',
+]));
+assertCopilot('Onvolledig antwoord is ongeldig', null, $incomplete);
+
+echo PHP_EOL . "Adapter" . PHP_EOL;
+
+$calls = [];
+$scripted = [];
+$transport = static function (string $url, string $jsonBody, float $timeout) use (&$calls, &$scripted): array {
+    $calls[] = [
+        'url' => $url,
+        'body' => $jsonBody,
+        'timeout' => $timeout,
+    ];
+    $next = array_shift($scripted);
+    if (!is_array($next)) {
+        return ['status' => 500, 'body' => 'geen script', 'error' => ''];
+    }
+
+    return $next;
+};
+
+$provider = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
+$raw = 'The printer does not work';
+$scripted[] = [
+    'status' => 200,
+    'body' => "```json\n" . copilotBundle('nl', [
+        'nl' => 'De printer werkt niet',
+        'en' => 'The printer does not work',
+        'fr' => "L'imprimante ne fonctionne pas",
+        'de' => 'Der Drucker funktioniert nicht',
+    ]) . "\n```",
+    'error' => '',
+];
+
+$dutch = $provider->translateText($raw, 'nl');
+assertCopilot('Doeltaal nl gebruikt de nl-tekst', 'De printer werkt niet', $dutch['translated_text']);
+assertCopilot('Foute flow-source nl wordt genegeerd', 'en', $dutch['source_language']);
+assertCopilot('Eén HTTP-aanroep', 1, count($calls));
+
+$payload = json_decode($calls[0]['body'], true);
+assertCopilotTrue('Payload is JSON', is_array($payload));
+assertCopilot('Payload-sleutels', ['id', 'text', 'languages'], array_keys((array) $payload));
+assertCopilot('Talen in de aanroep', ['nl', 'en', 'fr', 'de'], $payload['languages'] ?? null);
+assertCopilot('Id is de hash van de tekst', hash('sha256', $raw), $payload['id'] ?? null);
+assertCopilot('Timeout blijft de gevraagde 25s', 25.0, $calls[0]['timeout']);
+
+$french = $provider->translateText($raw, 'fr');
+assertCopilot('Tweede taal hergebruikt de run', "L'imprimante ne fonctionne pas", $french['translated_text']);
+assertCopilot('Nog steeds één HTTP-aanroep', 1, count($calls));
+assertCopilot('Brontaal blijft en', 'en', $french['source_language']);
+
+$alreadyDutch = 'De printer werkt niet';
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('en', [
+        'nl' => 'De printer werkt niet',
+        'en' => 'The printer does not work',
+        'fr' => "L'imprimante ne fonctionne pas",
+        'de' => 'Der Drucker funktioniert nicht',
+    ]),
+    'error' => '',
+];
+$sameLanguage = $provider->translateText($alreadyDutch, 'nl');
+assertCopilot('Tekst die al Nederlands is houdt bron nl', 'nl', $sameLanguage['source_language']);
+assertCopilot('Tweede tekst is een nieuwe run', 2, count($calls));
+
+$paraphrased = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('nl', [
+        'nl' => 'De printer werkt niet',
+        'en' => "The printer isn't working",
+        'fr' => "L'imprimante ne marche pas",
+        'de' => 'Der Drucker geht nicht',
+    ]),
+    'error' => '',
+];
+$paraphraseResult = $paraphrased->translateText('The printer does not work', 'nl');
+assertCopilot('Herschreven brontekst blijft een vertaling', 'De printer werkt niet', $paraphraseResult['translated_text']);
+assertCopilot('Brontaal volgt de meest gelijkende tekst, niet de flow-source', 'en', $paraphraseResult['source_language']);
+
+$sameLanguageParaphrase = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('en', [
+        'nl' => 'De printer functioneert niet',
+        'en' => 'The printer does not work',
+        'fr' => "L'imprimante ne fonctionne pas",
+        'de' => 'Der Drucker funktioniert nicht',
+    ]),
+    'error' => '',
+];
+$sameLanguageParaphraseResult = $sameLanguageParaphrase->translateText('De printer werkt niet', 'nl');
+assertCopilot('Herschreven doeltaal blijft de doeltaal', 'nl', $sameLanguageParaphraseResult['source_language']);
+
+$withKey = 'Druk op [Enter] om door te gaan';
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('de', [
+        'nl' => 'Druk op ⟦kb0⟧ om door te gaan',
+        'en' => 'Press ⟦kb0⟧ to continue',
+        'fr' => 'Appuyez sur ⟦kb0⟧ pour continuer',
+        'de' => 'Drücken Sie ⟦kb0⟧ um fortzufahren',
+    ]),
+    'error' => '',
+];
+$keyed = $provider->translateText($withKey, 'en');
+assertCopilot('Toetsnaam blijft staan', 'Press [Enter] to continue', $keyed['translated_text']);
+$keyPayload = json_decode($calls[2]['body'], true);
+assertCopilotTrue('Ruwe toetsnaam gaat niet naar de flow', is_array($keyPayload) && !str_contains((string) $keyPayload['text'], '[Enter]'));
+
+$filtered = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
+$scripted[] = [
+    'status' => 400,
+    'body' => '{"error":{"code":"ResponseContentFiltered","message":"blocked"}}',
+    'error' => '',
+];
+$filterThrew = false;
+$filterMessage = '';
+try {
+    $filtered->translateText('geblokkeerde tekst', 'de');
+} catch (RuntimeException $exception) {
+    $filterThrew = true;
+    $filterMessage = $exception->getMessage();
+}
+assertCopilotTrue('Filter geeft een exception', $filterThrew);
+assertCopilotTrue('Filterbericht bevat ResponseContentFiltered', str_contains($filterMessage, 'ResponseContentFiltered'));
+$callsBeforeRetry = count($calls);
+$secondFilterThrew = false;
+try {
+    $filtered->translateText('geblokkeerde tekst', 'fr');
+} catch (RuntimeException) {
+    $secondFilterThrew = true;
+}
+assertCopilotTrue('Tweede taal na filter gooit opnieuw', $secondFilterThrew);
+assertCopilot('Tweede taal na filter start geen run', $callsBeforeRetry, count($calls));
+
+$timedOut = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
+$scripted[] = ['status' => 0, 'body' => '', 'error' => 'Operation timed out'];
+$timeoutMessage = '';
+try {
+    $timedOut->translateText('trage tekst', 'nl');
+} catch (RuntimeException $exception) {
+    $timeoutMessage = $exception->getMessage();
+}
+assertCopilotTrue('Timeout wordt een exception', str_contains($timeoutMessage, 'timed out'));
+
+$garbage = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
+$scripted[] = ['status' => 200, 'body' => 'Geen JSON, alleen tekst.', 'error' => ''];
+$garbageThrew = false;
+try {
+    $garbage->translateText('onleesbaar', 'nl');
+} catch (RuntimeException $exception) {
+    $garbageThrew = str_contains($exception->getMessage(), 'onleesbaar antwoord');
+}
+assertCopilotTrue('Ongeldig antwoord wordt een exception', $garbageThrew);
+
+$previousMax = (string) ini_get('max_execution_time');
+ini_set('max_execution_time', '30');
+$capped = new CopilotTranslationProvider('https://example.invalid/flow', 60.0, $transport);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('en', [
+        'nl' => 'Kort',
+        'en' => 'Short',
+        'fr' => 'Court',
+        'de' => 'Kurz',
+    ]),
+    'error' => '',
+];
+$capped->translateText('Short', 'nl');
+assertCopilot('Timeout blijft onder max_execution_time', 25.0, $calls[count($calls) - 1]['timeout']);
+ini_set('max_execution_time', $previousMax);
+
+echo PHP_EOL . "Config en bestaande opslag" . PHP_EOL;
+
+resetCopilotProviderCache();
+$GLOBALS['copilotTranslate'] = null;
+unset($GLOBALS['laraTranslate']);
+assertCopilot('Zonder config geen provider', null, createTranslationProvider());
+
+resetCopilotProviderCache();
+$GLOBALS['copilotTranslate'] = ['flowUrl' => 'http://example.invalid/flow'];
+assertCopilot('http-adres valt terug', null, createTranslationProvider());
+
+resetCopilotProviderCache();
+$GLOBALS['copilotTranslate'] = ['flowUrl' => ''];
+assertCopilot('Lege flowUrl valt terug', null, createTranslationProvider());
+
+CopilotTranslationProvider::useTransportForTests($transport);
+resetCopilotProviderCache();
+$GLOBALS['copilotTranslate'] = [
+    'flowUrl' => 'https://example.invalid/flow',
+    'timeout' => 12,
+];
+$selected = createTranslationProvider();
+assertCopilotTrue('https flowUrl kiest Copilot', $selected instanceof CopilotTranslationProvider);
+
+$store = new TicketStore(
+    ':memory:',
+    sys_get_temp_dir() . '/asclepius_test_uploads_copilot_translate',
+    ['ict@kvt.nl'],
+    TICKET_CATEGORIES
+);
+$created = $store->createTicket(
+    'Printer stuk',
+    'hardware bestellen',
+    'user@kvt.nl',
+    'The printer does not work',
+    []
+);
+$ticketId = (int) ($created['ticket_id'] ?? 0);
+$ticket = $store->getTicket($ticketId, true, 'ict@kvt.nl');
+$messageId = (int) (($ticket['messages'][0]['id'] ?? 0));
+$callsBeforeStore = count($calls);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('nl', [
+        'nl' => 'De printer werkt niet',
+        'en' => 'The printer does not work',
+        'fr' => "L'imprimante ne fonctionne pas",
+        'de' => 'Der Drucker funktioniert nicht',
+    ]),
+    'error' => '',
+];
+
+$storedDutch = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $messageId,
+    $ticketId,
+    'The printer does not work',
+    'nl'
+);
+assertCopilot('Bestaande regel toont de Nederlandse tekst', 'De printer werkt niet', $storedDutch['text']);
+assertCopilot('Bestaande regel markeert een vertaling', true, $storedDutch['is_translated']);
+assertCopilot('Opgeslagen brontaal is niet de foute flow-source', 'en', $storedDutch['source_language']);
+assertCopilot('Opslag kost één run', $callsBeforeStore + 1, count($calls));
+$cached = $store->getTextTranslation('ticket_message', $messageId, 'nl', hash('sha256', 'The printer does not work'));
+assertCopilot('Vertaling staat in de bestaande cache', 'De printer werkt niet', (string) ($cached['translated_text'] ?? ''));
+
+$storedFrench = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $messageId,
+    $ticketId,
+    'The printer does not work',
+    'fr'
+);
+assertCopilot('Franse tekst uit dezelfde run', "L'imprimante ne fonctionne pas", $storedFrench['text']);
+assertCopilot('Tweede doeltaal kost geen extra run', $callsBeforeStore + 1, count($calls));
+$cachedFrench = $store->getTextTranslation('ticket_message', $messageId, 'fr', hash('sha256', 'The printer does not work'));
+assertCopilot('Franse vertaling apart opgeslagen', "L'imprimante ne fonctionne pas", (string) ($cachedFrench['translated_text'] ?? ''));
+
+$callsBeforeFilter = count($calls);
+$scripted[] = [
+    'status' => 400,
+    'body' => '{"error":{"code":"ResponseContentFiltered"}}',
+    'error' => '',
+];
+$filterResult = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $messageId,
+    $ticketId,
+    'Dit mag de flow niet zien',
+    'de'
+);
+assertCopilot('Filter gedraagt zich als een Lara-fout', 'provider_error', $filterResult['translation_error']);
+assertCopilot('Bij een fout blijft de oorspronkelijke tekst', 'Dit mag de flow niet zien', $filterResult['text']);
+assertCopilotTrue(
+    'Foutdetail noemt het filter',
+    str_contains((string) ($filterResult['translation_error_detail'] ?? ''), 'ResponseContentFiltered')
+);
+assertCopilot(
+    'Een fout wordt niet gecachet als vertaling',
+    null,
+    $store->getTextTranslation('ticket_message', $messageId, 'de', hash('sha256', 'Dit mag de flow niet zien'))
+);
+assertCopilot('Filter kost één run', $callsBeforeFilter + 1, count($calls));
+
+$callsBeforeTitle = count($calls);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('en', [
+        'nl' => 'Printer stuk',
+        'en' => 'Printer broken',
+        'fr' => 'Imprimante en panne',
+        'de' => 'Drucker kaputt',
+    ]),
+    'error' => '',
+];
+$sameLanguageStored = translateTicketTextForViewer(
+    $store,
+    'ticket_title',
+    $ticketId,
+    $ticketId,
+    'Printer stuk',
+    'nl'
+);
+assertCopilot('Titel die al in de doeltaal staat blijft het origineel', 'Printer stuk', $sameLanguageStored['text']);
+assertCopilot('Geen vertaalmarkering als de tekst al in de doeltaal is', false, $sameLanguageStored['is_translated']);
+assertCopilot('Geen fout als de tekst al in de doeltaal staat', '', $sameLanguageStored['translation_error']);
+assertCopilot('Titelvertaling is wel opgehaald', $callsBeforeTitle + 1, count($calls));
+
+CopilotTranslationProvider::useTransportForTests(null);
+resetCopilotProviderCache();
+
+echo PHP_EOL;
+echo "Resultaat: {$passed} geslaagd, {$failed} gefaald." . PHP_EOL;
+exit($failed > 0 ? 1 : 0);

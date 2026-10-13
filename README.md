@@ -40,6 +40,19 @@ Tim moet `$mimirApi` (en optioneel `$mimirBase`) lokaal/op de server zetten, mé
 
 Geen `auth.php` in deze repository (staat in `.gitignore`). Lokaal/op de server de Mímir-sleutel zetten zoals hierboven, en `$baseUrl`, `$auth` / `$auth_list` en `$environment` daarnaast laten staan voor de directe BC-fallback. Graph-credentials (`$graphCredentials`), mail, web-push, API-keys en Grok blijven zoals voorheen.
 
+## Vertaling (Copilot-flow, optioneel)
+
+Zet in `web/auth.php` (niet in git), naast de bestaande `$laraTranslate`:
+
+```php
+$copilotTranslate = [
+    'flowUrl' => 'https://…',
+    'timeout' => 25, // optioneel, seconden; standaard 25
+];
+```
+
+Staat `flowUrl` op een `https`-adres, dan gaat ticketvertaling via die Power Automate/Copilot-flow. Ontbreekt de instelling of is het adres ongeldig, dan blijft Lara de vertaaldienst. Zie `web/auth_TEMPLATE.php`.
+
 ## Grok-webhooks
 
 De centrale bot staat in `web/auth.php` als `$grokBot` (niet in git). Die webhook blijft bij elke ticketgebeurtenis (`new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened`, `re-evaluate-ticket-and-advise`) aangeroepen worden, met `sender_email`, `default_name` en `default_title` uit die config.

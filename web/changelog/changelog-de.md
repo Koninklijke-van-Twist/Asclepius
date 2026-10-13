@@ -1,3 +1,11 @@
+id: 2026-10-13-copilot-translate
+date: 2026-10-13
+title: Übersetzung über den Copilot-Flow
+author: Cursor Agent
+
+Die Ticketübersetzung nutzt den Copilot-Flow, sobald er in der Konfiguration steht. Die Sprache des Lesers, der Zeitpunkt der Übersetzung und was gespeichert wird, bleiben gleich. Schlägt die Übersetzung fehl, bleibt der Originaltext sichtbar. Ohne Flow-Adresse bleibt der bisherige Übersetzungsdienst (Lara) aktiv.
+
+---
 id: 2026-10-09-message-url-links
 date: 2026-10-09
 title: Links in Nachrichten bleiben intakt
