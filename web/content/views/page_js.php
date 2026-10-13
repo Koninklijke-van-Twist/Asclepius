@@ -8135,6 +8135,8 @@
         var TRANSLATION_LABEL_TRANSLATED = <?= json_encode(__('ticket.show_translation'), JSON_UNESCAPED_UNICODE) ?>;
         var TRANSLATION_ERROR_TOOLTIP = <?= json_encode(__('translation.error_tooltip'), JSON_UNESCAPED_UNICODE) ?>;
         var TRANSLATION_ERROR_FALLBACK = <?= json_encode(__('translation.error_fallback'), JSON_UNESCAPED_UNICODE) ?>;
+        var TRANSLATION_LOADING_TOOLTIP = <?= json_encode(__('translation.loading_tooltip'), JSON_UNESCAPED_UNICODE) ?>;
+        var TRANSLATION_LOADING_FLAG = <?= json_encode(SUPPORTED_LANGUAGES[getCurrentLanguage()]['flag'] ?? '', JSON_UNESCAPED_UNICODE) ?>;
 
         var applyTranslationErrorIndicator = function (messageNode, errorCode)
         {
@@ -8180,6 +8182,102 @@
             errorIcon.setAttribute('aria-hidden', 'true');
             errorIcon.innerHTML = '<path d="M12 3L2 21h20L12 3z" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17" r="1" fill="currentColor"/>';
             statusIndicator.appendChild(errorIcon);
+        };
+
+        var ensureTranslationSpinner = function (messageNode)
+        {
+            if (!messageNode || messageNode.getAttribute('data-translation-status') === 'error')
+            {
+                return;
+            }
+
+            messageNode.setAttribute('data-translation-status', 'pending');
+            var statusIndicator = messageNode.querySelector('[data-role="translation-status"]');
+            if (statusIndicator && statusIndicator.getAttribute('data-status') === 'error')
+            {
+                return;
+            }
+
+            if (!statusIndicator)
+            {
+                var messageMeta = messageNode.querySelector('.message-meta');
+                if (!messageMeta)
+                {
+                    return;
+                }
+
+                var metaActions = messageMeta.querySelector('.message-meta-actions');
+                if (!metaActions)
+                {
+                    metaActions = document.createElement('div');
+                    metaActions.className = 'message-meta-actions';
+                    messageMeta.appendChild(metaActions);
+                }
+
+                statusIndicator = document.createElement('div');
+                statusIndicator.className = 'translation-status-indicator';
+                statusIndicator.setAttribute('data-role', 'translation-status');
+                metaActions.appendChild(statusIndicator);
+            }
+
+            statusIndicator.setAttribute('data-status', 'pending');
+            statusIndicator.title = TRANSLATION_LOADING_TOOLTIP;
+            if (!statusIndicator.querySelector('.translation-spinner-ring'))
+            {
+                statusIndicator.innerHTML = '<span class="translation-flag-ghost" aria-hidden="true">' + escapeHtml(TRANSLATION_LOADING_FLAG) + '</span><span class="translation-spinner-ring" aria-hidden="true"></span>';
+            }
+        };
+
+        var removePendingSpinner = function (messageNode)
+        {
+            if (!messageNode)
+            {
+                return;
+            }
+
+            if (messageNode.getAttribute('data-translation-status') === 'error')
+            {
+                return;
+            }
+
+            var statusIndicator = messageNode.querySelector('[data-role="translation-status"]');
+            if (statusIndicator && statusIndicator.getAttribute('data-status') === 'error')
+            {
+                return;
+            }
+
+            if (messageNode.getAttribute('data-translation-status') === 'pending')
+            {
+                messageNode.setAttribute('data-translation-status', 'loaded');
+            }
+
+            if (!statusIndicator || statusIndicator.getAttribute('data-status') !== 'pending')
+            {
+                return;
+            }
+
+            var metaActions = statusIndicator.closest('.message-meta-actions');
+            statusIndicator.remove();
+            if (metaActions && !metaActions.querySelector('[data-role="publish-ghost-message"]') && !metaActions.querySelector('[data-role="translation-status"]'))
+            {
+                metaActions.remove();
+            }
+        };
+
+        var settlePendingTranslationDisplay = function (card)
+        {
+            if (!card || typeof card.querySelectorAll !== 'function')
+            {
+                return;
+            }
+
+            var titleNode = card.querySelector('[data-role="ticket-title"][data-translation-status="pending"]');
+            if (titleNode)
+            {
+                titleNode.setAttribute('data-translation-status', 'loaded');
+            }
+
+            card.querySelectorAll('[data-message-id][data-translation-status="pending"]').forEach(removePendingSpinner);
         };
 
         var applyTranslationToCard = function (card, data)
@@ -8253,7 +8351,7 @@
 
                 if (msg.translation_pending)
                 {
-                    messageNode.setAttribute('data-translation-status', 'pending');
+                    ensureTranslationSpinner(messageNode);
                     return;
                 }
 
@@ -8408,23 +8506,57 @@
             pendingCards.forEach(requestTicketTranslation);
         };
 
+        var translationRetriesUsed = function (liveCard)
+        {
+            return parseInt(liveCard.getAttribute('data-translation-retries') || '0', 10);
+        };
+
+        var pauseTranslationCard = function (liveCard)
+        {
+            settlePendingTranslationDisplay(liveCard);
+            liveCard.setAttribute('data-translation-awaiting-trigger', '1');
+            liveCard.setAttribute('data-needs-translation', '1');
+            liveCard.removeAttribute('data-translation-retry-due');
+            liveCard.removeAttribute('data-translation-dirty');
+        };
+
+        var ticketHasRetryingCard = function (ticketId, fallbackCard)
+        {
+            var retrying = false;
+            collectTicketCards(ticketId, fallbackCard).forEach(function (otherCard)
+            {
+                if (otherCard.getAttribute('data-needs-translation') === 'retry')
+                {
+                    retrying = true;
+                }
+            });
+
+            return retrying;
+        };
+
         var scheduleTranslationRetry = function (liveCard, ticketId)
         {
-            var used = parseInt(liveCard.getAttribute('data-translation-retries') || '0', 10);
-            var delayIndex = used;
+            var used = translationRetriesUsed(liveCard);
             if (used >= TRANSLATION_RETRY_MAX)
             {
-                used = 0;
-                delayIndex = TRANSLATION_RETRY_DELAYS_MS.length - 1;
+                pauseTranslationCard(liveCard);
+                if (!ticketHasRetryingCard(ticketId, liveCard))
+                {
+                    clearTranslationRetryTimer(ticketId);
+                }
+                return;
             }
 
             liveCard.setAttribute('data-translation-retries', String(used + 1));
             liveCard.setAttribute('data-needs-translation', 'retry');
             liveCard.removeAttribute('data-translation-retry-due');
+            liveCard.removeAttribute('data-translation-awaiting-trigger');
             if (translationRetryTimers[ticketId])
             {
                 return;
             }
+
+            var delayIndex = used;
 
             var originCard = liveCard;
             translationRetryTimers[ticketId] = window.setTimeout(function ()
@@ -8453,6 +8585,44 @@
             }, translationRetryDelayMs(delayIndex));
         };
 
+        var resumePausedTranslations = function (container)
+        {
+            if (document.hidden)
+            {
+                return;
+            }
+
+            var root = container || document;
+            var pausedCards = [];
+            if (root.nodeType === 1 && typeof root.matches === 'function' && root.matches('details.ticket-card[data-translation-awaiting-trigger="1"]'))
+            {
+                pausedCards.push(root);
+            }
+            root.querySelectorAll('details.ticket-card[data-translation-awaiting-trigger="1"]').forEach(function (pausedCard)
+            {
+                pausedCards.push(pausedCard);
+            });
+            pausedCards.forEach(function (pausedCard)
+            {
+                if (pausedCard.getAttribute('data-needs-translation') === 'loading')
+                {
+                    return;
+                }
+
+                var pausedTicketId = parseInt(pausedCard.getAttribute('data-ticket-id') || '0', 10);
+                if (pausedTicketId && translationRequestsInFlight[pausedTicketId])
+                {
+                    pausedCard.setAttribute('data-translation-dirty', '1');
+                    return;
+                }
+
+                pausedCard.setAttribute('data-translation-retries', '0');
+                pausedCard.removeAttribute('data-translation-awaiting-trigger');
+                pausedCard.setAttribute('data-needs-translation', '1');
+                triggerLazyTranslations(pausedCard);
+            });
+        };
+
         var requestTicketTranslation = function (card)
         {
             var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
@@ -8464,6 +8634,12 @@
             {
                 card.setAttribute('data-translation-dirty', '1');
                 return;
+            }
+
+            if (card.getAttribute('data-translation-awaiting-trigger') === '1')
+            {
+                card.setAttribute('data-translation-retries', '0');
+                card.removeAttribute('data-translation-awaiting-trigger');
             }
 
             translationRequestsInFlight[ticketId] = true;
@@ -8493,14 +8669,22 @@
                     if (!cardHasPendingTranslation(liveCard))
                     {
                         liveCard.removeAttribute('data-translation-retry-due');
+                        liveCard.removeAttribute('data-translation-awaiting-trigger');
                         liveCard.setAttribute('data-translation-retries', '0');
                         liveCard.setAttribute('data-needs-translation', '0');
                         return;
                     }
 
                     sawPending = true;
+                    if (translationRetriesUsed(liveCard) >= TRANSLATION_RETRY_MAX)
+                    {
+                        pauseTranslationCard(liveCard);
+                        return;
+                    }
+
                     if (dirty)
                     {
+                        liveCard.setAttribute('data-translation-retries', String(translationRetriesUsed(liveCard) + 1));
                         liveCard.setAttribute('data-needs-translation', '1');
                         followUpCards.push(liveCard);
                         return;
@@ -8508,18 +8692,26 @@
 
                     scheduleTranslationRetry(liveCard, ticketId);
                 });
-                if (!sawPending)
+                if (!sawPending || !ticketHasRetryingCard(ticketId, card))
                 {
                     clearTranslationRetryTimer(ticketId);
                 }
             }).catch(function (error)
             {
                 console.error('[translation] Fetch error for ticket #' + ticketId, error);
+                clearTranslationRetryTimer(ticketId);
                 collectTicketCards(ticketId, card).forEach(function (liveCard)
                 {
                     liveCard.setAttribute('data-needs-translation', '1');
                     liveCard.removeAttribute('data-translation-dirty');
-                    liveCard.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
+                    liveCard.removeAttribute('data-translation-awaiting-trigger');
+                    liveCard.removeAttribute('data-translation-retry-due');
+                    var titleNode = liveCard.querySelector('[data-role="ticket-title"][data-translation-status="pending"]');
+                    if (titleNode)
+                    {
+                        titleNode.setAttribute('data-translation-status', 'loaded');
+                    }
+                    liveCard.querySelectorAll('[data-message-id][data-translation-status="pending"]').forEach(function (msg)
                     {
                         applyTranslationErrorIndicator(msg, String(error && error.message ? error.message : 'network_error'));
                     });
@@ -8562,6 +8754,7 @@
                 dueCard.setAttribute('data-needs-translation', '1');
                 triggerLazyTranslations(dueCard);
             });
+            resumePausedTranslations(document);
         });
 
         var postWebPushSubscription = function (action, subscription)
@@ -9236,6 +9429,7 @@
                 {
                     if (!data || data.unchanged)
                     {
+                        resumePausedTranslations(liveTicketSection);
                         return;
                     }
 
