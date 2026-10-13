@@ -9,6 +9,20 @@ class CopilotTranslationProvider implements TranslationProvider
     /** Seconden. De flow antwoordt synchroon en kan tientallen seconden duren. */
     private const DEFAULT_TIMEOUT_SECONDS = 25.0;
 
+    /** Ruimte die overblijft om het HTTP-antwoord nog weg te schrijven. */
+    private const TIMEOUT_HEADROOM_SECONDS = 5.0;
+
+    /** Korter dan dit starten we geen call meer: PHP zou het verzoek afbreken. */
+    private const MIN_CALL_TIMEOUT_SECONDS = 1.0;
+
+    /**
+     * Niet-exacte overlap telt alleen bij een duidelijke meerderheid van de woorden.
+     * Eén gedeeld leenwoord of een gelijke stand mag nooit de brontaal worden.
+     */
+    private const MIN_SOURCE_OVERLAP_SCORE = 0.55;
+
+    private const MIN_SOURCE_OVERLAP_TOKENS = 3;
+
     /** Zelfde patroon als Lara: toetsnamen zoals [Enter] niet laten vertalen. */
     private const KEYBOARD_TOKEN_PATTERN = '/(\[[A-Za-z0-9_-]{1,24}\])/';
 
@@ -168,8 +182,8 @@ class CopilotTranslationProvider implements TranslationProvider
 
     /**
      * De flow levert ook `source`, maar die is soms fout. Die waarde wordt niet gelezen.
-     * Alleen een vertaling die (op witruimte na) gelijk is aan de oorspronkelijke tekst
-     * telt als brontaal, zodat de bestaande weergaveregels het origineel kunnen houden.
+     * Een exact gelijke vertaling telt als brontaal. Een los gedeeld woord niet: anders
+     * bewaart de bestaande regel het origineel en komt de echte vertaling niet terug.
      *
      * @param array<string, string> $translations
      */
@@ -204,11 +218,10 @@ class CopilotTranslationProvider implements TranslationProvider
             return '';
         }
 
-        // Geen exacte treffer. De taal die het meest op het origineel lijkt (ook de doeltaal)
-        // houdt de bestaande regel in stand: het origineel als de tekst al in de leestaal
-        // staat, anders de vertaling met "Toon origineel".
         $bestLanguage = '';
         $bestScore = 0.0;
+        $bestShared = 0;
+        $secondScore = 0.0;
         foreach ($translations as $language => $translated) {
             if (!is_string($translated)) {
                 continue;
@@ -217,22 +230,38 @@ class CopilotTranslationProvider implements TranslationProvider
             if ($language === '' || !array_key_exists($language, SUPPORTED_LANGUAGES)) {
                 continue;
             }
-            $score = $this->tokenOverlap($normalizedRaw, $this->comparableText($translated));
-            if ($score > $bestScore) {
-                $bestScore = $score;
+            $overlap = $this->tokenOverlap($normalizedRaw, $this->comparableText($translated));
+            if ($overlap['score'] > $bestScore) {
+                $secondScore = $bestScore;
+                $bestScore = $overlap['score'];
+                $bestShared = $overlap['shared'];
                 $bestLanguage = $language;
+            } elseif ($overlap['score'] > $secondScore) {
+                $secondScore = $overlap['score'];
             }
+        }
+
+        if (
+            $bestLanguage === ''
+            || $bestShared < self::MIN_SOURCE_OVERLAP_TOKENS
+            || $bestScore < self::MIN_SOURCE_OVERLAP_SCORE
+            || $bestScore <= $secondScore
+        ) {
+            return '';
         }
 
         return $bestLanguage;
     }
 
-    private function tokenOverlap(string $left, string $right): float
+    /**
+     * @return array{score: float, shared: int}
+     */
+    private function tokenOverlap(string $left, string $right): array
     {
         $leftTokens = $this->wordTokens($left);
         $rightTokens = $this->wordTokens($right);
         if ($leftTokens === [] || $rightTokens === []) {
-            return 0.0;
+            return ['score' => 0.0, 'shared' => 0];
         }
 
         $intersection = 0;
@@ -242,7 +271,10 @@ class CopilotTranslationProvider implements TranslationProvider
         }
         $union = count($leftTokens) + count($rightTokens) - $intersection;
 
-        return $union > 0 ? $intersection / $union : 0.0;
+        return [
+            'score' => $union > 0 ? $intersection / $union : 0.0,
+            'shared' => $intersection,
+        ];
     }
 
     /**
@@ -311,11 +343,18 @@ class CopilotTranslationProvider implements TranslationProvider
     {
         $timeout = $this->timeoutSeconds;
         $maxExecution = (int) ini_get('max_execution_time');
-        if ($maxExecution > 5) {
-            $timeout = min($timeout, (float) ($maxExecution - 5));
+        if ($maxExecution > 0) {
+            $startedAt = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
+            $elapsed = is_numeric($startedAt) ? max(0.0, microtime(true) - (float) $startedAt) : 0.0;
+            $remaining = (float) $maxExecution - $elapsed - self::TIMEOUT_HEADROOM_SECONDS;
+            $timeout = min($timeout, $remaining);
         }
 
-        return max(1.0, $timeout);
+        if ($timeout < self::MIN_CALL_TIMEOUT_SECONDS) {
+            throw new RuntimeException('cURL: timeout', 0);
+        }
+
+        return $timeout;
     }
 
     /**

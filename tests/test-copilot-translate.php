@@ -166,7 +166,22 @@ $scripted[] = [
 ];
 $paraphraseResult = $paraphrased->translateText('The printer does not work', 'nl');
 assertCopilot('Herschreven brontekst blijft een vertaling', 'De printer werkt niet', $paraphraseResult['translated_text']);
-assertCopilot('Brontaal volgt de meest gelijkende tekst, niet de flow-source', 'en', $paraphraseResult['source_language']);
+assertCopilot('Zwakke overlap verzint geen brontaal', '', $paraphraseResult['source_language']);
+
+$loanwordProvider = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('nl', [
+        'nl' => 'Printer niet bereikbaar',
+        'en' => 'Printer is offline',
+        'fr' => 'Imprimante hors ligne',
+        'de' => 'Drucker offline',
+    ]),
+    'error' => '',
+];
+$loanwordResult = $loanwordProvider->translateText('Printer offline', 'nl');
+assertCopilot('Gedeeld leenwoord houdt de vertaling', 'Printer niet bereikbaar', $loanwordResult['translated_text']);
+assertCopilot('Gedeeld leenwoord wordt niet de leestaal', '', $loanwordResult['source_language']);
 
 $sameLanguageParaphrase = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
 $scripted[] = [
@@ -245,7 +260,9 @@ try {
 assertCopilotTrue('Ongeldig antwoord wordt een exception', $garbageThrew);
 
 $previousMax = (string) ini_get('max_execution_time');
+$previousRequestStart = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
 ini_set('max_execution_time', '30');
+$_SERVER['REQUEST_TIME_FLOAT'] = microtime(true);
 $capped = new CopilotTranslationProvider('https://example.invalid/flow', 60.0, $transport);
 $scripted[] = [
     'status' => 200,
@@ -258,8 +275,42 @@ $scripted[] = [
     'error' => '',
 ];
 $capped->translateText('Short', 'nl');
-assertCopilot('Timeout blijft onder max_execution_time', 25.0, $calls[count($calls) - 1]['timeout']);
+$freshTimeout = (float) $calls[count($calls) - 1]['timeout'];
+assertCopilotTrue('Timeout blijft onder max_execution_time', $freshTimeout <= 25.0 && $freshTimeout > 24.0);
+
+$_SERVER['REQUEST_TIME_FLOAT'] = microtime(true) - 20;
+$later = new CopilotTranslationProvider('https://example.invalid/flow', 60.0, $transport);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('en', [
+        'nl' => 'Later',
+        'en' => 'Later text',
+        'fr' => 'Plus tard',
+        'de' => 'Spaeter',
+    ]),
+    'error' => '',
+];
+$later->translateText('Later text', 'nl');
+$laterTimeout = (float) $calls[count($calls) - 1]['timeout'];
+assertCopilotTrue('Timeout trekt al verbruikte tijd af', $laterTimeout > 4.5 && $laterTimeout < 5.5);
+
+$callsBeforeBudget = count($calls);
+$_SERVER['REQUEST_TIME_FLOAT'] = microtime(true) - 28;
+$outOfTime = new CopilotTranslationProvider('https://example.invalid/flow', 60.0, $transport);
+$outOfTimeThrew = false;
+try {
+    $outOfTime->translateText('Geen tijd meer', 'de');
+} catch (RuntimeException $exception) {
+    $outOfTimeThrew = str_contains($exception->getMessage(), 'timeout');
+}
+assertCopilotTrue('Te weinig resterende tijd wordt een timeout', $outOfTimeThrew);
+assertCopilot('Te weinig resterende tijd start geen run', $callsBeforeBudget, count($calls));
 ini_set('max_execution_time', $previousMax);
+if ($previousRequestStart === null) {
+    unset($_SERVER['REQUEST_TIME_FLOAT']);
+} else {
+    $_SERVER['REQUEST_TIME_FLOAT'] = $previousRequestStart;
+}
 
 echo PHP_EOL . "Config en bestaande opslag" . PHP_EOL;
 
@@ -391,6 +442,30 @@ assertCopilot('Titel die al in de doeltaal staat blijft het origineel', 'Printer
 assertCopilot('Geen vertaalmarkering als de tekst al in de doeltaal is', false, $sameLanguageStored['is_translated']);
 assertCopilot('Geen fout als de tekst al in de doeltaal staat', '', $sameLanguageStored['translation_error']);
 assertCopilot('Titelvertaling is wel opgehaald', $callsBeforeTitle + 1, count($calls));
+
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('nl', [
+        'nl' => 'Printer niet bereikbaar',
+        'en' => 'Printer is offline',
+        'fr' => 'Imprimante hors ligne',
+        'de' => 'Drucker offline',
+    ]),
+    'error' => '',
+];
+$loanwordStored = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $messageId,
+    $ticketId,
+    'Printer offline',
+    'nl'
+);
+assertCopilot('Leenwoord bewaart de vertaling', 'Printer niet bereikbaar', $loanwordStored['text']);
+assertCopilot('Leenwoord is geen fout', '', $loanwordStored['translation_error']);
+$loanwordCache = $store->getTextTranslation('ticket_message', $messageId, 'nl', hash('sha256', 'Printer offline'));
+assertCopilot('Cache bevat de vertaling en niet het origineel', 'Printer niet bereikbaar', (string) ($loanwordCache['translated_text'] ?? ''));
+assertCopilot('Cache zet de leestaal niet als bron', '', (string) ($loanwordCache['source_language'] ?? 'x'));
 
 CopilotTranslationProvider::useTransportForTests(null);
 resetCopilotProviderCache();
