@@ -195,7 +195,8 @@ $scripted[] = [
     'error' => '',
 ];
 $sameLanguageParaphraseResult = $sameLanguageParaphrase->translateText('De printer werkt niet', 'nl');
-assertCopilot('Herschreven doeltaal blijft de doeltaal', 'nl', $sameLanguageParaphraseResult['source_language']);
+assertCopilot('Herschreven doeltaal is niet exact gelijk', '', $sameLanguageParaphraseResult['source_language']);
+assertCopilot('Herschreven doeltaal wordt wel gebruikt', 'De printer functioneert niet', $sameLanguageParaphraseResult['translated_text']);
 
 $withKey = 'Druk op [Enter] om door te gaan';
 $scripted[] = [
@@ -301,9 +302,9 @@ $outOfTimeThrew = false;
 try {
     $outOfTime->translateText('Geen tijd meer', 'de');
 } catch (RuntimeException $exception) {
-    $outOfTimeThrew = str_contains($exception->getMessage(), 'timeout');
+    $outOfTimeThrew = $exception->getMessage() === CopilotTranslationProvider::BUDGET_EXHAUSTED;
 }
-assertCopilotTrue('Te weinig resterende tijd wordt een timeout', $outOfTimeThrew);
+assertCopilotTrue('Te weinig resterende tijd slaat de call over', $outOfTimeThrew);
 assertCopilot('Te weinig resterende tijd start geen run', $callsBeforeBudget, count($calls));
 ini_set('max_execution_time', $previousMax);
 if ($previousRequestStart === null) {
@@ -466,6 +467,57 @@ assertCopilot('Leenwoord is geen fout', '', $loanwordStored['translation_error']
 $loanwordCache = $store->getTextTranslation('ticket_message', $messageId, 'nl', hash('sha256', 'Printer offline'));
 assertCopilot('Cache bevat de vertaling en niet het origineel', 'Printer niet bereikbaar', (string) ($loanwordCache['translated_text'] ?? ''));
 assertCopilot('Cache zet de leestaal niet als bron', '', (string) ($loanwordCache['source_language'] ?? 'x'));
+
+$callsBeforeSkip = count($calls);
+$skipMax = (string) ini_get('max_execution_time');
+$skipStart = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
+ini_set('max_execution_time', '30');
+$_SERVER['REQUEST_TIME_FLOAT'] = microtime(true) - 28;
+$skipped = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $messageId,
+    $ticketId,
+    'Nog een zin om te vertalen',
+    'nl'
+);
+assertCopilot('Zonder resterende tijd blijft de tekst pending', true, $skipped['translation_pending']);
+assertCopilot('Overslaan is geen fout', '', $skipped['translation_error']);
+assertCopilot('Overslaan bewaart het origineel in het antwoord', 'Nog een zin om te vertalen', $skipped['text']);
+assertCopilot('Overslaan start geen run', $callsBeforeSkip, count($calls));
+assertCopilot(
+    'Overslaan wordt niet opgeslagen',
+    null,
+    $store->getTextTranslation('ticket_message', $messageId, 'nl', hash('sha256', 'Nog een zin om te vertalen'))
+);
+ini_set('max_execution_time', $skipMax);
+if ($skipStart === null) {
+    unset($_SERVER['REQUEST_TIME_FLOAT']);
+} else {
+    $_SERVER['REQUEST_TIME_FLOAT'] = $skipStart;
+}
+resetCopilotProviderCache();
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('en', [
+        'nl' => 'Nog een zin die vertaald is',
+        'en' => 'Nog een zin om te vertalen',
+        'fr' => 'Encore une phrase',
+        'de' => 'Noch ein Satz',
+    ]),
+    'error' => '',
+];
+$retried = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $messageId,
+    $ticketId,
+    'Nog een zin om te vertalen',
+    'nl'
+);
+assertCopilot('Later verzoek haalt de vertaling alsnog op', 'Nog een zin die vertaald is', $retried['text']);
+assertCopilot('Later verzoek is niet pending', false, $retried['translation_pending']);
+assertCopilot('Later verzoek kost alsnog een run', $callsBeforeSkip + 1, count($calls));
 
 CopilotTranslationProvider::useTransportForTests(null);
 resetCopilotProviderCache();

@@ -3,7 +3,7 @@ date: 2026-10-13
 title: Vertaling via de Copilot-flow
 author: Cursor Agent
 
-Ticketvertaling gebruikt de Copilot-flow zodra die in de configuratie staat. De taal van de lezer, het moment van vertalen en wat er bewaard wordt, blijven hetzelfde. Lukt de vertaling niet, dan blijft het origineel staan. Raakt de tijd op tijdens een ticket, dan komen de teksten die al gelukt zijn alsnog terug. Een los gedeeld woord zorgt er niet voor dat een echte vertaling wordt weggegooid. Zonder flow-adres blijft de vorige vertaaldienst (Lara) actief.
+Ticketvertaling gebruikt de Copilot-flow zodra die in de configuratie staat. De taal van de lezer, het moment van vertalen en wat er bewaard wordt, blijven hetzelfde. Lukt de vertaling niet, dan blijft het origineel staan. Raakt de tijd op tijdens een ticket, dan komen de teksten die al gelukt zijn terug en wordt de rest later opnieuw gevraagd. Een los gedeeld woord zorgt er niet voor dat een echte vertaling wordt weggegooid. Zonder flow-adres blijft de vorige vertaaldienst (Lara) actief.
 
 ---
 id: 2026-10-09-message-url-links

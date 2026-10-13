@@ -166,6 +166,17 @@ function translateTicketTextForViewer(
             'translation_error_detail' => '',
         ];
     } catch (Throwable $e) {
+        if ($e instanceof RuntimeException && $e->getMessage() === CopilotTranslationProvider::BUDGET_EXHAUSTED) {
+            return [
+                'text' => $rawText,
+                'is_translated' => false,
+                'source_language' => '',
+                'target_language' => $targetLanguage,
+                'translation_pending' => true,
+                'translation_error' => '',
+            ];
+        }
+
         $detail = get_class($e) . '[' . $e->getCode() . ']: ' . $e->getMessage()
             . ' in ' . basename($e->getFile()) . ':' . $e->getLine();
         return [
