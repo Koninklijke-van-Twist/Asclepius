@@ -675,7 +675,7 @@ Succes → `200`:
 }
 ```
 
-`translate_ticket` — vertaal titel en berichten. `ticket_id`, `language` (`nl`/`en`/`de`/`fr`), `viewer_email`, optioneel `user_is_admin`, `is_admin_portal`. Response: `title`, `title_raw`, `title_is_translated`, `messages[]` met `message_text` / `message_text_raw` en gerenderde HTML `message_text_html` / `message_text_raw_html` (Markdown, veilig geëscaped; inline bijlagen en toets-iconen blijven intact). Ghosts volgen gewone `getTicket`-regels (niet inbegrepen tenzij admin-overzicht).
+`translate_ticket` — vertaal titel en berichten. `ticket_id`, `language` (`nl`/`en`/`de`/`fr`), `viewer_email`, optioneel `user_is_admin`, `is_admin_portal`. Response: `title`, `title_raw`, `title_is_translated`, `title_translation_pending`, `messages[]` met `message_text` / `message_text_raw`, `translation_pending` en gerenderde HTML `message_text_html` / `message_text_raw_html` (Markdown, veilig geëscaped; inline bijlagen en toets-iconen blijven intact). `translation_pending` / `title_translation_pending` zijn `true` als die tekst in dit verzoek niet meer aan de beurt kwam; er is dan niets opgeslagen en de client vraagt hem later opnieuw. Ghosts volgen gewone `getTicket`-regels (niet inbegrepen tenzij admin-overzicht).
 
 ### Live UI (browser)
 

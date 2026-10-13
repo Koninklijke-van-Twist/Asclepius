@@ -8190,6 +8190,7 @@
                 return;
             }
 
+            var cardStillPending = !!data.title_translation_pending;
             var titleNode = card.querySelector('[data-role="ticket-title"]');
             if (titleNode)
             {
@@ -8243,6 +8244,13 @@
                 {
                     console.warn('[translation] Error for message #' + msg.id + ' in ticket #' + ticketId + ':', msg.translation_error, msg.translation_error_detail || '');
                     applyTranslationErrorIndicator(messageNode, msg.translation_error);
+                    return;
+                }
+
+                if (msg.translation_pending)
+                {
+                    cardStillPending = true;
+                    messageNode.setAttribute('data-translation-status', 'pending');
                     return;
                 }
 
@@ -8321,6 +8329,11 @@
                     existingMsgToggle.remove();
                 }
             });
+
+            if (cardStillPending)
+            {
+                card.setAttribute('data-needs-translation', '1');
+            }
         };
 
         var triggerLazyTranslations = function (container)

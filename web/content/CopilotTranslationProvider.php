@@ -6,8 +6,8 @@ class CopilotTranslationProvider implements TranslationProvider
      * Constants
      */
 
-    /** Seconden. De flow antwoordt synchroon en kan tientallen seconden duren. */
-    private const DEFAULT_TIMEOUT_SECONDS = 25.0;
+    /** Seconden. Langer wachten is in orde; de flow kan een paar minuten doen over één tekst. */
+    private const DEFAULT_TIMEOUT_SECONDS = 120.0;
 
     /** Ruimte die overblijft om het HTTP-antwoord nog weg te schrijven. */
     private const TIMEOUT_HEADROOM_SECONDS = 5.0;

@@ -47,7 +47,7 @@ Zet in `web/auth.php` (niet in git), naast de bestaande `$laraTranslate`:
 ```php
 $copilotTranslate = [
     'flowUrl' => 'https://…',
-    'timeout' => 25, // optioneel, seconden; standaard 25
+    'timeout' => 120, // optioneel, seconden; standaard 120
 ];
 ```
 

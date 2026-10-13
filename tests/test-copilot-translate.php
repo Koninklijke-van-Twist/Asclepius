@@ -313,7 +313,58 @@ if ($previousRequestStart === null) {
     $_SERVER['REQUEST_TIME_FLOAT'] = $previousRequestStart;
 }
 
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('en', [
+        'nl' => 'Standaard',
+        'en' => 'Default timeout text',
+        'fr' => 'Defaut',
+        'de' => 'Standard',
+    ]),
+    'error' => '',
+];
+$defaultProvider = new CopilotTranslationProvider('https://example.invalid/flow', null, $transport);
+$defaultProvider->translateText('Default timeout text', 'nl');
+assertCopilot('Standaardtimeout is 120 seconden', 120.0, (float) $calls[count($calls) - 1]['timeout']);
+
+ini_set('max_execution_time', '300');
+$_SERVER['REQUEST_TIME_FLOAT'] = microtime(true);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('en', [
+        'nl' => 'Ruim',
+        'en' => 'Wide budget text',
+        'fr' => 'Large',
+        'de' => 'Weit',
+    ]),
+    'error' => '',
+];
+$wideBudget = new CopilotTranslationProvider('https://example.invalid/flow', null, $transport);
+$wideBudget->translateText('Wide budget text', 'nl');
+assertCopilot('300 seconden kapt de standaardtimeout niet af', 120.0, (float) $calls[count($calls) - 1]['timeout']);
+ini_set('max_execution_time', $previousMax);
+if ($previousRequestStart === null) {
+    unset($_SERVER['REQUEST_TIME_FLOAT']);
+} else {
+    $_SERVER['REQUEST_TIME_FLOAT'] = $previousRequestStart;
+}
+
 echo PHP_EOL . "Config en bestaande opslag" . PHP_EOL;
+
+$apiSource = (string) file_get_contents(__DIR__ . '/../web/api.php');
+$jsSource = (string) file_get_contents(__DIR__ . '/../web/content/views/page_js.php');
+assertCopilotTrue(
+    'translate_ticket krijgt 300 seconden',
+    str_contains($apiSource, 'set_time_limit(300)')
+);
+assertCopilotTrue(
+    'translate_ticket geeft pending door',
+    str_contains($apiSource, "'translation_pending'") && str_contains($apiSource, "'title_translation_pending'")
+);
+assertCopilotTrue(
+    'De pagina laat een pending bericht staan',
+    str_contains($jsSource, 'msg.translation_pending') && str_contains($jsSource, "card.setAttribute('data-needs-translation', '1')")
+);
 
 resetCopilotProviderCache();
 $GLOBALS['copilotTranslate'] = null;

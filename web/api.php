@@ -4125,6 +4125,10 @@ if ($method === 'POST') {
     }
 
     if ($action === 'translate_ticket') {
+        // De flow wacht standaard tot 120s per tekst. Zonder deze limiet kapt de
+        // resterende-tijd-begrenzing alles af op de korte php.ini-timeout.
+        set_time_limit(300);
+
         $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
         $language = strtolower(trim((string) ($payload['language'] ?? 'nl')));
         if (!array_key_exists($language, SUPPORTED_LANGUAGES)) {
@@ -4155,6 +4159,7 @@ if ($method === 'POST') {
                 'message_text_html' => formatTicketMessageText($displayText, $messageId, $messageAttachments),
                 'message_text_raw_html' => formatTicketMessageText($rawText, $messageId, $messageAttachments),
                 'message_is_translated' => !empty($message['message_is_translated']),
+                'translation_pending' => !empty($message['translation_pending']),
                 'translation_error' => (string) ($message['translation_error'] ?? ''),
                 'translation_error_detail' => (string) ($message['translation_error_detail'] ?? ''),
             ];
@@ -4167,6 +4172,7 @@ if ($method === 'POST') {
             'title' => (string) ($ticketDetail['title'] ?? ''),
             'title_raw' => $rawTitle,
             'title_is_translated' => !empty($ticketDetail['title_is_translated']),
+            'title_translation_pending' => !empty($ticketDetail['title_translation_pending']),
             'title_translation_error' => (string) ($ticketDetail['title_translation_error'] ?? ''),
             'title_translation_error_detail' => (string) ($ticketDetail['title_translation_error_detail'] ?? ''),
             'messages' => $messages,
