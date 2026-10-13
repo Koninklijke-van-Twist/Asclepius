@@ -8329,8 +8329,46 @@
             });
         };
 
-        var TRANSLATION_RETRY_BACKOFF_MS = 1500;
-        var TRANSLATION_RETRY_MAX = 4;
+        var TRANSLATION_RETRY_DELAYS_MS = [5000, 15000, 30000, 60000];
+        var TRANSLATION_RETRY_MAX = 10;
+        var translationRequestsInFlight = {};
+        var translationRetryTimers = {};
+
+        var translationRetryDelayMs = function (attemptIndex)
+        {
+            if (attemptIndex < 0)
+            {
+                attemptIndex = 0;
+            }
+            if (attemptIndex >= TRANSLATION_RETRY_DELAYS_MS.length)
+            {
+                return TRANSLATION_RETRY_DELAYS_MS[TRANSLATION_RETRY_DELAYS_MS.length - 1];
+            }
+
+            return TRANSLATION_RETRY_DELAYS_MS[attemptIndex];
+        };
+
+        var findLiveTicketCard = function (ticketId, fallbackCard)
+        {
+            var liveCard = document.querySelector('details.ticket-card[data-ticket-id="' + ticketId + '"]');
+            if (liveCard)
+            {
+                return liveCard;
+            }
+
+            return fallbackCard;
+        };
+
+        var clearTranslationRetryTimer = function (ticketId)
+        {
+            if (!translationRetryTimers[ticketId])
+            {
+                return;
+            }
+
+            window.clearTimeout(translationRetryTimers[ticketId]);
+            delete translationRetryTimers[ticketId];
+        };
 
         var translationResponseStillPending = function (data)
         {
@@ -8349,15 +8387,64 @@
             });
         };
 
-        var requestTicketTranslation = function (card)
+        var triggerLazyTranslations = function (container)
         {
-            var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
-            if (!ticketId || card.getAttribute('data-needs-translation') === 'loading')
+            var root = container || document;
+            var pendingCards = [];
+            if (root.nodeType === 1 && typeof root.matches === 'function' && root.matches('[data-needs-translation="1"]'))
+            {
+                pendingCards.push(root);
+            }
+            root.querySelectorAll('[data-needs-translation="1"]').forEach(function (pendingCard)
+            {
+                pendingCards.push(pendingCard);
+            });
+            pendingCards.forEach(requestTicketTranslation);
+        };
+
+        var scheduleTranslationRetry = function (liveCard, ticketId)
+        {
+            var used = parseInt(liveCard.getAttribute('data-translation-retries') || '0', 10);
+            if (used >= TRANSLATION_RETRY_MAX)
             {
                 return;
             }
 
+            liveCard.setAttribute('data-translation-retries', String(used + 1));
+            liveCard.setAttribute('data-needs-translation', 'retry');
+            liveCard.removeAttribute('data-translation-retry-due');
+            clearTranslationRetryTimer(ticketId);
+
+            translationRetryTimers[ticketId] = window.setTimeout(function ()
+            {
+                delete translationRetryTimers[ticketId];
+                var currentCard = document.querySelector('details.ticket-card[data-ticket-id="' + ticketId + '"]');
+                if (!currentCard || currentCard.getAttribute('data-needs-translation') !== 'retry')
+                {
+                    return;
+                }
+                if (translationRequestsInFlight[ticketId] || document.hidden)
+                {
+                    currentCard.setAttribute('data-translation-retry-due', '1');
+                    return;
+                }
+
+                currentCard.setAttribute('data-needs-translation', '1');
+                triggerLazyTranslations(currentCard);
+            }, translationRetryDelayMs(used));
+        };
+
+        var requestTicketTranslation = function (card)
+        {
+            var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
+            if (!ticketId || translationRequestsInFlight[ticketId] || card.getAttribute('data-needs-translation') === 'loading')
+            {
+                return;
+            }
+
+            translationRequestsInFlight[ticketId] = true;
             card.setAttribute('data-needs-translation', 'loading');
+            card.removeAttribute('data-translation-retry-due');
 
             var translateParams = {
                 ticket_id: ticketId,
@@ -8371,48 +8458,54 @@
             apiFetchJson('translate_ticket', translateParams).then(function (data)
             {
                 console.log('[translation] Response for ticket #' + ticketId, data);
-                card.setAttribute('data-needs-translation', '0');
-                applyTranslationToCard(card, data);
+                var liveCard = findLiveTicketCard(ticketId, card);
+                liveCard.setAttribute('data-needs-translation', '0');
+                applyTranslationToCard(liveCard, data);
                 if (!translationResponseStillPending(data))
                 {
-                    card.setAttribute('data-translation-retries', '0');
+                    clearTranslationRetryTimer(ticketId);
+                    liveCard.removeAttribute('data-translation-retry-due');
+                    liveCard.setAttribute('data-translation-retries', '0');
                     return;
                 }
 
-                var used = parseInt(card.getAttribute('data-translation-retries') || '0', 10);
-                if (used >= TRANSLATION_RETRY_MAX)
-                {
-                    return;
-                }
-
-                card.setAttribute('data-translation-retries', String(used + 1));
-                card.setAttribute('data-needs-translation', 'retry');
-                window.setTimeout(function ()
-                {
-                    var liveCard = document.querySelector('details.ticket-card[data-ticket-id="' + ticketId + '"]');
-                    if (!liveCard || liveCard.getAttribute('data-needs-translation') !== 'retry')
-                    {
-                        return;
-                    }
-                    requestTicketTranslation(liveCard);
-                }, TRANSLATION_RETRY_BACKOFF_MS * (used + 1));
+                scheduleTranslationRetry(liveCard, ticketId);
             }).catch(function (error)
             {
                 console.error('[translation] Fetch error for ticket #' + ticketId, error);
-                card.setAttribute('data-needs-translation', '1');
+                var liveCard = findLiveTicketCard(ticketId, card);
+                liveCard.setAttribute('data-needs-translation', '1');
 
-                card.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
+                liveCard.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
                 {
                     applyTranslationErrorIndicator(msg, String(error && error.message ? error.message : 'network_error'));
                 });
+            }).then(function ()
+            {
+                delete translationRequestsInFlight[ticketId];
             });
         };
 
-        var triggerLazyTranslations = function (container)
+        document.addEventListener('visibilitychange', function ()
         {
-            var pendingCards = (container || document).querySelectorAll('[data-needs-translation="1"]');
-            pendingCards.forEach(requestTicketTranslation);
-        };
+            if (document.hidden)
+            {
+                return;
+            }
+
+            document.querySelectorAll('details.ticket-card[data-needs-translation="retry"][data-translation-retry-due="1"]').forEach(function (dueCard)
+            {
+                var dueTicketId = parseInt(dueCard.getAttribute('data-ticket-id') || '0', 10);
+                if (!dueTicketId || translationRequestsInFlight[dueTicketId])
+                {
+                    return;
+                }
+
+                dueCard.removeAttribute('data-translation-retry-due');
+                dueCard.setAttribute('data-needs-translation', '1');
+                triggerLazyTranslations(dueCard);
+            });
+        });
 
         var postWebPushSubscription = function (action, subscription)
         {

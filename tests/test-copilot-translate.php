@@ -364,9 +364,12 @@ assertCopilotTrue(
 assertCopilotTrue(
     'De pagina laat een pending bericht staan en vraagt opnieuw',
     str_contains($jsSource, 'msg.translation_pending')
-        && str_contains($jsSource, 'TRANSLATION_RETRY_MAX = 4')
-        && str_contains($jsSource, 'TRANSLATION_RETRY_BACKOFF_MS')
-        && str_contains($jsSource, 'requestTicketTranslation(liveCard)')
+        && str_contains($jsSource, 'TRANSLATION_RETRY_MAX = 10')
+        && str_contains($jsSource, 'TRANSLATION_RETRY_DELAYS_MS = [5000, 15000, 30000, 60000]')
+        && str_contains($jsSource, 'triggerLazyTranslations(currentCard)')
+        && str_contains($jsSource, 'data-translation-retry-due')
+        && str_contains($jsSource, 'translationRequestsInFlight[ticketId]')
+        && str_contains($jsSource, 'document.hidden')
 );
 
 resetCopilotProviderCache();
