@@ -8434,8 +8434,10 @@
 
         var TRANSLATION_RETRY_DELAYS_MS = [5000, 15000, 30000, 60000];
         var TRANSLATION_RETRY_MAX = 10;
+        var TRANSLATION_PAUSE_COOLDOWN_MS = 300000;
         var translationRequestsInFlight = {};
         var translationRetryTimers = {};
+        var translationPauseCooldownTimers = typeof WeakMap === 'function' ? new WeakMap() : null;
 
         var translationRetryDelayMs = function (attemptIndex)
         {
@@ -8511,6 +8513,61 @@
             return parseInt(liveCard.getAttribute('data-translation-retries') || '0', 10);
         };
 
+        var clearTranslationPauseCooldown = function (liveCard)
+        {
+            if (!liveCard)
+            {
+                return;
+            }
+
+            liveCard.removeAttribute('data-translation-paused-at');
+            if (!translationPauseCooldownTimers)
+            {
+                return;
+            }
+
+            var pendingTimer = translationPauseCooldownTimers.get(liveCard);
+            if (pendingTimer)
+            {
+                window.clearTimeout(pendingTimer);
+                translationPauseCooldownTimers.delete(liveCard);
+            }
+        };
+
+        var armTranslationPauseCooldown = function (liveCard)
+        {
+            clearTranslationPauseCooldown(liveCard);
+            liveCard.setAttribute('data-translation-paused-at', String(Date.now()));
+            if (!translationPauseCooldownTimers)
+            {
+                return;
+            }
+
+            translationPauseCooldownTimers.set(liveCard, window.setTimeout(function ()
+            {
+                if (translationPauseCooldownTimers)
+                {
+                    translationPauseCooldownTimers.delete(liveCard);
+                }
+                if (!liveCard.isConnected || liveCard.getAttribute('data-translation-awaiting-trigger') !== '1')
+                {
+                    return;
+                }
+
+                var pausedAt = parseInt(liveCard.getAttribute('data-translation-paused-at') || '0', 10);
+                if (!pausedAt || (Date.now() - pausedAt) < TRANSLATION_PAUSE_COOLDOWN_MS)
+                {
+                    return;
+                }
+                if (document.hidden)
+                {
+                    return;
+                }
+
+                resumePausedTranslations(liveCard);
+            }, TRANSLATION_PAUSE_COOLDOWN_MS));
+        };
+
         var pauseTranslationCard = function (liveCard)
         {
             settlePendingTranslationDisplay(liveCard);
@@ -8518,6 +8575,7 @@
             liveCard.setAttribute('data-needs-translation', '1');
             liveCard.removeAttribute('data-translation-retry-due');
             liveCard.removeAttribute('data-translation-dirty');
+            armTranslationPauseCooldown(liveCard);
         };
 
         var ticketHasRetryingCard = function (ticketId, fallbackCard)
@@ -8618,6 +8676,7 @@
 
                 pausedCard.setAttribute('data-translation-retries', '0');
                 pausedCard.removeAttribute('data-translation-awaiting-trigger');
+                clearTranslationPauseCooldown(pausedCard);
                 pausedCard.setAttribute('data-needs-translation', '1');
                 triggerLazyTranslations(pausedCard);
             });
@@ -8640,6 +8699,7 @@
             {
                 card.setAttribute('data-translation-retries', '0');
                 card.removeAttribute('data-translation-awaiting-trigger');
+                clearTranslationPauseCooldown(card);
             }
 
             translationRequestsInFlight[ticketId] = true;
@@ -9429,7 +9489,6 @@
                 {
                     if (!data || data.unchanged)
                     {
-                        resumePausedTranslations(liveTicketSection);
                         return;
                     }
 
