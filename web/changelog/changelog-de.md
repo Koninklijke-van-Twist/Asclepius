@@ -3,7 +3,7 @@ date: 2026-10-13
 title: Übersetzung über den Copilot-Flow
 author: Cursor Agent
 
-Die Ticketübersetzung nutzt den Copilot-Flow, sobald er in der Konfiguration steht. Die Sprache des Lesers, der Zeitpunkt der Übersetzung und was gespeichert wird, bleiben gleich. Ein Text kann ein paar Minuten dauern. Schlägt die Übersetzung fehl, bleibt der Originaltext sichtbar. Läuft die Zeit während eines Tickets ab, bleiben die bereits gelungenen Texte stehen und das Ladesymbol bei dem Rest. Der Rest wird danach von selbst erneut angefragt, solange dieser Tab offen und sichtbar ist, ohne die Seite neu zu laden. Ein einzelnes gemeinsames Wort verwirft keine echte Übersetzung. Ohne Flow-Adresse bleibt der bisherige Übersetzungsdienst (Lara) aktiv.
+Die Ticketübersetzung nutzt den Copilot-Flow, sobald er in der Konfiguration steht. Die Sprache des Lesers, der Zeitpunkt der Übersetzung und was gespeichert wird, bleiben gleich. Ein Text kann ein paar Minuten dauern. Schlägt die Übersetzung fehl, bleibt der Originaltext sichtbar. Läuft die Zeit während eines Tickets ab, bleiben die bereits gelungenen Texte stehen und das Ladesymbol bei dem Rest. Der Rest wird danach von selbst erneut angefragt, solange dieser Tab offen und sichtbar ist, auch in einer Vorschau und wenn inzwischen eine neue Nachricht dazukommt, ohne die Seite neu zu laden. Ein einzelnes gemeinsames Wort verwirft keine echte Übersetzung. Ohne Flow-Adresse bleibt der bisherige Übersetzungsdienst (Lara) aktiv.
 
 ---
 id: 2026-10-09-message-url-links

@@ -3,7 +3,7 @@ date: 2026-10-13
 title: Traduction via le flux Copilot
 author: Cursor Agent
 
-La traduction des tickets passe par le flux Copilot dès qu'il est configuré. La langue du lecteur, le moment de la traduction et ce qui est enregistré restent les mêmes. Un texte peut prendre quelques minutes. Si la traduction échoue, le texte d'origine reste visible. Si le temps manque pendant un ticket, les textes déjà traduits restent et l'icône de chargement aussi pour le reste. Ce reste est redemandé tout seul tant que cet onglet reste ouvert et visible, sans recharger la page. Un seul mot en commun n'efface pas une vraie traduction. Sans adresse de flux, l'ancien service de traduction (Lara) reste actif.
+La traduction des tickets passe par le flux Copilot dès qu'il est configuré. La langue du lecteur, le moment de la traduction et ce qui est enregistré restent les mêmes. Un texte peut prendre quelques minutes. Si la traduction échoue, le texte d'origine reste visible. Si le temps manque pendant un ticket, les textes déjà traduits restent et l'icône de chargement aussi pour le reste. Ce reste est redemandé tout seul tant que cet onglet reste ouvert et visible, y compris dans un aperçu et si un nouveau message arrive entre-temps, sans recharger la page. Un seul mot en commun n'efface pas une vraie traduction. Sans adresse de flux, l'ancien service de traduction (Lara) reste actif.
 
 ---
 id: 2026-10-09-message-url-links

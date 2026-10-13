@@ -368,6 +368,9 @@ assertCopilotTrue(
         && str_contains($jsSource, 'TRANSLATION_RETRY_DELAYS_MS = [5000, 15000, 30000, 60000]')
         && str_contains($jsSource, 'triggerLazyTranslations(currentCard)')
         && str_contains($jsSource, 'data-translation-retry-due')
+        && str_contains($jsSource, 'data-translation-dirty')
+        && str_contains($jsSource, 'collectTicketCards')
+        && str_contains($jsSource, 'cardHasPendingTranslation')
         && str_contains($jsSource, 'translationRequestsInFlight[ticketId]')
         && str_contains($jsSource, 'document.hidden')
 );

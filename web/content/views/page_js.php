@@ -8191,8 +8191,13 @@
             }
 
             var titleNode = card.querySelector('[data-role="ticket-title"]');
-            if (titleNode)
+            if (titleNode && data.title_translation_pending)
             {
+                titleNode.setAttribute('data-translation-status', 'pending');
+            }
+            else if (titleNode)
+            {
+                titleNode.setAttribute('data-translation-status', 'loaded');
                 var translatedTitle = String(data.title || '');
                 var rawTitle = String(data.title_raw || data.title || '');
                 titleNode.setAttribute('data-translated-text', JSON.stringify(translatedTitle));
@@ -8348,15 +8353,33 @@
             return TRANSLATION_RETRY_DELAYS_MS[attemptIndex];
         };
 
-        var findLiveTicketCard = function (ticketId, fallbackCard)
+        var collectTicketCards = function (ticketId, fallbackCard)
         {
-            var liveCard = document.querySelector('details.ticket-card[data-ticket-id="' + ticketId + '"]');
-            if (liveCard)
+            var cards = [];
+            document.querySelectorAll('details.ticket-card[data-ticket-id="' + ticketId + '"]').forEach(function (match)
             {
-                return liveCard;
+                cards.push(match);
+            });
+            if (fallbackCard && cards.indexOf(fallbackCard) === -1 && fallbackCard.isConnected)
+            {
+                cards.push(fallbackCard);
+            }
+            if (!cards.length && fallbackCard)
+            {
+                cards.push(fallbackCard);
             }
 
-            return fallbackCard;
+            return cards;
+        };
+
+        var cardHasPendingTranslation = function (card)
+        {
+            if (!card || typeof card.querySelector !== 'function')
+            {
+                return false;
+            }
+
+            return !!card.querySelector('[data-translation-status="pending"], [data-role="translation-status"][data-status="pending"]');
         };
 
         var clearTranslationRetryTimer = function (ticketId)
@@ -8368,23 +8391,6 @@
 
             window.clearTimeout(translationRetryTimers[ticketId]);
             delete translationRetryTimers[ticketId];
-        };
-
-        var translationResponseStillPending = function (data)
-        {
-            if (!data)
-            {
-                return false;
-            }
-            if (data.title_translation_pending)
-            {
-                return true;
-            }
-
-            return (data.messages || []).some(function (msg)
-            {
-                return !!msg.translation_pending;
-            });
         };
 
         var triggerLazyTranslations = function (container)
@@ -8405,46 +8411,65 @@
         var scheduleTranslationRetry = function (liveCard, ticketId)
         {
             var used = parseInt(liveCard.getAttribute('data-translation-retries') || '0', 10);
+            var delayIndex = used;
             if (used >= TRANSLATION_RETRY_MAX)
             {
-                return;
+                used = 0;
+                delayIndex = TRANSLATION_RETRY_DELAYS_MS.length - 1;
             }
 
             liveCard.setAttribute('data-translation-retries', String(used + 1));
             liveCard.setAttribute('data-needs-translation', 'retry');
             liveCard.removeAttribute('data-translation-retry-due');
-            clearTranslationRetryTimer(ticketId);
+            if (translationRetryTimers[ticketId])
+            {
+                return;
+            }
 
+            var originCard = liveCard;
             translationRetryTimers[ticketId] = window.setTimeout(function ()
             {
                 delete translationRetryTimers[ticketId];
-                var currentCard = document.querySelector('details.ticket-card[data-ticket-id="' + ticketId + '"]');
-                if (!currentCard || currentCard.getAttribute('data-needs-translation') !== 'retry')
+                collectTicketCards(ticketId, originCard).forEach(function (currentCard)
                 {
-                    return;
-                }
-                if (translationRequestsInFlight[ticketId] || document.hidden)
-                {
-                    currentCard.setAttribute('data-translation-retry-due', '1');
-                    return;
-                }
+                    if (currentCard.getAttribute('data-needs-translation') !== 'retry')
+                    {
+                        return;
+                    }
+                    if (translationRequestsInFlight[ticketId])
+                    {
+                        currentCard.setAttribute('data-translation-dirty', '1');
+                        return;
+                    }
+                    if (document.hidden)
+                    {
+                        currentCard.setAttribute('data-translation-retry-due', '1');
+                        return;
+                    }
 
-                currentCard.setAttribute('data-needs-translation', '1');
-                triggerLazyTranslations(currentCard);
-            }, translationRetryDelayMs(used));
+                    currentCard.setAttribute('data-needs-translation', '1');
+                    triggerLazyTranslations(currentCard);
+                });
+            }, translationRetryDelayMs(delayIndex));
         };
 
         var requestTicketTranslation = function (card)
         {
             var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
-            if (!ticketId || translationRequestsInFlight[ticketId] || card.getAttribute('data-needs-translation') === 'loading')
+            if (!ticketId)
             {
+                return;
+            }
+            if (translationRequestsInFlight[ticketId] || card.getAttribute('data-needs-translation') === 'loading')
+            {
+                card.setAttribute('data-translation-dirty', '1');
                 return;
             }
 
             translationRequestsInFlight[ticketId] = true;
             card.setAttribute('data-needs-translation', 'loading');
             card.removeAttribute('data-translation-retry-due');
+            card.removeAttribute('data-translation-dirty');
 
             var translateParams = {
                 ticket_id: ticketId,
@@ -8455,34 +8480,61 @@
             };
             console.log('[translation] Requesting ticket #' + ticketId, translateParams);
 
+            var followUpCards = [];
             apiFetchJson('translate_ticket', translateParams).then(function (data)
             {
                 console.log('[translation] Response for ticket #' + ticketId, data);
-                var liveCard = findLiveTicketCard(ticketId, card);
-                liveCard.setAttribute('data-needs-translation', '0');
-                applyTranslationToCard(liveCard, data);
-                if (!translationResponseStillPending(data))
+                var sawPending = false;
+                collectTicketCards(ticketId, card).forEach(function (liveCard)
+                {
+                    applyTranslationToCard(liveCard, data);
+                    var dirty = liveCard.getAttribute('data-translation-dirty') === '1';
+                    liveCard.removeAttribute('data-translation-dirty');
+                    if (!cardHasPendingTranslation(liveCard))
+                    {
+                        liveCard.removeAttribute('data-translation-retry-due');
+                        liveCard.setAttribute('data-translation-retries', '0');
+                        liveCard.setAttribute('data-needs-translation', '0');
+                        return;
+                    }
+
+                    sawPending = true;
+                    if (dirty)
+                    {
+                        liveCard.setAttribute('data-needs-translation', '1');
+                        followUpCards.push(liveCard);
+                        return;
+                    }
+
+                    scheduleTranslationRetry(liveCard, ticketId);
+                });
+                if (!sawPending)
                 {
                     clearTranslationRetryTimer(ticketId);
-                    liveCard.removeAttribute('data-translation-retry-due');
-                    liveCard.setAttribute('data-translation-retries', '0');
-                    return;
                 }
-
-                scheduleTranslationRetry(liveCard, ticketId);
             }).catch(function (error)
             {
                 console.error('[translation] Fetch error for ticket #' + ticketId, error);
-                var liveCard = findLiveTicketCard(ticketId, card);
-                liveCard.setAttribute('data-needs-translation', '1');
-
-                liveCard.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
+                collectTicketCards(ticketId, card).forEach(function (liveCard)
                 {
-                    applyTranslationErrorIndicator(msg, String(error && error.message ? error.message : 'network_error'));
+                    liveCard.setAttribute('data-needs-translation', '1');
+                    liveCard.removeAttribute('data-translation-dirty');
+                    liveCard.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
+                    {
+                        applyTranslationErrorIndicator(msg, String(error && error.message ? error.message : 'network_error'));
+                    });
                 });
             }).then(function ()
             {
                 delete translationRequestsInFlight[ticketId];
+                followUpCards.forEach(function (followCard)
+                {
+                    if (!followCard.isConnected || followCard.getAttribute('data-needs-translation') !== '1')
+                    {
+                        return;
+                    }
+                    triggerLazyTranslations(followCard);
+                });
             });
         };
 
@@ -8496,8 +8548,13 @@
             document.querySelectorAll('details.ticket-card[data-needs-translation="retry"][data-translation-retry-due="1"]').forEach(function (dueCard)
             {
                 var dueTicketId = parseInt(dueCard.getAttribute('data-ticket-id') || '0', 10);
-                if (!dueTicketId || translationRequestsInFlight[dueTicketId])
+                if (!dueTicketId)
                 {
+                    return;
+                }
+                if (translationRequestsInFlight[dueTicketId])
+                {
+                    dueCard.setAttribute('data-translation-dirty', '1');
                     return;
                 }
 
