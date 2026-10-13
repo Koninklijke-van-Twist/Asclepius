@@ -23,6 +23,8 @@ require_once __DIR__ . '/content/ict_roles.php';
 require_once __DIR__ . '/content/janus_sync.php';
 require_once __DIR__ . '/content/TranslationProvider.php';
 require_once __DIR__ . '/content/LaraTranslationProvider.php';
+require_once __DIR__ . '/content/CoPilotTranslate.php';
+require_once __DIR__ . '/content/CopilotTranslationProvider.php';
 require_once __DIR__ . '/content/translation.php';
 require_once __DIR__ . '/content/mail.php';
 require_once __DIR__ . '/content/changelog.php';

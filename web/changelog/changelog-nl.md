@@ -1,3 +1,11 @@
+id: 2026-10-13-copilot-translate
+date: 2026-10-13
+title: Vertaling via de Copilot-flow
+author: Cursor Agent
+
+Ticketvertaling gebruikt de Copilot-flow zodra die in de configuratie staat. De taal van de lezer, het moment van vertalen en wat er bewaard wordt, blijven hetzelfde. Een tekst kan een paar minuten duren. Lukt de vertaling niet, dan blijft het origineel staan. Raakt de tijd op tijdens een ticket, dan blijven de al gelukte vertalingen staan en het laadicoon bij de rest. Die rest wordt daarna vanzelf opnieuw gevraagd zolang dit tabblad open en zichtbaar is, ook in een voorbeeld en als er intussen een nieuw bericht bij komt, zonder de pagina te verversen. Na een reeks pogingen verdwijnt het laadicoon en blijft het origineel of de foutmelding staan, tot je terugkeert naar het tabblad, de lijst echt wijzigt, of er vijf minuten voorbij zijn. Een los gedeeld woord zorgt er niet voor dat een echte vertaling wordt weggegooid. Zonder flow-adres blijft de vorige vertaaldienst (Lara) actief.
+
+---
 id: 2026-10-09-message-url-links
 date: 2026-10-09
 title: Links in berichten blijven heel
