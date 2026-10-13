@@ -8190,7 +8190,6 @@
                 return;
             }
 
-            var cardStillPending = !!data.title_translation_pending;
             var titleNode = card.querySelector('[data-role="ticket-title"]');
             if (titleNode)
             {
@@ -8249,7 +8248,6 @@
 
                 if (msg.translation_pending)
                 {
-                    cardStillPending = true;
                     messageNode.setAttribute('data-translation-status', 'pending');
                     return;
                 }
@@ -8329,51 +8327,91 @@
                     existingMsgToggle.remove();
                 }
             });
+        };
 
-            if (cardStillPending)
+        var TRANSLATION_RETRY_BACKOFF_MS = 1500;
+        var TRANSLATION_RETRY_MAX = 4;
+
+        var translationResponseStillPending = function (data)
+        {
+            if (!data)
             {
-                card.setAttribute('data-needs-translation', '1');
+                return false;
             }
+            if (data.title_translation_pending)
+            {
+                return true;
+            }
+
+            return (data.messages || []).some(function (msg)
+            {
+                return !!msg.translation_pending;
+            });
+        };
+
+        var requestTicketTranslation = function (card)
+        {
+            var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
+            if (!ticketId || card.getAttribute('data-needs-translation') === 'loading')
+            {
+                return;
+            }
+
+            card.setAttribute('data-needs-translation', 'loading');
+
+            var translateParams = {
+                ticket_id: ticketId,
+                language: ticketPollPayload.current_language || 'nl',
+                viewer_email: ticketPollPayload.viewer_email || '',
+                user_is_admin: !!ticketPollPayload.user_is_admin,
+                is_admin_portal: !!ticketPollPayload.is_admin_portal,
+            };
+            console.log('[translation] Requesting ticket #' + ticketId, translateParams);
+
+            apiFetchJson('translate_ticket', translateParams).then(function (data)
+            {
+                console.log('[translation] Response for ticket #' + ticketId, data);
+                card.setAttribute('data-needs-translation', '0');
+                applyTranslationToCard(card, data);
+                if (!translationResponseStillPending(data))
+                {
+                    card.setAttribute('data-translation-retries', '0');
+                    return;
+                }
+
+                var used = parseInt(card.getAttribute('data-translation-retries') || '0', 10);
+                if (used >= TRANSLATION_RETRY_MAX)
+                {
+                    return;
+                }
+
+                card.setAttribute('data-translation-retries', String(used + 1));
+                card.setAttribute('data-needs-translation', 'retry');
+                window.setTimeout(function ()
+                {
+                    var liveCard = document.querySelector('details.ticket-card[data-ticket-id="' + ticketId + '"]');
+                    if (!liveCard || liveCard.getAttribute('data-needs-translation') !== 'retry')
+                    {
+                        return;
+                    }
+                    requestTicketTranslation(liveCard);
+                }, TRANSLATION_RETRY_BACKOFF_MS * (used + 1));
+            }).catch(function (error)
+            {
+                console.error('[translation] Fetch error for ticket #' + ticketId, error);
+                card.setAttribute('data-needs-translation', '1');
+
+                card.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
+                {
+                    applyTranslationErrorIndicator(msg, String(error && error.message ? error.message : 'network_error'));
+                });
+            });
         };
 
         var triggerLazyTranslations = function (container)
         {
             var pendingCards = (container || document).querySelectorAll('[data-needs-translation="1"]');
-            pendingCards.forEach(function (card)
-            {
-                var ticketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
-                if (!ticketId)
-                {
-                    return;
-                }
-
-                card.setAttribute('data-needs-translation', 'loading');
-
-                var translateParams = {
-                    ticket_id: ticketId,
-                    language: ticketPollPayload.current_language || 'nl',
-                    viewer_email: ticketPollPayload.viewer_email || '',
-                    user_is_admin: !!ticketPollPayload.user_is_admin,
-                    is_admin_portal: !!ticketPollPayload.is_admin_portal,
-                };
-                console.log('[translation] Requesting ticket #' + ticketId, translateParams);
-
-                apiFetchJson('translate_ticket', translateParams).then(function (data)
-                {
-                    console.log('[translation] Response for ticket #' + ticketId, data);
-                    card.setAttribute('data-needs-translation', '0');
-                    applyTranslationToCard(card, data);
-                }).catch(function (error)
-                {
-                    console.error('[translation] Fetch error for ticket #' + ticketId, error);
-                    card.setAttribute('data-needs-translation', '1');
-
-                    card.querySelectorAll('[data-translation-status="pending"]').forEach(function (msg)
-                    {
-                        applyTranslationErrorIndicator(msg, String(error && error.message ? error.message : 'network_error'));
-                    });
-                });
-            });
+            pendingCards.forEach(requestTicketTranslation);
         };
 
         var postWebPushSubscription = function (action, subscription)

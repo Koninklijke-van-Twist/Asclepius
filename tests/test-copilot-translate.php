@@ -362,8 +362,11 @@ assertCopilotTrue(
     str_contains($apiSource, "'translation_pending'") && str_contains($apiSource, "'title_translation_pending'")
 );
 assertCopilotTrue(
-    'De pagina laat een pending bericht staan',
-    str_contains($jsSource, 'msg.translation_pending') && str_contains($jsSource, "card.setAttribute('data-needs-translation', '1')")
+    'De pagina laat een pending bericht staan en vraagt opnieuw',
+    str_contains($jsSource, 'msg.translation_pending')
+        && str_contains($jsSource, 'TRANSLATION_RETRY_MAX = 4')
+        && str_contains($jsSource, 'TRANSLATION_RETRY_BACKOFF_MS')
+        && str_contains($jsSource, 'requestTicketTranslation(liveCard)')
 );
 
 resetCopilotProviderCache();
