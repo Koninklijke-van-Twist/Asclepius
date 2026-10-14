@@ -157,7 +157,7 @@ Succes → `201`:
 
 `ticket_url` is dezelfde link als de knop "Ticketlink kopiëren" in de UI (`index.php?open=<id>`).
 
-Na een geslaagd antwoord start de vertaling van de titel en de eerste tekst op de achtergrond, voor alle talen. Het aanmaken wacht daar niet op. Bestaande tickets worden niet achteraf allemaal vertaald. De bevestiging naar deelnemers volgt de taal van elke ontvanger en wacht zo nodig op de vertaling van de beschrijving, hetzelfde als een updatemail (zie `change_ticket_status`).
+Na een geslaagd antwoord start de vertaling van de titel en de eerste tekst op de achtergrond, voor alle talen. Het aanmaken wacht daar niet op. Bestaande tickets worden niet achteraf allemaal vertaald. De bevestiging naar deelnemers volgt de taal van elke ontvanger en wacht zo nodig op de vertaling van de beschrijving, hetzelfde als een updatemail (zie `change_ticket_status`). Deze POST zonder `action` stuurt die bevestiging ook, via hetzelfde pad als de webinterface. Doet de aanvrager het zelf, dan staat er dat het ticket is ontvangen. Doet iemand anders of een service-key het namens die persoon, dan staat er dat het ticket namens de ontvanger is aangemaakt.
 
 Tip voor sleutels-apps die namens een gebruiker een ticket melden: gebruik de service-key (`asclepius_api_key` uit `login/cfg.php`), zet `user_email` op de ingelogde gebruiker en kies categorie `sleutels.kvt.nl web-applicatieproblemen`.
 

@@ -252,6 +252,132 @@ assertEntryTrue(
     str_contains((string) ($GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'] ?? ''), "L'écran reste noir")
 );
 
+echo PHP_EOL . "API POST zonder action" . PHP_EOL;
+$behalfRequester = 'de-api-create@example.com';
+$behalfPrefPath = getUserPrefsPath($behalfRequester);
+if ($behalfPrefPath !== null && is_file($behalfPrefPath)) {
+    unlink($behalfPrefPath);
+}
+saveUserPref($behalfRequester, 'lang', 'de');
+register_shutdown_function(static function () use ($behalfRequester): void {
+    $path = getUserPrefsPath($behalfRequester);
+    if ($path !== null && is_file($path)) {
+        unlink($path);
+    }
+});
+
+$queueBeforeInvalid = count($store->listUserUpdateMailQueue());
+$invalidCreate = handleCreateTicketApiAction($store, [
+    'title' => '',
+    'category' => 'hardware bestellen',
+    'description' => 'Missing title',
+    'user_email' => $requester,
+], null);
+assertEntry('Ongeldig API-ticket geeft 422', 422, (int) ($invalidCreate['status'] ?? 0));
+assertEntryTrue('Ongeldig API-ticket heeft geen succes', empty($invalidCreate['body']['success']));
+assertEntry('Ongeldig API-ticket mailt niet', $queueBeforeInvalid, count($store->listUserUpdateMailQueue()));
+
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+$selfCreate = handleCreateTicketApiAction($store, [
+    'title' => 'Printer blijft hangen',
+    'category' => 'hardware bestellen',
+    'description' => 'The printer stays silent',
+    'user_email' => $requester,
+    'participant_emails' => [$requester],
+], ['email' => $requester, 'is_admin' => false, 'kind' => 'login_rotating']);
+assertEntry('API-ticket van jezelf geeft 201', 201, (int) ($selfCreate['status'] ?? 0));
+assertEntryTrue('API-ticket van jezelf slaagt', !empty($selfCreate['body']['success']));
+$selfTicketId = (int) ($selfCreate['body']['ticket_id'] ?? 0);
+assertEntryTrue('API-ticket heeft een id', $selfTicketId > 0);
+assertEntryTrue(
+    'ticket_url wijst naar het nieuwe ticket',
+    str_contains((string) ($selfCreate['body']['ticket_url'] ?? ''), 'open=' . $selfTicketId)
+);
+$selfTicket = $store->getTicket($selfTicketId, true, $requester);
+$selfMessageId = firstTicketMessageId(is_array($selfTicket) ? $selfTicket : []);
+assertEntryTrue('Eerste API-bericht bestaat', $selfMessageId > 0);
+assertEntryTrue(
+    'API-aanmaak zet de beschrijving in de vertaalwachtrij',
+    in_array('ticket_message:' . $selfMessageId, queuedTicketTranslationKeys(), true)
+);
+$selfQueue = $store->listUserUpdateMailQueue($selfMessageId);
+assertEntry('Bevestiging voor jezelf wacht op de vertaling', 1, count($selfQueue));
+assertEntry('Bevestiging gebruikt het aanmaak-onderwerp', 'email.subject_created', (string) ($selfQueue[0]['subject_key'] ?? ''));
+assertEntry('Zelfde persoon krijgt de eigen intro', 'email.intro_created_self', (string) ($selfQueue[0]['intro_key'] ?? ''));
+assertEntry('Bevestiging gaat naar de aanvrager', $requester, (string) ($selfQueue[0]['recipient_email'] ?? ''));
+$store->upsertTextTranslation(
+    'ticket_message',
+    $selfMessageId,
+    $selfTicketId,
+    'fr',
+    'en',
+    hash('sha256', 'The printer stays silent'),
+    "L'imprimante reste silencieuse"
+);
+dispatchQueuedUserUpdateMails($store, $selfMessageId, time(), ['ict@kvt.nl']);
+$selfMails = array_values(array_filter(
+    $GLOBALS['asclepiusCapturedTicketEmails'],
+    static fn(array $mail): bool => in_array($requester, $mail['recipients'] ?? [], true)
+));
+assertEntry('API-bevestiging in het Frans', 1, count($selfMails));
+assertEntry(
+    'Frans aanmaak-onderwerp via de API',
+    'Le ticket #' . $selfTicketId . ' a été créé',
+    (string) ($selfMails[0]['subject'] ?? '')
+);
+assertEntryTrue(
+    'Franse intro voor een eigen ticket',
+    str_contains((string) ($selfMails[0]['plain'] ?? ''), 'Votre ticket a été reçu.')
+);
+assertEntryTrue(
+    'Franse beschrijving via de API',
+    str_contains((string) ($selfMails[0]['plain'] ?? ''), "L'imprimante reste silencieuse")
+);
+
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+$behalfCreate = handleCreateTicketApiAction($store, [
+    'title' => 'Toetsenbord mist een toets',
+    'category' => 'hardware bestellen',
+    'description' => 'The keyboard misses a key',
+    'user_email' => $behalfRequester,
+], null);
+assertEntry('API-ticket namens iemand geeft 201', 201, (int) ($behalfCreate['status'] ?? 0));
+$behalfTicketId = (int) ($behalfCreate['body']['ticket_id'] ?? 0);
+$behalfTicket = $store->getTicket($behalfTicketId, true, '');
+$behalfMessageId = firstTicketMessageId(is_array($behalfTicket) ? $behalfTicket : []);
+$behalfQueue = $store->listUserUpdateMailQueue($behalfMessageId);
+assertEntry('Bevestiging namens iemand wacht', 1, count($behalfQueue));
+assertEntry('Service-key gebruikt de namens-intro', 'email.intro_created_other', (string) ($behalfQueue[0]['intro_key'] ?? ''));
+assertEntry('Bevestiging gaat naar die persoon', $behalfRequester, (string) ($behalfQueue[0]['recipient_email'] ?? ''));
+$store->upsertTextTranslation(
+    'ticket_message',
+    $behalfMessageId,
+    $behalfTicketId,
+    'de',
+    'en',
+    hash('sha256', 'The keyboard misses a key'),
+    'Der Tastatur fehlt eine Taste'
+);
+dispatchQueuedUserUpdateMails($store, $behalfMessageId, time(), ['ict@kvt.nl']);
+$behalfMails = array_values(array_filter(
+    $GLOBALS['asclepiusCapturedTicketEmails'],
+    static fn(array $mail): bool => in_array($behalfRequester, $mail['recipients'] ?? [], true)
+));
+assertEntry('API-bevestiging in het Duits', 1, count($behalfMails));
+assertEntry(
+    'Duits aanmaak-onderwerp',
+    'Ticket #' . $behalfTicketId . ' wurde erstellt',
+    (string) ($behalfMails[0]['subject'] ?? '')
+);
+assertEntryTrue(
+    'Duitse intro namens de ontvanger',
+    str_contains((string) ($behalfMails[0]['plain'] ?? ''), 'Ein Ticket wurde in Ihrem Namen erstellt.')
+);
+assertEntryTrue(
+    'Duitse beschrijving',
+    str_contains((string) ($behalfMails[0]['plain'] ?? ''), 'Der Tastatur fehlt eine Taste')
+);
+
 echo PHP_EOL;
 echo "Geslaagd: {$passed}" . PHP_EOL;
 echo "Gefaald: {$failed}" . PHP_EOL;

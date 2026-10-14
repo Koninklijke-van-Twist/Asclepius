@@ -3,7 +3,7 @@ date: 2026-10-14
 title: Updatemail in de taal van de ontvanger
 author: Cursor Agent
 
-Een updatemail naar een gebruiker volgt de taal die die persoon heeft ingesteld, of het bericht uit de webinterface komt of via de API (ook een bot). Een intern concept mailt pas als het zichtbaar wordt. Hetzelfde geldt voor de bevestiging van een nieuw ticket. Onderwerp, vaste teksten en de tekst van het bericht staan in die taal.
+Een updatemail naar een gebruiker volgt de taal die die persoon heeft ingesteld, of het bericht uit de webinterface komt of via de API (ook een bot). Een intern concept mailt pas als het zichtbaar wordt. Hetzelfde geldt voor de bevestiging van een nieuw ticket, ook als dat ticket via de API wordt aangemaakt zonder aparte actie. Onderwerp, vaste teksten en de tekst van het bericht staan in die taal.
 
 Is het bericht al in die taal, of staat de vertaling al klaar, dan gaat de mail meteen weg. Anders wacht die tot de vertaling binnen is. Duurt dat langer dan drie minuten, dan gaat de mail alsnog weg: vaste teksten in de juiste taal, het bericht in het origineel. Dat wordt gelogd. Wijzigt het bericht nog voordat de mail weg is, dan vervalt die mail. Dezelfde mail gaat maar één keer weg.
 

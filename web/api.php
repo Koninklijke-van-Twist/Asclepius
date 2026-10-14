@@ -3648,6 +3648,113 @@ function handleRequestPageAccessApiAction(TicketStore $store, array $payload, ?a
 }
 
 /**
+ * POST zonder action: nieuw ticket, met dezelfde bevestiging als de webinterface.
+ *
+ * @param array<string, mixed> $payload
+ * @param array<string, mixed>|null $apiClient
+ * @return array{status: int, body: array<string, mixed>}
+ */
+function handleCreateTicketApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    global $ictUsers;
+
+    $title = trim((string) ($payload['title'] ?? ''));
+    $category = trim((string) ($payload['category'] ?? ''));
+    $description = trim((string) ($payload['description'] ?? ''));
+    $userEmail = strtolower(trim((string) ($payload['user_email'] ?? '')));
+    $priority = max(0, min(2, (int) ($payload['priority'] ?? 0)));
+    $participantEmailsRaw = $payload['participant_emails'] ?? [];
+    $participantEmails = [];
+
+    if (is_string($participantEmailsRaw)) {
+        $participantEmails = parseEmailListInput($participantEmailsRaw);
+    } elseif (is_array($participantEmailsRaw)) {
+        $participantEmails = parseEmailListInput(implode(',', array_map(static fn($value): string => (string) $value, $participantEmailsRaw)));
+    }
+
+    if ($userEmail === '') {
+        $userEmail = strtolower(trim((string) ($payload['requester_email'] ?? '')));
+    }
+
+    // Met de persoonlijke login-key maak je alleen tickets op je eigen naam.
+    if (is_array($apiClient) && ($apiClient['kind'] ?? '') === 'login_rotating') {
+        $userEmail = (string) $apiClient['email'];
+    }
+
+    $errors = [];
+    if ($title === '') {
+        $errors[] = 'Titel is verplicht.';
+    }
+    if (!in_array($category, TICKET_CATEGORIES, true)) {
+        $errors[] = 'Categorie is ongeldig.';
+    }
+    if ($description === '') {
+        $errors[] = 'Beschrijving is verplicht.';
+    }
+    if (!filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'user_email moet een geldig e-mailadres zijn.';
+    }
+
+    if ($errors !== []) {
+        return [
+            'status' => 422,
+            'body' => [
+                'success' => false,
+                'errors' => $errors,
+            ],
+        ];
+    }
+
+    try {
+        $result = $store->createTicket($title, $category, $userEmail, $description, [], $priority, $participantEmails);
+        $ticketId = (int) ($result['ticket_id'] ?? 0);
+        $ticket = $store->getTicket($ticketId, true, '');
+
+        if (is_array($ticket)) {
+            $actorEmail = '';
+            if (is_array($apiClient)) {
+                $actorEmail = strtolower(trim((string) ($apiClient['email'] ?? '')));
+                if (!filter_var($actorEmail, FILTER_VALIDATE_EMAIL)) {
+                    $actorEmail = '';
+                }
+            }
+            $introKey = $actorEmail !== '' && $actorEmail === strtolower(trim($userEmail))
+                ? 'email.intro_created_self'
+                : 'email.intro_created_other';
+            notifyRequesterOfCreatedTicket(
+                $store,
+                is_array($ictUsers) ? $ictUsers : [],
+                $ticket,
+                $description,
+                firstTicketMessageId($ticket),
+                $introKey,
+                $actorEmail !== '' ? $actorEmail : null
+            );
+        }
+
+        return [
+            'status' => 201,
+            'body' => [
+                'success' => true,
+                'ticket_id' => $ticketId,
+                'assigned_email' => $result['assigned_email'] ?? null,
+                'ticket_url' => buildAsclepiusTicketUrl($ticketId),
+                'ticket' => $ticket,
+            ],
+        ];
+    } catch (Throwable $exception) {
+        return [
+            'status' => 500,
+            'body' => [
+                'success' => false,
+                'error' => 'Ticket kon niet worden aangemaakt.',
+                'details' => $exception->getMessage(),
+            ],
+        ];
+    }
+}
+
+/**
  * Page load
  */
 if (!defined('ASCLEPIUS_API_SKIP_ROUTER')) {
@@ -4153,69 +4260,8 @@ if ($method === 'POST') {
         ]);
     }
 
-    $title = trim((string) ($payload['title'] ?? ''));
-    $category = trim((string) ($payload['category'] ?? ''));
-    $description = trim((string) ($payload['description'] ?? ''));
-    $userEmail = strtolower(trim((string) ($payload['user_email'] ?? '')));
-    $priority = max(0, min(2, (int) ($payload['priority'] ?? 0)));
-    $participantEmailsRaw = $payload['participant_emails'] ?? [];
-    $participantEmails = [];
-
-    if (is_string($participantEmailsRaw)) {
-        $participantEmails = parseEmailListInput($participantEmailsRaw);
-    } elseif (is_array($participantEmailsRaw)) {
-        $participantEmails = parseEmailListInput(implode(',', array_map(static fn($value): string => (string) $value, $participantEmailsRaw)));
-    }
-
-    if ($userEmail === '') {
-        $userEmail = strtolower(trim((string) ($payload['requester_email'] ?? '')));
-    }
-
-    // Met de persoonlijke login-key maak je alleen tickets op je eigen naam.
-    if (is_array($apiClient ?? null) && ($apiClient['kind'] ?? '') === 'login_rotating') {
-        $userEmail = (string) $apiClient['email'];
-    }
-
-    $errors = [];
-    if ($title === '') {
-        $errors[] = 'Titel is verplicht.';
-    }
-    if (!in_array($category, TICKET_CATEGORIES, true)) {
-        $errors[] = 'Categorie is ongeldig.';
-    }
-    if ($description === '') {
-        $errors[] = 'Beschrijving is verplicht.';
-    }
-    if (!filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = 'user_email moet een geldig e-mailadres zijn.';
-    }
-
-    if ($errors !== []) {
-        sendJson(422, [
-            'success' => false,
-            'errors' => $errors,
-        ]);
-    }
-
-    try {
-        $result = $store->createTicket($title, $category, $userEmail, $description, [], $priority, $participantEmails);
-        $ticketId = (int) ($result['ticket_id'] ?? 0);
-        $ticket = $store->getTicket($ticketId, true, '');
-
-        sendJson(201, [
-            'success' => true,
-            'ticket_id' => $ticketId,
-            'assigned_email' => $result['assigned_email'] ?? null,
-            'ticket_url' => buildAsclepiusTicketUrl($ticketId),
-            'ticket' => $ticket,
-        ]);
-    } catch (Throwable $exception) {
-        sendJson(500, [
-            'success' => false,
-            'error' => 'Ticket kon niet worden aangemaakt.',
-            'details' => $exception->getMessage(),
-        ]);
-    }
+    $createdTicket = handleCreateTicketApiAction($store, $payload, is_array($apiClient ?? null) ? $apiClient : null);
+    sendJson($createdTicket['status'], $createdTicket['body']);
 }
 
 sendJson(405, [
