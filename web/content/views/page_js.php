@@ -8745,7 +8745,9 @@
                 viewer_email: ticketPollPayload.viewer_email || '',
                 user_is_admin: !!ticketPollPayload.user_is_admin,
                 is_admin_portal: !!ticketPollPayload.is_admin_portal,
-                wait_for_inflight: (card.open || cardHasPendingTranslation(card)) ? 1 : 0
+                // Alleen het geopende ticket wacht en neemt een lopende claim over.
+                // Een ingeklapte lijstkaart keert meteen terug, ook als de titel pending is.
+                wait_for_inflight: card.open ? 1 : 0
             };
             console.log('[translation] Requesting ticket #' + ticketId, translateParams);
 

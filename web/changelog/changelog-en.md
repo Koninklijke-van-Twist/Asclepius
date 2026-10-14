@@ -7,7 +7,7 @@ A new message is translated into English, French and German again, not only into
 
 On My tickets the title translation showed quickly, while the messages in the opened ticket stayed on the loading icon. Opening a ticket now requests those messages. If a translation is already running, the opened ticket waits briefly and continues on its own when that run has stalled.
 
-A new reply in an existing ticket stayed on the loading icon when the background translation had already claimed that text but had not stored it. The opened ticket then finishes that translation itself. The list stays fast and shows the title.
+A new reply in an existing ticket stayed on the loading icon when the background translation had already claimed that text but had not stored it. The opened ticket then finishes that translation itself. The list stays fast and shows the title. A collapsed ticket in the list does not wait for that, even when the title still shows a loading icon.
 
 The buttons to show the original or the translation, the Janus presence status and the Printerproblemen category follow the language you have chosen.
 

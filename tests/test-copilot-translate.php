@@ -408,6 +408,11 @@ assertCopilotTrue(
         && str_contains($jsSource, 'translationRequestsInFlight[ticketId]')
         && str_contains($jsSource, 'document.hidden')
 );
+assertCopilotTrue(
+    'Alleen een open ticket stuurt wait_for_inflight',
+    preg_match('/wait_for_inflight:\s*card\.open\s*\?\s*1\s*:\s*0/', $jsSource) === 1
+        && preg_match('/wait_for_inflight:[^\n]*cardHasPendingTranslation/', $jsSource) !== 1
+);
 
 resetCopilotProviderCache();
 $GLOBALS['copilotTranslate'] = null;
