@@ -1,3 +1,12 @@
+id: 2026-10-14-translation-cache-i18n
+date: 2026-10-14
+title: Vertalingen verschijnen weer in alle talen
+author: Cursor Agent
+
+Een nieuw bericht wordt weer vertaald naar het Engels, Frans en Duits, niet alleen naar het Nederlands. De vertaling verschijnt vanzelf. Een vertaling die al was opgeslagen, blijft staan.
+
+De knoppen om het origineel of de vertaling te tonen, de aanwezigheidsstatus uit Janus en de categorie Printerproblemen volgen de taal die je hebt gekozen.
+
 id: 2026-10-14-update-mail-language
 date: 2026-10-14
 title: Updatemail in de taal van de ontvanger

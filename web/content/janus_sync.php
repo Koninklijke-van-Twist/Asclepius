@@ -265,21 +265,25 @@ function expandJanusHolidayUntilIncludingContractFreeDays(string $email, string 
     return $lastMatchingDate;
 }
 
-function janusPresenceStatusLabel(string $status): string
+function janusPresenceStatusLabel(string $status, ?string $lang = null): string
 {
     $key = 'presence.status.' . $status;
-    $label = __($key);
+    $label = ($lang === null || $lang === '') ? __($key) : __mail($key, $lang);
 
     return $label === $key ? $status : $label;
 }
 
-function janusPresenceStatusDetail(array $row): string
+function janusPresenceStatusDetail(array $row, ?string $lang = null): string
 {
     $status = (string) ($row['status'] ?? '');
     if ($status === 'holiday') {
         $until = trim((string) ($row['holidayUntil'] ?? ''));
         if ($until !== '') {
-            return (string) __('presence.holiday_until', formatDisplayDate($until));
+            $formatted = formatDisplayDate($until);
+
+            return (string) (($lang === null || $lang === '')
+                ? __('presence.holiday_until', $formatted)
+                : __mail('presence.holiday_until', $lang, $formatted));
         }
     }
     if (in_array($status, ['present_office', 'present_home', 'absent'], true)) {
@@ -299,12 +303,14 @@ function janusPresenceStatusDetail(array $row): string
  */
 function mapJanusPresenceDisplayRow(array $row): array
 {
+    $lang = function_exists('getCurrentLanguage') ? getCurrentLanguage() : null;
+
     return [
         'email' => (string) ($row['email'] ?? ''),
         'name' => (string) ($row['name'] ?? ''),
         'status' => (string) ($row['status'] ?? ''),
-        'label' => janusPresenceStatusLabel((string) ($row['status'] ?? '')),
-        'detail' => janusPresenceStatusDetail($row),
+        'label' => janusPresenceStatusLabel((string) ($row['status'] ?? ''), $lang),
+        'detail' => janusPresenceStatusDetail($row, $lang),
     ];
 }
 

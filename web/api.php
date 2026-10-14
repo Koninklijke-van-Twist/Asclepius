@@ -3838,6 +3838,11 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $payload = getRequestBody();
     $action = trim((string) ($payload['action'] ?? ''));
+    ensureApiSessionStarted();
+    if (function_exists('ensureViewerLanguage')) {
+        $requestedLanguage = strtolower(trim((string) ($payload['current_language'] ?? ($payload['language'] ?? ''))));
+        ensureViewerLanguage($requestedLanguage !== '' ? $requestedLanguage : null);
+    }
 
     if (in_array($action, ['ticket_lookups', 'categories', 'statuses'], true)) {
         sendJson(200, buildTicketLookupsApiPayload($action));
@@ -4203,6 +4208,7 @@ if ($method === 'POST') {
         // De flow wacht standaard tot 120s per tekst. Zonder deze limiet kapt de
         // resterende-tijd-begrenzing alles af op de korte php.ini-timeout.
         set_time_limit(300);
+        $_SERVER['REQUEST_TIME_FLOAT'] = microtime(true);
 
         $ticketId = max(1, (int) ($payload['ticket_id'] ?? 0));
         $language = strtolower(trim((string) ($payload['language'] ?? 'nl')));

@@ -2915,6 +2915,27 @@ class TicketStore
         return $token;
     }
 
+    /**
+     * Een verzoek dat bij exit nog een transactie open heeft, zou de vertalingen
+     * die daarna in dezelfde transactie worden geschreven bij het sluiten terugdraaien.
+     */
+    public function commitOpenTransaction(): void
+    {
+        if (!$this->pdo->inTransaction()) {
+            return;
+        }
+
+        try {
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     public function releaseTextTranslationClaim(string $entityType, int $entityId, string $claimToken): void
     {
         $normalizedEntityType = trim($entityType);

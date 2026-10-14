@@ -52,6 +52,7 @@ function cpt_languages(?array $config): array
  * {"source":"en","nl":"…","en":"…","fr":"…","de":"…"}. `source` is optioneel.
  * Het object mag in een ```json-hek of in een stringveld zoals "text" zitten.
  * Elke gevraagde taal moet een string zijn; ontbreekt er een, dan is het antwoord ongeldig.
+ * Andere bekende talen in hetzelfde object blijven staan, ook als de vragenlijst korter is.
  * Zelfde vorm als Forum-Magnum (cpt_parse_translations).
  *
  * @return list<string>
@@ -238,20 +239,77 @@ function cpt_nested_candidates(array $data): array
     return $out;
 }
 
+/**
+ * Talen die in een flow-antwoord mogen staan. De vragenlijst mag korter zijn;
+ * een antwoord met nl én en/fr/de mag die andere talen niet kwijtraken.
+ *
+ * @return list<string>
+ */
+function cpt_known_language_codes(): array
+{
+    $codes = [];
+    foreach (CPT_DEFAULT_LANGUAGES as $language) {
+        $language = strtolower(trim((string) $language));
+        if ($language !== '' && !in_array($language, $codes, true)) {
+            $codes[] = $language;
+        }
+    }
+    if (defined('SUPPORTED_LANGUAGES') && is_array(SUPPORTED_LANGUAGES)) {
+        foreach (array_keys(SUPPORTED_LANGUAGES) as $language) {
+            $language = strtolower(trim((string) $language));
+            if ($language !== '' && preg_match('/^[a-z]{2}$/', $language) === 1 && !in_array($language, $codes, true)) {
+                $codes[] = $language;
+            }
+        }
+    }
+
+    return $codes !== [] ? $codes : CPT_DEFAULT_LANGUAGES;
+}
+
+/**
+ * Elke bekende taalcode die als string in het object staat, ongeacht de vragenlijst.
+ *
+ * @return array<string, string>
+ */
+function cpt_collect_language_map(array $data): array
+{
+    $known = array_fill_keys(cpt_known_language_codes(), true);
+    $map = [];
+    foreach ($data as $key => $value) {
+        if (!is_string($value)) {
+            continue;
+        }
+        $language = strtolower(trim((string) $key));
+        if ($language === '' || !isset($known[$language])) {
+            continue;
+        }
+        $map[$language] = $value;
+    }
+
+    return $map;
+}
+
 /** @return array{source: ?string, translations: array<string,string>}|null */
 function cpt_validate_translations(array $data, array $languages): ?array
 {
-    $translations = [];
+    $translations = cpt_collect_language_map($data);
     foreach ($languages as $lang) {
-        if (!isset($data[$lang]) || !is_string($data[$lang])) {
+        $lang = strtolower(trim((string) $lang));
+        if ($lang === '') {
+            continue;
+        }
+        if (!isset($translations[$lang]) || !is_string($translations[$lang])) {
             return null;
         }
-        $translations[$lang] = $data[$lang];
+    }
+    if ($translations === []) {
+        return null;
     }
     $source = is_string($data['source'] ?? null) ? strtolower(trim($data['source'])) : null;
     if ($source !== null) {
         $source = substr($source, 0, 2); // "en-GB" -> "en"
-        if (!in_array($source, $languages, true)) {
+        $known = cpt_known_language_codes();
+        if (!in_array($source, $known, true)) {
             $source = null;
         }
     }

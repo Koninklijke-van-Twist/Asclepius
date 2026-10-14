@@ -1,3 +1,12 @@
+id: 2026-10-14-translation-cache-i18n
+date: 2026-10-14
+title: Les traductions réapparaissent dans toutes les langues
+author: Cursor Agent
+
+Un nouveau message est de nouveau traduit en anglais, en français et en allemand, et plus seulement en néerlandais. La traduction apparaît d'elle-même. Une traduction déjà enregistrée reste disponible.
+
+Les boutons pour afficher l'original ou la traduction, le statut de présence Janus et la catégorie Printerproblemen suivent la langue choisie.
+
 id: 2026-10-14-update-mail-language
 date: 2026-10-14
 title: E-mail de mise à jour dans la langue du destinataire

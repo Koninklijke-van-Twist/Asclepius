@@ -2605,6 +2605,7 @@ function translateCategory(string $dbCategory, ?string $lang = null): string
         'BC Verbeteringen' => 'category.bc_verbeteringen',
         'AFAS' => 'category.afas',
         'Hardwareproblemen' => 'category.hardwareproblemen',
+        'Printerproblemen' => 'category.printerproblemen',
         'Softwareproblemen' => 'category.softwareproblemen',
         'sleutels.kvt.nl web-applicatieproblemen' => 'category.web_app_problemen',
         'Anders' => 'category.anders',

@@ -1,3 +1,12 @@
+id: 2026-10-14-translation-cache-i18n
+date: 2026-10-14
+title: Übersetzungen erscheinen wieder in allen Sprachen
+author: Cursor Agent
+
+Eine neue Nachricht wird wieder ins Englische, Französische und Deutsche übersetzt, nicht nur ins Niederländische. Die Übersetzung erscheint von selbst. Eine bereits gespeicherte Übersetzung bleibt erhalten.
+
+Die Schaltflächen für Original und Übersetzung, der Janus-Anwesenheitsstatus und die Kategorie Printerproblemen folgen der gewählten Sprache.
+
 id: 2026-10-14-update-mail-language
 date: 2026-10-14
 title: Aktualisierungsmail in der Sprache des Empfängers

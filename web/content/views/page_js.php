@@ -9926,7 +9926,9 @@
                     return;
                 }
                 presenceInFlight = true;
-                apiFetchJson('presence_poll', {})
+                apiFetchJson('presence_poll', {
+                    language: (document.documentElement && document.documentElement.lang) || 'nl'
+                })
                     .then(function (data)
                     {
                         presenceInFlight = false;
