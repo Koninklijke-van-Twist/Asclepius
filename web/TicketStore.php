@@ -1869,6 +1869,9 @@ class TicketStore
             } catch (Throwable) {
             }
 
+            $this->queueTranslationAfterWrite('ticket_title', $ticketId, $ticketId, $title);
+            $this->queueTranslationAfterWrite('ticket_message', $messageId, $ticketId, $description);
+
             return [
                 'ticket_id' => $ticketId,
                 'assigned_email' => $assignee,
@@ -1969,7 +1972,14 @@ class TicketStore
             ':id' => $ticketId,
         ]);
 
-        return $statement->rowCount() > 0;
+        if ($statement->rowCount() <= 0) {
+            return false;
+        }
+
+        $this->deleteTextTranslationsForEntity('ticket_title', $ticketId);
+        $this->queueTranslationAfterWrite('ticket_title', $ticketId, $ticketId, $normalizedTitle);
+
+        return true;
     }
 
     public function updateTicketPrivate(int $ticketId, bool $isPrivate): bool
@@ -2128,6 +2138,10 @@ class TicketStore
             ':entity_type' => $normalizedEntityType,
             ':entity_id' => $entityId,
         ]);
+
+        if ($normalizedEntityType === 'ticket_message') {
+            $this->discardUserUpdateMailsForMessage($entityId);
+        }
     }
 
     /**
@@ -2401,6 +2415,10 @@ class TicketStore
 
         $this->syncAiAdviceStateAfterMessage($ticketId, $senderEmail, $markAi);
 
+        if (!$isGhost) {
+            $this->queueTranslationAfterWrite('ticket_message', $messageId, $ticketId, $messageText);
+        }
+
         return $messageId;
     }
 
@@ -2482,6 +2500,8 @@ class TicketStore
             return null;
         }
 
+        $this->deleteTextTranslationsForEntity('ticket_message', $messageId);
+        $this->queueTranslationAfterWrite('ticket_message', $messageId, $ticketId, $updatedMessageText);
         $this->touchTicketUpdatedAt($ticketId);
         return $updatedMessageText;
     }
@@ -2514,6 +2534,234 @@ class TicketStore
 
         $row = $statement->fetch(PDO::FETCH_ASSOC);
         return is_array($row) ? $row : null;
+    }
+
+    public function getTextTranslationSourceLanguage(string $entityType, int $entityId, string $sourceHash): string
+    {
+        $normalizedEntityType = trim($entityType);
+        $normalizedSourceHash = trim($sourceHash);
+        if ($normalizedEntityType === '' || $entityId <= 0 || $normalizedSourceHash === '') {
+            return '';
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT source_language
+             FROM ticket_text_translations
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND source_hash = :source_hash
+               AND source_language != ""
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':source_hash' => $normalizedSourceHash,
+        ]);
+        $sourceLanguage = $statement->fetchColumn();
+
+        return is_string($sourceLanguage) ? strtolower(trim($sourceLanguage)) : '';
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listTextTranslations(string $entityType, int $entityId, string $sourceHash): array
+    {
+        $normalizedEntityType = trim($entityType);
+        $normalizedSourceHash = trim($sourceHash);
+        if ($normalizedEntityType === '' || $entityId <= 0 || $normalizedSourceHash === '') {
+            return [];
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT target_language, source_language, translated_text
+             FROM ticket_text_translations
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND source_hash = :source_hash'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':source_hash' => $normalizedSourceHash,
+        ]);
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    public function setTextTranslationSourceLanguage(string $entityType, int $entityId, string $sourceHash, string $sourceLanguage): void
+    {
+        $normalizedEntityType = trim($entityType);
+        $normalizedSourceHash = trim($sourceHash);
+        $normalizedSourceLanguage = strtolower(trim($sourceLanguage));
+        if ($normalizedEntityType === '' || $entityId <= 0 || $normalizedSourceHash === '' || $normalizedSourceLanguage === '') {
+            return;
+        }
+        if (!defined('SUPPORTED_LANGUAGES') || !is_array(SUPPORTED_LANGUAGES) || !array_key_exists($normalizedSourceLanguage, SUPPORTED_LANGUAGES)) {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'UPDATE ticket_text_translations
+             SET source_language = :source_language
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND source_hash = :source_hash
+               AND source_language != :source_language'
+        );
+        $statement->execute([
+            ':source_language' => $normalizedSourceLanguage,
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':source_hash' => $normalizedSourceHash,
+        ]);
+    }
+
+    public function discardUserUpdateMailsForMessage(int $messageId): void
+    {
+        if ($messageId <= 0) {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'DELETE FROM ticket_update_mail_queue WHERE message_id = :message_id'
+        );
+        $statement->execute([':message_id' => $messageId]);
+    }
+
+    public function enqueueUserUpdateMail(
+        int $ticketId,
+        int $messageId,
+        string $recipientEmail,
+        string $recipientLang,
+        string $sourceHash,
+        string $messageText,
+        bool $statusChanged,
+        string $excludeEmail,
+        string $browserActorEmail,
+        bool $highImportance,
+        ?int $queuedAt = null,
+        string $subjectKey = 'email.subject_update',
+        string $introKey = 'email.intro_update',
+        string $introSuffixKey = '',
+        bool $adminPage = false,
+        string $notificationType = '',
+        array $absenceForwards = []
+    ): bool {
+        $recipientEmail = strtolower(trim($recipientEmail));
+        $recipientLang = strtolower(trim($recipientLang));
+        $sourceHash = trim($sourceHash);
+        if ($ticketId <= 0 || $messageId <= 0 || $recipientEmail === '' || $recipientLang === '' || $sourceHash === '') {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ticket_update_mail_queue (
+                ticket_id, message_id, recipient_email, recipient_lang, source_hash, message_text,
+                status_changed, exclude_email, browser_actor_email, high_importance,
+                subject_key, intro_key, intro_suffix_key, queued_at, admin_page, notification_type,
+                absence_forwards
+            ) VALUES (
+                :ticket_id, :message_id, :recipient_email, :recipient_lang, :source_hash, :message_text,
+                :status_changed, :exclude_email, :browser_actor_email, :high_importance,
+                :subject_key, :intro_key, :intro_suffix_key, :queued_at, :admin_page, :notification_type,
+                :absence_forwards
+            )'
+        );
+        $statement->execute([
+            ':ticket_id' => $ticketId,
+            ':message_id' => $messageId,
+            ':recipient_email' => $recipientEmail,
+            ':recipient_lang' => $recipientLang,
+            ':source_hash' => $sourceHash,
+            ':message_text' => $messageText,
+            ':status_changed' => $statusChanged ? 1 : 0,
+            ':exclude_email' => strtolower(trim($excludeEmail)),
+            ':browser_actor_email' => strtolower(trim($browserActorEmail)),
+            ':high_importance' => $highImportance ? 1 : 0,
+            ':subject_key' => $subjectKey,
+            ':intro_key' => $introKey,
+            ':intro_suffix_key' => $introSuffixKey,
+            ':queued_at' => $queuedAt ?? time(),
+            ':admin_page' => $adminPage ? 1 : 0,
+            ':notification_type' => trim($notificationType),
+            ':absence_forwards' => self::encodeAbsenceForwards($absenceForwards),
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listUserUpdateMailQueue(?int $messageId = null): array
+    {
+        if ($messageId !== null && $messageId > 0) {
+            $statement = $this->pdo->prepare(
+                'SELECT * FROM ticket_update_mail_queue WHERE message_id = :message_id ORDER BY id ASC'
+            );
+            $statement->execute([':message_id' => $messageId]);
+        } else {
+            $statement = $this->pdo->query('SELECT * FROM ticket_update_mail_queue ORDER BY id ASC');
+        }
+        if ($statement === false) {
+            return [];
+        }
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function claimUserUpdateMail(int $id): ?array
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+
+        try {
+            $statement = $this->pdo->prepare('SELECT * FROM ticket_update_mail_queue WHERE id = :id LIMIT 1');
+            $statement->execute([':id' => $id]);
+            $row = $statement->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($row)) {
+                if ($ownsTransaction && $this->pdo->inTransaction()) {
+                    $this->pdo->commit();
+                }
+
+                return null;
+            }
+
+            $delete = $this->pdo->prepare('DELETE FROM ticket_update_mail_queue WHERE id = :id');
+            $delete->execute([':id' => $id]);
+            if ($delete->rowCount() !== 1) {
+                if ($ownsTransaction && $this->pdo->inTransaction()) {
+                    $this->pdo->commit();
+                }
+
+                return null;
+            }
+
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+
+            return $row;
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
     }
 
     public function upsertTextTranslation(
@@ -2576,6 +2824,200 @@ class TicketStore
             ':created_at' => $now,
             ':updated_at' => $now,
         ]);
+    }
+
+    public function getTranslationSourceText(string $entityType, int $entityId): ?string
+    {
+        $normalizedEntityType = trim($entityType);
+        if ($entityId <= 0) {
+            return null;
+        }
+
+        if ($normalizedEntityType === 'ticket_message') {
+            $message = $this->getTicketMessage($entityId);
+
+            return $message === null ? null : (string) ($message['message_text'] ?? '');
+        }
+
+        if ($normalizedEntityType === 'ticket_title') {
+            $statement = $this->pdo->prepare('SELECT title FROM tickets WHERE id = :id LIMIT 1');
+            $statement->execute([':id' => $entityId]);
+            $title = $statement->fetchColumn();
+
+            return is_string($title) ? $title : null;
+        }
+
+        return null;
+    }
+
+    public function translationSourceMatches(string $entityType, int $entityId, string $rawText): bool
+    {
+        $current = $this->getTranslationSourceText($entityType, $entityId);
+        if ($current === null) {
+            return false;
+        }
+
+        return hash('sha256', $current) === hash('sha256', $rawText);
+    }
+
+    /**
+     * Eén lopende vertaling per bericht of titel. null = iemand anders is al bezig met dezelfde tekst.
+     * Een andere tekst (bewerking) of een verlopen claim neemt de lock over.
+     */
+    public function tryClaimTextTranslation(string $entityType, int $entityId, string $sourceHash, int $staleAfterSeconds = 180, ?int $now = null): ?string
+    {
+        $normalizedEntityType = trim($entityType);
+        $normalizedSourceHash = trim($sourceHash);
+        if ($normalizedEntityType === '' || $entityId <= 0 || $normalizedSourceHash === '') {
+            return null;
+        }
+
+        $now ??= time();
+        $token = bin2hex(random_bytes(16));
+        $staleBefore = $now - max(0, $staleAfterSeconds);
+        $statement = $this->pdo->prepare(
+            'INSERT INTO ticket_translation_inflight (entity_type, entity_id, source_hash, claim_token, claimed_at)
+             VALUES (:entity_type, :entity_id, :source_hash, :claim_token, :claimed_at)
+             ON CONFLICT(entity_type, entity_id) DO UPDATE SET
+                source_hash = excluded.source_hash,
+                claim_token = excluded.claim_token,
+                claimed_at = excluded.claimed_at
+             WHERE ticket_translation_inflight.claimed_at < :stale_before
+                OR ticket_translation_inflight.source_hash != excluded.source_hash'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':source_hash' => $normalizedSourceHash,
+            ':claim_token' => $token,
+            ':claimed_at' => $now,
+            ':stale_before' => $staleBefore,
+        ]);
+
+        $check = $this->pdo->prepare(
+            'SELECT claim_token
+             FROM ticket_translation_inflight
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND source_hash = :source_hash
+             LIMIT 1'
+        );
+        $check->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':source_hash' => $normalizedSourceHash,
+        ]);
+        $storedToken = $check->fetchColumn();
+        if (!is_string($storedToken) || strlen($storedToken) !== strlen($token) || !hash_equals($storedToken, $token)) {
+            return null;
+        }
+
+        return $token;
+    }
+
+    public function releaseTextTranslationClaim(string $entityType, int $entityId, string $claimToken): void
+    {
+        $normalizedEntityType = trim($entityType);
+        if ($normalizedEntityType === '' || $entityId <= 0 || $claimToken === '') {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'DELETE FROM ticket_translation_inflight
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND claim_token = :claim_token'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':claim_token' => $claimToken,
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $translationsByLanguage
+     */
+    public function saveTextTranslationsIfClaimed(
+        string $entityType,
+        int $entityId,
+        int $ticketId,
+        string $sourceHash,
+        string $claimToken,
+        string $sourceLanguage,
+        array $translationsByLanguage
+    ): bool {
+        $normalizedEntityType = trim($entityType);
+        $normalizedSourceHash = trim($sourceHash);
+        if ($normalizedEntityType === '' || $entityId <= 0 || $ticketId <= 0 || $normalizedSourceHash === '' || $claimToken === '' || $translationsByLanguage === []) {
+            return false;
+        }
+
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+
+        try {
+            $claim = $this->pdo->prepare(
+                'SELECT 1
+                 FROM ticket_translation_inflight
+                 WHERE entity_type = :entity_type
+                   AND entity_id = :entity_id
+                   AND claim_token = :claim_token
+                   AND source_hash = :source_hash
+                 LIMIT 1'
+            );
+            $claim->execute([
+                ':entity_type' => $normalizedEntityType,
+                ':entity_id' => $entityId,
+                ':claim_token' => $claimToken,
+                ':source_hash' => $normalizedSourceHash,
+            ]);
+            if ($claim->fetchColumn() === false) {
+                if ($ownsTransaction && $this->pdo->inTransaction()) {
+                    $this->pdo->rollBack();
+                }
+
+                return false;
+            }
+
+            $currentText = $this->getTranslationSourceText($normalizedEntityType, $entityId);
+            if ($currentText === null || hash('sha256', $currentText) !== $normalizedSourceHash) {
+                if ($ownsTransaction && $this->pdo->inTransaction()) {
+                    $this->pdo->rollBack();
+                }
+
+                return false;
+            }
+
+            foreach ($translationsByLanguage as $language => $translatedText) {
+                if (!is_string($translatedText)) {
+                    continue;
+                }
+                $this->upsertTextTranslation(
+                    $normalizedEntityType,
+                    $entityId,
+                    $ticketId,
+                    (string) $language,
+                    $sourceLanguage,
+                    $normalizedSourceHash,
+                    $translatedText
+                );
+            }
+
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+
+            return true;
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
     }
 
     public function countTickets(bool $isAdmin, string $userEmail, array $statusFilters = [], ?string $assignedFilter = null, array $categoryFilters = [], ?string $searchQuery = null, string $browseMode = 'default', ?array $accessCategories = null): int
@@ -4224,6 +4666,47 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_templates_name ON ticket_templates(name)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_text_translations_lookup ON ticket_text_translations(entity_type, entity_id, target_language, source_hash)');
         $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_update_mail_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL,
+                recipient_email TEXT NOT NULL,
+                recipient_lang TEXT NOT NULL,
+                source_hash TEXT NOT NULL,
+                message_text TEXT NOT NULL DEFAULT "",
+                status_changed INTEGER NOT NULL DEFAULT 0,
+                exclude_email TEXT NOT NULL DEFAULT "",
+                browser_actor_email TEXT NOT NULL DEFAULT "",
+                high_importance INTEGER NOT NULL DEFAULT 0,
+                subject_key TEXT NOT NULL DEFAULT "email.subject_update",
+                intro_key TEXT NOT NULL DEFAULT "email.intro_update",
+                intro_suffix_key TEXT NOT NULL DEFAULT "",
+                queued_at INTEGER NOT NULL,
+                admin_page INTEGER NOT NULL DEFAULT 0,
+                notification_type TEXT NOT NULL DEFAULT "",
+                absence_forwards TEXT NOT NULL DEFAULT "",
+                UNIQUE(message_id, recipient_email, source_hash, notification_type, subject_key)
+            )'
+        );
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_update_mail_queue_message ON ticket_update_mail_queue(message_id, queued_at)');
+        $this->ensureColumn('ticket_update_mail_queue', 'subject_key', 'TEXT NOT NULL DEFAULT "email.subject_update"');
+        $this->ensureColumn('ticket_update_mail_queue', 'intro_key', 'TEXT NOT NULL DEFAULT "email.intro_update"');
+        $this->ensureColumn('ticket_update_mail_queue', 'intro_suffix_key', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_update_mail_queue', 'admin_page', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn('ticket_update_mail_queue', 'notification_type', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_update_mail_queue', 'absence_forwards', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureUpdateMailQueueIdentity();
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_translation_inflight (
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                source_hash TEXT NOT NULL,
+                claim_token TEXT NOT NULL,
+                claimed_at INTEGER NOT NULL,
+                PRIMARY KEY (entity_type, entity_id)
+            )'
+        );
+        $this->pdo->exec(
             'CREATE TABLE IF NOT EXISTS ticket_message_reactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 message_id INTEGER NOT NULL,
@@ -4403,64 +4886,11 @@ class TicketStore
 
     private function extractStatusFromMessage(string $messageText): ?string
     {
-        $statusByLabel = [
-            'ingediend' => 'ingediend',
-            'submitted' => 'ingediend',
-            'eingereicht' => 'ingediend',
-            'soumis' => 'ingediend',
-            'in behandeling' => 'in behandeling',
-            'in progress' => 'in behandeling',
-            'in bearbeitung' => 'in behandeling',
-            'en cours' => 'in behandeling',
-            'afwachtende op gebruiker' => 'afwachtende op gebruiker',
-            'awaiting user' => 'afwachtende op gebruiker',
-            'wartet auf benutzer' => 'afwachtende op gebruiker',
-            "en attente de l'utilisateur" => 'afwachtende op gebruiker',
-            'afwachtende op bestelling' => 'afwachtende op bestelling',
-            'awaiting order' => 'afwachtende op bestelling',
-            'wartet auf bestellung' => 'afwachtende op bestelling',
-            'en attente de commande' => 'afwachtende op bestelling',
-            'afwachtende op derde partij' => 'afwachtende op derde partij',
-            'awaiting third party' => 'afwachtende op derde partij',
-            'wartet auf dritte partei' => 'afwachtende op derde partij',
-            'en attente de tiers' => 'afwachtende op derde partij',
-            'afgehandeld' => 'afgehandeld',
-            'resolved' => 'afgehandeld',
-            'erledigt' => 'afgehandeld',
-            'résolu' => 'afgehandeld',
-            'resolu' => 'afgehandeld',
-        ];
-
-        $prefixes = [
-            'status gewijzigd naar ',
-            'status changed to ',
-            'status geändert auf ',
-            'statut modifié en ',
-        ];
-
-        $normalized = str_replace(["\r\n", "\r"], "\n", trim($messageText));
-        if ($normalized === '') {
-            return null;
+        if (!function_exists('ticketStatusFromMessageText')) {
+            require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'message_markdown.php';
         }
 
-        foreach (explode("\n", $normalized) as $line) {
-            $trimmedLine = trim($line);
-            if ($trimmedLine === '') {
-                continue;
-            }
-
-            $lowerLine = strtolower($trimmedLine);
-            foreach ($prefixes as $prefix) {
-                if (!str_starts_with($lowerLine, $prefix)) {
-                    continue;
-                }
-
-                $statusLabel = trim(substr($lowerLine, strlen($prefix)), " .\t\n\r\0\x0B");
-                return $statusByLabel[$statusLabel] ?? null;
-            }
-        }
-
-        return null;
+        return ticketStatusFromMessageText($messageText);
     }
 
     private function normalizeDueDate(?string $dueDate): ?string
@@ -4546,6 +4976,132 @@ class TicketStore
         }
 
         return $dayCount;
+    }
+
+    /**
+     * Oude databases sleutelden alleen op bericht, ontvanger en tekst.
+     * Een escalatie of toewijzing met dezelfde tekst viel daardoor weg.
+     */
+    private function ensureUpdateMailQueueIdentity(): void
+    {
+        $wanted = ['message_id', 'recipient_email', 'source_hash', 'notification_type', 'subject_key'];
+        $uniqueSets = [];
+        $indexList = $this->pdo->query("PRAGMA index_list('ticket_update_mail_queue')");
+        if ($indexList !== false) {
+            foreach ($indexList->fetchAll(PDO::FETCH_ASSOC) as $index) {
+                if (empty($index['unique'])) {
+                    continue;
+                }
+                $name = (string) ($index['name'] ?? '');
+                if (!preg_match('/^[A-Za-z0-9_]+$/', $name)) {
+                    continue;
+                }
+                $info = $this->pdo->query("PRAGMA index_info('" . $name . "')");
+                if ($info === false) {
+                    continue;
+                }
+                $columns = [];
+                foreach ($info->fetchAll(PDO::FETCH_ASSOC) as $column) {
+                    $columns[] = (string) ($column['name'] ?? '');
+                }
+                $uniqueSets[] = $columns;
+            }
+        }
+        if ($uniqueSets === [$wanted]) {
+            return;
+        }
+
+        $columns = [
+            'id',
+            'ticket_id',
+            'message_id',
+            'recipient_email',
+            'recipient_lang',
+            'source_hash',
+            'message_text',
+            'status_changed',
+            'exclude_email',
+            'browser_actor_email',
+            'high_importance',
+            'subject_key',
+            'intro_key',
+            'intro_suffix_key',
+            'queued_at',
+            'admin_page',
+            'notification_type',
+            'absence_forwards',
+        ];
+        $columnList = implode(', ', $columns);
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+
+        try {
+            $this->pdo->exec('DROP TABLE IF EXISTS ticket_update_mail_queue_next');
+            $this->pdo->exec(
+                'CREATE TABLE ticket_update_mail_queue_next (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticket_id INTEGER NOT NULL,
+                    message_id INTEGER NOT NULL,
+                    recipient_email TEXT NOT NULL,
+                    recipient_lang TEXT NOT NULL,
+                    source_hash TEXT NOT NULL,
+                    message_text TEXT NOT NULL DEFAULT "",
+                    status_changed INTEGER NOT NULL DEFAULT 0,
+                    exclude_email TEXT NOT NULL DEFAULT "",
+                    browser_actor_email TEXT NOT NULL DEFAULT "",
+                    high_importance INTEGER NOT NULL DEFAULT 0,
+                    subject_key TEXT NOT NULL DEFAULT "email.subject_update",
+                    intro_key TEXT NOT NULL DEFAULT "email.intro_update",
+                    intro_suffix_key TEXT NOT NULL DEFAULT "",
+                    queued_at INTEGER NOT NULL,
+                    admin_page INTEGER NOT NULL DEFAULT 0,
+                    notification_type TEXT NOT NULL DEFAULT "",
+                    absence_forwards TEXT NOT NULL DEFAULT "",
+                    UNIQUE(message_id, recipient_email, source_hash, notification_type, subject_key)
+                )'
+            );
+            $this->pdo->exec(
+                'INSERT INTO ticket_update_mail_queue_next (' . $columnList . ')
+                 SELECT ' . $columnList . ' FROM ticket_update_mail_queue'
+            );
+            $this->pdo->exec('DROP TABLE ticket_update_mail_queue');
+            $this->pdo->exec('ALTER TABLE ticket_update_mail_queue_next RENAME TO ticket_update_mail_queue');
+            $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_update_mail_queue_message ON ticket_update_mail_queue(message_id, queued_at)');
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @param list<array{absent?: string, to?: string}> $forwards
+     */
+    private static function encodeAbsenceForwards(array $forwards): string
+    {
+        $clean = [];
+        foreach ($forwards as $forward) {
+            if (!is_array($forward)) {
+                continue;
+            }
+            $absent = trim((string) ($forward['absent'] ?? ''));
+            $to = trim((string) ($forward['to'] ?? ''));
+            if ($absent === '' || $to === '') {
+                continue;
+            }
+            $clean[] = ['absent' => $absent, 'to' => $to];
+        }
+
+        $encoded = json_encode($clean, JSON_UNESCAPED_UNICODE);
+
+        return is_string($encoded) ? $encoded : '[]';
     }
 
     private function ensureColumn(string $tableName, string $columnName, string $definition): void
@@ -5031,6 +5587,8 @@ class TicketStore
             $this->deleteTextTranslationsForEntity('ticket_message', $messageId);
         }
 
+        $this->queueTranslationAfterWrite('ticket_message', $messageId, (int) $message['ticket_id'], $nextText);
+
         $updateTicket = $this->pdo->prepare(
             'UPDATE tickets SET updated_at = :updated_at WHERE id = :id'
         );
@@ -5091,6 +5649,15 @@ class TicketStore
         $statement->execute([':id' => $ticketId]);
 
         return strtolower(trim((string) ($statement->fetchColumn() ?: '')));
+    }
+
+    private function queueTranslationAfterWrite(string $entityType, int $entityId, int $ticketId, string $rawText): void
+    {
+        if (!function_exists('queueTicketTextTranslation')) {
+            return;
+        }
+
+        queueTicketTextTranslation($this, $entityType, $entityId, $ticketId, $rawText);
     }
 
     private function touchTicketUpdatedAt(int $ticketId, ?string $updatedAt = null): void

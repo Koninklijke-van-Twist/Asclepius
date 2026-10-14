@@ -15,6 +15,14 @@ header('Cache-Control: no-store, no-cache, must-revalidate');
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'TicketStore.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'constants.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'localization.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'helpers.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'TranslationProvider.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'LaraTranslationProvider.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'CoPilotTranslate.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'CopilotTranslationProvider.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'translation.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'mail.php';
 
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method !== 'GET' && $method !== 'HEAD') {
@@ -32,6 +40,13 @@ try {
     }
 
     $store = new TicketStore(DATABASE_FILE, UPLOAD_DIRECTORY, $ictUsers, TICKET_CATEGORIES);
+    if (function_exists('dispatchQueuedUserUpdateMails')) {
+        try {
+            dispatchQueuedUserUpdateMails($store, null, null, $ictUsers);
+        } catch (Throwable $mailException) {
+            error_log('[asclepius] updatemail: ' . $mailException->getMessage());
+        }
+    }
     $result = $store->snapshotOpenTicketCountsHourly();
 
     echo json_encode([

@@ -927,45 +927,37 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
     $participantChangeNotifiedViaUpdate = false;
     $participantChangeNote = buildParticipantChangeNote($newParticipants, $removedParticipants);
     if ($participantChangeNote !== '') {
-        $store->addMessage($ticketId, $actorEmail, $isAdminViewer ? 'admin' : 'user', $participantChangeNote);
+        $participantNoteId = $store->addMessage($ticketId, $actorEmail, $isAdminViewer ? 'admin' : 'user', $participantChangeNote);
         $updatedTicket = $store->getTicket($ticketId, true, $actorEmail) ?? $updatedTicket;
         $participantsAfter = is_array($updatedTicket['participant_emails'] ?? null) ? $updatedTicket['participant_emails'] : $participantsAfter;
 
-        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-            ? $updatedTicket['participant_emails']
-            : [(string) ($updatedTicket['user_email'] ?? '')];
-        $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
-        sendTicketNotification(
+        notifyTicketUpdateToParticipants(
             $store,
-            $GLOBALS['ictUsers'] ?? [],
-            $requesterRecipients,
-            __mail('email.subject_update', $reqLang, $ticketId),
-            buildNotificationBody($updatedTicket, 'email.intro_update', $participantChangeNote, false, $reqLang, __mail('email.intro_update_no_status', $reqLang)),
-            $actorEmail,
-            (string) ($updatedTicket['category'] ?? ''),
-            $ticketId,
-            null,
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
+            $updatedTicket,
+            $participantChangeNote,
+            $participantNoteId,
+            false,
+            false,
+            false,
+            (string) ($updatedTicket['status'] ?? ''),
             $actorEmail
         );
         $participantChangeNotifiedViaUpdate = true;
     }
 
-    foreach ($newParticipants as $newParticipantEmail) {
-        if ($participantChangeNotifiedViaUpdate) {
-            continue;
-        }
-
-        $participantLang = getUserMailLang($newParticipantEmail);
-        sendTicketNotification(
+    if (!$participantChangeNotifiedViaUpdate && $newParticipants !== []) {
+        sendLocalizedTicketNotifications(
             $store,
-            $GLOBALS['ictUsers'] ?? [],
-            [$newParticipantEmail],
-            __mail('email.subject_participant_added', $participantLang, $ticketId),
-            buildNotificationBody($updatedTicket, 'email.intro_participant_added', '', false, $participantLang),
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
+            $updatedTicket,
+            $newParticipants,
+            '',
+            0,
+            'email.subject_participant_added',
+            'email.intro_participant_added',
+            false,
             $actorEmail,
-            (string) ($updatedTicket['category'] ?? ''),
-            $ticketId,
-            null,
             $actorEmail
         );
     }
@@ -1081,37 +1073,28 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
         ];
     }
 
-    $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-        ? $updatedTicket['participant_emails']
-        : [(string) ($updatedTicket['user_email'] ?? '')];
-    $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
-    sendTicketNotification(
+    notifyTicketUpdateToParticipants(
         $store,
-        $GLOBALS['ictUsers'] ?? [],
-        $requesterRecipients,
-        __mail('email.subject_update', $reqLang, $ticketId),
-        buildNotificationBody($updatedTicket, 'email.intro_update', $categoryChangeNote, false, $reqLang, __mail('email.intro_update_no_status', $reqLang)),
-        $actorEmail,
-        (string) ($updatedTicket['category'] ?? ''),
-        $ticketId,
-        null,
+        is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
+        $updatedTicket,
+        $categoryChangeNote,
+        $messageId,
+        false,
+        false,
+        false,
+        (string) ($updatedTicket['status'] ?? ''),
         $actorEmail
     );
 
     if (!empty($changeResult['assignee_changed']) && trim((string) ($changeResult['assigned_email'] ?? '')) !== '') {
-        $assigneeEmail = strtolower(trim((string) $changeResult['assigned_email']));
-        $assigneeLang = getUserMailLang($assigneeEmail);
-        sendTicketNotification(
+        notifyAssigneeOfTicket(
             $store,
-            $GLOBALS['ictUsers'] ?? [],
-            [$assigneeEmail],
-            __mail('email.subject_assigned', $assigneeLang, $ticketId),
-            buildNotificationBody($updatedTicket, 'email.intro_assigned', $categoryChangeNote, true, $assigneeLang),
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
+            $updatedTicket,
+            (string) $changeResult['assigned_email'],
+            $categoryChangeNote,
             $actorEmail,
-            (string) ($updatedTicket['category'] ?? ''),
-            $ticketId,
-            'assigned',
-            $actorEmail
+            $messageId
         );
     }
 
@@ -1466,49 +1449,25 @@ function notifyTicketFieldChangeViaApi(
     string $visibleNote,
     bool $statusChanged,
     bool $assigneeChanged,
-    string $newAssignee
+    string $newAssignee,
+    int $messageId = 0
 ): void {
     $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
-    if ($statusChanged || $assigneeChanged || $visibleNote !== '') {
-        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-            ? $updatedTicket['participant_emails']
-            : [(string) ($updatedTicket['user_email'] ?? '')];
-        $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
-        $updateIntroSuffix = $statusChanged
-            ? __mail('email.intro_update_status', $reqLang)
-            : __mail('email.intro_update_no_status', $reqLang);
-        sendTicketNotification(
-            $store,
-            $ictUsersList,
-            $requesterRecipients,
-            __mail('email.subject_update', $reqLang, $ticketId),
-            buildNotificationBody($updatedTicket, 'email.intro_update', $visibleNote, false, $reqLang, $updateIntroSuffix),
-            $actorEmail,
-            (string) ($updatedTicket['category'] ?? ''),
-            $ticketId,
-            null,
-            $actorEmail,
-            requesterUpdateMailHasHighImportance(
-                $statusChanged,
-                (string) ($updatedTicket['status'] ?? '')
-            )
-        );
-    }
+    notifyTicketUpdateToParticipants(
+        $store,
+        $ictUsersList,
+        $updatedTicket,
+        $visibleNote,
+        $messageId,
+        $statusChanged,
+        $assigneeChanged,
+        false,
+        (string) ($updatedTicket['status'] ?? ''),
+        $actorEmail
+    );
 
     if ($assigneeChanged && $newAssignee !== '') {
-        $assigneeLang = getUserMailLang($newAssignee);
-        sendTicketNotification(
-            $store,
-            $ictUsersList,
-            [$newAssignee],
-            __mail('email.subject_assigned', $assigneeLang, $ticketId),
-            buildNotificationBody($updatedTicket, 'email.intro_assigned', $visibleNote, true, $assigneeLang),
-            $actorEmail,
-            (string) ($updatedTicket['category'] ?? ''),
-            $ticketId,
-            'assigned',
-            $actorEmail
-        );
+        notifyAssigneeOfTicket($store, $ictUsersList, $updatedTicket, $newAssignee, $visibleNote, $actorEmail, $messageId);
     }
 }
 
@@ -1588,7 +1547,8 @@ function handleChangeTicketStatusApiAction(TicketStore $store, array $payload, ?
         $statusChangeNote,
         true,
         false,
-        ''
+        '',
+        $messageId
     );
 
     $currentPage = normalizeReturnPage((string) ($payload['current_page'] ?? 'admin.php'));
@@ -1700,30 +1660,17 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
     $messageText = trim($storedText);
     $hasAttachments = $store->messageHasAttachments($messageId);
     if ($messageText !== '' || $hasAttachments) {
-        $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
-        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-            ? $updatedTicket['participant_emails']
-            : [(string) ($updatedTicket['user_email'] ?? '')];
-        $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
-        sendTicketNotification(
+        notifyTicketUpdateToParticipants(
             $store,
-            $ictUsersList,
-            $requesterRecipients,
-            __mail('email.subject_update', $reqLang, $ticketId),
-            buildNotificationBody(
-                $updatedTicket,
-                'email.intro_update',
-                $storedText,
-                false,
-                $reqLang,
-                __mail('email.intro_update_no_status', $reqLang)
-            ),
-            $actorEmail,
-            (string) ($updatedTicket['category'] ?? ''),
-            $ticketId,
-            null,
-            $actorEmail,
-            false
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
+            $updatedTicket,
+            $storedText,
+            $messageId,
+            false,
+            false,
+            $hasAttachments,
+            (string) ($updatedTicket['status'] ?? ''),
+            $actorEmail
         );
     }
 
@@ -2784,16 +2731,37 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         ];
     }
 
-    if ($statusChanged || $assigneeChanged) {
-        notifyTicketFieldChangeViaApi(
+    if ($canPostAsAdmin) {
+        notifyTicketUpdateToParticipants(
             $store,
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
             $updatedTicket,
-            $ticketId,
-            $actorEmail,
             (string) $persistedReply['visible_message_for_mail'],
+            updateMailMessageId(
+                (string) $persistedReply['visible_message_for_mail'],
+                (int) ($persistedReply['message_id'] ?? 0),
+                (int) ($persistedReply['status_message_id'] ?? 0)
+            ),
             $statusChanged,
             $assigneeChanged,
-            $assigneeChanged ? $newAssignee : ''
+            !$isGhost && $attachmentFiles !== [],
+            (string) ($updatedTicket['status'] ?? $newStatus),
+            $actorEmail
+        );
+    }
+    if ($assigneeChanged && $newAssignee !== '') {
+        notifyAssigneeOfTicket(
+            $store,
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
+            $updatedTicket,
+            $newAssignee,
+            (string) $persistedReply['visible_message_for_mail'],
+            $actorEmail,
+            updateMailMessageId(
+                (string) $persistedReply['visible_message_for_mail'],
+                (int) ($persistedReply['message_id'] ?? 0),
+                (int) ($persistedReply['status_message_id'] ?? 0)
+            )
         );
     }
 
@@ -3644,34 +3612,27 @@ function handleRequestPageAccessApiAction(TicketStore $store, array $payload, ?a
                 (string) ($createdTicket['category'] ?? $category),
                 is_array($ictUsers) ? $ictUsers : []
             );
-            $ictLang = $assignedEmail !== '' ? getUserMailLang($assignedEmail) : 'nl';
-            sendTicketNotification(
+            notifyIctAboutTicket(
                 $store,
                 is_array($ictUsers) ? $ictUsers : [],
+                $createdTicket,
                 $ictRecipients,
-                __mail('email.subject_new_ticket', $ictLang, $ticketId),
-                buildNotificationBody($createdTicket, 'email.intro_new_ict', $description, true, $ictLang),
+                $description,
+                firstTicketMessageId($createdTicket),
+                'email.subject_new_ticket',
+                'email.intro_new_ict',
                 $userEmail,
-                (string) ($createdTicket['category'] ?? $category),
-                $ticketId,
-                'new_ticket',
-                $userEmail
+                $userEmail,
+                'new_ticket'
             );
 
-            $requesterRecipients = is_array($createdTicket['participant_emails'] ?? null)
-                ? $createdTicket['participant_emails']
-                : [$userEmail];
-            $requesterLang = getUserMailLang($userEmail);
-            sendTicketNotification(
+            notifyRequesterOfCreatedTicket(
                 $store,
                 is_array($ictUsers) ? $ictUsers : [],
-                $requesterRecipients,
-                __mail('email.subject_created', $requesterLang, $ticketId),
-                buildNotificationBody($createdTicket, 'email.intro_created_self', $description, false, $requesterLang),
-                null,
-                (string) ($createdTicket['category'] ?? $category),
-                $ticketId,
-                null,
+                $createdTicket,
+                $description,
+                firstTicketMessageId($createdTicket),
+                'email.intro_created_self',
                 $userEmail
             );
         }
@@ -3686,6 +3647,113 @@ function handleRequestPageAccessApiAction(TicketStore $store, array $payload, ?a
     }
 
     return buildPageAccessTicketApiResponse($ticket, $created);
+}
+
+/**
+ * POST zonder action: nieuw ticket, met dezelfde bevestiging als de webinterface.
+ *
+ * @param array<string, mixed> $payload
+ * @param array<string, mixed>|null $apiClient
+ * @return array{status: int, body: array<string, mixed>}
+ */
+function handleCreateTicketApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+{
+    global $ictUsers;
+
+    $title = trim((string) ($payload['title'] ?? ''));
+    $category = trim((string) ($payload['category'] ?? ''));
+    $description = trim((string) ($payload['description'] ?? ''));
+    $userEmail = strtolower(trim((string) ($payload['user_email'] ?? '')));
+    $priority = max(0, min(2, (int) ($payload['priority'] ?? 0)));
+    $participantEmailsRaw = $payload['participant_emails'] ?? [];
+    $participantEmails = [];
+
+    if (is_string($participantEmailsRaw)) {
+        $participantEmails = parseEmailListInput($participantEmailsRaw);
+    } elseif (is_array($participantEmailsRaw)) {
+        $participantEmails = parseEmailListInput(implode(',', array_map(static fn($value): string => (string) $value, $participantEmailsRaw)));
+    }
+
+    if ($userEmail === '') {
+        $userEmail = strtolower(trim((string) ($payload['requester_email'] ?? '')));
+    }
+
+    // Met de persoonlijke login-key maak je alleen tickets op je eigen naam.
+    if (is_array($apiClient) && ($apiClient['kind'] ?? '') === 'login_rotating') {
+        $userEmail = (string) $apiClient['email'];
+    }
+
+    $errors = [];
+    if ($title === '') {
+        $errors[] = 'Titel is verplicht.';
+    }
+    if (!in_array($category, TICKET_CATEGORIES, true)) {
+        $errors[] = 'Categorie is ongeldig.';
+    }
+    if ($description === '') {
+        $errors[] = 'Beschrijving is verplicht.';
+    }
+    if (!filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'user_email moet een geldig e-mailadres zijn.';
+    }
+
+    if ($errors !== []) {
+        return [
+            'status' => 422,
+            'body' => [
+                'success' => false,
+                'errors' => $errors,
+            ],
+        ];
+    }
+
+    try {
+        $result = $store->createTicket($title, $category, $userEmail, $description, [], $priority, $participantEmails);
+        $ticketId = (int) ($result['ticket_id'] ?? 0);
+        $ticket = $store->getTicket($ticketId, true, '');
+
+        if (is_array($ticket)) {
+            $actorEmail = '';
+            if (is_array($apiClient)) {
+                $actorEmail = strtolower(trim((string) ($apiClient['email'] ?? '')));
+                if (!filter_var($actorEmail, FILTER_VALIDATE_EMAIL)) {
+                    $actorEmail = '';
+                }
+            }
+            $introKey = $actorEmail !== '' && $actorEmail === strtolower(trim($userEmail))
+                ? 'email.intro_created_self'
+                : 'email.intro_created_other';
+            notifyRequesterOfCreatedTicket(
+                $store,
+                is_array($ictUsers) ? $ictUsers : [],
+                $ticket,
+                $description,
+                firstTicketMessageId($ticket),
+                $introKey,
+                $actorEmail !== '' ? $actorEmail : null
+            );
+        }
+
+        return [
+            'status' => 201,
+            'body' => [
+                'success' => true,
+                'ticket_id' => $ticketId,
+                'assigned_email' => $result['assigned_email'] ?? null,
+                'ticket_url' => buildAsclepiusTicketUrl($ticketId),
+                'ticket' => $ticket,
+            ],
+        ];
+    } catch (Throwable $exception) {
+        return [
+            'status' => 500,
+            'body' => [
+                'success' => false,
+                'error' => 'Ticket kon niet worden aangemaakt.',
+                'details' => $exception->getMessage(),
+            ],
+        ];
+    }
 }
 
 /**
@@ -3720,6 +3788,13 @@ try {
         'error' => 'Database kon niet worden geopend.',
         'details' => $exception->getMessage(),
     ]);
+}
+if (isset($store) && $store instanceof TicketStore && function_exists('dispatchQueuedUserUpdateMails')) {
+    try {
+        dispatchQueuedUserUpdateMails($store, null, null, is_array($ictUsers ?? null) ? $ictUsers : []);
+    } catch (Throwable $exception) {
+        error_log('[asclepius] updatemail: ' . $exception->getMessage());
+    }
 }
 
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
@@ -4187,69 +4262,8 @@ if ($method === 'POST') {
         ]);
     }
 
-    $title = trim((string) ($payload['title'] ?? ''));
-    $category = trim((string) ($payload['category'] ?? ''));
-    $description = trim((string) ($payload['description'] ?? ''));
-    $userEmail = strtolower(trim((string) ($payload['user_email'] ?? '')));
-    $priority = max(0, min(2, (int) ($payload['priority'] ?? 0)));
-    $participantEmailsRaw = $payload['participant_emails'] ?? [];
-    $participantEmails = [];
-
-    if (is_string($participantEmailsRaw)) {
-        $participantEmails = parseEmailListInput($participantEmailsRaw);
-    } elseif (is_array($participantEmailsRaw)) {
-        $participantEmails = parseEmailListInput(implode(',', array_map(static fn($value): string => (string) $value, $participantEmailsRaw)));
-    }
-
-    if ($userEmail === '') {
-        $userEmail = strtolower(trim((string) ($payload['requester_email'] ?? '')));
-    }
-
-    // Met de persoonlijke login-key maak je alleen tickets op je eigen naam.
-    if (is_array($apiClient ?? null) && ($apiClient['kind'] ?? '') === 'login_rotating') {
-        $userEmail = (string) $apiClient['email'];
-    }
-
-    $errors = [];
-    if ($title === '') {
-        $errors[] = 'Titel is verplicht.';
-    }
-    if (!in_array($category, TICKET_CATEGORIES, true)) {
-        $errors[] = 'Categorie is ongeldig.';
-    }
-    if ($description === '') {
-        $errors[] = 'Beschrijving is verplicht.';
-    }
-    if (!filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = 'user_email moet een geldig e-mailadres zijn.';
-    }
-
-    if ($errors !== []) {
-        sendJson(422, [
-            'success' => false,
-            'errors' => $errors,
-        ]);
-    }
-
-    try {
-        $result = $store->createTicket($title, $category, $userEmail, $description, [], $priority, $participantEmails);
-        $ticketId = (int) ($result['ticket_id'] ?? 0);
-        $ticket = $store->getTicket($ticketId, true, '');
-
-        sendJson(201, [
-            'success' => true,
-            'ticket_id' => $ticketId,
-            'assigned_email' => $result['assigned_email'] ?? null,
-            'ticket_url' => buildAsclepiusTicketUrl($ticketId),
-            'ticket' => $ticket,
-        ]);
-    } catch (Throwable $exception) {
-        sendJson(500, [
-            'success' => false,
-            'error' => 'Ticket kon niet worden aangemaakt.',
-            'details' => $exception->getMessage(),
-        ]);
-    }
+    $createdTicket = handleCreateTicketApiAction($store, $payload, is_array($apiClient ?? null) ? $apiClient : null);
+    sendJson($createdTicket['status'], $createdTicket['body']);
 }
 
 sendJson(405, [

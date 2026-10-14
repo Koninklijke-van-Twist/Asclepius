@@ -196,36 +196,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     (string) ($ticket['category'] ?? $category),
                     $ictUsers
                 );
-                $ictLang = !empty($result['assigned_email']) ? getUserMailLang((string) $result['assigned_email']) : 'nl';
-                sendTicketNotification(
+                notifyIctAboutTicket(
                     $store,
                     $ictUsers,
+                    $ticket,
                     $ictRecipients,
-                    __mail('email.subject_new_ticket', $ictLang, $ticketId),
-                    buildNotificationBody($ticket, 'email.intro_new_ict', $description, true, $ictLang),
+                    $description,
+                    firstTicketMessageId($ticket),
+                    'email.subject_new_ticket',
+                    'email.intro_new_ict',
                     $requesterEmail,
-                    (string) ($ticket['category'] ?? $category),
-                    $ticketId,
-                    'new_ticket',
-                    $userEmail
+                    $userEmail,
+                    'new_ticket'
                 );
 
-                $requesterRecipients = is_array($ticket['participant_emails'] ?? null) ? $ticket['participant_emails'] : [$requesterEmail];
-                $requesterLang = getUserMailLang($requesterEmail);
                 $userIntroKey = strtolower($requesterEmail) === strtolower($userEmail)
                     ? 'email.intro_created_self'
                     : 'email.intro_created_other';
-
-                sendTicketNotification(
+                notifyRequesterOfCreatedTicket(
                     $store,
                     $ictUsers,
-                    $requesterRecipients,
-                    __mail('email.subject_created', $requesterLang, $ticketId),
-                    buildNotificationBody($ticket, $userIntroKey, $description, false, $requesterLang),
-                    null,
-                    (string) ($ticket['category'] ?? $category),
-                    $ticketId,
-                    null,
+                    $ticket,
+                    $description,
+                    firstTicketMessageId($ticket),
+                    $userIntroKey,
                     $userEmail
                 );
             }
@@ -269,46 +263,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     static fn(string $email): bool => $email !== '' && !isset($participantsBeforeLookup[$email])
                 ));
 
-                $participantChangeNote = buildParticipantChangeNote($newParticipants, []);
+                    $participantChangeNote = buildParticipantChangeNote($newParticipants, []);
                 if ($participantChangeNote !== '') {
-                    $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $participantChangeNote);
+                    $participantNoteId = $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $participantChangeNote);
                     $updatedTicket = $store->getTicket($ticketId, true, $userEmail) ?? $updatedTicket;
 
-                    $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-                        ? $updatedTicket['participant_emails']
-                        : [(string) ($updatedTicket['user_email'] ?? '')];
-                    $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
-                    sendTicketNotification(
+                    notifyTicketUpdateToParticipants(
                         $store,
                         $ictUsers,
-                        $requesterRecipients,
-                        __mail('email.subject_update', $reqLang, $ticketId),
-                        buildNotificationBody($updatedTicket, 'email.intro_update', $participantChangeNote, false, $reqLang, __mail('email.intro_update_no_status', $reqLang)),
-                        $userEmail,
-                        (string) ($updatedTicket['category'] ?? ''),
-                        $ticketId,
-                        null,
+                        $updatedTicket,
+                        $participantChangeNote,
+                        $participantNoteId,
+                        false,
+                        false,
+                        false,
+                        (string) ($updatedTicket['status'] ?? ''),
                         $userEmail
                     );
                     $participantChangeNotifiedViaUpdate = true;
                 }
 
-                foreach ($newParticipants as $newParticipantEmail) {
-                    if ($participantChangeNotifiedViaUpdate) {
-                        continue;
-                    }
-
-                    $participantLang = getUserMailLang($newParticipantEmail);
-                    sendTicketNotification(
+                if (!$participantChangeNotifiedViaUpdate && $newParticipants !== []) {
+                    sendLocalizedTicketNotifications(
                         $store,
                         $ictUsers,
-                        [$newParticipantEmail],
-                        __mail('email.subject_participant_added', $participantLang, $ticketId),
-                        buildNotificationBody($updatedTicket, 'email.intro_participant_added', '', false, $participantLang),
+                        $updatedTicket,
+                        $newParticipants,
+                        '',
+                        0,
+                        'email.subject_participant_added',
+                        'email.intro_participant_added',
+                        false,
                         $userEmail,
-                        (string) ($updatedTicket['category'] ?? ''),
-                        $ticketId,
-                        null,
                         $userEmail
                     );
                 }
@@ -348,23 +334,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
 
                 $participantChangeNote = buildParticipantChangeNote([], $removedParticipants);
                 if ($participantChangeNote !== '') {
-                    $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $participantChangeNote);
+                    $participantNoteId = $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $participantChangeNote);
                     $updatedTicket = $store->getTicket($ticketId, true, $userEmail) ?? $updatedTicket;
 
-                    $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-                        ? $updatedTicket['participant_emails']
-                        : [(string) ($updatedTicket['user_email'] ?? '')];
-                    $reqLang = getUserMailLang((string) ($updatedTicket['user_email'] ?? ''));
-                    sendTicketNotification(
+                    notifyTicketUpdateToParticipants(
                         $store,
                         $ictUsers,
-                        $requesterRecipients,
-                        __mail('email.subject_update', $reqLang, $ticketId),
-                        buildNotificationBody($updatedTicket, 'email.intro_update', $participantChangeNote, false, $reqLang, __mail('email.intro_update_no_status', $reqLang)),
-                        $userEmail,
-                        (string) ($updatedTicket['category'] ?? ''),
-                        $ticketId,
-                        null,
+                        $updatedTicket,
+                        $participantChangeNote,
+                        $participantNoteId,
+                        false,
+                        false,
+                        false,
+                        (string) ($updatedTicket['status'] ?? ''),
                         $userEmail
                     );
                 }
@@ -517,39 +499,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     $shouldNotifyRequester = $statusChanged || $assigneeChanged || $visibleMessageForMail !== ''
                         || (!$isGhostMode && $files !== []);
                     if ($shouldNotifyRequester) {
-                        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-                            ? $updatedTicket['participant_emails']
-                            : [(string) $updatedTicket['user_email']];
-                        $reqLang = getUserMailLang((string) $updatedTicket['user_email']);
-                        $updateIntroSuffix = $statusChanged ? __mail('email.intro_update_status', $reqLang) : __mail('email.intro_update_no_status', $reqLang);
-                        sendTicketNotification(
+                        notifyTicketUpdateToParticipants(
                             $store,
                             $ictUsers,
-                            $requesterRecipients,
-                            __mail('email.subject_update', $reqLang, $ticketId),
-                            buildNotificationBody($updatedTicket, 'email.intro_update', $visibleMessageForMail, false, $reqLang, $updateIntroSuffix),
-                            $userEmail,
-                            (string) ($updatedTicket['category'] ?? ''),
-                            $ticketId,
-                            null,
-                            $userEmail,
-                            requesterUpdateMailHasHighImportance($statusChanged, $newStatus)
+                            $updatedTicket,
+                            $visibleMessageForMail,
+                            updateMailMessageId(
+                                $visibleMessageForMail,
+                                (int) ($persistedReply['message_id'] ?? 0),
+                                (int) ($persistedReply['status_message_id'] ?? 0)
+                            ),
+                            $statusChanged,
+                            $assigneeChanged,
+                            !$isGhostMode && $files !== [],
+                            $newStatus,
+                            $userEmail
                         );
                     }
 
                     if ($assigneeChanged && $newAssignee !== '') {
-                        $assigneeLang = getUserMailLang($newAssignee);
-                        sendTicketNotification(
+                        notifyAssigneeOfTicket(
                             $store,
                             $ictUsers,
-                            [$newAssignee],
-                            __mail('email.subject_assigned', $assigneeLang, $ticketId),
-                            buildNotificationBody($updatedTicket, 'email.intro_assigned', $isGhostMode ? '' : $message, true, $assigneeLang),
+                            $updatedTicket,
+                            $newAssignee,
+                            $isGhostMode ? '' : $message,
                             $userEmail,
-                            (string) ($updatedTicket['category'] ?? ''),
-                            $ticketId,
-                            'assigned',
-                            $userEmail
+                            $isGhostMode ? 0 : (int) ($persistedReply['message_id'] ?? 0)
                         );
                     }
                 } else {
@@ -559,34 +535,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                         (string) ($updatedTicket['category'] ?? ''),
                         $ictUsers
                     );
-                    $ictLang2 = !empty($updatedTicket['assigned_email']) ? getUserMailLang((string) $updatedTicket['assigned_email']) : 'nl';
-                    sendTicketNotification(
+                    $replyMessageId = (int) ($persistedReply['message_id'] ?? 0);
+                    notifyIctAboutTicket(
                         $store,
                         $ictUsers,
+                        $updatedTicket,
                         $recipients,
-                        __mail('email.subject_user_reply', $ictLang2, $ticketId),
-                        buildNotificationBody($updatedTicket, 'email.intro_user_reply', $message, true, $ictLang2),
+                        $message,
+                        $replyMessageId,
+                        'email.subject_user_reply',
+                        'email.intro_user_reply',
                         $userEmail,
-                        (string) ($updatedTicket['category'] ?? ''),
-                        $ticketId,
-                        'user_reply',
-                        $userEmail
+                        $userEmail,
+                        'user_reply'
                     );
 
                     if ($message !== '' && ticketIsOpenLongerThanDays($updatedTicket, $longOpenNotificationDays)) {
                         $escalationRecipients = $recipients;
                         $escalationRecipients[] = 'ict@kvt.nl';
-                        sendTicketNotification(
+                        notifyIctAboutTicket(
                             $store,
                             $ictUsers,
+                            $updatedTicket,
                             array_values(array_unique($escalationRecipients)),
-                            __mail('email.subject_escalation', $ictLang2, $ticketId),
-                            buildNotificationBody($updatedTicket, 'email.intro_escalation', $message, true, $ictLang2),
+                            $message,
+                            $replyMessageId,
+                            'email.subject_escalation',
+                            'email.intro_escalation',
                             null,
-                            (string) ($updatedTicket['category'] ?? ''),
-                            $ticketId,
-                            'escalation',
-                            $userEmail
+                            $userEmail,
+                            'escalation'
                         );
                     }
                 }

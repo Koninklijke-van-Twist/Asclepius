@@ -2573,7 +2573,7 @@ function getStatusColor(string $status): string
 /**
  * Vertaalt een DB-statuswaarde (altijd Nederlands) naar de actieve taal.
  */
-function translateStatus(string $dbStatus): string
+function translateStatus(string $dbStatus, ?string $lang = null): string
 {
     $map = [
         'ingediend' => 'status.ingediend',
@@ -2584,13 +2584,17 @@ function translateStatus(string $dbStatus): string
         'afgehandeld' => 'status.afgehandeld',
     ];
 
-    return isset($map[$dbStatus]) ? __($map[$dbStatus]) : $dbStatus;
+    if (!isset($map[$dbStatus])) {
+        return $dbStatus;
+    }
+
+    return $lang === null ? __($map[$dbStatus]) : __mail($map[$dbStatus], $lang);
 }
 
 /**
  * Vertaalt een DB-categoriewaarde (altijd Nederlands) naar de actieve taal.
  */
-function translateCategory(string $dbCategory): string
+function translateCategory(string $dbCategory, ?string $lang = null): string
 {
     $map = [
         'hardware bestellen' => 'category.hardware_bestellen',
@@ -2608,7 +2612,11 @@ function translateCategory(string $dbCategory): string
         'Telefoon Klaarmaken' => 'category.telefoon_klaarmaken',
     ];
 
-    return isset($map[$dbCategory]) ? __($map[$dbCategory]) : $dbCategory;
+    if (!isset($map[$dbCategory])) {
+        return $dbCategory;
+    }
+
+    return $lang === null ? __($map[$dbCategory]) : __mail($map[$dbCategory], $lang);
 }
 
 function emailToHexColor(string $email): string
@@ -3604,6 +3612,8 @@ function buildNotificationBody(array $ticket, string $introKey, string $messageT
     $t = static fn(string $key, mixed ...$a) => __mail($key, $lang, ...$a);
     $ticketUrl = buildAbsoluteTicketUrl((int) $ticket['id'], $adminPage);
     $statusColor = getStatusColor((string) ($ticket['status'] ?? ''));
+    $statusLabel = translateStatus((string) ($ticket['status'] ?? ''), $lang);
+    $categoryLabel = translateCategory((string) ($ticket['category'] ?? ''), $lang);
     $assignee = ($ticket['assigned_email'] ?? '') !== '' ? (string) $ticket['assigned_email'] : $t('email.not_assigned');
     $intro = $t($introKey, ...$introArgs);
 
@@ -3612,10 +3622,10 @@ function buildNotificationBody(array $ticket, string $introKey, string $messageT
         $intro,
         '',
         'Ticket: #' . $ticket['id'] . ' - ' . $ticket['title'],
-        $t('email.field_category') . ': ' . $ticket['category'],
+        $t('email.field_category') . ': ' . $categoryLabel,
         $t('email.field_requester') . ': ' . $ticket['user_email'],
         $t('email.field_assigned') . ': ' . $assignee,
-        $t('email.field_status') . ': ' . $ticket['status'],
+        $t('email.field_status') . ': ' . $statusLabel,
         $t('email.field_updated') . ': ' . formatDateTime((string) ($ticket['updated_at'] ?? $ticket['created_at'] ?? '')),
     ];
     if (trim($messageText) !== '') {
@@ -3646,10 +3656,10 @@ function buildNotificationBody(array $ticket, string $introKey, string $messageT
         . '<div style="background:#f4f7fb;border-radius:10px;padding:16px 18px;margin-bottom:20px;">'
         . '<p style="margin:0 0 8px;font-size:16px;font-weight:bold;color:#10233f;">' . htmlspecialchars((string) ($ticket['title'] ?? ''), ENT_QUOTES, 'UTF-8') . '</p>'
         . '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#5b6b82;">'
-        . '<tr><td style="padding:3px 0;width:140px;">' . htmlspecialchars($t('email.field_category'), ENT_QUOTES, 'UTF-8') . '</td><td style="color:#10233f;">' . htmlspecialchars((string) ($ticket['category'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td style="padding:3px 0;width:140px;">' . htmlspecialchars($t('email.field_category'), ENT_QUOTES, 'UTF-8') . '</td><td style="color:#10233f;">' . htmlspecialchars($categoryLabel, ENT_QUOTES, 'UTF-8') . '</td></tr>'
         . '<tr><td style="padding:3px 0;">' . htmlspecialchars($t('email.field_requester'), ENT_QUOTES, 'UTF-8') . '</td><td style="color:#10233f;">' . htmlspecialchars((string) ($ticket['user_email'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td></tr>'
         . '<tr><td style="padding:3px 0;">' . htmlspecialchars($t('email.field_assigned'), ENT_QUOTES, 'UTF-8') . '</td><td style="color:#10233f;">' . htmlspecialchars($assignee, ENT_QUOTES, 'UTF-8') . '</td></tr>'
-        . '<tr><td style="padding:3px 0;">' . htmlspecialchars($t('email.field_status'), ENT_QUOTES, 'UTF-8') . '</td><td><span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:' . htmlspecialchars($statusColor, ENT_QUOTES, 'UTF-8') . ';color:#fff;">' . htmlspecialchars((string) ($ticket['status'] ?? ''), ENT_QUOTES, 'UTF-8') . '</span></td></tr>'
+        . '<tr><td style="padding:3px 0;">' . htmlspecialchars($t('email.field_status'), ENT_QUOTES, 'UTF-8') . '</td><td><span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:' . htmlspecialchars($statusColor, ENT_QUOTES, 'UTF-8') . ';color:#fff;">' . htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') . '</span></td></tr>'
         . '<tr><td style="padding:3px 0;">' . htmlspecialchars($t('email.field_updated'), ENT_QUOTES, 'UTF-8') . '</td><td style="color:#10233f;">' . htmlspecialchars(formatDateTime((string) ($ticket['updated_at'] ?? $ticket['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</td></tr>'
         . '</table>'
         . '</div>'

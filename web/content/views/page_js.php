@@ -7697,6 +7697,25 @@
                 + '</label>';
         };
 
+        var isStatusNoteLine = function (text)
+        {
+            var lower = String(text || '').trim().toLowerCase();
+            var prefixes = [
+                'status gewijzigd naar ',
+                'status changed to ',
+                'status geändert auf ',
+                'statut modifié en '
+            ];
+            for (var i = 0; i < prefixes.length; i++)
+            {
+                if (lower.indexOf(prefixes[i]) === 0)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
         var formatTicketMessageTextForToggle = function (text, messageId)
         {
             var normalized = String(text || '').replace(/\r\n?/g, '\n').trim();
@@ -7987,7 +8006,7 @@
                 }
 
                 var interactiveLine = formatTicketMessageInlineHtml(line);
-                pending.push(trimmed.indexOf('Status gewijzigd naar ') === 0 ? '<small>' + interactiveLine + '</small>' : interactiveLine);
+                pending.push(isStatusNoteLine(trimmed) ? '<small>' + interactiveLine + '</small>' : interactiveLine);
                 index += 1;
             }
 

@@ -78,11 +78,32 @@ class CopilotTranslationProvider implements TranslationProvider
             $targetLanguage = 'nl';
         }
 
+        $bundle = $this->translateBundle($rawText, $targetLanguage);
+
+        return [
+            'translated_text' => (string) ($bundle['translations'][$targetLanguage] ?? ''),
+            'source_language' => $bundle['source_language'],
+        ];
+    }
+
+    /**
+     * Eén flow-antwoord bevat alle gevraagde talen. De aanroeper bewaart ze allemaal.
+     *
+     * @return array{translations: array<string, string>, source_language: string, target_language: string}
+     */
+    public function translateBundle(string $rawText, string $targetAppLanguage): array
+    {
+        $targetLanguage = strtolower(trim($targetAppLanguage));
+        if (!array_key_exists($targetLanguage, SUPPORTED_LANGUAGES)) {
+            $targetLanguage = 'nl';
+        }
+
         $translations = $this->translationsFor($rawText);
 
         return [
-            'translated_text' => (string) ($translations[$targetLanguage] ?? ''),
-            'source_language' => $this->sourceLanguageFromTranslations($rawText, $targetLanguage, $translations),
+            'translations' => $translations,
+            'source_language' => $this->sourceLanguageFromTranslations($rawText, $translations),
+            'target_language' => $targetLanguage,
         ];
     }
 
@@ -134,10 +155,11 @@ class CopilotTranslationProvider implements TranslationProvider
     private function requestTranslations(string $rawText, string $id): array
     {
         $masked = $this->maskKeyboardTokens($rawText);
+        $languages = cpt_request_languages();
         $payload = [
             'id' => $id,
             'text' => $masked['text'],
-            'languages' => CPT_DEFAULT_LANGUAGES,
+            'languages' => $languages,
         ];
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
@@ -159,7 +181,7 @@ class CopilotTranslationProvider implements TranslationProvider
             throw new RuntimeException($message, $status);
         }
 
-        $parsed = cpt_parse_translations($body, CPT_DEFAULT_LANGUAGES);
+        $parsed = cpt_parse_translations($body, $languages);
         if ($parsed === null) {
             throw new RuntimeException(
                 'HTTP ' . $status . ' onleesbaar antwoord: ' . substr($body, 0, 200),
@@ -177,17 +199,16 @@ class CopilotTranslationProvider implements TranslationProvider
 
     /**
      * De flow levert ook `source`, maar die is soms fout. Die waarde wordt niet gelezen.
-     * Alleen een exact gelijke vertaling in de leestaal telt als "al in de leestaal".
-     * Anders wordt de vertaling in de leestaal opgeslagen en getoond.
+     * Alleen als precies één taal exact gelijk is aan de brontekst, is dat de brontaal.
+     * De gevraagde leestaal speelt geen rol: een prefetch naar nl mag de brontaal niet worden.
      *
      * @param array<string, string> $translations
      */
-    private function sourceLanguageFromTranslations(string $rawText, string $targetLanguage, array $translations): string
+    private function sourceLanguageFromTranslations(string $rawText, array $translations): string
     {
         $normalizedRaw = $this->comparableText($rawText);
-        $targetText = (string) ($translations[$targetLanguage] ?? '');
-        if ($normalizedRaw !== '' && $this->comparableText($targetText) === $normalizedRaw) {
-            return $targetLanguage;
+        if ($normalizedRaw === '') {
+            return '';
         }
 
         $matches = [];
@@ -199,7 +220,7 @@ class CopilotTranslationProvider implements TranslationProvider
             if ($language === '' || !array_key_exists($language, SUPPORTED_LANGUAGES)) {
                 continue;
             }
-            if ($normalizedRaw !== '' && $this->comparableText($translated) === $normalizedRaw) {
+            if ($this->comparableText($translated) === $normalizedRaw) {
                 $matches[] = $language;
             }
         }

@@ -53,6 +53,8 @@ $copilotTranslate = [
 
 Staat `flowUrl` op een `https`-adres, dan gaat ticketvertaling via die Power Automate/Copilot-flow. Ontbreekt de instelling of is het adres ongeldig, dan blijft Lara de vertaaldienst. Zie `web/auth_TEMPLATE.php`.
 
+Een nieuw ticket of nieuw bericht start de vertaling meteen nadat het antwoord naar de browser is, voor alle ondersteunde talen (`nl`, `en`, `fr`, `de`). Plaatsen wacht daar niet op. De flow krijgt die talen in één verzoek en antwoordt met één JSON-object (`source` optioneel, plus een string per taal). Alles uit dat antwoord wordt bewaard. Lara blijft één taal per aanroep doen. Bestaande berichten worden niet achteraf allemaal vertaald; `translate_ticket` blijft het vangnet. Een gewijzigde titel of berichttekst gooit de oude vertalingen weg en vraagt ze opnieuw.
+
 ## Grok-webhooks
 
 De centrale bot staat in `web/auth.php` als `$grokBot` (niet in git). Die webhook blijft bij elke ticketgebeurtenis (`new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened`, `re-evaluate-ticket-and-advise`) aangeroepen worden, met `sender_email`, `default_name` en `default_title` uit die config.

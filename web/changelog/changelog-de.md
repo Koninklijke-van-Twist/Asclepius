@@ -1,3 +1,25 @@
+id: 2026-10-14-update-mail-language
+date: 2026-10-14
+title: Aktualisierungsmail in der Sprache des Empfängers
+author: Cursor Agent
+
+Eine Aktualisierungsmail an einen Benutzer folgt der Sprache, die diese Person eingestellt hat, ob die Nachricht aus der Weboberfläche kommt oder über die API (auch ein Bot). Ein interner Entwurf wird erst gemailt, wenn er sichtbar wird. Dasselbe gilt für die Bestätigung eines neuen Tickets, auch wenn das Ticket über die API ohne eigene Aktion angelegt wird. Betreff, feste Texte und der Nachrichtentext stehen in dieser Sprache. Eine Mail an ICT, einen Administrator oder den zugewiesenen Bearbeiter nutzt die Sprache dieser Person, nicht die Sprache des Melders. Empfänger in verschiedenen Sprachen bekommen jeweils eine eigene Mail und warten auf die Übersetzung in ihrer Sprache. Wer dieselbe Sprache hat, teilt sich eine Mail. Eine Statuszeile in der Mail, auch hinter einer Antwort, steht in der Sprache des Empfängers. Wer eine ICT-Mail abschaltet, bekommt die Desktop-Meldung und den Web-Push für diese Meldung trotzdem. Eine Eskalationsmail oder eine Mail an den Bearbeiter bleibt bestehen, wenn schon eine andere Mail über dieselbe Nachricht wartet. Der Hinweis, dass jemand abwesend ist, steht auch in der Mail der Vertretung, in deren Sprache.
+
+Ist die Nachricht schon in dieser Sprache, oder liegt die Übersetzung schon bereit, geht die Mail sofort raus. Sonst wartet sie, bis die Übersetzung da ist. Dauert das länger als drei Minuten, geht die Mail trotzdem raus: feste Texte in der richtigen Sprache, die Nachricht im Original. Das wird protokolliert. Ändert sich die Nachricht, bevor die Mail raus ist, entfällt diese Mail. Dieselbe Mail geht nur einmal raus.
+
+---
+id: 2026-10-14-translate-on-post
+date: 2026-10-14
+title: Übersetzung startet bei einer neuen Nachricht
+author: Cursor Agent
+
+Ein neues Ticket oder eine neu gepostete Nachricht wird sofort in alle Sprachen übersetzt. Das Absenden wartet darauf nicht. Bestehende Nachrichten werden nicht nachträglich alle übersetzt; wer ein Ticket öffnet, sieht die Übersetzung, wenn sie schon da ist, und sonst weiterhin auf Abruf.
+
+Liefert der Copilot-Flow in einer Antwort mehrere Sprachen, werden sie alle gespeichert. Ohne Flow arbeitet Lara weiter pro Sprache. Die Ausgangssprache ist die Sprache, die dem Original entspricht, nicht automatisch Niederländisch. Wer in dieser Ausgangssprache liest, sieht das Original. Kommt der Originaltext in mehr als einer Sprache zurück, wird keine davon als Ausgangssprache gewählt. Ein Text, der dem Original entspricht, gilt nicht als Übersetzung. Eine Statuszeile, etwa eine Statusänderung, geht nicht an den Übersetzungsdienst. Sie erscheint in Ihrer Sprache, mit derselben kleinen Darstellung wie das Original.
+
+Ändern Sie den Text einer Nachricht oder den Titel, verfallen die alten Übersetzungen und es wird neu übersetzt. Ein interner Entwurf wird übersetzt, sobald er sichtbar wird.
+
+---
 id: 2026-10-13-copilot-translate
 date: 2026-10-13
 title: Übersetzung über den Copilot-Flow

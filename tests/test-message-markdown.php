@@ -141,6 +141,16 @@ assertContains('Toets-icoon Ctrl blijft shortcut-key', 'class="shortcut-key"', $
 assertContains('Toets-label Ctrl', 'Ctrl', $shortcut);
 assertContains('Markdown naast toetsen', '<strong>plakken</strong>', $shortcut);
 
+$statusNl = formatTicketMessageText('Status gewijzigd naar afgehandeld.');
+assertContains('Nederlandse statusregel is klein', '<small>', $statusNl);
+assertContains('Nederlandse statusregel blijft leesbaar', 'Status gewijzigd naar afgehandeld.', $statusNl);
+$statusEn = formatTicketMessageText('Status changed to resolved.');
+assertContains('Engelse statusregel is dezelfde opmaak', '<small>', $statusEn);
+assertContains('Engelse statusregel blijft leesbaar', 'Status changed to resolved.', $statusEn);
+$statusMixed = formatTicketMessageText("De printer doet het weer.\n\nStatus geändert auf erledigt.");
+assertContains('Statusregel onder gewone tekst is klein', '<small>Status geändert auf erledigt.</small>', $statusMixed);
+assertContains('Gewone tekst blijft naast de statusregel', 'De printer doet het weer.', $statusMixed);
+
 $checkbox = formatTicketMessageText("[ ] Eerste taak\n[x] Tweede taak", 42);
 assertContains('Open checkbox behoudt line-index 0', 'data-line-index="0"', $checkbox);
 assertContains('Aangevinkte checkbox behoudt line-index 1', 'data-line-index="1"', $checkbox);

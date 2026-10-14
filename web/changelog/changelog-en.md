@@ -1,3 +1,25 @@
+id: 2026-10-14-update-mail-language
+date: 2026-10-14
+title: Update email in the recipient's language
+author: Cursor Agent
+
+An update email to a user follows the language that person has set, whether the message comes from the web interface or from the API (including a bot). An internal draft is only emailed once it becomes visible. The same applies to the confirmation of a new ticket, including a ticket created through the API without a separate action. The subject, the fixed texts and the message itself are in that language. Mail to ICT, an administrator or the assigned handler uses that person's language, not the language of the requester. Recipients in different languages each get their own email and wait for the translation in their language. Recipients who share a language share one email. A status line in the email, including one after a reply, is in the recipient's language. Switching off an ICT email still leaves the desktop notification and the web push for that notification in place. An escalation email or an email to the assignee still goes out when another email about the same message is already waiting. The footnote that someone is away is also in the substitute's email, in their language.
+
+If the message is already in that language, or the translation is already ready, the email goes out at once. Otherwise it waits until the translation arrives. If that takes longer than three minutes, the email is sent anyway: fixed texts in the right language, the message in the original. That is logged. If the message changes before the email has gone out, that email is dropped. The same email is sent only once.
+
+---
+id: 2026-10-14-translate-on-post
+date: 2026-10-14
+title: Translation starts with a new message
+author: Cursor Agent
+
+A new ticket or a newly posted message is translated into every language right away. Posting itself does not wait for that. Existing messages are not translated afterwards in bulk; when you open a ticket you see a translation if it is already there, and otherwise it is still requested on demand.
+
+When the Copilot flow returns several languages in one answer, all of them are kept. Without the flow, Lara still works one language at a time. The source language is the language that matches the original, not Dutch by default. A reader in that source language sees the original. If the original text comes back in more than one language, none of those is chosen as the source language. Text that matches the original does not count as a translation. A status line, such as a status change, is not sent to the translation service. It appears in your language, with the same small formatting as the original.
+
+If you change a message or the title, the old translations are dropped and translated again. An internal draft is translated once it becomes visible.
+
+---
 id: 2026-10-13-copilot-translate
 date: 2026-10-13
 title: Translation via the Copilot flow

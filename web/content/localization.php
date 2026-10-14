@@ -682,6 +682,7 @@ const TRANSLATIONS = [
         'email.field_status' => 'Status',
         'email.field_updated' => 'Bijgewerkt',
         'email.not_assigned' => 'Nog niet toegewezen',
+        'email.absence_forwarded' => 'Let op: %s staat momenteel als afwezig gemarkeerd. Deze melding is daarom ook doorgestuurd naar %s.',
     ],
 
     /* ------------------------------------------------------------------ */
@@ -1354,6 +1355,7 @@ const TRANSLATIONS = [
         'email.field_status' => 'Status',
         'email.field_updated' => 'Updated',
         'email.not_assigned' => 'Not yet assigned',
+        'email.absence_forwarded' => 'Note: %s is currently marked as away. This notification was therefore also forwarded to %s.',
     ],
 
     /* ------------------------------------------------------------------ */
@@ -2026,6 +2028,7 @@ const TRANSLATIONS = [
         'email.field_status' => 'Status',
         'email.field_updated' => 'Aktualisiert',
         'email.not_assigned' => 'Noch nicht zugewiesen',
+        'email.absence_forwarded' => 'Hinweis: %s ist derzeit als abwesend markiert. Diese Meldung wurde deshalb auch an %s weitergeleitet.',
     ],
 
     /* ------------------------------------------------------------------ */
@@ -2698,6 +2701,7 @@ const TRANSLATIONS = [
         'email.field_status' => 'Statut',
         'email.field_updated' => 'Mis à jour',
         'email.not_assigned' => 'Pas encore assigné',
+        'email.absence_forwarded' => 'Attention : %s est actuellement marqué comme absent. Cette notification a donc aussi été transmise à %s.',
     ],
 ];
 

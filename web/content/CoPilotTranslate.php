@@ -46,6 +46,37 @@ function cpt_languages(?array $config): array
     return $langs !== [] ? $langs : CPT_DEFAULT_LANGUAGES;
 }
 
+/**
+ * Talen die Asclepius in één flow-verzoek vraagt: alle ondersteunde talen.
+ * De flow antwoordt synchroon met één JSON-object, bijvoorbeeld
+ * {"source":"en","nl":"…","en":"…","fr":"…","de":"…"}. `source` is optioneel.
+ * Het object mag in een ```json-hek of in een stringveld zoals "text" zitten.
+ * Elke gevraagde taal moet een string zijn; ontbreekt er een, dan is het antwoord ongeldig.
+ * Zelfde vorm als Forum-Magnum (cpt_parse_translations).
+ *
+ * @return list<string>
+ */
+function cpt_request_languages(): array
+{
+    if (!defined('SUPPORTED_LANGUAGES') || !is_array(SUPPORTED_LANGUAGES)) {
+        return CPT_DEFAULT_LANGUAGES;
+    }
+
+    $languages = [];
+    foreach (CPT_DEFAULT_LANGUAGES as $language) {
+        if (array_key_exists($language, SUPPORTED_LANGUAGES)) {
+            $languages[] = $language;
+        }
+    }
+    foreach (array_keys(SUPPORTED_LANGUAGES) as $language) {
+        if (!in_array($language, $languages, true)) {
+            $languages[] = $language;
+        }
+    }
+
+    return $languages !== [] ? $languages : CPT_DEFAULT_LANGUAGES;
+}
+
 /** HMAC-token voor (id, versie): een callback voor een oude versie heeft een ander token. */
 function cpt_make_token(string $secret, string $id, string $version = ''): string
 {

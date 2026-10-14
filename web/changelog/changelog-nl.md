@@ -1,3 +1,25 @@
+id: 2026-10-14-update-mail-language
+date: 2026-10-14
+title: Updatemail in de taal van de ontvanger
+author: Cursor Agent
+
+Een updatemail naar een gebruiker volgt de taal die die persoon heeft ingesteld, of het bericht uit de webinterface komt of via de API (ook een bot). Een intern concept mailt pas als het zichtbaar wordt. Hetzelfde geldt voor de bevestiging van een nieuw ticket, ook als dat ticket via de API wordt aangemaakt zonder aparte actie. Onderwerp, vaste teksten en de tekst van het bericht staan in die taal. Een mail naar ICT, een beheerder of de toegewezen behandelaar gebruikt de taal van die persoon, niet die van de melder. Ontvangers in verschillende talen krijgen elk een eigen mail en wachten op de vertaling in hun taal. Wie dezelfde taal heeft, deelt één mail. Een statusregel in de mail, ook als die achter een antwoord staat, staat in de taal van de ontvanger. Zet iemand een ICT-mail uit, dan blijft de bureaubladmelding en de web-push voor die melding wel komen. Een escalatiemail of een mail naar de behandelaar blijft staan als er al een andere mail over hetzelfde bericht wacht. De voetnoot dat iemand afwezig is, staat ook in de mail van de vervanger, in diens taal.
+
+Is het bericht al in die taal, of staat de vertaling al klaar, dan gaat de mail meteen weg. Anders wacht die tot de vertaling binnen is. Duurt dat langer dan drie minuten, dan gaat de mail alsnog weg: vaste teksten in de juiste taal, het bericht in het origineel. Dat wordt gelogd. Wijzigt het bericht nog voordat de mail weg is, dan vervalt die mail. Dezelfde mail gaat maar één keer weg.
+
+---
+id: 2026-10-14-translate-on-post
+date: 2026-10-14
+title: Vertaling start bij een nieuw bericht
+author: Cursor Agent
+
+Een nieuw ticket of een nieuw geplaatst bericht wordt meteen voor alle talen vertaald. Het plaatsen zelf wacht daar niet op. Bestaande berichten worden niet achteraf alsnog allemaal vertaald; wie een ticket opent, krijgt de vertaling als die er al is en anders alsnog op aanvraag.
+
+Komt de Copilot-flow in één antwoord met meerdere talen terug, dan worden die allemaal bewaard. Zonder flow blijft Lara per taal werken. De brontaal is de taal die gelijk is aan het origineel, niet automatisch Nederlands. Wie in die brontaal leest, ziet het origineel. Komt de originele tekst in meer dan één taal terug, dan wordt geen van die talen als brontaal gekozen. Een tekst die gelijk is aan het origineel telt niet als vertaling. Een statusregel, zoals een statuswijziging, gaat niet door de vertaaldienst. Die verschijnt in jouw taal, met dezelfde kleine opmaak als het origineel.
+
+Wijzig je de tekst van een bericht of de titel, dan vervallen de oude vertalingen en wordt er opnieuw vertaald. Een intern concept wordt vertaald zodra het zichtbaar wordt.
+
+---
 id: 2026-10-13-copilot-translate
 date: 2026-10-13
 title: Vertaling via de Copilot-flow
