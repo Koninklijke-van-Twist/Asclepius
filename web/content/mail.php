@@ -800,6 +800,43 @@ function absenceForwardNote(array $forwards, string $lang): string
 }
 
 /**
+ * Forwards die bij het in de wachtrij zetten hoorden.
+ * Een lege kolom is een oude rij: dan herberekent de verzending ze.
+ *
+ * @param array<string, mixed> $row
+ * @return list<array{absent: string, to: string}>|null
+ */
+function queuedAbsenceForwards(array $row): ?array
+{
+    if (!array_key_exists('absence_forwards', $row)) {
+        return null;
+    }
+    $raw = trim((string) $row['absence_forwards']);
+    if ($raw === '') {
+        return null;
+    }
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return null;
+    }
+
+    $clean = [];
+    foreach ($decoded as $forward) {
+        if (!is_array($forward)) {
+            continue;
+        }
+        $absent = trim((string) ($forward['absent'] ?? ''));
+        $to = trim((string) ($forward['to'] ?? ''));
+        if ($absent === '' || $to === '') {
+            continue;
+        }
+        $clean[] = ['absent' => $absent, 'to' => $to];
+    }
+
+    return $clean;
+}
+
+/**
  * Statusregels horen niet bij de vertaalde body. Die komen altijd uit de vaste
  * teksten in de taal van de ontvanger, ook als het bericht verder origineel blijft.
  */
@@ -961,7 +998,8 @@ function sendLocalizedTicketNotifications(
                         $introKey,
                         $suffixKey,
                         $adminPage,
-                        $adminNotificationType ?? ''
+                        $adminNotificationType ?? '',
+                        $forwards
                     );
                 }
             }
@@ -1198,9 +1236,14 @@ function deliverOptedOutQueuedBrowserNotification(TicketStore $store, array $ict
 
     $actor = trim((string) ($row['browser_actor_email'] ?? ''));
     $lang = strtolower(trim((string) ($row['recipient_lang'] ?? 'nl')));
-    $category = (string) ($ticket['category'] ?? '');
-    $routing = routeNotificationRecipients($store, $ictUsers, [$recipient], $category);
-    $forwards = is_array($routing['forwards'] ?? null) ? $routing['forwards'] : [];
+    $storedForwards = queuedAbsenceForwards($row);
+    if ($storedForwards === null) {
+        $category = (string) ($ticket['category'] ?? '');
+        $routing = routeNotificationRecipients($store, $ictUsers, [$recipient], $category);
+        $forwards = is_array($routing['forwards'] ?? null) ? $routing['forwards'] : [];
+    } else {
+        $forwards = $storedForwards;
+    }
     sendRenderedLocalizedMails(
         $store,
         $ictUsers,
@@ -1278,6 +1321,7 @@ function dispatchQueuedUserUpdateMails(TicketStore $store, ?int $messageId = nul
             !empty($row['status_changed']) ? '1' : '0',
             strtolower(trim((string) ($row['exclude_email'] ?? ''))),
             strtolower(trim((string) ($row['browser_actor_email'] ?? ''))),
+            trim((string) ($row['absence_forwards'] ?? '')),
         ]);
         if (!isset($groups[$groupKey])) {
             $groups[$groupKey] = [
@@ -1329,9 +1373,14 @@ function dispatchQueuedUserUpdateMails(TicketStore $store, ?int $messageId = nul
 
         $exclude = trim((string) ($first['exclude_email'] ?? ''));
         $actor = trim((string) ($first['browser_actor_email'] ?? ''));
-        $category = (string) ($ticket['category'] ?? '');
-        $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $category);
-        $forwards = is_array($routing['forwards'] ?? null) ? $routing['forwards'] : [];
+        $storedForwards = queuedAbsenceForwards($first);
+        if ($storedForwards === null) {
+            $category = (string) ($ticket['category'] ?? '');
+            $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $category);
+            $forwards = is_array($routing['forwards'] ?? null) ? $routing['forwards'] : [];
+        } else {
+            $forwards = $storedForwards;
+        }
         sendRenderedLocalizedMails(
             $store,
             $ictUsers,

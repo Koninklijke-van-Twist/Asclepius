@@ -2647,7 +2647,8 @@ class TicketStore
         string $introKey = 'email.intro_update',
         string $introSuffixKey = '',
         bool $adminPage = false,
-        string $notificationType = ''
+        string $notificationType = '',
+        array $absenceForwards = []
     ): bool {
         $recipientEmail = strtolower(trim($recipientEmail));
         $recipientLang = strtolower(trim($recipientLang));
@@ -2660,11 +2661,13 @@ class TicketStore
             'INSERT OR IGNORE INTO ticket_update_mail_queue (
                 ticket_id, message_id, recipient_email, recipient_lang, source_hash, message_text,
                 status_changed, exclude_email, browser_actor_email, high_importance,
-                subject_key, intro_key, intro_suffix_key, queued_at, admin_page, notification_type
+                subject_key, intro_key, intro_suffix_key, queued_at, admin_page, notification_type,
+                absence_forwards
             ) VALUES (
                 :ticket_id, :message_id, :recipient_email, :recipient_lang, :source_hash, :message_text,
                 :status_changed, :exclude_email, :browser_actor_email, :high_importance,
-                :subject_key, :intro_key, :intro_suffix_key, :queued_at, :admin_page, :notification_type
+                :subject_key, :intro_key, :intro_suffix_key, :queued_at, :admin_page, :notification_type,
+                :absence_forwards
             )'
         );
         $statement->execute([
@@ -2684,6 +2687,7 @@ class TicketStore
             ':queued_at' => $queuedAt ?? time(),
             ':admin_page' => $adminPage ? 1 : 0,
             ':notification_type' => trim($notificationType),
+            ':absence_forwards' => self::encodeAbsenceForwards($absenceForwards),
         ]);
 
         return $statement->rowCount() > 0;
@@ -4678,7 +4682,10 @@ class TicketStore
                 intro_key TEXT NOT NULL DEFAULT "email.intro_update",
                 intro_suffix_key TEXT NOT NULL DEFAULT "",
                 queued_at INTEGER NOT NULL,
-                UNIQUE(message_id, recipient_email, source_hash)
+                admin_page INTEGER NOT NULL DEFAULT 0,
+                notification_type TEXT NOT NULL DEFAULT "",
+                absence_forwards TEXT NOT NULL DEFAULT "",
+                UNIQUE(message_id, recipient_email, source_hash, notification_type, subject_key)
             )'
         );
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_update_mail_queue_message ON ticket_update_mail_queue(message_id, queued_at)');
@@ -4687,6 +4694,8 @@ class TicketStore
         $this->ensureColumn('ticket_update_mail_queue', 'intro_suffix_key', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('ticket_update_mail_queue', 'admin_page', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('ticket_update_mail_queue', 'notification_type', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_update_mail_queue', 'absence_forwards', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureUpdateMailQueueIdentity();
         $this->pdo->exec(
             'CREATE TABLE IF NOT EXISTS ticket_translation_inflight (
                 entity_type TEXT NOT NULL,
@@ -4967,6 +4976,132 @@ class TicketStore
         }
 
         return $dayCount;
+    }
+
+    /**
+     * Oude databases sleutelden alleen op bericht, ontvanger en tekst.
+     * Een escalatie of toewijzing met dezelfde tekst viel daardoor weg.
+     */
+    private function ensureUpdateMailQueueIdentity(): void
+    {
+        $wanted = ['message_id', 'recipient_email', 'source_hash', 'notification_type', 'subject_key'];
+        $uniqueSets = [];
+        $indexList = $this->pdo->query("PRAGMA index_list('ticket_update_mail_queue')");
+        if ($indexList !== false) {
+            foreach ($indexList->fetchAll(PDO::FETCH_ASSOC) as $index) {
+                if (empty($index['unique'])) {
+                    continue;
+                }
+                $name = (string) ($index['name'] ?? '');
+                if (!preg_match('/^[A-Za-z0-9_]+$/', $name)) {
+                    continue;
+                }
+                $info = $this->pdo->query("PRAGMA index_info('" . $name . "')");
+                if ($info === false) {
+                    continue;
+                }
+                $columns = [];
+                foreach ($info->fetchAll(PDO::FETCH_ASSOC) as $column) {
+                    $columns[] = (string) ($column['name'] ?? '');
+                }
+                $uniqueSets[] = $columns;
+            }
+        }
+        if ($uniqueSets === [$wanted]) {
+            return;
+        }
+
+        $columns = [
+            'id',
+            'ticket_id',
+            'message_id',
+            'recipient_email',
+            'recipient_lang',
+            'source_hash',
+            'message_text',
+            'status_changed',
+            'exclude_email',
+            'browser_actor_email',
+            'high_importance',
+            'subject_key',
+            'intro_key',
+            'intro_suffix_key',
+            'queued_at',
+            'admin_page',
+            'notification_type',
+            'absence_forwards',
+        ];
+        $columnList = implode(', ', $columns);
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+
+        try {
+            $this->pdo->exec('DROP TABLE IF EXISTS ticket_update_mail_queue_next');
+            $this->pdo->exec(
+                'CREATE TABLE ticket_update_mail_queue_next (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticket_id INTEGER NOT NULL,
+                    message_id INTEGER NOT NULL,
+                    recipient_email TEXT NOT NULL,
+                    recipient_lang TEXT NOT NULL,
+                    source_hash TEXT NOT NULL,
+                    message_text TEXT NOT NULL DEFAULT "",
+                    status_changed INTEGER NOT NULL DEFAULT 0,
+                    exclude_email TEXT NOT NULL DEFAULT "",
+                    browser_actor_email TEXT NOT NULL DEFAULT "",
+                    high_importance INTEGER NOT NULL DEFAULT 0,
+                    subject_key TEXT NOT NULL DEFAULT "email.subject_update",
+                    intro_key TEXT NOT NULL DEFAULT "email.intro_update",
+                    intro_suffix_key TEXT NOT NULL DEFAULT "",
+                    queued_at INTEGER NOT NULL,
+                    admin_page INTEGER NOT NULL DEFAULT 0,
+                    notification_type TEXT NOT NULL DEFAULT "",
+                    absence_forwards TEXT NOT NULL DEFAULT "",
+                    UNIQUE(message_id, recipient_email, source_hash, notification_type, subject_key)
+                )'
+            );
+            $this->pdo->exec(
+                'INSERT INTO ticket_update_mail_queue_next (' . $columnList . ')
+                 SELECT ' . $columnList . ' FROM ticket_update_mail_queue'
+            );
+            $this->pdo->exec('DROP TABLE ticket_update_mail_queue');
+            $this->pdo->exec('ALTER TABLE ticket_update_mail_queue_next RENAME TO ticket_update_mail_queue');
+            $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_update_mail_queue_message ON ticket_update_mail_queue(message_id, queued_at)');
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @param list<array{absent?: string, to?: string}> $forwards
+     */
+    private static function encodeAbsenceForwards(array $forwards): string
+    {
+        $clean = [];
+        foreach ($forwards as $forward) {
+            if (!is_array($forward)) {
+                continue;
+            }
+            $absent = trim((string) ($forward['absent'] ?? ''));
+            $to = trim((string) ($forward['to'] ?? ''));
+            if ($absent === '' || $to === '') {
+                continue;
+            }
+            $clean[] = ['absent' => $absent, 'to' => $to];
+        }
+
+        $encoded = json_encode($clean, JSON_UNESCAPED_UNICODE);
+
+        return is_string($encoded) ? $encoded : '[]';
     }
 
     private function ensureColumn(string $tableName, string $columnName, string $definition): void

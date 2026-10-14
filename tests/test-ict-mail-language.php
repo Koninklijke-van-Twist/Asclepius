@@ -391,6 +391,163 @@ foreach ($store->listUserUpdateMailQueue($laterId) as $row) {
 }
 assertIctMail('Duits blijft wachten', [$germanIct], $stillQueued);
 
+echo PHP_EOL . "Zelfde bericht houdt escalatie en toewijzing apart" . PHP_EOL;
+saveAdminEmailPreference($frenchIct, 'user_reply', true);
+saveAdminEmailPreference($frenchIct, 'escalation', true);
+$kindText = 'The drawer still sticks after a restart';
+$kindId = $store->addMessage($ticketId, $reporter, 'user', $kindText);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+notifyIctAboutTicket(
+    $store,
+    $ictUsers,
+    $ticket,
+    [$frenchIct],
+    $kindText,
+    $kindId,
+    'email.subject_user_reply',
+    'email.intro_user_reply',
+    $reporter,
+    $reporter,
+    'user_reply'
+);
+notifyIctAboutTicket(
+    $store,
+    $ictUsers,
+    $ticket,
+    [$frenchIct],
+    $kindText,
+    $kindId,
+    'email.subject_escalation',
+    'email.intro_escalation',
+    null,
+    $reporter,
+    'escalation'
+);
+$kindTypes = [];
+foreach ($store->listUserUpdateMailQueue($kindId) as $row) {
+    if ((string) ($row['recipient_email'] ?? '') === $frenchIct) {
+        $kindTypes[] = (string) ($row['notification_type'] ?? '');
+    }
+}
+sort($kindTypes);
+assertIctMail('Antwoord en escalatie staan allebei in de wachtrij', ['escalation', 'user_reply'], $kindTypes);
+$store->upsertTextTranslation('ticket_message', $kindId, $ticketId, 'fr', 'en', hash('sha256', $kindText), 'Le tiroir coince encore');
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+dispatchQueuedUserUpdateMails($store, $kindId, time(), $ictUsers);
+$kindSubjects = [];
+foreach ($GLOBALS['asclepiusCapturedTicketEmails'] as $mail) {
+    $kindSubjects[] = (string) ($mail['subject'] ?? '');
+}
+sort($kindSubjects);
+assertIctMail(
+    'Beide mails gaan weg',
+    ['Escalade ticket #' . $ticketId, 'Réponse de l\'utilisateur sur le ticket #' . $ticketId],
+    $kindSubjects
+);
+
+$assignText = 'Please replace the cable';
+$assignId = $store->addMessage($ticketId, $reporter, 'user', $assignText);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+sendUserUpdateNotifications(
+    $store,
+    $ictUsers,
+    $ticket,
+    [$frenchAssignee],
+    $assignText,
+    $assignId,
+    false,
+    $reporter,
+    $reporter,
+    false
+);
+notifyAssigneeOfTicket($store, $ictUsers, $ticket, $frenchAssignee, $assignText, $reporter, $assignId);
+$assignKinds = [];
+foreach ($store->listUserUpdateMailQueue($assignId) as $row) {
+    $assignKinds[] = (string) ($row['notification_type'] ?? '') . '|' . (string) ($row['subject_key'] ?? '');
+}
+sort($assignKinds);
+assertIctMail(
+    'Update en toewijzing blijven allebei staan',
+    ['assigned|email.subject_assigned', '|email.subject_update'],
+    $assignKinds
+);
+$store->upsertTextTranslation('ticket_message', $assignId, $ticketId, 'fr', 'en', hash('sha256', $assignText), 'Remplacez le câble');
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+dispatchQueuedUserUpdateMails($store, $assignId, time(), $ictUsers);
+$assignSubjects = [];
+foreach ($GLOBALS['asclepiusCapturedTicketEmails'] as $mail) {
+    $assignSubjects[] = (string) ($mail['subject'] ?? '');
+}
+sort($assignSubjects);
+assertIctMail(
+    'Update en toewijzing worden allebei verstuurd',
+    ['Le ticket #' . $ticketId . ' vous a été assigné', 'Mise à jour du ticket #' . $ticketId],
+    $assignSubjects
+);
+
+echo PHP_EOL . "Afwezigheidsvoetnoot blijft bij de vervanger in een andere taal" . PHP_EOL;
+$store->saveIctRoleMemberSettings(
+    [
+        $frenchIct => false,
+        $frenchIctTwo => false,
+        $frenchAssignee => false,
+        $germanIct => true,
+    ],
+    [],
+    [$frenchIct, $frenchIctTwo, $frenchAssignee, $germanIct],
+    []
+);
+$awayText = 'The scanner makes a grinding noise';
+$awayId = $store->addMessage($ticketId, $reporter, 'user', $awayText);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+notifyIctAboutTicket(
+    $store,
+    $ictUsers,
+    $ticket,
+    [$frenchIct],
+    $awayText,
+    $awayId,
+    'email.subject_user_reply',
+    'email.intro_user_reply',
+    $reporter,
+    $reporter,
+    'user_reply'
+);
+$awayRecipients = [];
+$storedForward = '';
+foreach ($store->listUserUpdateMailQueue($awayId) as $row) {
+    $awayRecipients[] = (string) ($row['recipient_email'] ?? '');
+    $storedForward = (string) ($row['absence_forwards'] ?? '');
+}
+sort($awayRecipients);
+assertIctMail('Afwezige en vervanger staan allebei in de wachtrij', [$germanIct, $frenchIct], $awayRecipients);
+assertIctMailTrue(
+    'De forward staat op de wachtrijrij',
+    str_contains($storedForward, $frenchIct) && str_contains($storedForward, $germanIct)
+);
+$store->upsertTextTranslation('ticket_message', $awayId, $ticketId, 'fr', 'en', hash('sha256', $awayText), 'Le scanner grince');
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+dispatchQueuedUserUpdateMails($store, $awayId, time(), $ictUsers);
+assertIctMail('Eerst alleen de Franse mail', 1, count($GLOBALS['asclepiusCapturedTicketEmails']));
+assertIctMailTrue(
+    'Franse voetnoot noemt de vervanger',
+    str_contains(
+        (string) ($GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'] ?? ''),
+        'Attention : ' . $frenchIct . ' est actuellement marqué comme absent. Cette notification a donc aussi été transmise à ' . $germanIct . '.'
+    )
+);
+$store->upsertTextTranslation('ticket_message', $awayId, $ticketId, 'de', 'en', hash('sha256', $awayText), 'Der Scanner mahlt');
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+dispatchQueuedUserUpdateMails($store, $awayId, time(), $ictUsers);
+assertIctMail('Daarna de mail van de vervanger', [$germanIct], $GLOBALS['asclepiusCapturedTicketEmails'][0]['recipients'] ?? []);
+assertIctMailTrue(
+    'Duitse voetnoot legt de forward uit',
+    str_contains(
+        (string) ($GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'] ?? ''),
+        'Hinweis: ' . $frenchIct . ' ist derzeit als abwesend markiert. Diese Meldung wurde deshalb auch an ' . $germanIct . ' weitergeleitet.'
+    )
+);
+
 echo PHP_EOL;
 echo "Geslaagd: {$passed}" . PHP_EOL;
 echo "Gefaald: {$failed}" . PHP_EOL;

@@ -478,6 +478,94 @@ assertMailTrue(
         && !str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'Status gewijzigd')
 );
 
+echo PHP_EOL . "Oude unieke sleutel houdt een tweede mailsoort" . PHP_EOL;
+$legacyPath = tempnam(sys_get_temp_dir(), 'asclepius_mail_queue_');
+assertMailTrue('Tijdelijke database', is_string($legacyPath) && $legacyPath !== '');
+if (is_string($legacyPath)) {
+    $legacy = new PDO('sqlite:' . $legacyPath);
+    $legacy->exec(
+        'CREATE TABLE ticket_update_mail_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            recipient_email TEXT NOT NULL,
+            recipient_lang TEXT NOT NULL,
+            source_hash TEXT NOT NULL,
+            message_text TEXT NOT NULL DEFAULT "",
+            status_changed INTEGER NOT NULL DEFAULT 0,
+            exclude_email TEXT NOT NULL DEFAULT "",
+            browser_actor_email TEXT NOT NULL DEFAULT "",
+            high_importance INTEGER NOT NULL DEFAULT 0,
+            subject_key TEXT NOT NULL DEFAULT "email.subject_update",
+            intro_key TEXT NOT NULL DEFAULT "email.intro_update",
+            intro_suffix_key TEXT NOT NULL DEFAULT "",
+            queued_at INTEGER NOT NULL,
+            admin_page INTEGER NOT NULL DEFAULT 0,
+            notification_type TEXT NOT NULL DEFAULT "",
+            UNIQUE(message_id, recipient_email, source_hash)
+        )'
+    );
+    $legacy->exec(
+        "INSERT INTO ticket_update_mail_queue (
+            ticket_id, message_id, recipient_email, recipient_lang, source_hash, message_text,
+            subject_key, intro_key, queued_at, admin_page, notification_type
+        ) VALUES (
+            4, 9, 'fr-update-mail@example.com', 'fr', 'legacy-hash', 'Zelfde tekst',
+            'email.subject_user_reply', 'email.intro_user_reply', 10, 1, 'user_reply'
+        )"
+    );
+    $legacy = null;
+    $upgraded = new TicketStore($legacyPath, sys_get_temp_dir() . '/asclepius_test_uploads_mail_queue', ['ict@kvt.nl'], TICKET_CATEGORIES);
+    $kept = $upgraded->enqueueUserUpdateMail(
+        4,
+        9,
+        'fr-update-mail@example.com',
+        'fr',
+        'legacy-hash',
+        'Zelfde tekst',
+        false,
+        '',
+        '',
+        false,
+        11,
+        'email.subject_escalation',
+        'email.intro_escalation',
+        '',
+        true,
+        'escalation'
+    );
+    $again = $upgraded->enqueueUserUpdateMail(
+        4,
+        9,
+        'fr-update-mail@example.com',
+        'fr',
+        'legacy-hash',
+        'Zelfde tekst',
+        false,
+        '',
+        '',
+        false,
+        12,
+        'email.subject_user_reply',
+        'email.intro_user_reply',
+        '',
+        true,
+        'user_reply'
+    );
+    $legacyTypes = [];
+    foreach ($upgraded->listUserUpdateMailQueue(9) as $row) {
+        $legacyTypes[] = (string) ($row['notification_type'] ?? '');
+    }
+    sort($legacyTypes);
+    assertMail('Escalatie komt erbij', true, $kept);
+    assertMail('Dezelfde antwoordmail blijft genegeerd', false, $again);
+    assertMail('Beide soorten blijven bewaard', ['escalation', 'user_reply'], $legacyTypes);
+    $upgradedAgain = new TicketStore($legacyPath, sys_get_temp_dir() . '/asclepius_test_uploads_mail_queue', ['ict@kvt.nl'], TICKET_CATEGORIES);
+    assertMail('Tweede keer openen laat de rijen staan', 2, count($upgradedAgain->listUserUpdateMailQueue(9)));
+    unset($upgraded, $upgradedAgain);
+    unlink($legacyPath);
+}
+
 echo PHP_EOL;
 echo "Geslaagd: {$passed}" . PHP_EOL;
 echo "Gefaald: {$failed}" . PHP_EOL;
