@@ -348,6 +348,29 @@ assertMailTrue('Eerste claim levert de rij', is_array($firstClaim));
 assertMail('Tweede claim krijgt niets', null, $secondClaim);
 assertMail('Geclaimde rij is weg', 0, count($store->listUserUpdateMailQueue($messageId)));
 
+echo PHP_EOL . "Statusregel in de taal van de ontvanger, zonder op de flow te wachten" . PHP_EOL;
+$statusNoteId = $store->addMessage($ticketId, 'ict@kvt.nl', 'admin', 'Status gewijzigd naar afgehandeld.');
+discardQueuedTicketTranslations();
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+sendUserUpdateNotifications(
+    $store,
+    $GLOBALS['ictUsers'],
+    is_array($fresh) ? $fresh : $ticket,
+    ['fr-update-mail@example.com'],
+    'Status gewijzigd naar afgehandeld.',
+    $statusNoteId,
+    true,
+    'ict@kvt.nl',
+    'ict@kvt.nl',
+    false
+);
+assertMail('Statusmail wacht niet', 1, count($GLOBALS['asclepiusCapturedTicketEmails']));
+assertMail('Geen statusmail in de wachtrij', 0, count($store->listUserUpdateMailQueue($statusNoteId)));
+assertMailTrue(
+    'Statusmail is Frans',
+    str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'Statut modifié en résolu.')
+);
+
 echo PHP_EOL;
 echo "Geslaagd: {$passed}" . PHP_EOL;
 echo "Gefaald: {$failed}" . PHP_EOL;

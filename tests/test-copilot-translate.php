@@ -601,6 +601,58 @@ assertCopilot('Andere taal is als vertaling gemarkeerd', true, $stampedDutch['is
 assertCopilot('Andere taal noemt bron en, niet nl', 'en', $stampedDutch['source_language']);
 $stampedDutchRow = $store->getTextTranslation('ticket_message', $stampedId, 'nl', $stampedHash);
 assertCopilot('Elke taalrij bewaart de echte brontaal', 'en', (string) ($stampedDutchRow['source_language'] ?? ''));
+
+require_once __DIR__ . '/../web/content/helpers.php';
+$callsBeforeStatus = count($calls);
+$statusOnlyId = $store->addMessage($ticketId, 'ict@kvt.nl', 'admin', 'Status gewijzigd naar afgehandeld.');
+assertCopilot('Statusregel komt niet in de vertaalwachtrij', false, in_array('ticket_message:' . $statusOnlyId, queuedTicketTranslationKeys(), true));
+$statusFrench = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $statusOnlyId,
+    $ticketId,
+    'Status gewijzigd naar afgehandeld.',
+    'fr'
+);
+assertCopilot('Statusregel gaat niet door de flow', $callsBeforeStatus, count($calls));
+assertCopilot('Statusregel in het Frans via i18n', 'Statut modifié en résolu.', $statusFrench['text']);
+assertCopilot('Franse statusregel telt als vertaling', true, $statusFrench['is_translated']);
+$statusDutch = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $statusOnlyId,
+    $ticketId,
+    'Status gewijzigd naar afgehandeld.',
+    'nl'
+);
+assertCopilot('Nederlandse lezer houdt de statusregel', 'Status gewijzigd naar afgehandeld.', $statusDutch['text']);
+assertCopilot('Zelfde taal is geen vertaling', false, $statusDutch['is_translated']);
+$statusHtml = formatTicketMessageText($statusFrench['text']);
+assertCopilotTrue('Vertaalde statusregel houdt dezelfde opmaak', str_contains($statusHtml, '<small>'));
+
+$mixedText = "Please restart the printer\n\nStatus gewijzigd naar afgehandeld.";
+$mixedId = $store->addMessage($ticketId, 'ict@kvt.nl', 'admin', $mixedText);
+$callsBeforeMixed = count($calls);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('en', [
+        'nl' => 'Start de printer opnieuw',
+        'en' => 'Please restart the printer',
+        'fr' => "Redémarrez l'imprimante",
+        'de' => 'Starten Sie den Drucker neu',
+    ]),
+    'error' => '',
+];
+$mixedFrench = translateTicketTextForViewer($store, 'ticket_message', $mixedId, $ticketId, $mixedText, 'fr');
+assertCopilot('Gemengd bericht vertaalt alleen de body', $callsBeforeMixed + 1, count($calls));
+$mixedPayload = json_decode((string) ($calls[$callsBeforeMixed]['body'] ?? ''), true);
+assertCopilotTrue('Statusregel gaat niet mee naar de flow', is_array($mixedPayload) && !str_contains((string) ($mixedPayload['text'] ?? ''), 'Status gewijzigd'));
+assertCopilot(
+    'Franse body plus Franse statusregel',
+    "Redémarrez l'imprimante\n\nStatut modifié en résolu.",
+    $mixedFrench['text']
+);
+assertCopilotTrue('Gemengde Franse tekst houdt de statusopmaak', str_contains(formatTicketMessageText($mixedFrench['text']), '<small>'));
 discardQueuedTicketTranslations();
 
 $callsBeforeSkip = count($calls);

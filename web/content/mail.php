@@ -839,7 +839,9 @@ function sendUserUpdateNotifications(
         $lang = getUserMailLang($email);
         $textForMail = $messageText;
         $sendNow = true;
-        if ($needsTranslation && !($knownSource !== '' && $knownSource === $lang)) {
+        if (function_exists('ticketMessageIsStatusNoteOnly') && ticketMessageIsStatusNoteOnly($messageText)) {
+            $textForMail = ticketTranslationDisplayText($messageText, '', $lang);
+        } elseif ($needsTranslation && !($knownSource !== '' && $knownSource === $lang)) {
             $cached = $store->getTextTranslation('ticket_message', $messageId, $lang, $sourceHash);
             if (is_array($cached)) {
                 $cachedText = (string) ($cached['translated_text'] ?? '');
@@ -1053,6 +1055,13 @@ function resolveQueuedUserUpdateMail(TicketStore $store, array $row, int $now): 
     $currentText = is_array($message) ? (string) ($message['message_text'] ?? '') : '';
     if (!is_array($message) || hash('sha256', $currentText) !== $sourceHash) {
         return ['drop' => true];
+    }
+
+    if (function_exists('ticketMessageIsStatusNoteOnly') && ticketMessageIsStatusNoteOnly($currentText)) {
+        return [
+            'text' => ticketTranslationDisplayText($currentText, '', $lang),
+            'fallback' => false,
+        ];
     }
 
     $source = userUpdateMailSourceLanguage($store, $messageId, $currentText);

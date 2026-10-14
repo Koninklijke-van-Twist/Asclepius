@@ -621,7 +621,7 @@ function renderTicketMessageMarkdown(?string $messageText, int $messageId = 0, a
         }
 
         $interactiveLine = makeTextInteractive($line, $forEmail);
-        if (str_starts_with($trimmed, 'Status gewijzigd naar ')) {
+        if (ticketStatusNoteFromLine($trimmed) !== null) {
             $pending[] = '<small>' . $interactiveLine . '</small>';
             $index++;
             continue;
@@ -634,4 +634,201 @@ function renderTicketMessageMarkdown(?string $messageText, int $messageId = 0, a
     $flushPending();
 
     return implode('', $parts);
+}
+
+/**
+ * Systeemregel "Status gewijzigd naar …" in elke ondersteunde taal.
+ * De opmaak (<small>) hangt aan deze herkenning, niet aan de Nederlandse tekst.
+ *
+ * @return array{status: string, known: bool, label: string}|null
+ */
+function ticketStatusNoteFromLine(string $line): ?array
+{
+    $trimmed = trim($line);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    $lower = mb_strtolower($trimmed, 'UTF-8');
+    foreach (ticketStatusNotePrefixes() as $prefix) {
+        if (!str_starts_with($lower, $prefix)) {
+            continue;
+        }
+
+        $label = trim(mb_substr($trimmed, mb_strlen($prefix, 'UTF-8'), null, 'UTF-8'), " .\t");
+        $canonical = ticketStatusLabelMap()[mb_strtolower($label)] ?? null;
+
+        return [
+            'status' => $canonical ?? $label,
+            'known' => $canonical !== null,
+            'label' => $label,
+        ];
+    }
+
+    return null;
+}
+
+/** Eerste bekende status in een bericht, voor de statushistorie. */
+function ticketStatusFromMessageText(string $messageText): ?string
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", trim($messageText));
+    if ($normalized === '') {
+        return null;
+    }
+
+    foreach (explode("\n", $normalized) as $line) {
+        $note = ticketStatusNoteFromLine($line);
+        if ($note !== null && $note['known']) {
+            return $note['status'];
+        }
+    }
+
+    return null;
+}
+
+/**
+ * @return list<array{status: string, known: bool, label: string}>
+ */
+function ticketStatusNotesInText(string $text): array
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+    $notes = [];
+    foreach (explode("\n", $normalized) as $line) {
+        $note = ticketStatusNoteFromLine($line);
+        if ($note !== null) {
+            $notes[] = $note;
+        }
+    }
+
+    return $notes;
+}
+
+function ticketMessageIsStatusNoteOnly(string $text): bool
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", trim($text));
+    if ($normalized === '') {
+        return false;
+    }
+
+    $sawNote = false;
+    foreach (explode("\n", $normalized) as $line) {
+        if (trim($line) === '') {
+            continue;
+        }
+        if (ticketStatusNoteFromLine($line) === null) {
+            return false;
+        }
+        $sawNote = true;
+    }
+
+    return $sawNote;
+}
+
+function ticketTextWithoutStatusNotes(string $text): string
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+    $kept = [];
+    foreach (explode("\n", $normalized) as $line) {
+        if (ticketStatusNoteFromLine($line) !== null) {
+            continue;
+        }
+        $kept[] = $line;
+    }
+
+    return rtrim(implode("\n", $kept));
+}
+
+/**
+ * @param array{status: string, known: bool, label: string} $note
+ */
+function ticketRenderStatusNote(array $note, string $lang): string
+{
+    $lang = strtolower(trim($lang));
+    if (!defined('SUPPORTED_LANGUAGES') || !is_array(SUPPORTED_LANGUAGES) || !array_key_exists($lang, SUPPORTED_LANGUAGES)) {
+        $lang = 'nl';
+    }
+
+    $label = $note['known'] && function_exists('translateStatus')
+        ? translateStatus((string) $note['status'], $lang)
+        : (string) $note['label'];
+    if (function_exists('__mail')) {
+        return __mail('flash.status_changed_to', $lang, $label);
+    }
+
+    return 'Status gewijzigd naar ' . $label . '.';
+}
+
+/**
+ * @param list<array{status: string, known: bool, label: string}> $notes
+ */
+function ticketAppendStatusNotes(string $body, array $notes, string $lang): string
+{
+    if ($notes === []) {
+        return $body;
+    }
+
+    $lines = [];
+    foreach ($notes as $note) {
+        $lines[] = ticketRenderStatusNote($note, $lang);
+    }
+    $noteBlock = implode("\n", $lines);
+    if (trim($body) === '') {
+        return $noteBlock;
+    }
+
+    return rtrim($body) . "\n\n" . $noteBlock;
+}
+
+/** Zet statusregels om naar de i18n-tekst in $lang en haalt ze uit de te vertalen body. */
+function ticketTranslationDisplayText(string $sourceText, string $translatedText, string $lang): string
+{
+    $notes = ticketStatusNotesInText($sourceText);
+    if ($notes === []) {
+        return $translatedText;
+    }
+
+    return ticketAppendStatusNotes(ticketTextWithoutStatusNotes($translatedText), $notes, $lang);
+}
+
+/** @return list<string> */
+function ticketStatusNotePrefixes(): array
+{
+    return [
+        'status gewijzigd naar ',
+        'status changed to ',
+        'status geändert auf ',
+        'statut modifié en ',
+    ];
+}
+
+/** @return array<string, string> */
+function ticketStatusLabelMap(): array
+{
+    return [
+        'ingediend' => 'ingediend',
+        'submitted' => 'ingediend',
+        'eingereicht' => 'ingediend',
+        'soumis' => 'ingediend',
+        'in behandeling' => 'in behandeling',
+        'in progress' => 'in behandeling',
+        'in bearbeitung' => 'in behandeling',
+        'en cours' => 'in behandeling',
+        'afwachtende op gebruiker' => 'afwachtende op gebruiker',
+        'awaiting user' => 'afwachtende op gebruiker',
+        'wartet auf benutzer' => 'afwachtende op gebruiker',
+        "en attente de l'utilisateur" => 'afwachtende op gebruiker',
+        'afwachtende op bestelling' => 'afwachtende op bestelling',
+        'awaiting order' => 'afwachtende op bestelling',
+        'wartet auf bestellung' => 'afwachtende op bestelling',
+        'en attente de commande' => 'afwachtende op bestelling',
+        'afwachtende op derde partij' => 'afwachtende op derde partij',
+        'awaiting third party' => 'afwachtende op derde partij',
+        'wartet auf dritte partei' => 'afwachtende op derde partij',
+        'en attente de tiers' => 'afwachtende op derde partij',
+        'afgehandeld' => 'afgehandeld',
+        'resolved' => 'afgehandeld',
+        'erledigt' => 'afgehandeld',
+        'résolu' => 'afgehandeld',
+        'resolu' => 'afgehandeld',
+    ];
 }

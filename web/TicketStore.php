@@ -4864,64 +4864,11 @@ class TicketStore
 
     private function extractStatusFromMessage(string $messageText): ?string
     {
-        $statusByLabel = [
-            'ingediend' => 'ingediend',
-            'submitted' => 'ingediend',
-            'eingereicht' => 'ingediend',
-            'soumis' => 'ingediend',
-            'in behandeling' => 'in behandeling',
-            'in progress' => 'in behandeling',
-            'in bearbeitung' => 'in behandeling',
-            'en cours' => 'in behandeling',
-            'afwachtende op gebruiker' => 'afwachtende op gebruiker',
-            'awaiting user' => 'afwachtende op gebruiker',
-            'wartet auf benutzer' => 'afwachtende op gebruiker',
-            "en attente de l'utilisateur" => 'afwachtende op gebruiker',
-            'afwachtende op bestelling' => 'afwachtende op bestelling',
-            'awaiting order' => 'afwachtende op bestelling',
-            'wartet auf bestellung' => 'afwachtende op bestelling',
-            'en attente de commande' => 'afwachtende op bestelling',
-            'afwachtende op derde partij' => 'afwachtende op derde partij',
-            'awaiting third party' => 'afwachtende op derde partij',
-            'wartet auf dritte partei' => 'afwachtende op derde partij',
-            'en attente de tiers' => 'afwachtende op derde partij',
-            'afgehandeld' => 'afgehandeld',
-            'resolved' => 'afgehandeld',
-            'erledigt' => 'afgehandeld',
-            'résolu' => 'afgehandeld',
-            'resolu' => 'afgehandeld',
-        ];
-
-        $prefixes = [
-            'status gewijzigd naar ',
-            'status changed to ',
-            'status geändert auf ',
-            'statut modifié en ',
-        ];
-
-        $normalized = str_replace(["\r\n", "\r"], "\n", trim($messageText));
-        if ($normalized === '') {
-            return null;
+        if (!function_exists('ticketStatusFromMessageText')) {
+            require_once __DIR__ . DIRECTORY_SEPARATOR . 'content' . DIRECTORY_SEPARATOR . 'message_markdown.php';
         }
 
-        foreach (explode("\n", $normalized) as $line) {
-            $trimmedLine = trim($line);
-            if ($trimmedLine === '') {
-                continue;
-            }
-
-            $lowerLine = strtolower($trimmedLine);
-            foreach ($prefixes as $prefix) {
-                if (!str_starts_with($lowerLine, $prefix)) {
-                    continue;
-                }
-
-                $statusLabel = trim(substr($lowerLine, strlen($prefix)), " .\t\n\r\0\x0B");
-                return $statusByLabel[$statusLabel] ?? null;
-            }
-        }
-
-        return null;
+        return ticketStatusFromMessageText($messageText);
     }
 
     private function normalizeDueDate(?string $dueDate): ?string

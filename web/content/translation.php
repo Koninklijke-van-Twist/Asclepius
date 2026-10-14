@@ -94,6 +94,19 @@ function translateTicketTextForViewer(
         ];
     }
 
+    if (function_exists('ticketMessageIsStatusNoteOnly') && ticketMessageIsStatusNoteOnly($rawText)) {
+        $text = ticketTranslationDisplayText($rawText, '', $targetLanguage);
+
+        return [
+            'text' => $text,
+            'is_translated' => !ticketTranslationTextsMatch($text, $rawText),
+            'source_language' => '',
+            'target_language' => $targetLanguage,
+            'translation_pending' => false,
+            'translation_error' => '',
+        ];
+    }
+
     $sourceHash = hash('sha256', $rawText);
     $cached = $store->getTextTranslation($entityType, $entityId, $targetLanguage, $sourceHash);
     if (is_array($cached)) {
@@ -378,7 +391,37 @@ function ticketTranslationFromCacheRow(
     $storedSource = (string) ($cached['source_language'] ?? '');
     $sourceLanguage = ticketTranslationSourceLanguage($store, $entityType, $entityId, $rawText, $storedSource);
 
-    return ticketTranslationStoredResult($rawText, $targetLanguage, $storedText, $sourceLanguage);
+    return ticketTranslationApplyStatusNotes(
+        ticketTranslationStoredResult($rawText, $targetLanguage, $storedText, $sourceLanguage),
+        $rawText,
+        $targetLanguage
+    );
+}
+
+function ticketTranslationApplyStatusNotes(array $result, string $rawText, string $targetLanguage): array
+{
+    if (!function_exists('ticketStatusNotesInText') || ticketStatusNotesInText($rawText) === []) {
+        return $result;
+    }
+
+    $text = ticketTranslationDisplayText($rawText, (string) ($result['text'] ?? ''), $targetLanguage);
+    $result['text'] = $text;
+    if (!ticketTranslationTextsMatch($text, $rawText)) {
+        $result['is_translated'] = true;
+    }
+
+    return $result;
+}
+
+function ticketTranslationProviderText(string $rawText): string
+{
+    if (!function_exists('ticketStatusNotesInText') || ticketStatusNotesInText($rawText) === []) {
+        return $rawText;
+    }
+
+    $body = ticketTextWithoutStatusNotes($rawText);
+
+    return trim($body) === '' ? $rawText : $body;
 }
 
 /**
@@ -462,7 +505,8 @@ function storeCopilotTicketTranslations(
     string $claimToken,
     string $targetLanguage
 ): ?array {
-    $bundle = $provider->translateBundle($rawText, $targetLanguage);
+    $providerText = ticketTranslationProviderText($rawText);
+    $bundle = $provider->translateBundle($providerText, $targetLanguage);
     $sourceLanguage = (string) ($bundle['source_language'] ?? '');
     $translations = is_array($bundle['translations'] ?? null) ? $bundle['translations'] : [];
     $toStore = [];
@@ -471,10 +515,20 @@ function storeCopilotTicketTranslations(
         if ($language === '' || !array_key_exists($language, SUPPORTED_LANGUAGES) || !is_string($translatedText)) {
             continue;
         }
-        $toStore[$language] = normalizedStoredTranslation($rawText, $language, $translatedText, $sourceLanguage);
+        $storedBody = normalizedStoredTranslation($providerText, $language, $translatedText, $sourceLanguage);
+        $toStore[$language] = ticketTranslationApplyStatusNotes(
+            ['text' => $storedBody],
+            $rawText,
+            $language
+        )['text'];
     }
     if (!array_key_exists($targetLanguage, $toStore)) {
-        $toStore[$targetLanguage] = normalizedStoredTranslation($rawText, $targetLanguage, '', $sourceLanguage);
+        $storedBody = normalizedStoredTranslation($providerText, $targetLanguage, '', $sourceLanguage);
+        $toStore[$targetLanguage] = ticketTranslationApplyStatusNotes(
+            ['text' => $storedBody],
+            $rawText,
+            $targetLanguage
+        )['text'];
     }
 
     if (!$store->saveTextTranslationsIfClaimed($entityType, $entityId, $ticketId, $sourceHash, $claimToken, $sourceLanguage, $toStore)) {
@@ -483,7 +537,11 @@ function storeCopilotTicketTranslations(
 
     releaseQueuedUserUpdateMailsAfterTranslation($store, $entityType, $entityId);
 
-    return ticketTranslationStoredResult($rawText, $targetLanguage, $toStore[$targetLanguage], $sourceLanguage);
+    return ticketTranslationApplyStatusNotes(
+        ticketTranslationStoredResult($rawText, $targetLanguage, $toStore[$targetLanguage], $sourceLanguage),
+        $rawText,
+        $targetLanguage
+    );
 }
 
 /**
@@ -502,14 +560,16 @@ function storeSingleTicketTranslation(
     string $claimToken,
     string $targetLanguage
 ): ?array {
-    $result = $provider->translateText($rawText, $targetLanguage);
+    $providerText = ticketTranslationProviderText($rawText);
+    $result = $provider->translateText($providerText, $targetLanguage);
     $sourceLanguage = (string) ($result['source_language'] ?? '');
     $storedText = normalizedStoredTranslation(
-        $rawText,
+        $providerText,
         $targetLanguage,
         (string) ($result['translated_text'] ?? ''),
         $sourceLanguage
     );
+    $storedText = ticketTranslationApplyStatusNotes(['text' => $storedText], $rawText, $targetLanguage)['text'];
     if (!$store->saveTextTranslationsIfClaimed(
         $entityType,
         $entityId,
@@ -524,7 +584,11 @@ function storeSingleTicketTranslation(
 
     releaseQueuedUserUpdateMailsAfterTranslation($store, $entityType, $entityId);
 
-    return ticketTranslationStoredResult($rawText, $targetLanguage, $storedText, $sourceLanguage);
+    return ticketTranslationApplyStatusNotes(
+        ticketTranslationStoredResult($rawText, $targetLanguage, $storedText, $sourceLanguage),
+        $rawText,
+        $targetLanguage
+    );
 }
 
 /**
@@ -547,6 +611,9 @@ function releaseQueuedUserUpdateMailsAfterTranslation(TicketStore $store, string
 function queueTicketTextTranslation(TicketStore $store, string $entityType, int $entityId, int $ticketId, string $rawText): void
 {
     if (trim($rawText) === '' || $entityId <= 0 || $ticketId <= 0 || trim($entityType) === '') {
+        return;
+    }
+    if (function_exists('ticketMessageIsStatusNoteOnly') && ticketMessageIsStatusNoteOnly($rawText)) {
         return;
     }
     if (createTranslationProvider() === null) {
