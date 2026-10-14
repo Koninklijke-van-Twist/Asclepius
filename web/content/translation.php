@@ -76,7 +76,9 @@ function translateTicketTextForViewer(
     int $ticketId,
     string $rawText,
     string $targetAppLanguage,
-    bool $cacheOnly = false
+    bool $cacheOnly = false,
+    bool $waitForInFlight = false,
+    ?float $inFlightWaitSeconds = null
 ): array {
     $targetLanguage = strtolower(trim($targetAppLanguage));
     if (!array_key_exists($targetLanguage, SUPPORTED_LANGUAGES)) {
@@ -148,6 +150,20 @@ function translateTicketTextForViewer(
     }
 
     $claimToken = $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, ticketTranslationClaimTtlSeconds());
+    if ($claimToken === null && $waitForInFlight) {
+        $claimToken = waitOrTakeOverTextTranslationClaim(
+            $store,
+            $entityType,
+            $entityId,
+            $sourceHash,
+            $rawText,
+            $targetLanguage,
+            $inFlightWaitSeconds
+        );
+        if (is_array($claimToken)) {
+            return $claimToken;
+        }
+    }
     if ($claimToken === null) {
         return [
             'text' => $rawText,
@@ -231,7 +247,7 @@ function localizeTicketForViewer(array $ticket, TicketStore $store, string $view
     return $ticket;
 }
 
-function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, string $viewerLanguage, bool $cacheOnly = false): array
+function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, string $viewerLanguage, bool $cacheOnly = false, bool $waitForInFlight = false, ?float $inFlightWaitSeconds = null): array
 {
     $ticketId = (int) ($ticketDetail['id'] ?? 0);
     $rawTitle = (string) ($ticketDetail['title'] ?? '');
@@ -242,7 +258,9 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
         $ticketId,
         $rawTitle,
         $viewerLanguage,
-        $cacheOnly
+        $cacheOnly,
+        $waitForInFlight,
+        $inFlightWaitSeconds
     );
 
     $ticketDetail['title_raw'] = $rawTitle;
@@ -263,7 +281,9 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
             $ticketId,
             $rawMessageText,
             $viewerLanguage,
-            $cacheOnly
+            $cacheOnly,
+            $waitForInFlight,
+            $inFlightWaitSeconds
         );
 
         $message['message_text_raw'] = $rawMessageText;
@@ -309,6 +329,47 @@ function ticketTranslationTimeLimitSeconds(): int
 function ticketTranslationClaimTtlSeconds(): int
 {
     return (int) ceil(ticketTranslationFlowTimeoutSeconds()) + 60;
+}
+
+/**
+ * De lijst keert meteen terug als een andere aanvraag de tekst heeft.
+ * Het geopende ticket wacht kort of de cache alsnog gevuld wordt, en neemt de claim
+ * daarna zelf over, ook als die net gezet is. Een achtergrondjob die de tekst
+ * vastpakt en niets wegschrijft, laat het geopende ticket anders pending.
+ */
+function ticketTranslationInFlightWaitSeconds(): float
+{
+    return 2.0;
+}
+
+/**
+ * @return array{text: string, is_translated: bool, source_language: string, target_language: string, translation_pending: bool, translation_error: string, translation_error_detail: string}|string|null
+ *         string = claim-token om zelf te vertalen, array = cache die tijdens het wachten binnenkwam, null = nog bezet
+ */
+function waitOrTakeOverTextTranslationClaim(
+    TicketStore $store,
+    string $entityType,
+    int $entityId,
+    string $sourceHash,
+    string $rawText,
+    string $targetLanguage,
+    ?float $waitSeconds = null
+): array|string|null {
+    $deadline = microtime(true) + max(0.0, $waitSeconds ?? ticketTranslationInFlightWaitSeconds());
+    while (true) {
+        $cached = $store->getTextTranslation($entityType, $entityId, $targetLanguage, $sourceHash);
+        if (is_array($cached)) {
+            return ticketTranslationFromCacheRow($store, $entityType, $entityId, $sourceHash, $rawText, $targetLanguage, $cached);
+        }
+
+        $slice = $deadline - microtime(true);
+        if ($slice <= 0) {
+            break;
+        }
+        usleep((int) (min(0.25, $slice) * 1000000));
+    }
+
+    return $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, ticketTranslationClaimTtlSeconds(), null, true);
 }
 
 function ticketTranslationsCoverAllLanguages(TicketStore $store, string $entityType, int $entityId, string $sourceHash): bool
@@ -522,6 +583,11 @@ function storeCopilotTicketTranslations(
             $language
         )['text'];
     }
+    // Een leeg of uitgefilterd antwoord mag niet als enige een nl-rij worden.
+    // De prefetch vraagt altijd nl; die ene rij liet en/fr/de voor altijd pending.
+    if ($toStore === []) {
+        return null;
+    }
     if (!array_key_exists($targetLanguage, $toStore)) {
         $storedBody = normalizedStoredTranslation($providerText, $targetLanguage, '', $sourceLanguage);
         $toStore[$targetLanguage] = ticketTranslationApplyStatusNotes(
@@ -620,6 +686,8 @@ function queueTicketTextTranslation(TicketStore $store, string $entityType, int 
         return;
     }
 
+    prepareTicketTranslationBackgroundWork();
+
     if (!isset($GLOBALS['asclepiusTranslationQueue']) || !is_array($GLOBALS['asclepiusTranslationQueue'])) {
         $GLOBALS['asclepiusTranslationQueue'] = [];
     }
@@ -662,13 +730,45 @@ function flushQueuedTicketTranslations(): void
     }
 }
 
+function translationRuntimeIsCli(): bool
+{
+    if (isset($GLOBALS['asclepiusTranslationSapi'])) {
+        $sapi = (string) $GLOBALS['asclepiusTranslationSapi'];
+
+        return $sapi === 'cli' || $sapi === 'phpdbg';
+    }
+
+    return PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg';
+}
+
+function translationHeadersAlreadySent(): bool
+{
+    if (array_key_exists('asclepiusTranslationHeadersSent', $GLOBALS)) {
+        return !empty($GLOBALS['asclepiusTranslationHeadersSent']);
+    }
+
+    return headers_sent();
+}
+
+/**
+ * Mod_php breekt het verzoek af zodra de browser de redirect volgt, tenzij dit
+ * al tijdens het plaatsen is gezet. In de shutdown zelf is dat te laat.
+ */
+function prepareTicketTranslationBackgroundWork(): void
+{
+    ignore_user_abort(true);
+    $GLOBALS['asclepiusTranslationIgnoreAbort'] = true;
+}
+
 function runQueuedTicketTranslations(): void
 {
     $force = !empty($GLOBALS['asclepiusTranslationQueueForce']);
-    $isCli = PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg';
+    $isCli = translationRuntimeIsCli();
     if ($isCli && !$force) {
         return;
     }
+
+    prepareTicketTranslationBackgroundWork();
 
     $queued = $GLOBALS['asclepiusTranslationQueue'] ?? [];
     if (!is_array($queued) || $queued === []) {
@@ -692,6 +792,13 @@ function runQueuedTicketTranslations(): void
     }
 
     if (!$isCli) {
+        if (method_exists($store, 'commitOpenTransaction')) {
+            try {
+                $store->commitOpenTransaction();
+            } catch (Throwable $exception) {
+                error_log('[asclepius] vertaling transactie: ' . $exception->getMessage());
+            }
+        }
         finishHttpResponseForBackgroundWork();
     }
 
@@ -760,7 +867,7 @@ function runQueuedTicketTranslations(): void
  */
 function finishHttpResponseForBackgroundWork(): bool
 {
-    if (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg') {
+    if (translationRuntimeIsCli()) {
         return false;
     }
 
@@ -771,25 +878,28 @@ function finishHttpResponseForBackgroundWork(): bool
     if (function_exists('fastcgi_finish_request')) {
         return (bool) @fastcgi_finish_request();
     }
-    if (headers_sent()) {
-        return false;
-    }
 
+    // Apache mod_php heeft geen fastcgi_finish_request. Headers zijn dan meestal
+    // al weg (redirect of de buffer uit bootstrap). Toch de buffers legen en
+    // doorgaan; anders stopt het proces zodra de browser de redirect volgt.
     @ini_set('zlib.output_compression', '0');
     if (function_exists('apache_setenv')) {
         @apache_setenv('no-gzip', '1');
     }
     $output = '';
     while (ob_get_level() > 0) {
-        $output = (string) ob_get_clean() . $output;
+        $chunk = ob_get_clean();
+        $output = (is_string($chunk) ? $chunk : '') . $output;
     }
-    if (!headers_sent()) {
+    if (!translationHeadersAlreadySent()) {
         header('Connection: close');
         header('Content-Encoding: none');
         header('Content-Length: ' . strlen($output));
     }
-    echo $output;
-    @flush();
+    if (empty($GLOBALS['asclepiusTranslationSuppressFinishOutput'])) {
+        echo $output;
+        @flush();
+    }
 
     return true;
 }

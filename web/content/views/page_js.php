@@ -8353,11 +8353,16 @@
                 }
             }
 
+            var unseenPendingMessage = false;
             (data.messages || []).forEach(function (msg)
             {
                 var messageNode = card.querySelector('[data-message-id="' + parseInt(msg.id, 10) + '"]');
                 if (!messageNode)
                 {
+                    if (msg.translation_pending)
+                    {
+                        unseenPendingMessage = true;
+                    }
                     return;
                 }
 
@@ -8449,6 +8454,14 @@
                     existingMsgToggle.remove();
                 }
             });
+            if (unseenPendingMessage)
+            {
+                card.setAttribute('data-messages-translation-pending', '1');
+            }
+            else if (!cardHasPendingTranslation(card))
+            {
+                card.removeAttribute('data-messages-translation-pending');
+            }
         };
 
         var TRANSLATION_RETRY_DELAYS_MS = [5000, 15000, 30000, 60000];
@@ -8732,6 +8745,9 @@
                 viewer_email: ticketPollPayload.viewer_email || '',
                 user_is_admin: !!ticketPollPayload.user_is_admin,
                 is_admin_portal: !!ticketPollPayload.is_admin_portal,
+                // Alleen het geopende ticket wacht en neemt een lopende claim over.
+                // Een ingeklapte lijstkaart keert meteen terug, ook als de titel pending is.
+                wait_for_inflight: card.open ? 1 : 0
             };
             console.log('[translation] Requesting ticket #' + ticketId, translateParams);
 
@@ -9571,6 +9587,19 @@
             messagesWrap.removeAttribute('data-lazy-messages');
             card.dataset.threadLoaded = '1';
 
+            var threadHasPending = !!thread.querySelector('[data-message-id][data-translation-status="pending"]');
+            if (threadHasPending || card.getAttribute('data-messages-translation-pending') === '1')
+            {
+                card.removeAttribute('data-messages-translation-pending');
+                card.removeAttribute('data-translation-awaiting-trigger');
+                card.setAttribute('data-needs-translation', '1');
+                var openTicketId = parseInt(card.getAttribute('data-ticket-id') || '0', 10);
+                if (openTicketId && translationRequestsInFlight[openTicketId])
+                {
+                    card.setAttribute('data-translation-dirty', '1');
+                }
+            }
+
             if (typeof hydrateTicketThumbnails === 'function')
             {
                 hydrateTicketThumbnails(card);
@@ -9926,7 +9955,9 @@
                     return;
                 }
                 presenceInFlight = true;
-                apiFetchJson('presence_poll', {})
+                apiFetchJson('presence_poll', {
+                    language: (document.documentElement && document.documentElement.lang) || 'nl'
+                })
                     .then(function (data)
                     {
                         presenceInFlight = false;

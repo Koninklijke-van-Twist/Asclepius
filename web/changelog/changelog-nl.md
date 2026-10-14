@@ -1,3 +1,16 @@
+id: 2026-10-14-translation-cache-i18n
+date: 2026-10-14
+title: Vertalingen verschijnen weer in alle talen
+author: Cursor Agent
+
+Een nieuw bericht wordt weer vertaald naar het Engels, Frans en Duits, niet alleen naar het Nederlands. De vertaling verschijnt vanzelf. Een vertaling die al was opgeslagen, blijft staan.
+
+In de lijst Mijn tickets verscheen de titelvertaling snel, terwijl de berichten in het geopende ticket op het laadicoon bleven staan. Een geopend ticket vraagt die berichten nu alsnog op. Loopt er al een vertaling, dan wacht het geopende ticket daar kort op en gaat zelf verder als die vertaling stilvalt.
+
+Een nieuw antwoord in een bestaand ticket bleef op het laadicoon staan wanneer de achtergrondvertaling die tekst al had vastgepakt maar niet had opgeslagen. Het geopende ticket maakt die vertaling dan zelf af. De lijst blijft snel en toont de titel. Een ingeklapt ticket in de lijst wacht daar niet op, ook niet als de titel nog een laadicoon heeft.
+
+De knoppen om het origineel of de vertaling te tonen, de aanwezigheidsstatus uit Janus en de categorie Printerproblemen volgen de taal die je hebt gekozen.
+
 id: 2026-10-14-update-mail-language
 date: 2026-10-14
 title: Updatemail in de taal van de ontvanger

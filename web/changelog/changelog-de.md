@@ -1,3 +1,16 @@
+id: 2026-10-14-translation-cache-i18n
+date: 2026-10-14
+title: Übersetzungen erscheinen wieder in allen Sprachen
+author: Cursor Agent
+
+Eine neue Nachricht wird wieder ins Englische, Französische und Deutsche übersetzt, nicht nur ins Niederländische. Die Übersetzung erscheint von selbst. Eine bereits gespeicherte Übersetzung bleibt erhalten.
+
+In Meine Tickets erschien die Titelübersetzung schnell, während die Nachrichten im geöffneten Ticket am Ladezeichen hängen blieben. Ein geöffnetes Ticket fordert diese Nachrichten jetzt nach. Läuft schon eine Übersetzung, wartet das geöffnete Ticket kurz und macht selbst weiter, wenn diese Übersetzung stehen bleibt.
+
+Eine neue Antwort in einem bestehenden Ticket blieb am Ladezeichen hängen, wenn die Hintergrundübersetzung den Text schon beansprucht, aber nicht gespeichert hatte. Das geöffnete Ticket schließt diese Übersetzung dann selbst ab. Die Liste bleibt schnell und zeigt den Titel. Ein eingeklapptes Ticket in der Liste wartet darauf nicht, auch wenn der Titel noch ein Ladezeichen zeigt.
+
+Die Schaltflächen für Original und Übersetzung, der Janus-Anwesenheitsstatus und die Kategorie Printerproblemen folgen der gewählten Sprache.
+
 id: 2026-10-14-update-mail-language
 date: 2026-10-14
 title: Aktualisierungsmail in der Sprache des Empfängers

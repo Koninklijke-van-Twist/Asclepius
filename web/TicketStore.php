@@ -2861,10 +2861,42 @@ class TicketStore
     }
 
     /**
+     * @return array{source_hash: string, claimed_at: int}|null
+     */
+    public function getTextTranslationClaim(string $entityType, int $entityId): ?array
+    {
+        $normalizedEntityType = trim($entityType);
+        if ($normalizedEntityType === '' || $entityId <= 0) {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT source_hash, claimed_at
+             FROM ticket_translation_inflight
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+        ]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return null;
+        }
+
+        return [
+            'source_hash' => (string) ($row['source_hash'] ?? ''),
+            'claimed_at' => (int) ($row['claimed_at'] ?? 0),
+        ];
+    }
+
+    /**
      * Eén lopende vertaling per bericht of titel. null = iemand anders is al bezig met dezelfde tekst.
      * Een andere tekst (bewerking) of een verlopen claim neemt de lock over.
      */
-    public function tryClaimTextTranslation(string $entityType, int $entityId, string $sourceHash, int $staleAfterSeconds = 180, ?int $now = null): ?string
+    public function tryClaimTextTranslation(string $entityType, int $entityId, string $sourceHash, int $staleAfterSeconds = 180, ?int $now = null, bool $force = false): ?string
     {
         $normalizedEntityType = trim($entityType);
         $normalizedSourceHash = trim($sourceHash);
@@ -2875,6 +2907,10 @@ class TicketStore
         $now ??= time();
         $token = bin2hex(random_bytes(16));
         $staleBefore = $now - max(0, $staleAfterSeconds);
+        $takeoverSql = $force
+            ? '1'
+            : 'ticket_translation_inflight.claimed_at < :stale_before
+                OR ticket_translation_inflight.source_hash != excluded.source_hash';
         $statement = $this->pdo->prepare(
             'INSERT INTO ticket_translation_inflight (entity_type, entity_id, source_hash, claim_token, claimed_at)
              VALUES (:entity_type, :entity_id, :source_hash, :claim_token, :claimed_at)
@@ -2882,17 +2918,19 @@ class TicketStore
                 source_hash = excluded.source_hash,
                 claim_token = excluded.claim_token,
                 claimed_at = excluded.claimed_at
-             WHERE ticket_translation_inflight.claimed_at < :stale_before
-                OR ticket_translation_inflight.source_hash != excluded.source_hash'
+             WHERE ' . $takeoverSql
         );
-        $statement->execute([
+        $parameters = [
             ':entity_type' => $normalizedEntityType,
             ':entity_id' => $entityId,
             ':source_hash' => $normalizedSourceHash,
             ':claim_token' => $token,
             ':claimed_at' => $now,
-            ':stale_before' => $staleBefore,
-        ]);
+        ];
+        if (!$force) {
+            $parameters[':stale_before'] = $staleBefore;
+        }
+        $statement->execute($parameters);
 
         $check = $this->pdo->prepare(
             'SELECT claim_token
@@ -2913,6 +2951,27 @@ class TicketStore
         }
 
         return $token;
+    }
+
+    /**
+     * Een verzoek dat bij exit nog een transactie open heeft, zou de vertalingen
+     * die daarna in dezelfde transactie worden geschreven bij het sluiten terugdraaien.
+     */
+    public function commitOpenTransaction(): void
+    {
+        if (!$this->pdo->inTransaction()) {
+            return;
+        }
+
+        try {
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
     }
 
     public function releaseTextTranslationClaim(string $entityType, int $entityId, string $claimToken): void

@@ -611,6 +611,7 @@ const TRANSLATIONS = [
         'category.business_central' => 'Business Central',
         'category.bc_verbeteringen' => 'BC Verbeteringen',
         'category.hardwareproblemen' => 'Hardwareproblemen',
+        'category.printerproblemen' => 'Printerproblemen',
         'category.softwareproblemen' => 'Softwareproblemen',
         'category.web_app_problemen' => 'sleutels.kvt.nl web-applicatieproblemen',
         'category.anders' => 'Anders',
@@ -1284,6 +1285,7 @@ const TRANSLATIONS = [
         'category.business_central' => 'Business Central',
         'category.bc_verbeteringen' => 'BC Improvements',
         'category.hardwareproblemen' => 'hardware problems',
+        'category.printerproblemen' => 'Printer problems',
         'category.softwareproblemen' => 'software problems',
         'category.web_app_problemen' => 'sleutels.kvt.nl web application problems',
         'category.anders' => 'Other',
@@ -1679,8 +1681,8 @@ const TRANSLATIONS = [
         'ticket.resolution_modal_placeholder' => 'Notieren Sie hier auf technischer Ebene, wie das Problem des Antragstellers gelöst wurde. Kollegen können dies als Referenz nutzen, wenn sie ein ähnliches Ticket bearbeiten.',
         'ticket.btn_reply' => 'Antwort senden und Mitarbeiter benachrichtigen',
         'ticket.show_original' => 'Original anzeigen',
-        'ticket.show_translation' => 'Uebersetzung anzeigen',
-        'translation.loading_tooltip' => 'Uebersetzung wird geladen',
+        'ticket.show_translation' => 'Übersetzung anzeigen',
+        'translation.loading_tooltip' => 'Übersetzung wird geladen',
         'translation.error_tooltip' => 'Uebersetzung fehlgeschlagen. Fuer Details klicken.',
         'translation.error_title' => 'Uebersetzungsfehler',
         'translation.error_fallback' => 'Beim Laden der Uebersetzung ist ein Fehler aufgetreten.',
@@ -1957,6 +1959,7 @@ const TRANSLATIONS = [
         'category.business_central' => 'Business Central',
         'category.bc_verbeteringen' => 'BC-Verbesserungen',
         'category.hardwareproblemen' => 'Hardwareprobleme',
+        'category.printerproblemen' => 'Druckerprobleme',
         'category.softwareproblemen' => 'Softwareprobleme',
         'category.web_app_problemen' => 'sleutels.kvt.nl Web-Anwendungsprobleme',
         'category.anders' => 'Sonstiges',
@@ -2630,6 +2633,7 @@ const TRANSLATIONS = [
         'category.bc_verbeteringen' => 'Améliorations BC',
         'category.afas' => 'AFAS',
         'category.hardwareproblemen' => 'problèmes matériels',
+        'category.printerproblemen' => 'Problèmes d\'imprimante',
         'category.softwareproblemen' => 'problèmes logiciels',
         'category.web_app_problemen' => 'problèmes d\'application web sleutels.kvt.nl',
         'category.anders' => 'Autre',
@@ -2778,6 +2782,40 @@ function getCurrentLanguage(): string
 }
 
 /**
+ * Zet de taal voor deze request. Een meegestuurde taal (API) wint van de sessie.
+ * Ontbreekt die, dan geldt de sessie en anders de opgeslagen voorkeur.
+ */
+function ensureViewerLanguage(?string $preferred = null): void
+{
+    $preferred = strtolower(trim((string) $preferred));
+    if ($preferred !== '' && array_key_exists($preferred, SUPPORTED_LANGUAGES)) {
+        $_SESSION['lang'] = $preferred;
+
+        return;
+    }
+
+    if (!isset($_SESSION) || !is_array($_SESSION)) {
+        return;
+    }
+
+    $current = strtolower(trim((string) ($_SESSION['lang'] ?? '')));
+    if ($current !== '' && array_key_exists($current, SUPPORTED_LANGUAGES)) {
+        return;
+    }
+
+    $prefEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+    if ($prefEmail === '') {
+        return;
+    }
+
+    $savedPrefs = loadUserPrefs($prefEmail);
+    $savedLang = strtolower(trim((string) ($savedPrefs['lang'] ?? '')));
+    if ($savedLang !== '' && array_key_exists($savedLang, SUPPORTED_LANGUAGES)) {
+        $_SESSION['lang'] = $savedLang;
+    }
+}
+
+/**
  * Geeft de vertaling voor $key in de actieve taal.
  * Extra $args worden via sprintf ingevoegd (voor %d, %s, etc.).
  */
@@ -2794,16 +2832,7 @@ function __(string $key, mixed ...$args): string
  * Page load
  */
 
-// Laad opgeslagen taalvoorkeur als de sessie nog geen taal heeft
-if (!isset($_SESSION['lang'])) {
-    $prefEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
-    if ($prefEmail !== '') {
-        $savedPrefs = loadUserPrefs($prefEmail);
-        if (isset($savedPrefs['lang']) && array_key_exists($savedPrefs['lang'], SUPPORTED_LANGUAGES)) {
-            $_SESSION['lang'] = $savedPrefs['lang'];
-        }
-    }
-}
+ensureViewerLanguage();
 
 // Verwerk taalwissel via ?lang= en sla permanent op
 if (isset($_GET['lang']) && array_key_exists($_GET['lang'], SUPPORTED_LANGUAGES)) {

@@ -87,6 +87,27 @@ assertMail('Onderwerp fr', 'Mise à jour du ticket #7', __mail('email.subject_up
 assertMail('Intro fr', 'Un collaborateur a mis à jour votre ticket.', __mail('email.intro_update', 'fr', __mail('email.intro_update_no_status', 'fr')));
 assertMail('Status fr', 'soumis', translateStatus('ingediend', 'fr'));
 assertMail('Categorie en', 'order hardware', translateCategory('hardware bestellen', 'en'));
+assertMail('Categorie printer nl', 'Printerproblemen', translateCategory('Printerproblemen', 'nl'));
+assertMail('Categorie printer en', 'Printer problems', translateCategory('Printerproblemen', 'en'));
+assertMail('Categorie printer de', 'Druckerprobleme', translateCategory('Printerproblemen', 'de'));
+assertMail('Categorie printer fr', 'Problèmes d\'imprimante', translateCategory('Printerproblemen', 'fr'));
+$previousViewerLang = $_SESSION['lang'] ?? null;
+$_SESSION['lang'] = 'en';
+assertMail('Knop origineel en', 'Show original', __('ticket.show_original'));
+assertMail('Knop vertaling en', 'Show translation', __('ticket.show_translation'));
+$_SESSION['lang'] = 'fr';
+assertMail('Knop origineel fr', 'Afficher l\'original', __('ticket.show_original'));
+$_SESSION['lang'] = 'de';
+assertMail('Knop vertaling de', 'Übersetzung anzeigen', __('ticket.show_translation'));
+if ($previousViewerLang === null) {
+    unset($_SESSION['lang']);
+} else {
+    $_SESSION['lang'] = $previousViewerLang;
+}
+require_once __DIR__ . '/../web/content/janus_sync.php';
+assertMail('Janus kantoor en', 'Present at office', janusPresenceStatusLabel('present_office', 'en'));
+assertMail('Janus vakantie de', 'Im Urlaub', janusPresenceStatusLabel('holiday', 'de'));
+assertMail('Janus ziek fr', 'Malade', janusPresenceStatusLabel('sick', 'fr'));
 assertMail('Lege tekst heeft geen bericht-id', 0, updateMailMessageId('', 4, 9));
 assertMail('Ghost-mail gebruikt de zichtbare notitie', 9, updateMailMessageId('notitie', 4, 9));
 assertMail('Gewoon antwoord gebruikt het bericht', 4, updateMailMessageId('antwoord', 4, 0));
