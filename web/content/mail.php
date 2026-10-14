@@ -800,6 +800,19 @@ function absenceForwardNote(array $forwards, string $lang): string
 }
 
 /**
+ * Statusregels horen niet bij de vertaalde body. Die komen altijd uit de vaste
+ * teksten in de taal van de ontvanger, ook als het bericht verder origineel blijft.
+ */
+function mailTextForRecipient(string $sourceText, string $bodyText, string $lang): string
+{
+    if (!function_exists('ticketTranslationDisplayText') || !function_exists('ticketStatusNotesInText') || ticketStatusNotesInText($sourceText) === []) {
+        return $bodyText !== '' ? $bodyText : $sourceText;
+    }
+
+    return ticketTranslationDisplayText($sourceText, $bodyText, $lang);
+}
+
+/**
  * Tekst voor één taal: meteen, uit de cache, na time-out, of nog even wachten.
  *
  * @return array{text: string, fallback: bool}|null
@@ -810,34 +823,35 @@ function localizedMailDelivery(TicketStore $store, int $messageId, string $lang,
         $lang = 'nl';
     }
 
+    $decision = null;
     if (function_exists('ticketMessageIsStatusNoteOnly') && ticketMessageIsStatusNoteOnly($messageText)) {
-        return [
-            'text' => ticketTranslationDisplayText($messageText, '', $lang),
-            'fallback' => false,
-        ];
+        $decision = ['text' => '', 'fallback' => false];
+    } else {
+        $providerReady = function_exists('createTranslationProvider') && createTranslationProvider() !== null;
+        $needsTranslation = $providerReady && trim($messageText) !== '' && $messageId > 0;
+        $source = $needsTranslation
+            ? userUpdateMailSourceLanguage($store, $messageId, $messageText)
+            : '';
+        if (!$needsTranslation || ($source !== '' && $source === $lang)) {
+            $decision = ['text' => $messageText, 'fallback' => false];
+        } else {
+            $cached = $store->getTextTranslation('ticket_message', $messageId, $lang, hash('sha256', $messageText));
+            if (is_array($cached)) {
+                $cachedText = (string) ($cached['translated_text'] ?? '');
+                $decision = ['text' => $cachedText !== '' ? $cachedText : $messageText, 'fallback' => false];
+            } elseif ($queuedAt > 0 && ($now - $queuedAt) >= userUpdateMailWaitSeconds()) {
+                $decision = ['text' => $messageText, 'fallback' => true];
+            }
+        }
     }
 
-    $providerReady = function_exists('createTranslationProvider') && createTranslationProvider() !== null;
-    $needsTranslation = $providerReady && trim($messageText) !== '' && $messageId > 0;
-    $source = $needsTranslation
-        ? userUpdateMailSourceLanguage($store, $messageId, $messageText)
-        : '';
-    if (!$needsTranslation || ($source !== '' && $source === $lang)) {
-        return ['text' => $messageText, 'fallback' => false];
+    if ($decision === null) {
+        return null;
     }
 
-    $cached = $store->getTextTranslation('ticket_message', $messageId, $lang, hash('sha256', $messageText));
-    if (is_array($cached)) {
-        $cachedText = (string) ($cached['translated_text'] ?? '');
+    $decision['text'] = mailTextForRecipient($messageText, (string) $decision['text'], $lang);
 
-        return ['text' => $cachedText !== '' ? $cachedText : $messageText, 'fallback' => false];
-    }
-
-    if ($queuedAt > 0 && ($now - $queuedAt) >= userUpdateMailWaitSeconds()) {
-        return ['text' => $messageText, 'fallback' => true];
-    }
-
-    return null;
+    return $decision;
 }
 
 /**
@@ -1257,7 +1271,10 @@ function resolveQueuedUserUpdateMail(TicketStore $store, array $row, int $now): 
     $sourceHash = trim((string) ($row['source_hash'] ?? ''));
     $original = (string) ($row['message_text'] ?? '');
     if ($messageId <= 0 || $lang === '' || $sourceHash === '') {
-        return ['text' => $original, 'fallback' => true];
+        return [
+            'text' => mailTextForRecipient($original, $original, $lang !== '' ? $lang : 'nl'),
+            'fallback' => true,
+        ];
     }
 
     $message = $store->getTicketMessage($messageId);

@@ -371,6 +371,113 @@ assertMailTrue(
     str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'Statut modifié en résolu.')
 );
 
+echo PHP_EOL . "Antwoord met statusregel: de regel apart, in de taal van de ontvanger" . PHP_EOL;
+$mixed = "Please restart the printer\n\nStatus gewijzigd naar afgehandeld.";
+$GLOBALS['__translationProviderCache'] = ['initialized' => true, 'provider' => null];
+$mixedId = $store->addMessage($ticketId, 'ict@kvt.nl', 'admin', $mixed);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+sendUserUpdateNotifications(
+    $store,
+    $GLOBALS['ictUsers'],
+    is_array($fresh) ? $fresh : $ticket,
+    ['fr-update-mail@example.com', 'de-update-mail@example.com'],
+    $mixed,
+    $mixedId,
+    true,
+    'ict@kvt.nl',
+    'ict@kvt.nl',
+    false
+);
+assertMail('Gemengde mail wacht niet zonder vertaler', 2, count($GLOBALS['asclepiusCapturedTicketEmails']));
+$mixedByRecipient = [];
+foreach ($GLOBALS['asclepiusCapturedTicketEmails'] as $mixedMail) {
+    $mixedRecipients = $mixedMail['recipients'] ?? [];
+    if (is_array($mixedRecipients) && isset($mixedRecipients[0])) {
+        $mixedByRecipient[(string) $mixedRecipients[0]] = (string) ($mixedMail['plain'] ?? '');
+    }
+}
+assertMailTrue(
+    'Frans antwoord houdt de Engelse body',
+    str_contains($mixedByRecipient['fr-update-mail@example.com'] ?? '', 'Please restart the printer')
+);
+assertMailTrue(
+    'Franse statusregel achter het antwoord',
+    str_contains($mixedByRecipient['fr-update-mail@example.com'] ?? '', 'Statut modifié en résolu.')
+);
+assertMailTrue(
+    'Duitse statusregel achter het antwoord',
+    str_contains($mixedByRecipient['de-update-mail@example.com'] ?? '', 'Status geändert auf erledigt.')
+);
+assertMailTrue(
+    'Geen Nederlandse statusregel in de vreemde talen',
+    !str_contains($mixedByRecipient['fr-update-mail@example.com'] ?? '', 'Status gewijzigd')
+        && !str_contains($mixedByRecipient['de-update-mail@example.com'] ?? '', 'Status gewijzigd')
+);
+
+echo PHP_EOL . "Brontaal gelijk aan de ontvanger: statusregel toch in die taal" . PHP_EOL;
+$sourceProvider = new class implements TranslationProvider {
+    public function translateText(string $rawText, string $targetAppLanguage): array
+    {
+        return ['translated_text' => $rawText, 'source_language' => ''];
+    }
+};
+$GLOBALS['__translationProviderCache'] = ['initialized' => true, 'provider' => $sourceProvider];
+$sourceMixedId = $store->addMessage($ticketId, 'ict@kvt.nl', 'admin', $mixed);
+discardQueuedTicketTranslations();
+$store->upsertTextTranslation(
+    'ticket_message',
+    $sourceMixedId,
+    $ticketId,
+    'en',
+    'en',
+    hash('sha256', $mixed),
+    $mixed
+);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+sendUserUpdateNotifications(
+    $store,
+    $GLOBALS['ictUsers'],
+    is_array($fresh) ? $fresh : $ticket,
+    ['en-update-mail@example.com', 'fr-update-mail@example.com'],
+    $mixed,
+    $sourceMixedId,
+    true,
+    'ict@kvt.nl',
+    'ict@kvt.nl',
+    false
+);
+assertMail('Engelse ontvanger gaat meteen weg', 1, count($GLOBALS['asclepiusCapturedTicketEmails']));
+assertMail(
+    'Die mail is voor de Engelsman',
+    ['en-update-mail@example.com'],
+    $GLOBALS['asclepiusCapturedTicketEmails'][0]['recipients'] ?? []
+);
+assertMailTrue(
+    'Engelse statusregel bij een Engelse body',
+    str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'Please restart the printer')
+        && str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'Status changed to resolved.')
+        && !str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'Status gewijzigd')
+);
+assertMail('Franse ontvanger wacht nog op de body', 1, count($store->listUserUpdateMailQueue($sourceMixedId)));
+$store->upsertTextTranslation(
+    'ticket_message',
+    $sourceMixedId,
+    $ticketId,
+    'fr',
+    'en',
+    hash('sha256', $mixed),
+    "Redémarrez l'imprimante"
+);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+dispatchQueuedUserUpdateMails($store, $sourceMixedId, time(), $GLOBALS['ictUsers']);
+assertMail('Franse gemengde mail na de vertaling', 1, count($GLOBALS['asclepiusCapturedTicketEmails']));
+assertMailTrue(
+    'Franse body en Franse statusregel',
+    str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], "Redémarrez l'imprimante")
+        && str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'Statut modifié en résolu.')
+        && !str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'Status gewijzigd')
+);
+
 echo PHP_EOL;
 echo "Geslaagd: {$passed}" . PHP_EOL;
 echo "Gefaald: {$failed}" . PHP_EOL;
