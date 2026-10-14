@@ -199,17 +199,17 @@ class CopilotTranslationProvider implements TranslationProvider
 
     /**
      * De flow levert ook `source`, maar die is soms fout. Die waarde wordt niet gelezen.
-     * Alleen een exact gelijke vertaling in de leestaal telt als "al in de leestaal".
-     * Anders wordt de vertaling in de leestaal opgeslagen en getoond.
+     * Alleen als precies één taal exact gelijk is aan de brontekst, is dat de brontaal.
+     * De gevraagde leestaal krijgt geen voorrang: anders krijgt elke opgeslagen taal
+     * ten onrechte die bron, ook als een andere taal de originele tekst is.
      *
      * @param array<string, string> $translations
      */
     private function sourceLanguageFromTranslations(string $rawText, string $targetLanguage, array $translations): string
     {
         $normalizedRaw = $this->comparableText($rawText);
-        $targetText = (string) ($translations[$targetLanguage] ?? '');
-        if ($normalizedRaw !== '' && $this->comparableText($targetText) === $normalizedRaw) {
-            return $targetLanguage;
+        if ($normalizedRaw === '') {
+            return '';
         }
 
         $matches = [];
@@ -221,7 +221,7 @@ class CopilotTranslationProvider implements TranslationProvider
             if ($language === '' || !array_key_exists($language, SUPPORTED_LANGUAGES)) {
                 continue;
             }
-            if ($normalizedRaw !== '' && $this->comparableText($translated) === $normalizedRaw) {
+            if ($this->comparableText($translated) === $normalizedRaw) {
                 $matches[] = $language;
             }
         }

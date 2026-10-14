@@ -15,7 +15,7 @@ author: Cursor Agent
 
 A new ticket or a newly posted message is translated into every language right away. Posting itself does not wait for that. Existing messages are not translated afterwards in bulk; when you open a ticket you see a translation if it is already there, and otherwise it is still requested on demand.
 
-When the Copilot flow returns several languages in one answer, all of them are kept. Without the flow, Lara still works one language at a time.
+When the Copilot flow returns several languages in one answer, all of them are kept. Without the flow, Lara still works one language at a time. If the original text comes back in more than one language, none of those is chosen as the source language. Text that matches the original does not count as a translation.
 
 If you change a message or the title, the old translations are dropped and translated again. An internal draft is translated once it becomes visible.
 

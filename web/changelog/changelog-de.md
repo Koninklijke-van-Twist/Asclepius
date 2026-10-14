@@ -15,7 +15,7 @@ author: Cursor Agent
 
 Ein neues Ticket oder eine neu gepostete Nachricht wird sofort in alle Sprachen übersetzt. Das Absenden wartet darauf nicht. Bestehende Nachrichten werden nicht nachträglich alle übersetzt; wer ein Ticket öffnet, sieht die Übersetzung, wenn sie schon da ist, und sonst weiterhin auf Abruf.
 
-Liefert der Copilot-Flow in einer Antwort mehrere Sprachen, werden sie alle gespeichert. Ohne Flow arbeitet Lara weiter pro Sprache.
+Liefert der Copilot-Flow in einer Antwort mehrere Sprachen, werden sie alle gespeichert. Ohne Flow arbeitet Lara weiter pro Sprache. Kommt der Originaltext in mehr als einer Sprache zurück, wird keine davon als Ausgangssprache gewählt. Ein Text, der dem Original entspricht, gilt nicht als Übersetzung.
 
 Ändern Sie den Text einer Nachricht oder den Titel, verfallen die alten Übersetzungen und es wird neu übersetzt. Ein interner Entwurf wird übersetzt, sobald er sichtbar wird.
 

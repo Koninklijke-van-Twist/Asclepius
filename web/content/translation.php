@@ -101,7 +101,7 @@ function translateTicketTextForViewer(
         $cachedText = (string) ($cached['translated_text'] ?? $rawText);
         return [
             'text' => $cachedText,
-            'is_translated' => $cachedSourceLanguage !== '' && $cachedSourceLanguage !== $targetLanguage,
+            'is_translated' => ticketTranslationIsTranslated($cachedSourceLanguage, $targetLanguage, $cachedText, $rawText),
             'source_language' => $cachedSourceLanguage,
             'target_language' => $targetLanguage,
             'translation_pending' => false,
@@ -163,7 +163,7 @@ function translateTicketTextForViewer(
 
             return [
                 'text' => $cachedText,
-                'is_translated' => $cachedSourceLanguage !== '' && $cachedSourceLanguage !== $targetLanguage,
+                'is_translated' => ticketTranslationIsTranslated($cachedSourceLanguage, $targetLanguage, $cachedText, $rawText),
                 'source_language' => $cachedSourceLanguage,
                 'target_language' => $targetLanguage,
                 'translation_pending' => false,
@@ -336,11 +336,32 @@ function ticketTranslationsCoverAllLanguages(TicketStore $store, string $entityT
 /**
  * @return array{text: string, is_translated: bool, source_language: string, target_language: string, translation_pending: bool, translation_error: string, translation_error_detail: string}
  */
+function ticketTranslationTextsMatch(string $left, string $right): bool
+{
+    $normalize = static function (string $text): string {
+        $collapsed = preg_replace('/\s+/u', ' ', trim($text));
+
+        return is_string($collapsed) ? $collapsed : trim($text);
+    };
+    $normalizedLeft = $normalize($left);
+
+    return $normalizedLeft !== '' && $normalizedLeft === $normalize($right);
+}
+
+function ticketTranslationIsTranslated(string $sourceLanguage, string $targetLanguage, string $storedText, string $rawText): bool
+{
+    if ($sourceLanguage === '' || $sourceLanguage === $targetLanguage) {
+        return false;
+    }
+
+    return !ticketTranslationTextsMatch($storedText, $rawText);
+}
+
 function ticketTranslationStoredResult(string $rawText, string $targetLanguage, string $storedText, string $sourceLanguage): array
 {
     return [
         'text' => $storedText,
-        'is_translated' => $sourceLanguage !== '' && $sourceLanguage !== $targetLanguage,
+        'is_translated' => ticketTranslationIsTranslated($sourceLanguage, $targetLanguage, $storedText, $rawText),
         'source_language' => $sourceLanguage,
         'target_language' => $targetLanguage,
         'translation_pending' => false,

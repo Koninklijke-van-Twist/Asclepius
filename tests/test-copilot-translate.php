@@ -198,6 +198,21 @@ $sameLanguageParaphraseResult = $sameLanguageParaphrase->translateText('De print
 assertCopilot('Herschreven doeltaal is niet exact gelijk', '', $sameLanguageParaphraseResult['source_language']);
 assertCopilot('Herschreven doeltaal wordt wel gebruikt', 'De printer functioneert niet', $sameLanguageParaphraseResult['translated_text']);
 
+$doubleMatch = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('nl', [
+        'nl' => 'Hello there',
+        'en' => 'Hello there',
+        'fr' => 'Bonjour',
+        'de' => 'Hallo',
+    ]),
+    'error' => '',
+];
+$doubleMatchResult = $doubleMatch->translateText('Hello there', 'nl');
+assertCopilot('Meerdere exacte treffers kiezen niet de leestaal als bron', '', $doubleMatchResult['source_language']);
+assertCopilot('Doeltaaltekst blijft beschikbaar', 'Hello there', $doubleMatchResult['translated_text']);
+
 $withKey = 'Druk op [Enter] om door te gaan';
 $scripted[] = [
     'status' => 200,
@@ -541,6 +556,14 @@ assertCopilot('Cache bevat de vertaling en niet het origineel', 'Printer niet be
 assertCopilot('Cache zet de leestaal niet als bron', '', (string) ($loanwordCache['source_language'] ?? 'x'));
 $loanwordEnglish = $store->getTextTranslation('ticket_message', $loanwordMessageId, 'en', hash('sha256', 'Printer offline'));
 assertCopilot('Ook de andere talen van het leenwoord-antwoord zijn bewaard', 'Printer is offline', (string) ($loanwordEnglish['translated_text'] ?? ''));
+
+$echoMessageId = $store->addMessage($ticketId, 'user@kvt.nl', 'user', 'Hello there');
+$echoHash = hash('sha256', 'Hello there');
+$store->upsertTextTranslation('ticket_message', $echoMessageId, $ticketId, 'en', 'nl', $echoHash, 'Hello there');
+$echoView = translateTicketTextForViewer($store, 'ticket_message', $echoMessageId, $ticketId, 'Hello there', 'en');
+assertCopilot('Cache met foute bron nl toont de Engelse tekst', 'Hello there', $echoView['text']);
+assertCopilot('Exact gelijke tekst is geen vertaling, ook niet bij bron nl', false, $echoView['is_translated']);
+discardQueuedTicketTranslations();
 
 $callsBeforeSkip = count($calls);
 $skipMax = (string) ini_get('max_execution_time');
