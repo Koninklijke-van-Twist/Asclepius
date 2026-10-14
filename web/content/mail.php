@@ -802,7 +802,9 @@ function sendUserUpdateNotifications(
     bool $statusChanged,
     ?string $excludeEmail,
     ?string $browserActorEmail,
-    bool $highImportance
+    bool $highImportance,
+    string $subjectKey = 'email.subject_update',
+    string $introKey = 'email.intro_update'
 ): void {
     if (!$store instanceof TicketStore) {
         return;
@@ -847,6 +849,9 @@ function sendUserUpdateNotifications(
             }
         }
 
+        $suffixKey = $introKey === 'email.intro_update'
+            ? ($statusChanged ? 'email.intro_update_status' : 'email.intro_update_no_status')
+            : '';
         if ($sendNow) {
             deliverUserUpdateMail(
                 $store,
@@ -858,7 +863,10 @@ function sendUserUpdateNotifications(
                 $statusChanged,
                 $excludeEmail,
                 $browserActorEmail,
-                $highImportance
+                $highImportance,
+                $subjectKey,
+                $introKey,
+                $suffixKey
             );
             continue;
         }
@@ -873,7 +881,11 @@ function sendUserUpdateNotifications(
             $statusChanged,
             $exclude,
             $browserActorEmail !== null ? strtolower(trim($browserActorEmail)) : '',
-            $highImportance
+            $highImportance,
+            null,
+            $subjectKey,
+            $introKey,
+            $suffixKey
         );
     }
 }
@@ -891,7 +903,10 @@ function deliverUserUpdateMail(
     bool $statusChanged,
     ?string $excludeEmail,
     ?string $browserActorEmail,
-    bool $highImportance
+    bool $highImportance,
+    string $subjectKey = 'email.subject_update',
+    string $introKey = 'email.intro_update',
+    string $introSuffixKey = ''
 ): void {
     $ticketId = (int) ($ticket['id'] ?? 0);
     if ($ticketId <= 0 || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
@@ -901,19 +916,26 @@ function deliverUserUpdateMail(
         $lang = 'nl';
     }
 
-    $suffixKey = $statusChanged ? 'email.intro_update_status' : 'email.intro_update_no_status';
+    $subjectKey = isset(TRANSLATIONS['nl'][$subjectKey]) ? $subjectKey : 'email.subject_update';
+    $introKey = isset(TRANSLATIONS['nl'][$introKey]) ? $introKey : 'email.intro_update';
+    if ($introSuffixKey === '' && $introKey === 'email.intro_update') {
+        $introSuffixKey = $statusChanged ? 'email.intro_update_status' : 'email.intro_update_no_status';
+    }
+    $introArgs = $introSuffixKey !== '' && isset(TRANSLATIONS['nl'][$introSuffixKey])
+        ? [__mail($introSuffixKey, $lang)]
+        : [];
     sendTicketNotification(
         $store,
         $ictUsers,
         [$recipientEmail],
-        __mail('email.subject_update', $lang, $ticketId),
+        __mail($subjectKey, $lang, $ticketId),
         buildNotificationBody(
             $ticket,
-            'email.intro_update',
+            $introKey,
             $messageText,
             false,
             $lang,
-            __mail($suffixKey, $lang)
+            ...$introArgs
         ),
         $excludeEmail,
         (string) ($ticket['category'] ?? ''),
@@ -992,7 +1014,10 @@ function dispatchQueuedUserUpdateMails(TicketStore $store, ?int $messageId = nul
             !empty($claimed['status_changed']),
             $exclude !== '' ? $exclude : null,
             $actor !== '' ? $actor : null,
-            !empty($claimed['high_importance'])
+            !empty($claimed['high_importance']),
+            (string) ($claimed['subject_key'] ?? 'email.subject_update'),
+            (string) ($claimed['intro_key'] ?? 'email.intro_update'),
+            (string) ($claimed['intro_suffix_key'] ?? '')
         );
     }
 }
@@ -1029,4 +1054,126 @@ function resolveQueuedUserUpdateMail(TicketStore $store, array $row, int $now): 
     }
 
     return null;
+}
+
+/**
+ * Zelfde updatemail voor de UI en de API, inclusief bots.
+ * Een ghost-concept hoort hier niet in: geen zichtbare tekst en geen openbare bijlagen.
+ *
+ * @param list<mixed> $ictUsers
+ */
+function notifyTicketUpdateToParticipants(
+    ?TicketStore $store,
+    array $ictUsers,
+    array $ticket,
+    string $visibleMessage,
+    int $messageId,
+    bool $statusChanged,
+    bool $assigneeChanged,
+    bool $hasPublicAttachments,
+    string $newStatus,
+    ?string $actorEmail
+): void {
+    if (!$statusChanged && !$assigneeChanged && trim($visibleMessage) === '' && !$hasPublicAttachments) {
+        return;
+    }
+
+    $recipients = is_array($ticket['participant_emails'] ?? null)
+        ? $ticket['participant_emails']
+        : [(string) ($ticket['user_email'] ?? '')];
+    sendUserUpdateNotifications(
+        $store,
+        $ictUsers,
+        $ticket,
+        $recipients,
+        $visibleMessage,
+        $messageId,
+        $statusChanged,
+        $actorEmail,
+        $actorEmail,
+        requesterUpdateMailHasHighImportance($statusChanged, $newStatus)
+    );
+}
+
+/**
+ * Bevestiging naar deelnemers bij een nieuw ticket, UI en API.
+ * De beschrijving is het eerste bericht; die mail wacht op dezelfde vertaling.
+ *
+ * @param list<mixed> $ictUsers
+ */
+function notifyRequesterOfCreatedTicket(
+    ?TicketStore $store,
+    array $ictUsers,
+    array $ticket,
+    string $description,
+    int $messageId,
+    string $introKey,
+    ?string $actorEmail
+): void {
+    $recipients = is_array($ticket['participant_emails'] ?? null)
+        ? $ticket['participant_emails']
+        : [(string) ($ticket['user_email'] ?? '')];
+    sendUserUpdateNotifications(
+        $store,
+        $ictUsers,
+        $ticket,
+        $recipients,
+        $description,
+        $messageId,
+        false,
+        null,
+        $actorEmail,
+        false,
+        'email.subject_created',
+        $introKey
+    );
+}
+
+/**
+ * Melding naar de nieuwe behandelaar. Geen gebruikersmail.
+ *
+ * @param list<mixed> $ictUsers
+ */
+function notifyAssigneeOfTicket(
+    ?TicketStore $store,
+    array $ictUsers,
+    array $ticket,
+    string $newAssignee,
+    string $visibleNote,
+    ?string $actorEmail
+): void {
+    $newAssignee = strtolower(trim($newAssignee));
+    if ($newAssignee === '' || !$store instanceof TicketStore) {
+        return;
+    }
+
+    $ticketId = (int) ($ticket['id'] ?? 0);
+    $assigneeLang = getUserMailLang($newAssignee);
+    sendTicketNotification(
+        $store,
+        $ictUsers,
+        [$newAssignee],
+        __mail('email.subject_assigned', $assigneeLang, $ticketId),
+        buildNotificationBody($ticket, 'email.intro_assigned', $visibleNote, true, $assigneeLang),
+        $actorEmail,
+        (string) ($ticket['category'] ?? ''),
+        $ticketId,
+        'assigned',
+        $actorEmail
+    );
+}
+
+function firstTicketMessageId(array $ticket): int
+{
+    foreach (($ticket['messages'] ?? []) as $message) {
+        if (!is_array($message)) {
+            continue;
+        }
+        $messageId = (int) ($message['id'] ?? 0);
+        if ($messageId > 0) {
+            return $messageId;
+        }
+    }
+
+    return 0;
 }

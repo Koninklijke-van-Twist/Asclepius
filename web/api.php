@@ -931,20 +931,17 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
         $updatedTicket = $store->getTicket($ticketId, true, $actorEmail) ?? $updatedTicket;
         $participantsAfter = is_array($updatedTicket['participant_emails'] ?? null) ? $updatedTicket['participant_emails'] : $participantsAfter;
 
-        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-            ? $updatedTicket['participant_emails']
-            : [(string) ($updatedTicket['user_email'] ?? '')];
-        sendUserUpdateNotifications(
+        notifyTicketUpdateToParticipants(
             $store,
             is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
             $updatedTicket,
-            $requesterRecipients,
             $participantChangeNote,
             $participantNoteId,
             false,
-            $actorEmail,
-            $actorEmail,
-            false
+            false,
+            false,
+            (string) ($updatedTicket['status'] ?? ''),
+            $actorEmail
         );
         $participantChangeNotifiedViaUpdate = true;
     }
@@ -1080,35 +1077,26 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
         ];
     }
 
-    $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-        ? $updatedTicket['participant_emails']
-        : [(string) ($updatedTicket['user_email'] ?? '')];
-    sendUserUpdateNotifications(
+    notifyTicketUpdateToParticipants(
         $store,
         is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
         $updatedTicket,
-        $requesterRecipients,
         $categoryChangeNote,
         $messageId,
         false,
-        $actorEmail,
-        $actorEmail,
-        false
+        false,
+        false,
+        (string) ($updatedTicket['status'] ?? ''),
+        $actorEmail
     );
 
     if (!empty($changeResult['assignee_changed']) && trim((string) ($changeResult['assigned_email'] ?? '')) !== '') {
-        $assigneeEmail = strtolower(trim((string) $changeResult['assigned_email']));
-        $assigneeLang = getUserMailLang($assigneeEmail);
-        sendTicketNotification(
+        notifyAssigneeOfTicket(
             $store,
-            $GLOBALS['ictUsers'] ?? [],
-            [$assigneeEmail],
-            __mail('email.subject_assigned', $assigneeLang, $ticketId),
-            buildNotificationBody($updatedTicket, 'email.intro_assigned', $categoryChangeNote, true, $assigneeLang),
-            $actorEmail,
-            (string) ($updatedTicket['category'] ?? ''),
-            $ticketId,
-            'assigned',
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
+            $updatedTicket,
+            (string) $changeResult['assigned_email'],
+            $categoryChangeNote,
             $actorEmail
         );
     }
@@ -1468,41 +1456,21 @@ function notifyTicketFieldChangeViaApi(
     int $messageId = 0
 ): void {
     $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
-    if ($statusChanged || $assigneeChanged || $visibleNote !== '') {
-        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-            ? $updatedTicket['participant_emails']
-            : [(string) ($updatedTicket['user_email'] ?? '')];
-        sendUserUpdateNotifications(
-            $store,
-            $ictUsersList,
-            $updatedTicket,
-            $requesterRecipients,
-            $visibleNote,
-            $messageId,
-            $statusChanged,
-            $actorEmail,
-            $actorEmail,
-            requesterUpdateMailHasHighImportance(
-                $statusChanged,
-                (string) ($updatedTicket['status'] ?? '')
-            )
-        );
-    }
+    notifyTicketUpdateToParticipants(
+        $store,
+        $ictUsersList,
+        $updatedTicket,
+        $visibleNote,
+        $messageId,
+        $statusChanged,
+        $assigneeChanged,
+        false,
+        (string) ($updatedTicket['status'] ?? ''),
+        $actorEmail
+    );
 
     if ($assigneeChanged && $newAssignee !== '') {
-        $assigneeLang = getUserMailLang($newAssignee);
-        sendTicketNotification(
-            $store,
-            $ictUsersList,
-            [$newAssignee],
-            __mail('email.subject_assigned', $assigneeLang, $ticketId),
-            buildNotificationBody($updatedTicket, 'email.intro_assigned', $visibleNote, true, $assigneeLang),
-            $actorEmail,
-            (string) ($updatedTicket['category'] ?? ''),
-            $ticketId,
-            'assigned',
-            $actorEmail
-        );
+        notifyAssigneeOfTicket($store, $ictUsersList, $updatedTicket, $newAssignee, $visibleNote, $actorEmail);
     }
 }
 
@@ -1695,21 +1663,17 @@ function handlePublishGhostMessageApiAction(TicketStore $store, array $payload, 
     $messageText = trim($storedText);
     $hasAttachments = $store->messageHasAttachments($messageId);
     if ($messageText !== '' || $hasAttachments) {
-        $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
-        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-            ? $updatedTicket['participant_emails']
-            : [(string) ($updatedTicket['user_email'] ?? '')];
-        sendUserUpdateNotifications(
+        notifyTicketUpdateToParticipants(
             $store,
-            $ictUsersList,
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
             $updatedTicket,
-            $requesterRecipients,
             $storedText,
             $messageId,
             false,
-            $actorEmail,
-            $actorEmail,
-            false
+            false,
+            $hasAttachments,
+            (string) ($updatedTicket['status'] ?? ''),
+            $actorEmail
         );
     }
 
@@ -2770,21 +2734,32 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         ];
     }
 
-    if ($statusChanged || $assigneeChanged) {
-        notifyTicketFieldChangeViaApi(
+    if ($canPostAsAdmin) {
+        notifyTicketUpdateToParticipants(
             $store,
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
             $updatedTicket,
-            $ticketId,
-            $actorEmail,
             (string) $persistedReply['visible_message_for_mail'],
-            $statusChanged,
-            $assigneeChanged,
-            $assigneeChanged ? $newAssignee : '',
             updateMailMessageId(
                 (string) $persistedReply['visible_message_for_mail'],
                 (int) ($persistedReply['message_id'] ?? 0),
                 (int) ($persistedReply['status_message_id'] ?? 0)
-            )
+            ),
+            $statusChanged,
+            $assigneeChanged,
+            !$isGhost && $attachmentFiles !== [],
+            (string) ($updatedTicket['status'] ?? $newStatus),
+            $actorEmail
+        );
+    }
+    if ($assigneeChanged && $newAssignee !== '') {
+        notifyAssigneeOfTicket(
+            $store,
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
+            $updatedTicket,
+            $newAssignee,
+            (string) $persistedReply['visible_message_for_mail'],
+            $actorEmail
         );
     }
 
@@ -3649,20 +3624,13 @@ function handleRequestPageAccessApiAction(TicketStore $store, array $payload, ?a
                 $userEmail
             );
 
-            $requesterRecipients = is_array($createdTicket['participant_emails'] ?? null)
-                ? $createdTicket['participant_emails']
-                : [$userEmail];
-            $requesterLang = getUserMailLang($userEmail);
-            sendTicketNotification(
+            notifyRequesterOfCreatedTicket(
                 $store,
                 is_array($ictUsers) ? $ictUsers : [],
-                $requesterRecipients,
-                __mail('email.subject_created', $requesterLang, $ticketId),
-                buildNotificationBody($createdTicket, 'email.intro_created_self', $description, false, $requesterLang),
-                null,
-                (string) ($createdTicket['category'] ?? $category),
-                $ticketId,
-                null,
+                $createdTicket,
+                $description,
+                firstTicketMessageId($createdTicket),
+                'email.intro_created_self',
                 $userEmail
             );
         }

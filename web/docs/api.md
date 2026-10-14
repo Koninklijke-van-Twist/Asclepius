@@ -157,7 +157,7 @@ Succes → `201`:
 
 `ticket_url` is dezelfde link als de knop "Ticketlink kopiëren" in de UI (`index.php?open=<id>`).
 
-Na een geslaagd antwoord start de vertaling van de titel en de eerste tekst op de achtergrond, voor alle talen. Het aanmaken wacht daar niet op. Bestaande tickets worden niet achteraf allemaal vertaald.
+Na een geslaagd antwoord start de vertaling van de titel en de eerste tekst op de achtergrond, voor alle talen. Het aanmaken wacht daar niet op. Bestaande tickets worden niet achteraf allemaal vertaald. De bevestiging naar deelnemers volgt de taal van elke ontvanger en wacht zo nodig op de vertaling van de beschrijving, hetzelfde als een updatemail (zie `change_ticket_status`).
 
 Tip voor sleutels-apps die namens een gebruiker een ticket melden: gebruik de service-key (`asclepius_api_key` uit `login/cfg.php`), zet `user_email` op de ingelogde gebruiker en kies categorie `sleutels.kvt.nl web-applicatieproblemen`.
 
@@ -165,7 +165,7 @@ Validatiefouten → `422` met `errors` (array van strings).
 
 ## POST — `add_ticket_message`
 
-Plaats een bericht op een bestaand ticket. Ghost-berichten zijn alleen zichtbaar voor ICT op het overzicht (niet in e-mail naar de aanvrager). Een gewoon bericht wordt na het antwoord meteen voor alle talen vertaald; het plaatsen wacht daar niet op. Een ghost-concept wacht tot `publish_ghost_message`.
+Plaats een bericht op een bestaand ticket. Ghost-berichten zijn alleen zichtbaar voor ICT op het overzicht (niet in e-mail naar de aanvrager) en worden pas vertaald bij `publish_ghost_message`. Een gewoon bericht, ook van een bot of service-key, wordt na het antwoord meteen voor alle talen vertaald; het plaatsen wacht daar niet op. Een zichtbaar bericht van ICT of een bot stuurt dezelfde updatemail naar deelnemers als de webinterface: per ontvanger in diens taal, en pas als de vertaling van dat bericht er is (zie `change_ticket_status`).
 
 Een bot (service-key) kan zelf bepalen hoe het bericht in de thread staat: **weergavenaam** (zoals “Tim Falken”) en **functietitel** (het blauwe label ernaast, zoals “ICT”).
 
@@ -301,7 +301,7 @@ Bij succes heeft het antwoord ook:
 
 `url` is de directe bestands-URL (die gebruikt de thread ook voor de afbeelding). Voor `download_url` moet je ingelogd zijn. Zonder `attachments` blijft het antwoord precies zoals hiervoor.
 
-Notificaties: een bericht met bijlagen volgt dezelfde regels als een bericht zonder bijlagen via de API. E-mail gaat alleen bij een status- of toewijzingswijziging in hetzelfde verzoek (bestaand gedrag). In die mail staan inline markers als `📎 bestandsnaam`, net als bij een UI-bericht. Bij `ghost: true` horen de bijlagen bij het ghost-bericht.
+Notificaties: een zichtbaar bericht met bijlagen volgt dezelfde regels als een bericht zonder bijlagen, in de webinterface en via de API. De updatemail naar deelnemers gaat bij een zichtbare tekst, een statuswijziging, een toewijzing of openbare bijlagen, in de taal van elke ontvanger. Bij `ghost: true` horen de bijlagen bij het ghost-bericht en gaat er nog geen mail weg. In de mail staan inline markers als `📎 bestandsnaam`.
 
 Bij mutatiefouten is `error_code` de machineleesbare code; `error` is die code of een gelokaliseerde flash-tekst (zelfde als de `change_*`-acties). Bestaande callers die alleen een bericht sturen blijven werken: zonder status/assignee-velden verandert er niets aan het ticket.
 

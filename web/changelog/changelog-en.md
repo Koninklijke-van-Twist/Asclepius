@@ -3,7 +3,7 @@ date: 2026-10-14
 title: Update email in the recipient's language
 author: Cursor Agent
 
-An update email to a user follows the language that person has set. The subject, the fixed texts and the message itself are in that language.
+An update email to a user follows the language that person has set, whether the message comes from the web interface or from the API (including a bot). An internal draft is only emailed once it becomes visible. The same applies to the confirmation of a new ticket. The subject, the fixed texts and the message itself are in that language.
 
 If the message is already in that language, or the translation is already ready, the email goes out at once. Otherwise it waits until the translation arrives. If that takes longer than three minutes, the email is sent anyway: fixed texts in the right language, the message in the original. That is logged.
 

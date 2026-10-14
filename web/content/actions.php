@@ -210,22 +210,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     $userEmail
                 );
 
-                $requesterRecipients = is_array($ticket['participant_emails'] ?? null) ? $ticket['participant_emails'] : [$requesterEmail];
-                $requesterLang = getUserMailLang($requesterEmail);
                 $userIntroKey = strtolower($requesterEmail) === strtolower($userEmail)
                     ? 'email.intro_created_self'
                     : 'email.intro_created_other';
-
-                sendTicketNotification(
+                notifyRequesterOfCreatedTicket(
                     $store,
                     $ictUsers,
-                    $requesterRecipients,
-                    __mail('email.subject_created', $requesterLang, $ticketId),
-                    buildNotificationBody($ticket, $userIntroKey, $description, false, $requesterLang),
-                    null,
-                    (string) ($ticket['category'] ?? $category),
-                    $ticketId,
-                    null,
+                    $ticket,
+                    $description,
+                    firstTicketMessageId($ticket),
+                    $userIntroKey,
                     $userEmail
                 );
             }
@@ -274,20 +268,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     $participantNoteId = $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $participantChangeNote);
                     $updatedTicket = $store->getTicket($ticketId, true, $userEmail) ?? $updatedTicket;
 
-                    $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-                        ? $updatedTicket['participant_emails']
-                        : [(string) ($updatedTicket['user_email'] ?? '')];
-                    sendUserUpdateNotifications(
+                    notifyTicketUpdateToParticipants(
                         $store,
                         $ictUsers,
                         $updatedTicket,
-                        $requesterRecipients,
                         $participantChangeNote,
                         $participantNoteId,
                         false,
-                        $userEmail,
-                        $userEmail,
-                        false
+                        false,
+                        false,
+                        (string) ($updatedTicket['status'] ?? ''),
+                        $userEmail
                     );
                     $participantChangeNotifiedViaUpdate = true;
                 }
@@ -350,20 +341,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     $participantNoteId = $store->addMessage($ticketId, $userEmail, $canManageTickets ? 'admin' : 'user', $participantChangeNote);
                     $updatedTicket = $store->getTicket($ticketId, true, $userEmail) ?? $updatedTicket;
 
-                    $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-                        ? $updatedTicket['participant_emails']
-                        : [(string) ($updatedTicket['user_email'] ?? '')];
-                    sendUserUpdateNotifications(
+                    notifyTicketUpdateToParticipants(
                         $store,
                         $ictUsers,
                         $updatedTicket,
-                        $requesterRecipients,
                         $participantChangeNote,
                         $participantNoteId,
                         false,
-                        $userEmail,
-                        $userEmail,
-                        false
+                        false,
+                        false,
+                        (string) ($updatedTicket['status'] ?? ''),
+                        $userEmail
                     );
                 }
             }
@@ -515,14 +503,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                     $shouldNotifyRequester = $statusChanged || $assigneeChanged || $visibleMessageForMail !== ''
                         || (!$isGhostMode && $files !== []);
                     if ($shouldNotifyRequester) {
-                        $requesterRecipients = is_array($updatedTicket['participant_emails'] ?? null)
-                            ? $updatedTicket['participant_emails']
-                            : [(string) $updatedTicket['user_email']];
-                        sendUserUpdateNotifications(
+                        notifyTicketUpdateToParticipants(
                             $store,
                             $ictUsers,
                             $updatedTicket,
-                            $requesterRecipients,
                             $visibleMessageForMail,
                             updateMailMessageId(
                                 $visibleMessageForMail,
@@ -530,24 +514,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['_webpush_subscription
                                 (int) ($persistedReply['status_message_id'] ?? 0)
                             ),
                             $statusChanged,
-                            $userEmail,
-                            $userEmail,
-                            requesterUpdateMailHasHighImportance($statusChanged, $newStatus)
+                            $assigneeChanged,
+                            !$isGhostMode && $files !== [],
+                            $newStatus,
+                            $userEmail
                         );
                     }
 
                     if ($assigneeChanged && $newAssignee !== '') {
-                        $assigneeLang = getUserMailLang($newAssignee);
-                        sendTicketNotification(
+                        notifyAssigneeOfTicket(
                             $store,
                             $ictUsers,
-                            [$newAssignee],
-                            __mail('email.subject_assigned', $assigneeLang, $ticketId),
-                            buildNotificationBody($updatedTicket, 'email.intro_assigned', $isGhostMode ? '' : $message, true, $assigneeLang),
-                            $userEmail,
-                            (string) ($updatedTicket['category'] ?? ''),
-                            $ticketId,
-                            'assigned',
+                            $updatedTicket,
+                            $newAssignee,
+                            $isGhostMode ? '' : $message,
                             $userEmail
                         );
                     }

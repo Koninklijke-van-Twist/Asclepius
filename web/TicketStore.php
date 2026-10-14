@@ -2570,7 +2570,10 @@ class TicketStore
         string $excludeEmail,
         string $browserActorEmail,
         bool $highImportance,
-        ?int $queuedAt = null
+        ?int $queuedAt = null,
+        string $subjectKey = 'email.subject_update',
+        string $introKey = 'email.intro_update',
+        string $introSuffixKey = ''
     ): bool {
         $recipientEmail = strtolower(trim($recipientEmail));
         $recipientLang = strtolower(trim($recipientLang));
@@ -2582,10 +2585,12 @@ class TicketStore
         $statement = $this->pdo->prepare(
             'INSERT OR IGNORE INTO ticket_update_mail_queue (
                 ticket_id, message_id, recipient_email, recipient_lang, source_hash, message_text,
-                status_changed, exclude_email, browser_actor_email, high_importance, queued_at
+                status_changed, exclude_email, browser_actor_email, high_importance,
+                subject_key, intro_key, intro_suffix_key, queued_at
             ) VALUES (
                 :ticket_id, :message_id, :recipient_email, :recipient_lang, :source_hash, :message_text,
-                :status_changed, :exclude_email, :browser_actor_email, :high_importance, :queued_at
+                :status_changed, :exclude_email, :browser_actor_email, :high_importance,
+                :subject_key, :intro_key, :intro_suffix_key, :queued_at
             )'
         );
         $statement->execute([
@@ -2599,6 +2604,9 @@ class TicketStore
             ':exclude_email' => strtolower(trim($excludeEmail)),
             ':browser_actor_email' => strtolower(trim($browserActorEmail)),
             ':high_importance' => $highImportance ? 1 : 0,
+            ':subject_key' => $subjectKey,
+            ':intro_key' => $introKey,
+            ':intro_suffix_key' => $introSuffixKey,
             ':queued_at' => $queuedAt ?? time(),
         ]);
 
@@ -4582,11 +4590,17 @@ class TicketStore
                 exclude_email TEXT NOT NULL DEFAULT "",
                 browser_actor_email TEXT NOT NULL DEFAULT "",
                 high_importance INTEGER NOT NULL DEFAULT 0,
+                subject_key TEXT NOT NULL DEFAULT "email.subject_update",
+                intro_key TEXT NOT NULL DEFAULT "email.intro_update",
+                intro_suffix_key TEXT NOT NULL DEFAULT "",
                 queued_at INTEGER NOT NULL,
                 UNIQUE(message_id, recipient_email, source_hash)
             )'
         );
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_update_mail_queue_message ON ticket_update_mail_queue(message_id, queued_at)');
+        $this->ensureColumn('ticket_update_mail_queue', 'subject_key', 'TEXT NOT NULL DEFAULT "email.subject_update"');
+        $this->ensureColumn('ticket_update_mail_queue', 'intro_key', 'TEXT NOT NULL DEFAULT "email.intro_update"');
+        $this->ensureColumn('ticket_update_mail_queue', 'intro_suffix_key', 'TEXT NOT NULL DEFAULT ""');
         $this->pdo->exec(
             'CREATE TABLE IF NOT EXISTS ticket_translation_inflight (
                 entity_type TEXT NOT NULL,
