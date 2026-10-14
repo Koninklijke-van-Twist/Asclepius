@@ -946,22 +946,18 @@ function handleManageTicketParticipantsApiAction(TicketStore $store, array $payl
         $participantChangeNotifiedViaUpdate = true;
     }
 
-    foreach ($newParticipants as $newParticipantEmail) {
-        if ($participantChangeNotifiedViaUpdate) {
-            continue;
-        }
-
-        $participantLang = getUserMailLang($newParticipantEmail);
-        sendTicketNotification(
+    if (!$participantChangeNotifiedViaUpdate && $newParticipants !== []) {
+        sendLocalizedTicketNotifications(
             $store,
-            $GLOBALS['ictUsers'] ?? [],
-            [$newParticipantEmail],
-            __mail('email.subject_participant_added', $participantLang, $ticketId),
-            buildNotificationBody($updatedTicket, 'email.intro_participant_added', '', false, $participantLang),
+            is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [],
+            $updatedTicket,
+            $newParticipants,
+            '',
+            0,
+            'email.subject_participant_added',
+            'email.intro_participant_added',
+            false,
             $actorEmail,
-            (string) ($updatedTicket['category'] ?? ''),
-            $ticketId,
-            null,
             $actorEmail
         );
     }
@@ -1097,7 +1093,8 @@ function handleChangeTicketCategoryApiAction(TicketStore $store, array $payload,
             $updatedTicket,
             (string) $changeResult['assigned_email'],
             $categoryChangeNote,
-            $actorEmail
+            $actorEmail,
+            $messageId
         );
     }
 
@@ -1470,7 +1467,7 @@ function notifyTicketFieldChangeViaApi(
     );
 
     if ($assigneeChanged && $newAssignee !== '') {
-        notifyAssigneeOfTicket($store, $ictUsersList, $updatedTicket, $newAssignee, $visibleNote, $actorEmail);
+        notifyAssigneeOfTicket($store, $ictUsersList, $updatedTicket, $newAssignee, $visibleNote, $actorEmail, $messageId);
     }
 }
 
@@ -2759,7 +2756,12 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
             $updatedTicket,
             $newAssignee,
             (string) $persistedReply['visible_message_for_mail'],
-            $actorEmail
+            $actorEmail,
+            updateMailMessageId(
+                (string) $persistedReply['visible_message_for_mail'],
+                (int) ($persistedReply['message_id'] ?? 0),
+                (int) ($persistedReply['status_message_id'] ?? 0)
+            )
         );
     }
 
@@ -3610,18 +3612,18 @@ function handleRequestPageAccessApiAction(TicketStore $store, array $payload, ?a
                 (string) ($createdTicket['category'] ?? $category),
                 is_array($ictUsers) ? $ictUsers : []
             );
-            $ictLang = $assignedEmail !== '' ? getUserMailLang($assignedEmail) : 'nl';
-            sendTicketNotification(
+            notifyIctAboutTicket(
                 $store,
                 is_array($ictUsers) ? $ictUsers : [],
+                $createdTicket,
                 $ictRecipients,
-                __mail('email.subject_new_ticket', $ictLang, $ticketId),
-                buildNotificationBody($createdTicket, 'email.intro_new_ict', $description, true, $ictLang),
+                $description,
+                firstTicketMessageId($createdTicket),
+                'email.subject_new_ticket',
+                'email.intro_new_ict',
                 $userEmail,
-                (string) ($createdTicket['category'] ?? $category),
-                $ticketId,
-                'new_ticket',
-                $userEmail
+                $userEmail,
+                'new_ticket'
             );
 
             notifyRequesterOfCreatedTicket(

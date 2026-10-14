@@ -2645,7 +2645,9 @@ class TicketStore
         ?int $queuedAt = null,
         string $subjectKey = 'email.subject_update',
         string $introKey = 'email.intro_update',
-        string $introSuffixKey = ''
+        string $introSuffixKey = '',
+        bool $adminPage = false,
+        string $notificationType = ''
     ): bool {
         $recipientEmail = strtolower(trim($recipientEmail));
         $recipientLang = strtolower(trim($recipientLang));
@@ -2658,11 +2660,11 @@ class TicketStore
             'INSERT OR IGNORE INTO ticket_update_mail_queue (
                 ticket_id, message_id, recipient_email, recipient_lang, source_hash, message_text,
                 status_changed, exclude_email, browser_actor_email, high_importance,
-                subject_key, intro_key, intro_suffix_key, queued_at
+                subject_key, intro_key, intro_suffix_key, queued_at, admin_page, notification_type
             ) VALUES (
                 :ticket_id, :message_id, :recipient_email, :recipient_lang, :source_hash, :message_text,
                 :status_changed, :exclude_email, :browser_actor_email, :high_importance,
-                :subject_key, :intro_key, :intro_suffix_key, :queued_at
+                :subject_key, :intro_key, :intro_suffix_key, :queued_at, :admin_page, :notification_type
             )'
         );
         $statement->execute([
@@ -2680,6 +2682,8 @@ class TicketStore
             ':intro_key' => $introKey,
             ':intro_suffix_key' => $introSuffixKey,
             ':queued_at' => $queuedAt ?? time(),
+            ':admin_page' => $adminPage ? 1 : 0,
+            ':notification_type' => trim($notificationType),
         ]);
 
         return $statement->rowCount() > 0;
@@ -4681,6 +4685,8 @@ class TicketStore
         $this->ensureColumn('ticket_update_mail_queue', 'subject_key', 'TEXT NOT NULL DEFAULT "email.subject_update"');
         $this->ensureColumn('ticket_update_mail_queue', 'intro_key', 'TEXT NOT NULL DEFAULT "email.intro_update"');
         $this->ensureColumn('ticket_update_mail_queue', 'intro_suffix_key', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('ticket_update_mail_queue', 'admin_page', 'INTEGER NOT NULL DEFAULT 0');
+        $this->ensureColumn('ticket_update_mail_queue', 'notification_type', 'TEXT NOT NULL DEFAULT ""');
         $this->pdo->exec(
             'CREATE TABLE IF NOT EXISTS ticket_translation_inflight (
                 entity_type TEXT NOT NULL,

@@ -267,6 +267,7 @@ function routeNotificationRecipients(?TicketStore $store, array $ictUsers, array
 {
     $resolvedRecipients = [];
     $notes = [];
+    $forwards = [];
     $ictLookup = array_fill_keys(extractIctUserEmails($ictUsers), true);
     $availabilityByUser = $store instanceof TicketStore ? $store->getEffectiveIctUserAvailability() : [];
 
@@ -285,13 +286,15 @@ function routeNotificationRecipients(?TicketStore $store, array $ictUsers, array
         $forwardedTo = $store->pickAvailableIctUser($ticketCategory, $email);
         if ($forwardedTo !== null && $forwardedTo !== $email) {
             $resolvedRecipients[$forwardedTo] = $forwardedTo;
-            $notes[] = 'Let op: ' . $email . ' staat momenteel als afwezig gemarkeerd. Deze melding is daarom ook doorgestuurd naar ' . $forwardedTo . '.';
+            $forwards[] = ['absent' => $email, 'to' => $forwardedTo];
+            $notes[] = __mail('email.absence_forwarded', 'nl', $email, $forwardedTo);
         }
     }
 
     return [
         'recipients' => array_values($resolvedRecipients),
         'note' => implode(PHP_EOL, array_unique($notes)),
+        'forwards' => $forwards,
     ];
 }
 
@@ -723,24 +726,7 @@ function sendTicketNotification(
     $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $ticketCategory);
     $routedRecipients = $routing['recipients'] ?? $recipients;
     $emailRecipients = filterAdminEmailRecipients($ictUsers, $routedRecipients, $adminNotificationType);
-    $note = ($routing['note'] ?? '');
-
-    $finalMessage = $message;
-
-    if ($note !== '') {
-        ['plain' => $plain, 'html' => $html] = splitMailBody($message);
-        $plain .= PHP_EOL . PHP_EOL . $note;
-        if ($html !== null) {
-            $noteHtml = '<p style="margin-top:16px;font-size:12px;color:#5b6b82;border-top:1px solid #d8e0eb;padding-top:12px;">'
-                . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>';
-            $html = str_replace('</body>', $noteHtml . '</body>', $html);
-        }
-
-        // Herverpak als HTML-mailpakket
-        $finalMessage = $html !== null
-            ? "ASCLEPIUS_HTML_MAIL\x00" . $plain . "\x00" . $html
-            : $plain;
-    }
+    $finalMessage = appendMailNote($message, (string) ($routing['note'] ?? ''));
 
     sendTicketEmail($emailRecipients, $subject, $finalMessage, $excludeEmail, $highImportance);
 
@@ -768,6 +754,92 @@ function userUpdateMailWaitSeconds(): int
     return 180;
 }
 
+function appendMailNote(string $message, string $note): string
+{
+    $note = trim($note);
+    if ($note === '') {
+        return $message;
+    }
+
+    ['plain' => $plain, 'html' => $html] = splitMailBody($message);
+    $plain .= PHP_EOL . PHP_EOL . $note;
+    if ($html === null) {
+        return $plain;
+    }
+
+    $noteHtml = '<p style="margin-top:16px;font-size:12px;color:#5b6b82;border-top:1px solid #d8e0eb;padding-top:12px;">'
+        . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>';
+    $html = str_replace('</body>', $noteHtml . '</body>', $html);
+
+    return "ASCLEPIUS_HTML_MAIL\x00" . $plain . "\x00" . $html;
+}
+
+/**
+ * @param list<array{absent?: string, to?: string}> $forwards
+ */
+function absenceForwardNote(array $forwards, string $lang): string
+{
+    if (!array_key_exists($lang, SUPPORTED_LANGUAGES)) {
+        $lang = 'nl';
+    }
+
+    $lines = [];
+    foreach ($forwards as $forward) {
+        if (!is_array($forward)) {
+            continue;
+        }
+        $absent = trim((string) ($forward['absent'] ?? ''));
+        $to = trim((string) ($forward['to'] ?? ''));
+        if ($absent === '' || $to === '') {
+            continue;
+        }
+        $lines[] = __mail('email.absence_forwarded', $lang, $absent, $to);
+    }
+
+    return implode(PHP_EOL, array_unique($lines));
+}
+
+/**
+ * Tekst voor één taal: meteen, uit de cache, na time-out, of nog even wachten.
+ *
+ * @return array{text: string, fallback: bool}|null
+ */
+function localizedMailDelivery(TicketStore $store, int $messageId, string $lang, string $messageText, int $queuedAt, int $now): ?array
+{
+    if (!array_key_exists($lang, SUPPORTED_LANGUAGES)) {
+        $lang = 'nl';
+    }
+
+    if (function_exists('ticketMessageIsStatusNoteOnly') && ticketMessageIsStatusNoteOnly($messageText)) {
+        return [
+            'text' => ticketTranslationDisplayText($messageText, '', $lang),
+            'fallback' => false,
+        ];
+    }
+
+    $providerReady = function_exists('createTranslationProvider') && createTranslationProvider() !== null;
+    $needsTranslation = $providerReady && trim($messageText) !== '' && $messageId > 0;
+    $source = $needsTranslation
+        ? userUpdateMailSourceLanguage($store, $messageId, $messageText)
+        : '';
+    if (!$needsTranslation || ($source !== '' && $source === $lang)) {
+        return ['text' => $messageText, 'fallback' => false];
+    }
+
+    $cached = $store->getTextTranslation('ticket_message', $messageId, $lang, hash('sha256', $messageText));
+    if (is_array($cached)) {
+        $cachedText = (string) ($cached['translated_text'] ?? '');
+
+        return ['text' => $cachedText !== '' ? $cachedText : $messageText, 'fallback' => false];
+    }
+
+    if ($queuedAt > 0 && ($now - $queuedAt) >= userUpdateMailWaitSeconds()) {
+        return ['text' => $messageText, 'fallback' => true];
+    }
+
+    return null;
+}
+
 /**
  * Id van het bericht dat in de updatemail staat.
  * Bij een ghost is dat de zichtbare statusnotitie, anders het geplaatste bericht.
@@ -785,9 +857,173 @@ function updateMailMessageId(string $messageText, int $messageId, int $statusMes
 }
 
 /**
+ * Mail per taal van de ontvanger. Onderwerp, vaste teksten en het bericht
+ * horen bij die taal. Ontvangers met dezelfde taal delen één mail.
+ * Ontbreekt de vertaling, dan wacht die taal tot ze binnen is.
+ *
+ * @param list<string> $recipients
+ * @param list<mixed> $ictUsers
+ * @param list<array{absent?: string, to?: string}> $forwards
+ */
+function sendLocalizedTicketNotifications(
+    ?TicketStore $store,
+    array $ictUsers,
+    array $ticket,
+    array $recipients,
+    string $messageText,
+    int $messageId,
+    string $subjectKey = 'email.subject_update',
+    string $introKey = 'email.intro_update',
+    bool $adminPage = false,
+    ?string $excludeEmail = null,
+    ?string $browserActorEmail = null,
+    bool $highImportance = false,
+    ?string $adminNotificationType = null,
+    bool $statusChanged = false,
+    string $introSuffixKey = ''
+): void {
+    if (!$store instanceof TicketStore) {
+        return;
+    }
+
+    dispatchQueuedUserUpdateMails($store, null, null, $ictUsers);
+
+    $ticketId = (int) ($ticket['id'] ?? 0);
+    if ($ticketId <= 0) {
+        return;
+    }
+
+    $category = (string) ($ticket['category'] ?? '');
+    $recipients = normalizeNotificationRecipients($recipients, $excludeEmail);
+    $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $category);
+    $routed = is_array($routing['recipients'] ?? null) ? $routing['recipients'] : [];
+    $forwards = is_array($routing['forwards'] ?? null) ? $routing['forwards'] : [];
+    $emailRecipients = filterAdminEmailRecipients($ictUsers, $routed, $adminNotificationType);
+    $emailRecipients = normalizeNotificationRecipients($emailRecipients);
+
+    $suffixKey = $introSuffixKey;
+    if ($suffixKey === '' && $introKey === 'email.intro_update') {
+        $suffixKey = $statusChanged ? 'email.intro_update_status' : 'email.intro_update_no_status';
+    }
+
+    $byLang = [];
+    foreach ($emailRecipients as $email) {
+        $lang = getUserMailLang($email);
+        $byLang[$lang][] = $email;
+    }
+
+    $now = time();
+    $sourceHash = hash('sha256', $messageText);
+    $exclude = $excludeEmail !== null ? strtolower(trim($excludeEmail)) : '';
+    $actor = $browserActorEmail !== null ? strtolower(trim($browserActorEmail)) : '';
+    foreach ($byLang as $lang => $emails) {
+        $decision = localizedMailDelivery($store, $messageId, $lang, $messageText, 0, $now);
+        if ($decision === null) {
+            if ($messageId <= 0) {
+                continue;
+            }
+            foreach ($emails as $email) {
+                $store->enqueueUserUpdateMail(
+                    $ticketId,
+                    $messageId,
+                    $email,
+                    $lang,
+                    $sourceHash,
+                    $messageText,
+                    $statusChanged,
+                    $exclude,
+                    $actor,
+                    $highImportance,
+                    null,
+                    $subjectKey,
+                    $introKey,
+                    $suffixKey,
+                    $adminPage,
+                    $adminNotificationType ?? ''
+                );
+            }
+            continue;
+        }
+
+        sendRenderedLocalizedMails(
+            $store,
+            $ictUsers,
+            $ticket,
+            $emails,
+            $lang,
+            (string) ($decision['text'] ?? $messageText),
+            $adminPage,
+            $excludeEmail,
+            $browserActorEmail,
+            $highImportance,
+            $subjectKey,
+            $introKey,
+            $suffixKey,
+            $forwards
+        );
+    }
+}
+
+/**
+ * @param list<string> $recipients
+ * @param list<mixed> $ictUsers
+ * @param list<array{absent?: string, to?: string}> $forwards
+ */
+function sendRenderedLocalizedMails(
+    TicketStore $store,
+    array $ictUsers,
+    array $ticket,
+    array $recipients,
+    string $lang,
+    string $messageText,
+    bool $adminPage,
+    ?string $excludeEmail,
+    ?string $browserActorEmail,
+    bool $highImportance,
+    string $subjectKey,
+    string $introKey,
+    string $introSuffixKey,
+    array $forwards = []
+): void {
+    $ticketId = (int) ($ticket['id'] ?? 0);
+    $recipients = normalizeNotificationRecipients($recipients, $excludeEmail);
+    if ($ticketId <= 0 || $recipients === []) {
+        return;
+    }
+    if (!array_key_exists($lang, SUPPORTED_LANGUAGES)) {
+        $lang = 'nl';
+    }
+
+    $subjectKey = isset(TRANSLATIONS['nl'][$subjectKey]) ? $subjectKey : 'email.subject_update';
+    $introKey = isset(TRANSLATIONS['nl'][$introKey]) ? $introKey : 'email.intro_update';
+    if ($introSuffixKey === '' && $introKey === 'email.intro_update') {
+        $introSuffixKey = 'email.intro_update_no_status';
+    }
+    $introArgs = $introSuffixKey !== '' && isset(TRANSLATIONS['nl'][$introSuffixKey])
+        ? [__mail($introSuffixKey, $lang)]
+        : [];
+    $body = appendMailNote(
+        buildNotificationBody($ticket, $introKey, $messageText, $adminPage, $lang, ...$introArgs),
+        absenceForwardNote($forwards, $lang)
+    );
+    $subject = __mail($subjectKey, $lang, $ticketId);
+    sendTicketEmail($recipients, $subject, $body, $excludeEmail, $highImportance);
+
+    $browserRecipients = $recipients;
+    if ($browserActorEmail !== null) {
+        $browserRecipients = normalizeNotificationRecipients($browserRecipients, $browserActorEmail);
+    }
+    if ($browserRecipients === []) {
+        return;
+    }
+
+    $excerpt = extractDesktopNotificationBody($body);
+    $store->queueBrowserNotifications($browserRecipients, $ticketId, $subject, $excerpt);
+    sendWebPushNotifications($store, $ictUsers, $browserRecipients, $ticketId, $subject, $excerpt);
+}
+
+/**
  * Updatemail per ontvanger, in de taal uit user_prefs.
- * Zelfde taal als het bericht, of een vertaling die al klaarstaat: meteen.
- * Anders in de wachtrij tot die vertaling binnenkomt.
  *
  * @param list<string> $recipients
  * @param list<mixed> $ictUsers
@@ -806,145 +1042,58 @@ function sendUserUpdateNotifications(
     string $subjectKey = 'email.subject_update',
     string $introKey = 'email.intro_update'
 ): void {
-    if (!$store instanceof TicketStore) {
-        return;
-    }
-
-    dispatchQueuedUserUpdateMails($store, null, null, $ictUsers);
-
-    $ticketId = (int) ($ticket['id'] ?? 0);
-    if ($ticketId <= 0) {
-        return;
-    }
-
-    $providerReady = function_exists('createTranslationProvider') && createTranslationProvider() !== null;
-    $needsTranslation = $providerReady && trim($messageText) !== '' && $messageId > 0;
-    $sourceHash = hash('sha256', $messageText);
-    $knownSource = $needsTranslation
-        ? userUpdateMailSourceLanguage($store, $messageId, $messageText)
-        : '';
-    $exclude = $excludeEmail !== null ? strtolower(trim($excludeEmail)) : '';
-    $seen = [];
-
-    foreach ($recipients as $recipient) {
-        $email = strtolower(trim((string) $recipient));
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || isset($seen[$email])) {
-            continue;
-        }
-        if ($exclude !== '' && $email === $exclude) {
-            continue;
-        }
-        $seen[$email] = true;
-
-        $lang = getUserMailLang($email);
-        $textForMail = $messageText;
-        $sendNow = true;
-        if (function_exists('ticketMessageIsStatusNoteOnly') && ticketMessageIsStatusNoteOnly($messageText)) {
-            $textForMail = ticketTranslationDisplayText($messageText, '', $lang);
-        } elseif ($needsTranslation && !($knownSource !== '' && $knownSource === $lang)) {
-            $cached = $store->getTextTranslation('ticket_message', $messageId, $lang, $sourceHash);
-            if (is_array($cached)) {
-                $cachedText = (string) ($cached['translated_text'] ?? '');
-                $textForMail = $cachedText !== '' ? $cachedText : $messageText;
-            } else {
-                $sendNow = false;
-            }
-        }
-
-        $suffixKey = $introKey === 'email.intro_update'
-            ? ($statusChanged ? 'email.intro_update_status' : 'email.intro_update_no_status')
-            : '';
-        if ($sendNow) {
-            deliverUserUpdateMail(
-                $store,
-                $ictUsers,
-                $ticket,
-                $email,
-                $lang,
-                $textForMail,
-                $statusChanged,
-                $excludeEmail,
-                $browserActorEmail,
-                $highImportance,
-                $subjectKey,
-                $introKey,
-                $suffixKey
-            );
-            continue;
-        }
-
-        $store->enqueueUserUpdateMail(
-            $ticketId,
-            $messageId,
-            $email,
-            $lang,
-            $sourceHash,
-            $messageText,
-            $statusChanged,
-            $exclude,
-            $browserActorEmail !== null ? strtolower(trim($browserActorEmail)) : '',
-            $highImportance,
-            null,
-            $subjectKey,
-            $introKey,
-            $suffixKey
-        );
-    }
+    sendLocalizedTicketNotifications(
+        $store,
+        $ictUsers,
+        $ticket,
+        $recipients,
+        $messageText,
+        $messageId,
+        $subjectKey,
+        $introKey,
+        false,
+        $excludeEmail,
+        $browserActorEmail,
+        $highImportance,
+        null,
+        $statusChanged
+    );
 }
 
 /**
+ * Mail naar ICT of de behandelaar, in de taal van elke ontvanger.
+ *
+ * @param list<string> $recipients
  * @param list<mixed> $ictUsers
  */
-function deliverUserUpdateMail(
-    TicketStore $store,
+function notifyIctAboutTicket(
+    ?TicketStore $store,
     array $ictUsers,
     array $ticket,
-    string $recipientEmail,
-    string $lang,
+    array $recipients,
     string $messageText,
-    bool $statusChanged,
+    int $messageId,
+    string $subjectKey,
+    string $introKey,
     ?string $excludeEmail,
-    ?string $browserActorEmail,
-    bool $highImportance,
-    string $subjectKey = 'email.subject_update',
-    string $introKey = 'email.intro_update',
-    string $introSuffixKey = ''
+    ?string $actorEmail,
+    string $notificationType
 ): void {
-    $ticketId = (int) ($ticket['id'] ?? 0);
-    if ($ticketId <= 0 || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
-        return;
-    }
-    if (!array_key_exists($lang, SUPPORTED_LANGUAGES)) {
-        $lang = 'nl';
-    }
-
-    $subjectKey = isset(TRANSLATIONS['nl'][$subjectKey]) ? $subjectKey : 'email.subject_update';
-    $introKey = isset(TRANSLATIONS['nl'][$introKey]) ? $introKey : 'email.intro_update';
-    if ($introSuffixKey === '' && $introKey === 'email.intro_update') {
-        $introSuffixKey = $statusChanged ? 'email.intro_update_status' : 'email.intro_update_no_status';
-    }
-    $introArgs = $introSuffixKey !== '' && isset(TRANSLATIONS['nl'][$introSuffixKey])
-        ? [__mail($introSuffixKey, $lang)]
-        : [];
-    sendTicketNotification(
+    sendLocalizedTicketNotifications(
         $store,
         $ictUsers,
-        [$recipientEmail],
-        __mail($subjectKey, $lang, $ticketId),
-        buildNotificationBody(
-            $ticket,
-            $introKey,
-            $messageText,
-            false,
-            $lang,
-            ...$introArgs
-        ),
+        $ticket,
+        $recipients,
+        $messageText,
+        $messageId,
+        $subjectKey,
+        $introKey,
+        true,
         $excludeEmail,
-        (string) ($ticket['category'] ?? ''),
-        $ticketId,
-        null,
-        $browserActorEmail,
-        $highImportance
+        $actorEmail,
+        false,
+        $notificationType,
+        false
     );
 }
 
@@ -986,6 +1135,7 @@ function dispatchQueuedUserUpdateMails(TicketStore $store, ?int $messageId = nul
         $ictUsers = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
     }
 
+    $groups = [];
     foreach ($store->listUserUpdateMailQueue($messageId) as $row) {
         if (!is_array($row)) {
             continue;
@@ -999,40 +1149,99 @@ function dispatchQueuedUserUpdateMails(TicketStore $store, ?int $messageId = nul
             continue;
         }
 
-        $claimed = $store->claimUserUpdateMail((int) ($row['id'] ?? 0));
-        if ($claimed === null) {
+        $notificationType = trim((string) ($row['notification_type'] ?? ''));
+        $recipient = strtolower(trim((string) ($row['recipient_email'] ?? '')));
+        if ($notificationType !== '' && $recipient !== '') {
+            $allowed = filterAdminEmailRecipients($ictUsers, [$recipient], $notificationType);
+            if (!in_array($recipient, $allowed, true)) {
+                $store->claimUserUpdateMail((int) ($row['id'] ?? 0));
+                continue;
+            }
+        }
+
+        $lang = strtolower(trim((string) ($row['recipient_lang'] ?? 'nl')));
+        $groupKey = implode("\0", [
+            (string) ((int) ($row['ticket_id'] ?? 0)),
+            $lang,
+            (string) ($row['subject_key'] ?? ''),
+            (string) ($row['intro_key'] ?? ''),
+            (string) ($row['intro_suffix_key'] ?? ''),
+            (string) ($decision['text'] ?? ''),
+            !empty($decision['fallback']) ? '1' : '0',
+            !empty($row['admin_page']) ? '1' : '0',
+            !empty($row['high_importance']) ? '1' : '0',
+            !empty($row['status_changed']) ? '1' : '0',
+            strtolower(trim((string) ($row['exclude_email'] ?? ''))),
+            strtolower(trim((string) ($row['browser_actor_email'] ?? ''))),
+        ]);
+        if (!isset($groups[$groupKey])) {
+            $groups[$groupKey] = [
+                'rows' => [],
+                'text' => (string) ($decision['text'] ?? ''),
+                'fallback' => !empty($decision['fallback']),
+            ];
+        }
+        $groups[$groupKey]['rows'][] = $row;
+    }
+
+    foreach ($groups as $group) {
+        $claimedRows = [];
+        foreach ($group['rows'] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $claimed = $store->claimUserUpdateMail((int) ($row['id'] ?? 0));
+            if ($claimed !== null) {
+                $claimedRows[] = $claimed;
+            }
+        }
+        if ($claimedRows === []) {
             continue;
         }
 
-        $ticketId = (int) ($claimed['ticket_id'] ?? 0);
-        $recipient = strtolower(trim((string) ($claimed['recipient_email'] ?? '')));
-        $lang = strtolower(trim((string) ($claimed['recipient_lang'] ?? 'nl')));
-        $ticket = $store->getTicket($ticketId, true, $recipient);
+        $first = $claimedRows[0];
+        $ticketId = (int) ($first['ticket_id'] ?? 0);
+        $lang = strtolower(trim((string) ($first['recipient_lang'] ?? 'nl')));
+        $recipients = [];
+        foreach ($claimedRows as $claimed) {
+            $recipient = strtolower(trim((string) ($claimed['recipient_email'] ?? '')));
+            if ($recipient === '') {
+                continue;
+            }
+            $recipients[] = $recipient;
+            if (!empty($group['fallback'])) {
+                logUserUpdateMailFallback($ticketId, $recipient, $lang);
+            }
+        }
+
+        $ticket = $store->getTicket($ticketId, true, '');
         if ($ticket === null) {
-            error_log('[asclepius] updatemail ticket ' . $ticketId . ' naar ' . $recipient . ': ticket ontbreekt, mail vervallen');
+            foreach ($recipients as $recipient) {
+                error_log('[asclepius] updatemail ticket ' . $ticketId . ' naar ' . $recipient . ': ticket ontbreekt, mail vervallen');
+            }
             continue;
         }
 
-        if (!empty($decision['fallback'])) {
-            logUserUpdateMailFallback($ticketId, $recipient, $lang);
-        }
-
-        $exclude = trim((string) ($claimed['exclude_email'] ?? ''));
-        $actor = trim((string) ($claimed['browser_actor_email'] ?? ''));
-        deliverUserUpdateMail(
+        $exclude = trim((string) ($first['exclude_email'] ?? ''));
+        $actor = trim((string) ($first['browser_actor_email'] ?? ''));
+        $category = (string) ($ticket['category'] ?? '');
+        $routing = routeNotificationRecipients($store, $ictUsers, $recipients, $category);
+        $forwards = is_array($routing['forwards'] ?? null) ? $routing['forwards'] : [];
+        sendRenderedLocalizedMails(
             $store,
             $ictUsers,
             $ticket,
-            $recipient,
+            $recipients,
             $lang,
-            (string) ($decision['text'] ?? ''),
-            !empty($claimed['status_changed']),
+            (string) ($group['text'] ?? ''),
+            !empty($first['admin_page']),
             $exclude !== '' ? $exclude : null,
             $actor !== '' ? $actor : null,
-            !empty($claimed['high_importance']),
-            (string) ($claimed['subject_key'] ?? 'email.subject_update'),
-            (string) ($claimed['intro_key'] ?? 'email.intro_update'),
-            (string) ($claimed['intro_suffix_key'] ?? '')
+            !empty($first['high_importance']),
+            (string) ($first['subject_key'] ?? 'email.subject_update'),
+            (string) ($first['intro_key'] ?? 'email.intro_update'),
+            (string) ($first['intro_suffix_key'] ?? ''),
+            $forwards
         );
     }
 }
@@ -1057,31 +1266,7 @@ function resolveQueuedUserUpdateMail(TicketStore $store, array $row, int $now): 
         return ['drop' => true];
     }
 
-    if (function_exists('ticketMessageIsStatusNoteOnly') && ticketMessageIsStatusNoteOnly($currentText)) {
-        return [
-            'text' => ticketTranslationDisplayText($currentText, '', $lang),
-            'fallback' => false,
-        ];
-    }
-
-    $source = userUpdateMailSourceLanguage($store, $messageId, $currentText);
-    if ($source !== '' && $source === $lang) {
-        return ['text' => $original, 'fallback' => false];
-    }
-
-    $cached = $store->getTextTranslation('ticket_message', $messageId, $lang, $sourceHash);
-    if (is_array($cached)) {
-        $cachedText = (string) ($cached['translated_text'] ?? '');
-
-        return ['text' => $cachedText !== '' ? $cachedText : $original, 'fallback' => false];
-    }
-
-    $queuedAt = (int) ($row['queued_at'] ?? 0);
-    if ($queuedAt > 0 && ($now - $queuedAt) >= userUpdateMailWaitSeconds()) {
-        return ['text' => $original, 'fallback' => true];
-    }
-
-    return null;
+    return localizedMailDelivery($store, $messageId, $lang, $currentText, (int) ($row['queued_at'] ?? 0), $now);
 }
 
 /**
@@ -1168,26 +1353,26 @@ function notifyAssigneeOfTicket(
     array $ticket,
     string $newAssignee,
     string $visibleNote,
-    ?string $actorEmail
+    ?string $actorEmail,
+    int $messageId = 0
 ): void {
     $newAssignee = strtolower(trim($newAssignee));
     if ($newAssignee === '' || !$store instanceof TicketStore) {
         return;
     }
 
-    $ticketId = (int) ($ticket['id'] ?? 0);
-    $assigneeLang = getUserMailLang($newAssignee);
-    sendTicketNotification(
+    notifyIctAboutTicket(
         $store,
         $ictUsers,
+        $ticket,
         [$newAssignee],
-        __mail('email.subject_assigned', $assigneeLang, $ticketId),
-        buildNotificationBody($ticket, 'email.intro_assigned', $visibleNote, true, $assigneeLang),
+        $visibleNote,
+        $messageId,
+        'email.subject_assigned',
+        'email.intro_assigned',
         $actorEmail,
-        (string) ($ticket['category'] ?? ''),
-        $ticketId,
-        'assigned',
-        $actorEmail
+        $actorEmail,
+        'assigned'
     );
 }
 
