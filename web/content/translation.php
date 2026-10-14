@@ -76,7 +76,9 @@ function translateTicketTextForViewer(
     int $ticketId,
     string $rawText,
     string $targetAppLanguage,
-    bool $cacheOnly = false
+    bool $cacheOnly = false,
+    bool $waitForInFlight = false,
+    ?float $inFlightWaitSeconds = null
 ): array {
     $targetLanguage = strtolower(trim($targetAppLanguage));
     if (!array_key_exists($targetLanguage, SUPPORTED_LANGUAGES)) {
@@ -148,6 +150,20 @@ function translateTicketTextForViewer(
     }
 
     $claimToken = $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, ticketTranslationClaimTtlSeconds());
+    if ($claimToken === null && $waitForInFlight) {
+        $claimToken = waitOrTakeOverTextTranslationClaim(
+            $store,
+            $entityType,
+            $entityId,
+            $sourceHash,
+            $rawText,
+            $targetLanguage,
+            $inFlightWaitSeconds
+        );
+        if (is_array($claimToken)) {
+            return $claimToken;
+        }
+    }
     if ($claimToken === null) {
         return [
             'text' => $rawText,
@@ -231,7 +247,7 @@ function localizeTicketForViewer(array $ticket, TicketStore $store, string $view
     return $ticket;
 }
 
-function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, string $viewerLanguage, bool $cacheOnly = false): array
+function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, string $viewerLanguage, bool $cacheOnly = false, bool $waitForInFlight = false): array
 {
     $ticketId = (int) ($ticketDetail['id'] ?? 0);
     $rawTitle = (string) ($ticketDetail['title'] ?? '');
@@ -242,7 +258,8 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
         $ticketId,
         $rawTitle,
         $viewerLanguage,
-        $cacheOnly
+        $cacheOnly,
+        $waitForInFlight
     );
 
     $ticketDetail['title_raw'] = $rawTitle;
@@ -263,7 +280,8 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
             $ticketId,
             $rawMessageText,
             $viewerLanguage,
-            $cacheOnly
+            $cacheOnly,
+            $waitForInFlight
         );
 
         $message['message_text_raw'] = $rawMessageText;
@@ -309,6 +327,63 @@ function ticketTranslationTimeLimitSeconds(): int
 function ticketTranslationClaimTtlSeconds(): int
 {
     return (int) ceil(ticketTranslationFlowTimeoutSeconds()) + 60;
+}
+
+/**
+ * De lijst keert meteen terug als een andere aanvraag de tekst heeft.
+ * Het geopende ticket wacht kort op die aanvraag en neemt een stilgevallen claim over.
+ */
+function ticketTranslationInteractiveClaimStaleSeconds(): int
+{
+    return 12;
+}
+
+function ticketTranslationInFlightWaitSeconds(): float
+{
+    return 8.0;
+}
+
+/**
+ * @return array{text: string, is_translated: bool, source_language: string, target_language: string, translation_pending: bool, translation_error: string, translation_error_detail: string}|string|null
+ *         string = claim-token om zelf te vertalen, array = cache die tijdens het wachten binnenkwam, null = nog bezet
+ */
+function waitOrTakeOverTextTranslationClaim(
+    TicketStore $store,
+    string $entityType,
+    int $entityId,
+    string $sourceHash,
+    string $rawText,
+    string $targetLanguage,
+    ?float $waitSeconds = null
+): array|string|null {
+    $existing = $store->getTextTranslationClaim($entityType, $entityId);
+    $existingHash = is_array($existing) ? (string) ($existing['source_hash'] ?? '') : '';
+    $sameText = $existingHash !== ''
+        && strlen($existingHash) === strlen($sourceHash)
+        && hash_equals($existingHash, $sourceHash);
+    $age = $sameText ? time() - (int) ($existing['claimed_at'] ?? time()) : 0;
+    $staleSeconds = ticketTranslationInteractiveClaimStaleSeconds();
+    // tryClaim neemt over bij claimed_at < now - stale, dus één seconde korter zodat 12 seconden al geldt.
+    $takeoverAfter = max(0, $staleSeconds - 1);
+    if ($sameText && $age >= $staleSeconds) {
+        return $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, $takeoverAfter);
+    }
+
+    $deadline = microtime(true) + max(0.0, $waitSeconds ?? ticketTranslationInFlightWaitSeconds());
+    while (microtime(true) < $deadline) {
+        $cached = $store->getTextTranslation($entityType, $entityId, $targetLanguage, $sourceHash);
+        if (is_array($cached)) {
+            return ticketTranslationFromCacheRow($store, $entityType, $entityId, $sourceHash, $rawText, $targetLanguage, $cached);
+        }
+
+        $slice = $deadline - microtime(true);
+        if ($slice <= 0) {
+            break;
+        }
+        usleep((int) (min(0.25, $slice) * 1000000));
+    }
+
+    return $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, $takeoverAfter);
 }
 
 function ticketTranslationsCoverAllLanguages(TicketStore $store, string $entityType, int $entityId, string $sourceHash): bool

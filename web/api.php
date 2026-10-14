@@ -4225,7 +4225,8 @@ if ($method === 'POST') {
             sendJson(404, ['success' => false, 'error' => 'ticket_not_found']);
         }
 
-        $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $language, false);
+        $waitForInFlight = !empty($payload['wait_for_inflight']);
+        $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $language, false, $waitForInFlight);
 
         $messages = [];
         foreach (($ticketDetail['messages'] ?? []) as $message) {

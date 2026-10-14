@@ -5,6 +5,8 @@ author: Cursor Agent
 
 Un nouveau message est de nouveau traduit en anglais, en français et en allemand, et plus seulement en néerlandais. La traduction apparaît d'elle-même. Une traduction déjà enregistrée reste disponible.
 
+Dans Mes tickets, la traduction du titre apparaissait vite, alors que les messages du ticket ouvert restaient sur l'icône de chargement. Ouvrir un ticket demande maintenant ces messages. Si une traduction est déjà en cours, le ticket ouvert attend un court instant et reprend de lui-même si cette traduction s'arrête.
+
 Les boutons pour afficher l'original ou la traduction, le statut de présence Janus et la catégorie Printerproblemen suivent la langue choisie.
 
 id: 2026-10-14-update-mail-language

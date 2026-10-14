@@ -5,6 +5,8 @@ author: Cursor Agent
 
 Een nieuw bericht wordt weer vertaald naar het Engels, Frans en Duits, niet alleen naar het Nederlands. De vertaling verschijnt vanzelf. Een vertaling die al was opgeslagen, blijft staan.
 
+In de lijst Mijn tickets verscheen de titelvertaling snel, terwijl de berichten in het geopende ticket op het laadicoon bleven staan. Een geopend ticket vraagt die berichten nu alsnog op. Loopt er al een vertaling, dan wacht het geopende ticket daar kort op en gaat zelf verder als die vertaling stilvalt.
+
 De knoppen om het origineel of de vertaling te tonen, de aanwezigheidsstatus uit Janus en de categorie Printerproblemen volgen de taal die je hebt gekozen.
 
 id: 2026-10-14-update-mail-language

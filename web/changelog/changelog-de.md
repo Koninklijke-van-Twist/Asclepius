@@ -5,6 +5,8 @@ author: Cursor Agent
 
 Eine neue Nachricht wird wieder ins Englische, Französische und Deutsche übersetzt, nicht nur ins Niederländische. Die Übersetzung erscheint von selbst. Eine bereits gespeicherte Übersetzung bleibt erhalten.
 
+In Meine Tickets erschien die Titelübersetzung schnell, während die Nachrichten im geöffneten Ticket am Ladezeichen hängen blieben. Ein geöffnetes Ticket fordert diese Nachrichten jetzt nach. Läuft schon eine Übersetzung, wartet das geöffnete Ticket kurz und macht selbst weiter, wenn diese Übersetzung stehen bleibt.
+
 Die Schaltflächen für Original und Übersetzung, der Janus-Anwesenheitsstatus und die Kategorie Printerproblemen folgen der gewählten Sprache.
 
 id: 2026-10-14-update-mail-language

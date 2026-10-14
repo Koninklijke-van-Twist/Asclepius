@@ -2861,6 +2861,38 @@ class TicketStore
     }
 
     /**
+     * @return array{source_hash: string, claimed_at: int}|null
+     */
+    public function getTextTranslationClaim(string $entityType, int $entityId): ?array
+    {
+        $normalizedEntityType = trim($entityType);
+        if ($normalizedEntityType === '' || $entityId <= 0) {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT source_hash, claimed_at
+             FROM ticket_translation_inflight
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+        ]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return null;
+        }
+
+        return [
+            'source_hash' => (string) ($row['source_hash'] ?? ''),
+            'claimed_at' => (int) ($row['claimed_at'] ?? 0),
+        ];
+    }
+
+    /**
      * Eén lopende vertaling per bericht of titel. null = iemand anders is al bezig met dezelfde tekst.
      * Een andere tekst (bewerking) of een verlopen claim neemt de lock over.
      */
