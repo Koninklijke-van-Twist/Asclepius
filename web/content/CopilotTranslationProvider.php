@@ -78,11 +78,32 @@ class CopilotTranslationProvider implements TranslationProvider
             $targetLanguage = 'nl';
         }
 
+        $bundle = $this->translateBundle($rawText, $targetLanguage);
+
+        return [
+            'translated_text' => (string) ($bundle['translations'][$targetLanguage] ?? ''),
+            'source_language' => $bundle['source_language'],
+        ];
+    }
+
+    /**
+     * Eén flow-antwoord bevat alle gevraagde talen. De aanroeper bewaart ze allemaal.
+     *
+     * @return array{translations: array<string, string>, source_language: string, target_language: string}
+     */
+    public function translateBundle(string $rawText, string $targetAppLanguage): array
+    {
+        $targetLanguage = strtolower(trim($targetAppLanguage));
+        if (!array_key_exists($targetLanguage, SUPPORTED_LANGUAGES)) {
+            $targetLanguage = 'nl';
+        }
+
         $translations = $this->translationsFor($rawText);
 
         return [
-            'translated_text' => (string) ($translations[$targetLanguage] ?? ''),
+            'translations' => $translations,
             'source_language' => $this->sourceLanguageFromTranslations($rawText, $targetLanguage, $translations),
+            'target_language' => $targetLanguage,
         ];
     }
 
@@ -134,10 +155,11 @@ class CopilotTranslationProvider implements TranslationProvider
     private function requestTranslations(string $rawText, string $id): array
     {
         $masked = $this->maskKeyboardTokens($rawText);
+        $languages = cpt_request_languages();
         $payload = [
             'id' => $id,
             'text' => $masked['text'],
-            'languages' => CPT_DEFAULT_LANGUAGES,
+            'languages' => $languages,
         ];
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
@@ -159,7 +181,7 @@ class CopilotTranslationProvider implements TranslationProvider
             throw new RuntimeException($message, $status);
         }
 
-        $parsed = cpt_parse_translations($body, CPT_DEFAULT_LANGUAGES);
+        $parsed = cpt_parse_translations($body, $languages);
         if ($parsed === null) {
             throw new RuntimeException(
                 'HTTP ' . $status . ' onleesbaar antwoord: ' . substr($body, 0, 200),

@@ -1,3 +1,15 @@
+id: 2026-10-14-translate-on-post
+date: 2026-10-14
+title: Translation starts with a new message
+author: Cursor Agent
+
+A new ticket or a newly posted message is translated into every language right away. Posting itself does not wait for that. Existing messages are not translated afterwards in bulk; when you open a ticket you see a translation if it is already there, and otherwise it is still requested on demand.
+
+When the Copilot flow returns several languages in one answer, all of them are kept. Without the flow, Lara still works one language at a time.
+
+If you change a message or the title, the old translations are dropped and translated again. An internal draft is translated once it becomes visible.
+
+---
 id: 2026-10-13-copilot-translate
 date: 2026-10-13
 title: Translation via the Copilot flow

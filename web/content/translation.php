@@ -120,6 +120,17 @@ function translateTicketTextForViewer(
         ];
     }
 
+    if (!$store->translationSourceMatches($entityType, $entityId, $rawText)) {
+        return [
+            'text' => $rawText,
+            'is_translated' => false,
+            'source_language' => '',
+            'target_language' => $targetLanguage,
+            'translation_pending' => true,
+            'translation_error' => '',
+        ];
+    }
+
     $provider = createTranslationProvider();
     if ($provider === null) {
         return [
@@ -132,39 +143,49 @@ function translateTicketTextForViewer(
         ];
     }
 
-    try {
-        $result = $provider->translateText($rawText, $targetLanguage);
-
-        $detectedAppLanguage = (string) ($result['source_language'] ?? '');
-        $translatedText      = (string) ($result['translated_text'] ?? '');
-
-        if ($detectedAppLanguage !== '' && $detectedAppLanguage === $targetLanguage) {
-            $translatedText = $rawText;
-        }
-
-        if ($translatedText === '') {
-            $translatedText = $rawText;
-        }
-
-        $store->upsertTextTranslation(
-            $entityType,
-            $entityId,
-            $ticketId,
-            $targetLanguage,
-            $detectedAppLanguage,
-            $sourceHash,
-            $translatedText
-        );
-
+    $claimToken = $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, ticketTranslationClaimTtlSeconds());
+    if ($claimToken === null) {
         return [
-            'text' => $translatedText,
-            'is_translated' => $detectedAppLanguage !== '' && $detectedAppLanguage !== $targetLanguage,
-            'source_language' => $detectedAppLanguage,
+            'text' => $rawText,
+            'is_translated' => false,
+            'source_language' => '',
             'target_language' => $targetLanguage,
-            'translation_pending' => false,
+            'translation_pending' => true,
             'translation_error' => '',
-            'translation_error_detail' => '',
         ];
+    }
+
+    try {
+        $cachedAfterClaim = $store->getTextTranslation($entityType, $entityId, $targetLanguage, $sourceHash);
+        if (is_array($cachedAfterClaim)) {
+            $cachedSourceLanguage = (string) ($cachedAfterClaim['source_language'] ?? '');
+            $cachedText = (string) ($cachedAfterClaim['translated_text'] ?? $rawText);
+
+            return [
+                'text' => $cachedText,
+                'is_translated' => $cachedSourceLanguage !== '' && $cachedSourceLanguage !== $targetLanguage,
+                'source_language' => $cachedSourceLanguage,
+                'target_language' => $targetLanguage,
+                'translation_pending' => false,
+                'translation_error' => '',
+            ];
+        }
+
+        $stored = $provider instanceof CopilotTranslationProvider
+            ? storeCopilotTicketTranslations($store, $provider, $entityType, $entityId, $ticketId, $rawText, $sourceHash, $claimToken, $targetLanguage)
+            : storeSingleTicketTranslation($store, $provider, $entityType, $entityId, $ticketId, $rawText, $sourceHash, $claimToken, $targetLanguage);
+        if ($stored === null) {
+            return [
+                'text' => $rawText,
+                'is_translated' => false,
+                'source_language' => '',
+                'target_language' => $targetLanguage,
+                'translation_pending' => true,
+                'translation_error' => '',
+            ];
+        }
+
+        return $stored;
     } catch (Throwable $e) {
         if ($e instanceof RuntimeException && $e->getMessage() === CopilotTranslationProvider::BUDGET_EXHAUSTED) {
             return [
@@ -188,6 +209,8 @@ function translateTicketTextForViewer(
             'translation_error' => 'provider_error',
             'translation_error_detail' => $detail,
         ];
+    } finally {
+        $store->releaseTextTranslationClaim($entityType, $entityId, $claimToken);
     }
 }
 
@@ -261,4 +284,410 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
     $ticketDetail['messages'] = $messages;
 
     return $ticketDetail;
+}
+
+/**
+ * Talen die in één Copilot-verzoek meegaan en die Lara per stuk afwerkt.
+ *
+ * @return list<string>
+ */
+function ticketTranslationLanguages(): array
+{
+    return cpt_request_languages();
+}
+
+function ticketTranslationFlowTimeoutSeconds(): float
+{
+    global $copilotTranslate;
+    if (isset($copilotTranslate['timeout']) && is_numeric($copilotTranslate['timeout']) && (float) $copilotTranslate['timeout'] > 0) {
+        return (float) $copilotTranslate['timeout'];
+    }
+
+    return 120.0;
+}
+
+function ticketTranslationTimeLimitSeconds(): int
+{
+    return (int) ceil(ticketTranslationFlowTimeoutSeconds()) + 30;
+}
+
+/** Verse claim blijft zo lang gelden; daarna mag een volgende aanvraag het overnemen. */
+function ticketTranslationClaimTtlSeconds(): int
+{
+    return (int) ceil(ticketTranslationFlowTimeoutSeconds()) + 60;
+}
+
+function ticketTranslationsCoverAllLanguages(TicketStore $store, string $entityType, int $entityId, string $sourceHash): bool
+{
+    $languages = ticketTranslationLanguages();
+    if ($languages === []) {
+        return false;
+    }
+
+    foreach ($languages as $language) {
+        if ($store->getTextTranslation($entityType, $entityId, $language, $sourceHash) === null) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * @return array{text: string, is_translated: bool, source_language: string, target_language: string, translation_pending: bool, translation_error: string, translation_error_detail: string}
+ */
+function ticketTranslationStoredResult(string $rawText, string $targetLanguage, string $storedText, string $sourceLanguage): array
+{
+    return [
+        'text' => $storedText,
+        'is_translated' => $sourceLanguage !== '' && $sourceLanguage !== $targetLanguage,
+        'source_language' => $sourceLanguage,
+        'target_language' => $targetLanguage,
+        'translation_pending' => false,
+        'translation_error' => '',
+        'translation_error_detail' => '',
+    ];
+}
+
+function normalizedStoredTranslation(string $rawText, string $language, string $translatedText, string $sourceLanguage): string
+{
+    if ($sourceLanguage !== '' && $sourceLanguage === $language) {
+        return $rawText;
+    }
+    if ($translatedText === '') {
+        return $rawText;
+    }
+
+    return $translatedText;
+}
+
+/**
+ * Copilot levert alle talen in één antwoord. Bewaar ze allemaal, niet alleen de leestaal.
+ *
+ * @return array{text: string, is_translated: bool, source_language: string, target_language: string, translation_pending: bool, translation_error: string, translation_error_detail: string}|null
+ */
+function storeCopilotTicketTranslations(
+    TicketStore $store,
+    CopilotTranslationProvider $provider,
+    string $entityType,
+    int $entityId,
+    int $ticketId,
+    string $rawText,
+    string $sourceHash,
+    string $claimToken,
+    string $targetLanguage
+): ?array {
+    $bundle = $provider->translateBundle($rawText, $targetLanguage);
+    $sourceLanguage = (string) ($bundle['source_language'] ?? '');
+    $translations = is_array($bundle['translations'] ?? null) ? $bundle['translations'] : [];
+    $toStore = [];
+    foreach ($translations as $language => $translatedText) {
+        $language = strtolower(trim((string) $language));
+        if ($language === '' || !array_key_exists($language, SUPPORTED_LANGUAGES) || !is_string($translatedText)) {
+            continue;
+        }
+        $toStore[$language] = normalizedStoredTranslation($rawText, $language, $translatedText, $sourceLanguage);
+    }
+    if (!array_key_exists($targetLanguage, $toStore)) {
+        $toStore[$targetLanguage] = normalizedStoredTranslation($rawText, $targetLanguage, '', $sourceLanguage);
+    }
+
+    if (!$store->saveTextTranslationsIfClaimed($entityType, $entityId, $ticketId, $sourceHash, $claimToken, $sourceLanguage, $toStore)) {
+        return null;
+    }
+
+    return ticketTranslationStoredResult($rawText, $targetLanguage, $toStore[$targetLanguage], $sourceLanguage);
+}
+
+/**
+ * Lara (en elke andere provider) levert één taal per aanroep.
+ *
+ * @return array{text: string, is_translated: bool, source_language: string, target_language: string, translation_pending: bool, translation_error: string, translation_error_detail: string}|null
+ */
+function storeSingleTicketTranslation(
+    TicketStore $store,
+    TranslationProvider $provider,
+    string $entityType,
+    int $entityId,
+    int $ticketId,
+    string $rawText,
+    string $sourceHash,
+    string $claimToken,
+    string $targetLanguage
+): ?array {
+    $result = $provider->translateText($rawText, $targetLanguage);
+    $sourceLanguage = (string) ($result['source_language'] ?? '');
+    $storedText = normalizedStoredTranslation(
+        $rawText,
+        $targetLanguage,
+        (string) ($result['translated_text'] ?? ''),
+        $sourceLanguage
+    );
+    if (!$store->saveTextTranslationsIfClaimed(
+        $entityType,
+        $entityId,
+        $ticketId,
+        $sourceHash,
+        $claimToken,
+        $sourceLanguage,
+        [$targetLanguage => $storedText]
+    )) {
+        return null;
+    }
+
+    return ticketTranslationStoredResult($rawText, $targetLanguage, $storedText, $sourceLanguage);
+}
+
+/**
+ * Zet een vertaling in de wachtrij. Het HTTP-antwoord gaat eerst weg; daarna pas de flow.
+ * Bestaande berichten komen hier niet in: die blijven via translate_ticket (vangnet).
+ */
+function queueTicketTextTranslation(TicketStore $store, string $entityType, int $entityId, int $ticketId, string $rawText): void
+{
+    if (trim($rawText) === '' || $entityId <= 0 || $ticketId <= 0 || trim($entityType) === '') {
+        return;
+    }
+    if (createTranslationProvider() === null) {
+        return;
+    }
+
+    if (!isset($GLOBALS['asclepiusTranslationQueue']) || !is_array($GLOBALS['asclepiusTranslationQueue'])) {
+        $GLOBALS['asclepiusTranslationQueue'] = [];
+    }
+    if (empty($GLOBALS['asclepiusTranslationShutdown'])) {
+        $GLOBALS['asclepiusTranslationShutdown'] = true;
+        register_shutdown_function('runQueuedTicketTranslations');
+    }
+
+    $GLOBALS['asclepiusTranslationQueueStore'] = $store;
+    $GLOBALS['asclepiusTranslationQueue'][$entityType . ':' . $entityId] = [
+        'entity_type' => $entityType,
+        'entity_id' => $entityId,
+        'ticket_id' => $ticketId,
+        'raw_text' => $rawText,
+    ];
+}
+
+/** @return list<string> */
+function queuedTicketTranslationKeys(): array
+{
+    $queue = $GLOBALS['asclepiusTranslationQueue'] ?? [];
+
+    return is_array($queue) ? array_keys($queue) : [];
+}
+
+function discardQueuedTicketTranslations(): void
+{
+    $GLOBALS['asclepiusTranslationQueue'] = [];
+}
+
+/** Tests en CLI: de wachtrij meteen afwerken. Een webverzoek doet dat pas na het antwoord. */
+function flushQueuedTicketTranslations(): void
+{
+    $previous = !empty($GLOBALS['asclepiusTranslationQueueForce']);
+    $GLOBALS['asclepiusTranslationQueueForce'] = true;
+    try {
+        runQueuedTicketTranslations();
+    } finally {
+        $GLOBALS['asclepiusTranslationQueueForce'] = $previous;
+    }
+}
+
+function runQueuedTicketTranslations(): void
+{
+    $force = !empty($GLOBALS['asclepiusTranslationQueueForce']);
+    $isCli = PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg';
+    if ($isCli && !$force) {
+        return;
+    }
+
+    $queued = $GLOBALS['asclepiusTranslationQueue'] ?? [];
+    if (!is_array($queued) || $queued === []) {
+        return;
+    }
+
+    $store = $GLOBALS['asclepiusTranslationQueueStore'] ?? null;
+    if (!$store instanceof TicketStore) {
+        $GLOBALS['asclepiusTranslationQueue'] = [];
+
+        return;
+    }
+
+    if (!$isCli) {
+        finishHttpResponseForBackgroundWork();
+    }
+
+    ignore_user_abort(true);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+
+    $previousStart = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
+    $previousLimit = ini_get('max_execution_time');
+    try {
+        while (($items = $GLOBALS['asclepiusTranslationQueue'] ?? []) !== []) {
+            $GLOBALS['asclepiusTranslationQueue'] = [];
+            if (!is_array($items)) {
+                break;
+            }
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                // Na het antwoord telt de al verstreken requesttijd niet meer mee voor de flow-timeout.
+                $_SERVER['REQUEST_TIME_FLOAT'] = microtime(true);
+                @set_time_limit(ticketTranslationTimeLimitSeconds());
+                try {
+                    prefetchTicketTextTranslations(
+                        $store,
+                        (string) ($item['entity_type'] ?? ''),
+                        (int) ($item['entity_id'] ?? 0),
+                        (int) ($item['ticket_id'] ?? 0),
+                        (string) ($item['raw_text'] ?? '')
+                    );
+                } catch (Throwable $exception) {
+                    error_log(
+                        '[asclepius] vertaling '
+                        . (string) ($item['entity_type'] ?? '')
+                        . ' '
+                        . (string) ($item['entity_id'] ?? '')
+                        . ': '
+                        . $exception->getMessage()
+                    );
+                }
+            }
+        }
+    } finally {
+        if ($previousStart === null) {
+            unset($_SERVER['REQUEST_TIME_FLOAT']);
+        } else {
+            $_SERVER['REQUEST_TIME_FLOAT'] = $previousStart;
+        }
+        if ($previousLimit !== false) {
+            @ini_set('max_execution_time', (string) $previousLimit);
+        }
+    }
+}
+
+/**
+ * Stuur het antwoord nu naar de browser, zoals Forum-Magnum na een post.
+ * PHP-FPM: fastcgi_finish_request. Zonder FPM: Content-Length en de buffers legen.
+ */
+function finishHttpResponseForBackgroundWork(): bool
+{
+    if (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg') {
+        return false;
+    }
+
+    ignore_user_abort(true);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    if (function_exists('fastcgi_finish_request')) {
+        return (bool) @fastcgi_finish_request();
+    }
+    if (headers_sent()) {
+        return false;
+    }
+
+    @ini_set('zlib.output_compression', '0');
+    if (function_exists('apache_setenv')) {
+        @apache_setenv('no-gzip', '1');
+    }
+    $output = '';
+    while (ob_get_level() > 0) {
+        $output = (string) ob_get_clean() . $output;
+    }
+    if (!headers_sent()) {
+        header('Connection: close');
+        header('Content-Encoding: none');
+        header('Content-Length: ' . strlen($output));
+    }
+    echo $output;
+    @flush();
+
+    return true;
+}
+
+/**
+ * Alle talen voor één nieuw of gewijzigd bericht. Een lopende claim voor dezelfde tekst
+ * (deze functie, of translate_ticket) blokkeert een tweede flow-aanroep.
+ */
+function prefetchTicketTextTranslations(
+    TicketStore $store,
+    string $entityType,
+    int $entityId,
+    int $ticketId,
+    string $rawText
+): void {
+    if (trim($rawText) === '' || $entityId <= 0 || $ticketId <= 0) {
+        return;
+    }
+    if (!$store->translationSourceMatches($entityType, $entityId, $rawText)) {
+        return;
+    }
+
+    $sourceHash = hash('sha256', $rawText);
+    if (ticketTranslationsCoverAllLanguages($store, $entityType, $entityId, $sourceHash)) {
+        return;
+    }
+
+    $provider = createTranslationProvider();
+    if ($provider === null) {
+        return;
+    }
+
+    $claimToken = $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, ticketTranslationClaimTtlSeconds());
+    if ($claimToken === null) {
+        return;
+    }
+
+    try {
+        if (ticketTranslationsCoverAllLanguages($store, $entityType, $entityId, $sourceHash)) {
+            return;
+        }
+
+        if ($provider instanceof CopilotTranslationProvider) {
+            storeCopilotTicketTranslations(
+                $store,
+                $provider,
+                $entityType,
+                $entityId,
+                $ticketId,
+                $rawText,
+                $sourceHash,
+                $claimToken,
+                'nl'
+            );
+
+            return;
+        }
+
+        foreach (ticketTranslationLanguages() as $language) {
+            if ($store->getTextTranslation($entityType, $entityId, $language, $sourceHash) !== null) {
+                continue;
+            }
+            $stored = storeSingleTicketTranslation(
+                $store,
+                $provider,
+                $entityType,
+                $entityId,
+                $ticketId,
+                $rawText,
+                $sourceHash,
+                $claimToken,
+                $language
+            );
+            if ($stored === null) {
+                return;
+            }
+        }
+    } catch (Throwable $exception) {
+        if ($exception instanceof RuntimeException && $exception->getMessage() === CopilotTranslationProvider::BUDGET_EXHAUSTED) {
+            return;
+        }
+        error_log('[asclepius] vertaling ' . $entityType . ' ' . $entityId . ': ' . $exception->getMessage());
+    } finally {
+        $store->releaseTextTranslationClaim($entityType, $entityId, $claimToken);
+    }
 }

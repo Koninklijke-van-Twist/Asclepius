@@ -1,3 +1,15 @@
+id: 2026-10-14-translate-on-post
+date: 2026-10-14
+title: La traduction démarre avec un nouveau message
+author: Cursor Agent
+
+Un nouveau ticket ou un message qui vient d'être publié est traduit tout de suite dans toutes les langues. Publier n'attend pas cette traduction. Les messages déjà présents ne sont pas tous traduits après coup ; en ouvrant un ticket, vous voyez la traduction si elle est prête, sinon elle est encore demandée à ce moment-là.
+
+Quand le flux Copilot renvoie plusieurs langues dans une seule réponse, elles sont toutes conservées. Sans flux, Lara continue de travailler langue par langue.
+
+Si vous modifiez le texte d'un message ou le titre, les anciennes traductions sont retirées et redemandées. Un brouillon interne est traduit dès qu'il devient visible.
+
+---
 id: 2026-10-13-copilot-translate
 date: 2026-10-13
 title: Traduction via le flux Copilot

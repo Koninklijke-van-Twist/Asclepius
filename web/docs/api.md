@@ -157,13 +157,15 @@ Succes → `201`:
 
 `ticket_url` is dezelfde link als de knop "Ticketlink kopiëren" in de UI (`index.php?open=<id>`).
 
+Na een geslaagd antwoord start de vertaling van de titel en de eerste tekst op de achtergrond, voor alle talen. Het aanmaken wacht daar niet op. Bestaande tickets worden niet achteraf allemaal vertaald.
+
 Tip voor sleutels-apps die namens een gebruiker een ticket melden: gebruik de service-key (`asclepius_api_key` uit `login/cfg.php`), zet `user_email` op de ingelogde gebruiker en kies categorie `sleutels.kvt.nl web-applicatieproblemen`.
 
 Validatiefouten → `422` met `errors` (array van strings).
 
 ## POST — `add_ticket_message`
 
-Plaats een bericht op een bestaand ticket. Ghost-berichten zijn alleen zichtbaar voor ICT op het overzicht (niet in e-mail naar de aanvrager).
+Plaats een bericht op een bestaand ticket. Ghost-berichten zijn alleen zichtbaar voor ICT op het overzicht (niet in e-mail naar de aanvrager). Een gewoon bericht wordt na het antwoord meteen voor alle talen vertaald; het plaatsen wacht daar niet op. Een ghost-concept wacht tot `publish_ghost_message`.
 
 Een bot (service-key) kan zelf bepalen hoe het bericht in de thread staat: **weergavenaam** (zoals “Tim Falken”) en **functietitel** (het blauwe label ernaast, zoals “ICT”).
 
@@ -624,7 +626,7 @@ Extra fout: `422` `invalid_due_date` (leeg, verkeerd formaat of onmogelijke kale
 
 `message_id` — verplicht. Zet `is_ghost` op `0` voor dat bericht (alleen als het nu een ghost is). Stuurt daarna dezelfde updatemail naar deelnemers als een nieuw ICT-bericht zonder statuswijziging (`email.subject_update` / `email.intro_update` + `email.intro_update_no_status`), zodat de eindgebruiker het niet kan onderscheiden van een net gepost bericht. Lege berichten zonder bijlagen worden wel gepubliceerd, maar zonder mail.
 
-Optioneel `message` of `message_text`: als een van beide meekomt, vervangt die string de opgeslagen concepttekst vóór het publiceren en vóór de mail. Ontbreekt het veld, dan blijft de bestaande tekst staan. Een lege string is geldig (bijvoorbeeld alleen bijlagen). `message_text` heeft voorrang als beide velden meekomen.
+Optioneel `message` of `message_text`: als een van beide meekomt, vervangt die string de opgeslagen concepttekst vóór het publiceren en vóór de mail. Ontbreekt het veld, dan blijft de bestaande tekst staan. Een lege string is geldig (bijvoorbeeld alleen bijlagen). `message_text` heeft voorrang als beide velden meekomen. Publiceren start de vertaling. Wijzigt de tekst, dan vervallen de oude vertalingen van dat bericht eerst.
 
 ```json
 {
@@ -650,11 +652,11 @@ Succes → `200`:
 
 `message_html` is de gerenderde Markdown van `message_text` (veilig geëscaped), inclusief inline bijlagen van dat bericht. Zonder opmaak is dat de geëscapete tekst zelf.
 
-`change_ticket_title` — `ticket_id`, `title` (niet leeg). Admin of trusted. Wist titelvertalingen.
+`change_ticket_title` — `ticket_id`, `title` (niet leeg). Admin of trusted. Wist titelvertalingen en vraagt ze opnieuw aan.
 
 `update_ticket_private` — `ticket_id`, `is_private`. ICT-overzicht (`is_admin_portal` + admin) of trusted.
 
-`update_ticket_message_checkbox` — vink een markdown-checkbox in een bericht aan/uit. `ticket_id`, `message_id`, `line_index`, `checked`, `csrf_token`. Admin of trusted + geldige sessie-CSRF. Response: `message_text`.
+`update_ticket_message_checkbox` — vink een markdown-checkbox in een bericht aan/uit. `ticket_id`, `message_id`, `line_index`, `checked`, `csrf_token`. Admin of trusted + geldige sessie-CSRF. Response: `message_text`. Een gewijzigde tekst wist de vertalingen van dat bericht en vraagt ze opnieuw aan.
 
 `set_message_reaction` — zet 👍 (`value` `1`), 👎 (`value` `-1`) of wis (`value` `0`) de stem van de ingelogde kijker op een bericht. `ticket_id`, `message_id`, `value` (`1`, `-1` of `0`), `csrf_token`. Zelfde tickettoegang als het ticket openen. Eén stem per gebruiker: dezelfde waarde nog eens wist de stem, de andere waarde verplaatst hem. `1` = juist antwoord (like), `-1` = onjuist antwoord (dislike). Response: `value`, `likes`, `dislikes`, `like_users`, `dislike_users` (`{ "email", "name" }`), plus `plus`, `minus`, `plus_users`, `minus_users` (e-mailadressen). Geen mail, geen melding, geen webhook. `403` `csrf`, `404` `ticket_not_found` / `message_not_found`, `422` `invalid_reaction`.
 
@@ -675,7 +677,7 @@ Succes → `200`:
 }
 ```
 
-`translate_ticket` — vertaal titel en berichten. `ticket_id`, `language` (`nl`/`en`/`de`/`fr`), `viewer_email`, optioneel `user_is_admin`, `is_admin_portal`. Response: `title`, `title_raw`, `title_is_translated`, `title_translation_pending`, `messages[]` met `message_text` / `message_text_raw`, `translation_pending` en gerenderde HTML `message_text_html` / `message_text_raw_html` (Markdown, veilig geëscaped; inline bijlagen en toets-iconen blijven intact). `translation_pending` / `title_translation_pending` zijn `true` als die tekst in dit verzoek niet meer aan de beurt kwam; er is dan niets opgeslagen. De pagina laat het laadicoon staan en roept `translate_ticket` voor dat ticket vanzelf opnieuw aan zolang het tabblad zichtbaar is: na 5, 15, 30 en daarna telkens 60 seconden, zonder de pagina te herladen. Na tien pogingen stopt het laadicoon: het origineel of de bestaande foutmelding blijft staan. Opnieuw proberen gebeurt als het tabblad weer zichtbaar wordt, als het ticket of de lijst echt wijzigt, of minstens vijf minuten na de pauze. Een ongewijzigde lijstverversing doet dat niet. Dat geldt ook voor een voorbeeld van hetzelfde ticket. Komt er tijdens een lopend verzoek iets nieuws bij, dan volgt meteen een nieuwe ronde, tot dat maximum. Voor hetzelfde ticket loopt nooit een tweede verzoek tegelijk. Ghosts volgen gewone `getTicket`-regels (niet inbegrepen tenzij admin-overzicht).
+`translate_ticket` — vertaal titel en berichten. `ticket_id`, `language` (`nl`/`en`/`de`/`fr`), `viewer_email`, optioneel `user_is_admin`, `is_admin_portal`. Response: `title`, `title_raw`, `title_is_translated`, `title_translation_pending`, `messages[]` met `message_text` / `message_text_raw`, `translation_pending` en gerenderde HTML `message_text_html` / `message_text_raw_html` (Markdown, veilig geëscaped; inline bijlagen en toets-iconen blijven intact). `translation_pending` / `title_translation_pending` zijn `true` als die tekst in dit verzoek niet meer aan de beurt kwam, of als er voor diezelfde tekst al een vertaling loopt; er is dan niets extra opgeslagen. Een Copilot-antwoord met meerdere talen wordt in één keer bewaard, niet alleen de gevraagde taal. Lara blijft één taal per aanvraag. Nieuwe berichten worden al op de achtergrond vertaald; dit endpoint blijft het vangnet voor tekst die nog ontbreekt. De pagina laat het laadicoon staan en roept `translate_ticket` voor dat ticket vanzelf opnieuw aan zolang het tabblad zichtbaar is: na 5, 15, 30 en daarna telkens 60 seconden, zonder de pagina te herladen. Na tien pogingen stopt het laadicoon: het origineel of de bestaande foutmelding blijft staan. Opnieuw proberen gebeurt als het tabblad weer zichtbaar wordt, als het ticket of de lijst echt wijzigt, of minstens vijf minuten na de pauze. Een ongewijzigde lijstverversing doet dat niet. Dat geldt ook voor een voorbeeld van hetzelfde ticket. Komt er tijdens een lopend verzoek iets nieuws bij, dan volgt meteen een nieuwe ronde, tot dat maximum. Voor hetzelfde ticket loopt nooit een tweede verzoek tegelijk. Ghosts volgen gewone `getTicket`-regels (niet inbegrepen tenzij admin-overzicht).
 
 ### Live UI (browser)
 

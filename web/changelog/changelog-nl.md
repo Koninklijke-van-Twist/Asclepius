@@ -1,3 +1,15 @@
+id: 2026-10-14-translate-on-post
+date: 2026-10-14
+title: Vertaling start bij een nieuw bericht
+author: Cursor Agent
+
+Een nieuw ticket of een nieuw geplaatst bericht wordt meteen voor alle talen vertaald. Het plaatsen zelf wacht daar niet op. Bestaande berichten worden niet achteraf alsnog allemaal vertaald; wie een ticket opent, krijgt de vertaling als die er al is en anders alsnog op aanvraag.
+
+Komt de Copilot-flow in één antwoord met meerdere talen terug, dan worden die allemaal bewaard. Zonder flow blijft Lara per taal werken.
+
+Wijzig je de tekst van een bericht of de titel, dan vervallen de oude vertalingen en wordt er opnieuw vertaald. Een intern concept wordt vertaald zodra het zichtbaar wordt.
+
+---
 id: 2026-10-13-copilot-translate
 date: 2026-10-13
 title: Vertaling via de Copilot-flow

@@ -1,3 +1,15 @@
+id: 2026-10-14-translate-on-post
+date: 2026-10-14
+title: Übersetzung startet bei einer neuen Nachricht
+author: Cursor Agent
+
+Ein neues Ticket oder eine neu gepostete Nachricht wird sofort in alle Sprachen übersetzt. Das Absenden wartet darauf nicht. Bestehende Nachrichten werden nicht nachträglich alle übersetzt; wer ein Ticket öffnet, sieht die Übersetzung, wenn sie schon da ist, und sonst weiterhin auf Abruf.
+
+Liefert der Copilot-Flow in einer Antwort mehrere Sprachen, werden sie alle gespeichert. Ohne Flow arbeitet Lara weiter pro Sprache.
+
+Ändern Sie den Text einer Nachricht oder den Titel, verfallen die alten Übersetzungen und es wird neu übersetzt. Ein interner Entwurf wird übersetzt, sobald er sichtbar wird.
+
+---
 id: 2026-10-13-copilot-translate
 date: 2026-10-13
 title: Übersetzung über den Copilot-Flow
