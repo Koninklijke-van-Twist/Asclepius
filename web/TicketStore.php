@@ -2734,12 +2734,19 @@ class TicketStore
 
             $delete = $this->pdo->prepare('DELETE FROM ticket_update_mail_queue WHERE id = :id');
             $delete->execute([':id' => $id]);
-            $deleted = $delete->rowCount() > 0;
+            if ($delete->rowCount() !== 1) {
+                if ($ownsTransaction && $this->pdo->inTransaction()) {
+                    $this->pdo->commit();
+                }
+
+                return null;
+            }
+
             if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->commit();
             }
 
-            return $deleted ? $row : null;
+            return $row;
         } catch (Throwable $exception) {
             if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
