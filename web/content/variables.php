@@ -123,6 +123,13 @@ try {
 } catch (Throwable $exception) {
     $storeError = $exception->getMessage();
 }
+if ($store instanceof TicketStore && function_exists('dispatchQueuedUserUpdateMails')) {
+    try {
+        dispatchQueuedUserUpdateMails($store, null, null, $ictUsers);
+    } catch (Throwable $exception) {
+        error_log('[asclepius] updatemail: ' . $exception->getMessage());
+    }
+}
 
 $janusSyncState = [
     'availability' => array_fill_keys(extractIctUserEmails($ictUsers), true),

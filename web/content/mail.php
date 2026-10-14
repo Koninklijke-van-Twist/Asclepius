@@ -236,6 +236,18 @@ function sendTicketEmail(
 
     ['plain' => $plain, 'html' => $html] = splitMailBody($message);
 
+    if (isset($GLOBALS['asclepiusCapturedTicketEmails']) && is_array($GLOBALS['asclepiusCapturedTicketEmails'])) {
+        $GLOBALS['asclepiusCapturedTicketEmails'][] = [
+            'recipients' => array_values($normalizedRecipients),
+            'subject' => $fullSubject,
+            'plain' => $plain,
+            'html' => $html,
+            'high_importance' => $highImportance,
+        ];
+
+        return;
+    }
+
     if ($smtp !== [] && sendViaSmtp($smtp, $fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html, $highImportance)) {
         return;
     }
@@ -748,4 +760,273 @@ function sendTicketNotification(
     $body = extractDesktopNotificationBody($finalMessage);
     $store->queueBrowserNotifications($browserRecipients, $ticketId, $subject, $body);
     sendWebPushNotifications($store, $ictUsers, $browserRecipients, $ticketId, $subject, $body);
+}
+
+/** Hoe lang een updatemail wacht op de vertaling van het bericht, daarna het origineel. */
+function userUpdateMailWaitSeconds(): int
+{
+    return 180;
+}
+
+/**
+ * Id van het bericht dat in de updatemail staat.
+ * Bij een ghost is dat de zichtbare statusnotitie, anders het geplaatste bericht.
+ */
+function updateMailMessageId(string $messageText, int $messageId, int $statusMessageId = 0): int
+{
+    if (trim($messageText) === '') {
+        return 0;
+    }
+    if ($statusMessageId > 0) {
+        return $statusMessageId;
+    }
+
+    return $messageId > 0 ? $messageId : 0;
+}
+
+/**
+ * Updatemail per ontvanger, in de taal uit user_prefs.
+ * Zelfde taal als het bericht, of een vertaling die al klaarstaat: meteen.
+ * Anders in de wachtrij tot die vertaling binnenkomt.
+ *
+ * @param list<string> $recipients
+ * @param list<mixed> $ictUsers
+ */
+function sendUserUpdateNotifications(
+    ?TicketStore $store,
+    array $ictUsers,
+    array $ticket,
+    array $recipients,
+    string $messageText,
+    int $messageId,
+    bool $statusChanged,
+    ?string $excludeEmail,
+    ?string $browserActorEmail,
+    bool $highImportance
+): void {
+    if (!$store instanceof TicketStore) {
+        return;
+    }
+
+    dispatchQueuedUserUpdateMails($store, null, null, $ictUsers);
+
+    $ticketId = (int) ($ticket['id'] ?? 0);
+    if ($ticketId <= 0) {
+        return;
+    }
+
+    $providerReady = function_exists('createTranslationProvider') && createTranslationProvider() !== null;
+    $needsTranslation = $providerReady && trim($messageText) !== '' && $messageId > 0;
+    $sourceHash = hash('sha256', $messageText);
+    $knownSource = $needsTranslation
+        ? $store->getTextTranslationSourceLanguage('ticket_message', $messageId, $sourceHash)
+        : '';
+    $exclude = $excludeEmail !== null ? strtolower(trim($excludeEmail)) : '';
+    $seen = [];
+
+    foreach ($recipients as $recipient) {
+        $email = strtolower(trim((string) $recipient));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || isset($seen[$email])) {
+            continue;
+        }
+        if ($exclude !== '' && $email === $exclude) {
+            continue;
+        }
+        $seen[$email] = true;
+
+        $lang = getUserMailLang($email);
+        $textForMail = $messageText;
+        $sendNow = true;
+        if ($needsTranslation && !($knownSource !== '' && $knownSource === $lang)) {
+            $cached = $store->getTextTranslation('ticket_message', $messageId, $lang, $sourceHash);
+            if (is_array($cached)) {
+                $cachedText = (string) ($cached['translated_text'] ?? '');
+                $textForMail = $cachedText !== '' ? $cachedText : $messageText;
+            } else {
+                $sendNow = false;
+            }
+        }
+
+        if ($sendNow) {
+            deliverUserUpdateMail(
+                $store,
+                $ictUsers,
+                $ticket,
+                $email,
+                $lang,
+                $textForMail,
+                $statusChanged,
+                $excludeEmail,
+                $browserActorEmail,
+                $highImportance
+            );
+            continue;
+        }
+
+        $store->enqueueUserUpdateMail(
+            $ticketId,
+            $messageId,
+            $email,
+            $lang,
+            $sourceHash,
+            $messageText,
+            $statusChanged,
+            $exclude,
+            $browserActorEmail !== null ? strtolower(trim($browserActorEmail)) : '',
+            $highImportance
+        );
+    }
+}
+
+/**
+ * @param list<mixed> $ictUsers
+ */
+function deliverUserUpdateMail(
+    TicketStore $store,
+    array $ictUsers,
+    array $ticket,
+    string $recipientEmail,
+    string $lang,
+    string $messageText,
+    bool $statusChanged,
+    ?string $excludeEmail,
+    ?string $browserActorEmail,
+    bool $highImportance
+): void {
+    $ticketId = (int) ($ticket['id'] ?? 0);
+    if ($ticketId <= 0 || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+        return;
+    }
+    if (!array_key_exists($lang, SUPPORTED_LANGUAGES)) {
+        $lang = 'nl';
+    }
+
+    $suffixKey = $statusChanged ? 'email.intro_update_status' : 'email.intro_update_no_status';
+    sendTicketNotification(
+        $store,
+        $ictUsers,
+        [$recipientEmail],
+        __mail('email.subject_update', $lang, $ticketId),
+        buildNotificationBody(
+            $ticket,
+            'email.intro_update',
+            $messageText,
+            false,
+            $lang,
+            __mail($suffixKey, $lang)
+        ),
+        $excludeEmail,
+        (string) ($ticket['category'] ?? ''),
+        $ticketId,
+        null,
+        $browserActorEmail,
+        $highImportance
+    );
+}
+
+function logUserUpdateMailFallback(int $ticketId, string $recipientEmail, string $lang): void
+{
+    $line = '[asclepius] updatemail ticket '
+        . $ticketId
+        . ' naar '
+        . $recipientEmail
+        . ': vertaling '
+        . $lang
+        . ' niet binnen '
+        . userUpdateMailWaitSeconds()
+        . 's, origineel verstuurd';
+    if (isset($GLOBALS['asclepiusUpdateMailLog']) && is_array($GLOBALS['asclepiusUpdateMailLog'])) {
+        $GLOBALS['asclepiusUpdateMailLog'][] = $line;
+    }
+    error_log($line);
+}
+
+/**
+ * Verstuur wachtende updatemails waarvan de vertaling er is, of waarvan de wachttijd voorbij is.
+ *
+ * @param list<mixed>|null $ictUsers
+ */
+function dispatchQueuedUserUpdateMails(TicketStore $store, ?int $messageId = null, ?int $now = null, ?array $ictUsers = null): void
+{
+    $now ??= time();
+    if ($ictUsers === null) {
+        $ictUsers = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
+    }
+
+    foreach ($store->listUserUpdateMailQueue($messageId) as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $decision = resolveQueuedUserUpdateMail($store, $row, $now);
+        if ($decision === null) {
+            continue;
+        }
+
+        $claimed = $store->claimUserUpdateMail((int) ($row['id'] ?? 0));
+        if ($claimed === null) {
+            continue;
+        }
+
+        $ticketId = (int) ($claimed['ticket_id'] ?? 0);
+        $recipient = strtolower(trim((string) ($claimed['recipient_email'] ?? '')));
+        $lang = strtolower(trim((string) ($claimed['recipient_lang'] ?? 'nl')));
+        $ticket = $store->getTicket($ticketId, true, $recipient);
+        if ($ticket === null) {
+            error_log('[asclepius] updatemail ticket ' . $ticketId . ' naar ' . $recipient . ': ticket ontbreekt, mail vervallen');
+            continue;
+        }
+
+        if (!empty($decision['fallback'])) {
+            logUserUpdateMailFallback($ticketId, $recipient, $lang);
+        }
+
+        $exclude = trim((string) ($claimed['exclude_email'] ?? ''));
+        $actor = trim((string) ($claimed['browser_actor_email'] ?? ''));
+        deliverUserUpdateMail(
+            $store,
+            $ictUsers,
+            $ticket,
+            $recipient,
+            $lang,
+            (string) ($decision['text'] ?? ''),
+            !empty($claimed['status_changed']),
+            $exclude !== '' ? $exclude : null,
+            $actor !== '' ? $actor : null,
+            !empty($claimed['high_importance'])
+        );
+    }
+}
+
+/**
+ * @param array<string, mixed> $row
+ * @return array{text: string, fallback: bool}|null
+ */
+function resolveQueuedUserUpdateMail(TicketStore $store, array $row, int $now): ?array
+{
+    $messageId = (int) ($row['message_id'] ?? 0);
+    $lang = strtolower(trim((string) ($row['recipient_lang'] ?? '')));
+    $sourceHash = trim((string) ($row['source_hash'] ?? ''));
+    $original = (string) ($row['message_text'] ?? '');
+    if ($messageId <= 0 || $lang === '' || $sourceHash === '') {
+        return ['text' => $original, 'fallback' => true];
+    }
+
+    $cached = $store->getTextTranslation('ticket_message', $messageId, $lang, $sourceHash);
+    if (is_array($cached)) {
+        $cachedText = (string) ($cached['translated_text'] ?? '');
+
+        return ['text' => $cachedText !== '' ? $cachedText : $original, 'fallback' => false];
+    }
+
+    $source = $store->getTextTranslationSourceLanguage('ticket_message', $messageId, $sourceHash);
+    if ($source !== '' && $source === $lang) {
+        return ['text' => $original, 'fallback' => false];
+    }
+
+    $queuedAt = (int) ($row['queued_at'] ?? 0);
+    if ($queuedAt > 0 && ($now - $queuedAt) >= userUpdateMailWaitSeconds()) {
+        return ['text' => $original, 'fallback' => true];
+    }
+
+    return null;
 }

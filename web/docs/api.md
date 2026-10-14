@@ -503,6 +503,8 @@ Gemeenschappelijke foutvorm (`success: false`):
 
 `ticket_id` (alias `id`), `status` (alias `ticket_status`). `status` is een vaste waarde uit `ticket_lookups.statuses` of een eigen label (zoals in de UI, max. 40 tekens). Zet een systeemnotitie, werkt `resolved_at` bij, en stuurt dezelfde meldingen als het ICT-overzicht. Overgang naar `afgehandeld` vuurt de `ticket-solved`-webhook. Overgang vanuit `afgehandeld` naar een andere status vuurt de `ticket-reopened`-webhook.
 
+De updatemail naar elke deelnemer volgt de taal in diens voorkeuren. Onderwerp, vaste teksten (ook status en categorie) en de berichttekst staan in die taal. Is die taal de brontaal van het bericht, of staat de vertaling al klaar, dan gaat de mail meteen weg. Anders wacht die tot de vertaling binnenkomt. Komt die niet binnen drie minuten, dan gaat de mail alsnog weg met de vaste teksten in de taal van de ontvanger en het bericht in het origineel; dat wordt gelogd. Hetzelfde geldt voor de andere updatemails naar gebruikers (deelnemers, categorie, publiceren van een concept).
+
 ```json
 {
   "action": "change_ticket_status",
@@ -624,7 +626,7 @@ Extra fout: `422` `invalid_due_date` (leeg, verkeerd formaat of onmogelijke kale
 
 #### `publish_ghost_message`
 
-`message_id` — verplicht. Zet `is_ghost` op `0` voor dat bericht (alleen als het nu een ghost is). Stuurt daarna dezelfde updatemail naar deelnemers als een nieuw ICT-bericht zonder statuswijziging (`email.subject_update` / `email.intro_update` + `email.intro_update_no_status`), zodat de eindgebruiker het niet kan onderscheiden van een net gepost bericht. Lege berichten zonder bijlagen worden wel gepubliceerd, maar zonder mail.
+`message_id` — verplicht. Zet `is_ghost` op `0` voor dat bericht (alleen als het nu een ghost is). Stuurt daarna dezelfde updatemail naar deelnemers als een nieuw ICT-bericht zonder statuswijziging (`email.subject_update` / `email.intro_update` + `email.intro_update_no_status`), zodat de eindgebruiker het niet kan onderscheiden van een net gepost bericht. Die mail volgt de taal van elke ontvanger en wacht zo nodig op de vertaling van het bericht (zie `change_ticket_status`). Lege berichten zonder bijlagen worden wel gepubliceerd, maar zonder mail.
 
 Optioneel `message` of `message_text`: als een van beide meekomt, vervangt die string de opgeslagen concepttekst vóór het publiceren en vóór de mail. Ontbreekt het veld, dan blijft de bestaande tekst staan. Een lege string is geldig (bijvoorbeeld alleen bijlagen). `message_text` heeft voorrang als beide velden meekomen. Publiceren start de vertaling. Wijzigt de tekst, dan vervallen de oude vertalingen van dat bericht eerst.
 

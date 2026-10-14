@@ -1,3 +1,13 @@
+id: 2026-10-14-update-mail-language
+date: 2026-10-14
+title: Updatemail in de taal van de ontvanger
+author: Cursor Agent
+
+Een updatemail naar een gebruiker volgt de taal die die persoon heeft ingesteld. Onderwerp, vaste teksten en de tekst van het bericht staan in die taal.
+
+Is het bericht al in die taal, of staat de vertaling al klaar, dan gaat de mail meteen weg. Anders wacht die tot de vertaling binnen is. Duurt dat langer dan drie minuten, dan gaat de mail alsnog weg: vaste teksten in de juiste taal, het bericht in het origineel. Dat wordt gelogd.
+
+---
 id: 2026-10-14-translate-on-post
 date: 2026-10-14
 title: Vertaling start bij een nieuw bericht

@@ -1,3 +1,13 @@
+id: 2026-10-14-update-mail-language
+date: 2026-10-14
+title: E-mail de mise à jour dans la langue du destinataire
+author: Cursor Agent
+
+Un e-mail de mise à jour suit la langue choisie par cette personne. L'objet, les textes fixes et le message lui-même sont dans cette langue.
+
+Si le message est déjà dans cette langue, ou si la traduction est déjà prête, l'e-mail part tout de suite. Sinon il attend que la traduction arrive. Si cela prend plus de trois minutes, l'e-mail part quand même : textes fixes dans la bonne langue, message dans l'original. Cela est journalisé.
+
+---
 id: 2026-10-14-translate-on-post
 date: 2026-10-14
 title: La traduction démarre avec un nouveau message

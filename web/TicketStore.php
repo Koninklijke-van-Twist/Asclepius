@@ -2532,6 +2532,142 @@ class TicketStore
         return is_array($row) ? $row : null;
     }
 
+    public function getTextTranslationSourceLanguage(string $entityType, int $entityId, string $sourceHash): string
+    {
+        $normalizedEntityType = trim($entityType);
+        $normalizedSourceHash = trim($sourceHash);
+        if ($normalizedEntityType === '' || $entityId <= 0 || $normalizedSourceHash === '') {
+            return '';
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT source_language
+             FROM ticket_text_translations
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND source_hash = :source_hash
+               AND source_language != ""
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':source_hash' => $normalizedSourceHash,
+        ]);
+        $sourceLanguage = $statement->fetchColumn();
+
+        return is_string($sourceLanguage) ? strtolower(trim($sourceLanguage)) : '';
+    }
+
+    public function enqueueUserUpdateMail(
+        int $ticketId,
+        int $messageId,
+        string $recipientEmail,
+        string $recipientLang,
+        string $sourceHash,
+        string $messageText,
+        bool $statusChanged,
+        string $excludeEmail,
+        string $browserActorEmail,
+        bool $highImportance,
+        ?int $queuedAt = null
+    ): bool {
+        $recipientEmail = strtolower(trim($recipientEmail));
+        $recipientLang = strtolower(trim($recipientLang));
+        $sourceHash = trim($sourceHash);
+        if ($ticketId <= 0 || $messageId <= 0 || $recipientEmail === '' || $recipientLang === '' || $sourceHash === '') {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ticket_update_mail_queue (
+                ticket_id, message_id, recipient_email, recipient_lang, source_hash, message_text,
+                status_changed, exclude_email, browser_actor_email, high_importance, queued_at
+            ) VALUES (
+                :ticket_id, :message_id, :recipient_email, :recipient_lang, :source_hash, :message_text,
+                :status_changed, :exclude_email, :browser_actor_email, :high_importance, :queued_at
+            )'
+        );
+        $statement->execute([
+            ':ticket_id' => $ticketId,
+            ':message_id' => $messageId,
+            ':recipient_email' => $recipientEmail,
+            ':recipient_lang' => $recipientLang,
+            ':source_hash' => $sourceHash,
+            ':message_text' => $messageText,
+            ':status_changed' => $statusChanged ? 1 : 0,
+            ':exclude_email' => strtolower(trim($excludeEmail)),
+            ':browser_actor_email' => strtolower(trim($browserActorEmail)),
+            ':high_importance' => $highImportance ? 1 : 0,
+            ':queued_at' => $queuedAt ?? time(),
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listUserUpdateMailQueue(?int $messageId = null): array
+    {
+        if ($messageId !== null && $messageId > 0) {
+            $statement = $this->pdo->prepare(
+                'SELECT * FROM ticket_update_mail_queue WHERE message_id = :message_id ORDER BY id ASC'
+            );
+            $statement->execute([':message_id' => $messageId]);
+        } else {
+            $statement = $this->pdo->query('SELECT * FROM ticket_update_mail_queue ORDER BY id ASC');
+        }
+        if ($statement === false) {
+            return [];
+        }
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function claimUserUpdateMail(int $id): ?array
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+
+        try {
+            $statement = $this->pdo->prepare('SELECT * FROM ticket_update_mail_queue WHERE id = :id LIMIT 1');
+            $statement->execute([':id' => $id]);
+            $row = $statement->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($row)) {
+                if ($ownsTransaction && $this->pdo->inTransaction()) {
+                    $this->pdo->commit();
+                }
+
+                return null;
+            }
+
+            $delete = $this->pdo->prepare('DELETE FROM ticket_update_mail_queue WHERE id = :id');
+            $delete->execute([':id' => $id]);
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+
+            return $row;
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     public function upsertTextTranslation(
         string $entityType,
         int $entityId,
@@ -4433,6 +4569,24 @@ class TicketStore
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_participants_user_email ON ticket_participants(user_email)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_templates_name ON ticket_templates(name)');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_text_translations_lookup ON ticket_text_translations(entity_type, entity_id, target_language, source_hash)');
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_update_mail_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL,
+                recipient_email TEXT NOT NULL,
+                recipient_lang TEXT NOT NULL,
+                source_hash TEXT NOT NULL,
+                message_text TEXT NOT NULL DEFAULT "",
+                status_changed INTEGER NOT NULL DEFAULT 0,
+                exclude_email TEXT NOT NULL DEFAULT "",
+                browser_actor_email TEXT NOT NULL DEFAULT "",
+                high_importance INTEGER NOT NULL DEFAULT 0,
+                queued_at INTEGER NOT NULL,
+                UNIQUE(message_id, recipient_email, source_hash)
+            )'
+        );
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_update_mail_queue_message ON ticket_update_mail_queue(message_id, queued_at)');
         $this->pdo->exec(
             'CREATE TABLE IF NOT EXISTS ticket_translation_inflight (
                 entity_type TEXT NOT NULL,

@@ -396,6 +396,8 @@ function storeCopilotTicketTranslations(
         return null;
     }
 
+    releaseQueuedUserUpdateMailsAfterTranslation($store, $entityType, $entityId);
+
     return ticketTranslationStoredResult($rawText, $targetLanguage, $toStore[$targetLanguage], $sourceLanguage);
 }
 
@@ -435,6 +437,8 @@ function storeSingleTicketTranslation(
         return null;
     }
 
+    releaseQueuedUserUpdateMailsAfterTranslation($store, $entityType, $entityId);
+
     return ticketTranslationStoredResult($rawText, $targetLanguage, $storedText, $sourceLanguage);
 }
 
@@ -442,6 +446,19 @@ function storeSingleTicketTranslation(
  * Zet een vertaling in de wachtrij. Het HTTP-antwoord gaat eerst weg; daarna pas de flow.
  * Bestaande berichten komen hier niet in: die blijven via translate_ticket (vangnet).
  */
+function releaseQueuedUserUpdateMailsAfterTranslation(TicketStore $store, string $entityType, int $entityId): void
+{
+    if ($entityType !== 'ticket_message' || $entityId <= 0 || !function_exists('dispatchQueuedUserUpdateMails')) {
+        return;
+    }
+
+    try {
+        dispatchQueuedUserUpdateMails($store, $entityId);
+    } catch (Throwable $exception) {
+        error_log('[asclepius] updatemail na vertaling ' . $entityId . ': ' . $exception->getMessage());
+    }
+}
+
 function queueTicketTextTranslation(TicketStore $store, string $entityType, int $entityId, int $ticketId, string $rawText): void
 {
     if (trim($rawText) === '' || $entityId <= 0 || $ticketId <= 0 || trim($entityType) === '') {
@@ -503,6 +520,15 @@ function runQueuedTicketTranslations(): void
 
     $queued = $GLOBALS['asclepiusTranslationQueue'] ?? [];
     if (!is_array($queued) || $queued === []) {
+        $idleStore = $GLOBALS['asclepiusTranslationQueueStore'] ?? null;
+        if ($idleStore instanceof TicketStore && function_exists('dispatchQueuedUserUpdateMails')) {
+            try {
+                dispatchQueuedUserUpdateMails($idleStore);
+            } catch (Throwable $exception) {
+                error_log('[asclepius] updatemail: ' . $exception->getMessage());
+            }
+        }
+
         return;
     }
 
@@ -565,6 +591,13 @@ function runQueuedTicketTranslations(): void
         }
         if ($previousLimit !== false) {
             @ini_set('max_execution_time', (string) $previousLimit);
+        }
+        if (function_exists('dispatchQueuedUserUpdateMails')) {
+            try {
+                dispatchQueuedUserUpdateMails($store);
+            } catch (Throwable $exception) {
+                error_log('[asclepius] updatemail: ' . $exception->getMessage());
+            }
         }
     }
 }
