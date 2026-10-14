@@ -5,7 +5,7 @@ author: Cursor Agent
 
 Un e-mail de mise à jour suit la langue choisie par cette personne, que le message vienne de l'interface web ou de l'API (y compris un bot). Un brouillon interne n'est envoyé que lorsqu'il devient visible. Il en va de même pour la confirmation d'un nouveau ticket. L'objet, les textes fixes et le message lui-même sont dans cette langue.
 
-Si le message est déjà dans cette langue, ou si la traduction est déjà prête, l'e-mail part tout de suite. Sinon il attend que la traduction arrive. Si cela prend plus de trois minutes, l'e-mail part quand même : textes fixes dans la bonne langue, message dans l'original. Cela est journalisé.
+Si le message est déjà dans cette langue, ou si la traduction est déjà prête, l'e-mail part tout de suite. Sinon il attend que la traduction arrive. Si cela prend plus de trois minutes, l'e-mail part quand même : textes fixes dans la bonne langue, message dans l'original. Cela est journalisé. Si le message change avant l'envoi, cet e-mail est abandonné. Le même e-mail ne part qu'une fois.
 
 ---
 id: 2026-10-14-translate-on-post
@@ -15,7 +15,7 @@ author: Cursor Agent
 
 Un nouveau ticket ou un message qui vient d'être publié est traduit tout de suite dans toutes les langues. Publier n'attend pas cette traduction. Les messages déjà présents ne sont pas tous traduits après coup ; en ouvrant un ticket, vous voyez la traduction si elle est prête, sinon elle est encore demandée à ce moment-là.
 
-Quand le flux Copilot renvoie plusieurs langues dans une seule réponse, elles sont toutes conservées. Sans flux, Lara continue de travailler langue par langue. Si le texte d'origine revient dans plus d'une langue, aucune n'est choisie comme langue source. Un texte identique à l'original ne compte pas comme une traduction.
+Quand le flux Copilot renvoie plusieurs langues dans une seule réponse, elles sont toutes conservées. Sans flux, Lara continue de travailler langue par langue. La langue source est celle qui correspond à l'original, pas le néerlandais par défaut. Qui lit dans cette langue source voit l'original. Si le texte d'origine revient dans plus d'une langue, aucune n'est choisie comme langue source. Un texte identique à l'original ne compte pas comme une traduction.
 
 Si vous modifiez le texte d'un message ou le titre, les anciennes traductions sont retirées et redemandées. Un brouillon interne est traduit dès qu'il devient visible.
 

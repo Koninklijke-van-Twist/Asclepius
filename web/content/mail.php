@@ -821,7 +821,7 @@ function sendUserUpdateNotifications(
     $needsTranslation = $providerReady && trim($messageText) !== '' && $messageId > 0;
     $sourceHash = hash('sha256', $messageText);
     $knownSource = $needsTranslation
-        ? $store->getTextTranslationSourceLanguage('ticket_message', $messageId, $sourceHash)
+        ? userUpdateMailSourceLanguage($store, $messageId, $messageText)
         : '';
     $exclude = $excludeEmail !== null ? strtolower(trim($excludeEmail)) : '';
     $seen = [];
@@ -946,6 +946,15 @@ function deliverUserUpdateMail(
     );
 }
 
+function userUpdateMailSourceLanguage(TicketStore $store, int $messageId, string $messageText): string
+{
+    if (function_exists('ticketTranslationSourceLanguage')) {
+        return ticketTranslationSourceLanguage($store, 'ticket_message', $messageId, $messageText);
+    }
+
+    return $store->getTextTranslationSourceLanguage('ticket_message', $messageId, hash('sha256', $messageText));
+}
+
 function logUserUpdateMailFallback(int $ticketId, string $recipientEmail, string $lang): void
 {
     $line = '[asclepius] updatemail ticket '
@@ -981,6 +990,10 @@ function dispatchQueuedUserUpdateMails(TicketStore $store, ?int $messageId = nul
         }
         $decision = resolveQueuedUserUpdateMail($store, $row, $now);
         if ($decision === null) {
+            continue;
+        }
+        if (!empty($decision['drop'])) {
+            $store->claimUserUpdateMail((int) ($row['id'] ?? 0));
             continue;
         }
 
@@ -1024,7 +1037,7 @@ function dispatchQueuedUserUpdateMails(TicketStore $store, ?int $messageId = nul
 
 /**
  * @param array<string, mixed> $row
- * @return array{text: string, fallback: bool}|null
+ * @return array{text?: string, fallback?: bool, drop?: bool}|null
  */
 function resolveQueuedUserUpdateMail(TicketStore $store, array $row, int $now): ?array
 {
@@ -1036,16 +1049,22 @@ function resolveQueuedUserUpdateMail(TicketStore $store, array $row, int $now): 
         return ['text' => $original, 'fallback' => true];
     }
 
+    $message = $store->getTicketMessage($messageId);
+    $currentText = is_array($message) ? (string) ($message['message_text'] ?? '') : '';
+    if (!is_array($message) || hash('sha256', $currentText) !== $sourceHash) {
+        return ['drop' => true];
+    }
+
+    $source = userUpdateMailSourceLanguage($store, $messageId, $currentText);
+    if ($source !== '' && $source === $lang) {
+        return ['text' => $original, 'fallback' => false];
+    }
+
     $cached = $store->getTextTranslation('ticket_message', $messageId, $lang, $sourceHash);
     if (is_array($cached)) {
         $cachedText = (string) ($cached['translated_text'] ?? '');
 
         return ['text' => $cachedText !== '' ? $cachedText : $original, 'fallback' => false];
-    }
-
-    $source = $store->getTextTranslationSourceLanguage('ticket_message', $messageId, $sourceHash);
-    if ($source !== '' && $source === $lang) {
-        return ['text' => $original, 'fallback' => false];
     }
 
     $queuedAt = (int) ($row['queued_at'] ?? 0);

@@ -464,6 +464,19 @@ $cachedEnglish = $store->getTextTranslation('ticket_message', $messageId, 'en', 
 $cachedGerman = $store->getTextTranslation('ticket_message', $messageId, 'de', hash('sha256', 'The printer does not work'));
 assertCopilot('Engelse tekst uit hetzelfde antwoord staat meteen in de cache', 'The printer does not work', (string) ($cachedEnglish['translated_text'] ?? ''));
 assertCopilot('Duitse tekst uit hetzelfde antwoord staat meteen in de cache', 'Der Drucker funktioniert nicht', (string) ($cachedGerman['translated_text'] ?? ''));
+assertCopilot('Engelse rij bewaart brontaal en', 'en', (string) ($cachedEnglish['source_language'] ?? ''));
+assertCopilot('Duitse rij bewaart dezelfde brontaal en', 'en', (string) ($cachedGerman['source_language'] ?? ''));
+$englishReader = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $messageId,
+    $ticketId,
+    'The printer does not work',
+    'en'
+);
+assertCopilot('Engelse lezer krijgt het origineel', 'The printer does not work', $englishReader['text']);
+assertCopilot('Engelse lezer ziet geen vertaling', false, $englishReader['is_translated']);
+assertCopilot('Engelse lezer heeft brontaal en', 'en', $englishReader['source_language']);
 
 $storedFrench = translateTicketTextForViewer(
     $store,
@@ -563,6 +576,31 @@ $store->upsertTextTranslation('ticket_message', $echoMessageId, $ticketId, 'en',
 $echoView = translateTicketTextForViewer($store, 'ticket_message', $echoMessageId, $ticketId, 'Hello there', 'en');
 assertCopilot('Cache met foute bron nl toont de Engelse tekst', 'Hello there', $echoView['text']);
 assertCopilot('Exact gelijke tekst is geen vertaling, ook niet bij bron nl', false, $echoView['is_translated']);
+assertCopilot('Foute stempel nl wordt brontaal en', 'en', $echoView['source_language']);
+$echoStored = $store->getTextTranslation('ticket_message', $echoMessageId, 'en', $echoHash);
+assertCopilot('Opgeslagen stempel is gecorrigeerd naar en', 'en', (string) ($echoStored['source_language'] ?? ''));
+
+$stampedText = 'Restart the spooler';
+$stampedId = $store->addMessage($ticketId, 'user@kvt.nl', 'user', $stampedText);
+$stampedHash = hash('sha256', $stampedText);
+foreach ([
+    'nl' => 'Herstart de spooler',
+    'en' => 'Restart the spooler',
+    'fr' => 'Redémarrez le spooler',
+    'de' => 'Spooler neu starten',
+] as $stampedLanguage => $stampedTranslation) {
+    $store->upsertTextTranslation('ticket_message', $stampedId, $ticketId, $stampedLanguage, 'nl', $stampedHash, $stampedTranslation);
+}
+$stampedEnglish = translateTicketTextForViewer($store, 'ticket_message', $stampedId, $ticketId, $stampedText, 'en');
+assertCopilot('Lezer in de brontaal krijgt het origineel', $stampedText, $stampedEnglish['text']);
+assertCopilot('Lezer in de brontaal ziet geen vertaling uit nl', false, $stampedEnglish['is_translated']);
+assertCopilot('Lezer in de brontaal heet en', 'en', $stampedEnglish['source_language']);
+$stampedDutch = translateTicketTextForViewer($store, 'ticket_message', $stampedId, $ticketId, $stampedText, 'nl');
+assertCopilot('Andere taal blijft een vertaling', 'Herstart de spooler', $stampedDutch['text']);
+assertCopilot('Andere taal is als vertaling gemarkeerd', true, $stampedDutch['is_translated']);
+assertCopilot('Andere taal noemt bron en, niet nl', 'en', $stampedDutch['source_language']);
+$stampedDutchRow = $store->getTextTranslation('ticket_message', $stampedId, 'nl', $stampedHash);
+assertCopilot('Elke taalrij bewaart de echte brontaal', 'en', (string) ($stampedDutchRow['source_language'] ?? ''));
 discardQueuedTicketTranslations();
 
 $callsBeforeSkip = count($calls);
@@ -763,6 +801,39 @@ assertCopilot(
     'Zweite Nachricht',
     (string) ($store->getTextTranslation('ticket_message', $replyId, 'de', hash('sha256', 'Tweede bericht'))['translated_text'] ?? '')
 );
+
+$englishPost = 'The screen stays black';
+$englishPostId = $store->addMessage($backgroundTicketId, 'user@kvt.nl', 'user', $englishPost);
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('nl', [
+        'nl' => 'Het scherm blijft zwart',
+        'en' => 'The screen stays black',
+        'fr' => "L'écran reste noir",
+        'de' => 'Der Bildschirm bleibt schwarz',
+    ]),
+    'error' => '',
+];
+flushQueuedTicketTranslations();
+$englishPostHash = hash('sha256', $englishPost);
+foreach (['nl', 'en', 'fr', 'de'] as $englishPostLanguage) {
+    $englishPostRow = $store->getTextTranslation('ticket_message', $englishPostId, $englishPostLanguage, $englishPostHash);
+    assertCopilot(
+        'Prefetch zet brontaal en op ' . $englishPostLanguage . ', niet de leestaal nl',
+        'en',
+        (string) ($englishPostRow['source_language'] ?? '')
+    );
+}
+$englishPostReader = translateTicketTextForViewer(
+    $store,
+    'ticket_message',
+    $englishPostId,
+    $backgroundTicketId,
+    $englishPost,
+    'en'
+);
+assertCopilot('Prefetch: Engelse lezer krijgt het origineel', $englishPost, $englishPostReader['text']);
+assertCopilot('Prefetch: Engelse lezer is niet vertaald uit nl', false, $englishPostReader['is_translated']);
 
 $callsBeforeGhost = count($calls);
 $ghostId = $store->addMessage($backgroundTicketId, 'ict@kvt.nl', 'admin', 'Concept oud', [], true);

@@ -5,7 +5,7 @@ author: Cursor Agent
 
 Een updatemail naar een gebruiker volgt de taal die die persoon heeft ingesteld, of het bericht uit de webinterface komt of via de API (ook een bot). Een intern concept mailt pas als het zichtbaar wordt. Hetzelfde geldt voor de bevestiging van een nieuw ticket. Onderwerp, vaste teksten en de tekst van het bericht staan in die taal.
 
-Is het bericht al in die taal, of staat de vertaling al klaar, dan gaat de mail meteen weg. Anders wacht die tot de vertaling binnen is. Duurt dat langer dan drie minuten, dan gaat de mail alsnog weg: vaste teksten in de juiste taal, het bericht in het origineel. Dat wordt gelogd.
+Is het bericht al in die taal, of staat de vertaling al klaar, dan gaat de mail meteen weg. Anders wacht die tot de vertaling binnen is. Duurt dat langer dan drie minuten, dan gaat de mail alsnog weg: vaste teksten in de juiste taal, het bericht in het origineel. Dat wordt gelogd. Wijzigt het bericht nog voordat de mail weg is, dan vervalt die mail. Dezelfde mail gaat maar één keer weg.
 
 ---
 id: 2026-10-14-translate-on-post
@@ -15,7 +15,7 @@ author: Cursor Agent
 
 Een nieuw ticket of een nieuw geplaatst bericht wordt meteen voor alle talen vertaald. Het plaatsen zelf wacht daar niet op. Bestaande berichten worden niet achteraf alsnog allemaal vertaald; wie een ticket opent, krijgt de vertaling als die er al is en anders alsnog op aanvraag.
 
-Komt de Copilot-flow in één antwoord met meerdere talen terug, dan worden die allemaal bewaard. Zonder flow blijft Lara per taal werken. Komt de originele tekst in meer dan één taal terug, dan wordt geen van die talen als brontaal gekozen. Een tekst die gelijk is aan het origineel telt niet als vertaling.
+Komt de Copilot-flow in één antwoord met meerdere talen terug, dan worden die allemaal bewaard. Zonder flow blijft Lara per taal werken. De brontaal is de taal die gelijk is aan het origineel, niet automatisch Nederlands. Wie in die brontaal leest, ziet het origineel. Komt de originele tekst in meer dan één taal terug, dan wordt geen van die talen als brontaal gekozen. Een tekst die gelijk is aan het origineel telt niet als vertaling.
 
 Wijzig je de tekst van een bericht of de titel, dan vervallen de oude vertalingen en wordt er opnieuw vertaald. Een intern concept wordt vertaald zodra het zichtbaar wordt.
 

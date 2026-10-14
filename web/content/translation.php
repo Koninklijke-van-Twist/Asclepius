@@ -97,16 +97,7 @@ function translateTicketTextForViewer(
     $sourceHash = hash('sha256', $rawText);
     $cached = $store->getTextTranslation($entityType, $entityId, $targetLanguage, $sourceHash);
     if (is_array($cached)) {
-        $cachedSourceLanguage = (string) ($cached['source_language'] ?? '');
-        $cachedText = (string) ($cached['translated_text'] ?? $rawText);
-        return [
-            'text' => $cachedText,
-            'is_translated' => ticketTranslationIsTranslated($cachedSourceLanguage, $targetLanguage, $cachedText, $rawText),
-            'source_language' => $cachedSourceLanguage,
-            'target_language' => $targetLanguage,
-            'translation_pending' => false,
-            'translation_error' => '',
-        ];
+        return ticketTranslationFromCacheRow($store, $entityType, $entityId, $sourceHash, $rawText, $targetLanguage, $cached);
     }
 
     if ($cacheOnly) {
@@ -158,17 +149,7 @@ function translateTicketTextForViewer(
     try {
         $cachedAfterClaim = $store->getTextTranslation($entityType, $entityId, $targetLanguage, $sourceHash);
         if (is_array($cachedAfterClaim)) {
-            $cachedSourceLanguage = (string) ($cachedAfterClaim['source_language'] ?? '');
-            $cachedText = (string) ($cachedAfterClaim['translated_text'] ?? $rawText);
-
-            return [
-                'text' => $cachedText,
-                'is_translated' => ticketTranslationIsTranslated($cachedSourceLanguage, $targetLanguage, $cachedText, $rawText),
-                'source_language' => $cachedSourceLanguage,
-                'target_language' => $targetLanguage,
-                'translation_pending' => false,
-                'translation_error' => '',
-            ];
+            return ticketTranslationFromCacheRow($store, $entityType, $entityId, $sourceHash, $rawText, $targetLanguage, $cachedAfterClaim);
         }
 
         $stored = $provider instanceof CopilotTranslationProvider
@@ -359,15 +340,98 @@ function ticketTranslationIsTranslated(string $sourceLanguage, string $targetLan
 
 function ticketTranslationStoredResult(string $rawText, string $targetLanguage, string $storedText, string $sourceLanguage): array
 {
+    $sourceLanguage = strtolower(trim($sourceLanguage));
+    $readingSource = $sourceLanguage !== '' && $sourceLanguage === $targetLanguage;
+    $sameText = ticketTranslationTextsMatch($storedText, $rawText);
+    $text = ($readingSource || $sameText || $storedText === '') ? $rawText : $storedText;
+    $isTranslated = ticketTranslationIsTranslated($sourceLanguage, $targetLanguage, $text, $rawText);
+
     return [
-        'text' => $storedText,
-        'is_translated' => ticketTranslationIsTranslated($sourceLanguage, $targetLanguage, $storedText, $rawText),
-        'source_language' => $sourceLanguage,
+        'text' => $text,
+        'is_translated' => $isTranslated,
+        'source_language' => ($isTranslated || $readingSource) ? $sourceLanguage : '',
         'target_language' => $targetLanguage,
         'translation_pending' => false,
         'translation_error' => '',
         'translation_error_detail' => '',
     ];
+}
+
+/**
+ * Cache-treffer. De brontaal wordt opnieuw bepaald uit de opgeslagen teksten:
+ * precies één taal die gelijk is aan het origineel. Een stempel 'nl' van een
+ * prefetch telt niet mee. De lezer in die brontaal krijgt het origineel.
+ *
+ * @param array<string, mixed> $cached
+ * @return array{text: string, is_translated: bool, source_language: string, target_language: string, translation_pending: bool, translation_error: string, translation_error_detail: string}
+ */
+function ticketTranslationFromCacheRow(
+    TicketStore $store,
+    string $entityType,
+    int $entityId,
+    string $sourceHash,
+    string $rawText,
+    string $targetLanguage,
+    array $cached
+): array {
+    $storedText = (string) ($cached['translated_text'] ?? '');
+    $storedSource = (string) ($cached['source_language'] ?? '');
+    $sourceLanguage = ticketTranslationSourceLanguage($store, $entityType, $entityId, $rawText, $storedSource);
+
+    return ticketTranslationStoredResult($rawText, $targetLanguage, $storedText, $sourceLanguage);
+}
+
+/**
+ * Brontaal van dit bericht: de enige taal waarvan de opgeslagen tekst het origineel is.
+ * Wijkt de opgeslagen stempel daarvan af, dan wordt die stempel gecorrigeerd.
+ */
+function ticketTranslationSourceLanguage(
+    TicketStore $store,
+    string $entityType,
+    int $entityId,
+    string $rawText,
+    string $fallback = ''
+): string {
+    $sourceHash = hash('sha256', $rawText);
+    $rows = $store->listTextTranslations($entityType, $entityId, $sourceHash);
+    $detected = ticketTranslationSourceFromStoredRows($rows, $rawText);
+    if ($detected === '') {
+        if ($fallback !== '') {
+            return strtolower(trim($fallback));
+        }
+
+        return $store->getTextTranslationSourceLanguage($entityType, $entityId, $sourceHash);
+    }
+
+    foreach ($rows as $row) {
+        if (strtolower(trim((string) ($row['source_language'] ?? ''))) !== $detected) {
+            $store->setTextTranslationSourceLanguage($entityType, $entityId, $sourceHash, $detected);
+            break;
+        }
+    }
+
+    return $detected;
+}
+
+/**
+ * @param list<array<string, mixed>> $rows
+ */
+function ticketTranslationSourceFromStoredRows(array $rows, string $rawText): string
+{
+    $matches = [];
+    foreach ($rows as $row) {
+        $language = strtolower(trim((string) ($row['target_language'] ?? '')));
+        if ($language === '' || !array_key_exists($language, SUPPORTED_LANGUAGES)) {
+            continue;
+        }
+        if (ticketTranslationTextsMatch((string) ($row['translated_text'] ?? ''), $rawText)) {
+            $matches[$language] = true;
+        }
+    }
+
+    $languages = array_keys($matches);
+
+    return count($languages) === 1 ? (string) $languages[0] : '';
 }
 
 function normalizedStoredTranslation(string $rawText, string $language, string $translatedText, string $sourceLanguage): string
@@ -702,6 +766,8 @@ function prefetchTicketTextTranslations(
         }
 
         if ($provider instanceof CopilotTranslationProvider) {
+            // De taal hier is alleen welke tekst het antwoord teruggeeft. De prefetch
+            // gebruikt dat antwoord niet. De brontaal komt uit de flow-teksten zelf.
             storeCopilotTicketTranslations(
                 $store,
                 $provider,

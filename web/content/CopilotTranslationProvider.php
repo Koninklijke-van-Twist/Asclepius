@@ -102,7 +102,7 @@ class CopilotTranslationProvider implements TranslationProvider
 
         return [
             'translations' => $translations,
-            'source_language' => $this->sourceLanguageFromTranslations($rawText, $targetLanguage, $translations),
+            'source_language' => $this->sourceLanguageFromTranslations($rawText, $translations),
             'target_language' => $targetLanguage,
         ];
     }
@@ -200,12 +200,11 @@ class CopilotTranslationProvider implements TranslationProvider
     /**
      * De flow levert ook `source`, maar die is soms fout. Die waarde wordt niet gelezen.
      * Alleen als precies één taal exact gelijk is aan de brontekst, is dat de brontaal.
-     * De gevraagde leestaal krijgt geen voorrang: anders krijgt elke opgeslagen taal
-     * ten onrechte die bron, ook als een andere taal de originele tekst is.
+     * De gevraagde leestaal speelt geen rol: een prefetch naar nl mag de brontaal niet worden.
      *
      * @param array<string, string> $translations
      */
-    private function sourceLanguageFromTranslations(string $rawText, string $targetLanguage, array $translations): string
+    private function sourceLanguageFromTranslations(string $rawText, array $translations): string
     {
         $normalizedRaw = $this->comparableText($rawText);
         if ($normalizedRaw === '') {

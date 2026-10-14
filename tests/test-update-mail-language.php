@@ -188,8 +188,8 @@ $store->enqueueUserUpdateMail(
     $messageId,
     'fr-update-mail@example.com',
     'fr',
-    hash('sha256', 'tekst die niet vertaald wordt'),
-    'tekst die niet vertaald wordt',
+    hash('sha256', $original),
+    $original,
     false,
     'ict@kvt.nl',
     'ict@kvt.nl',
@@ -201,7 +201,7 @@ $GLOBALS['asclepiusUpdateMailLog'] = [];
 dispatchQueuedUserUpdateMails($store, null, time(), $GLOBALS['ictUsers']);
 assertMail('Timeout verstuurt alsnog', 1, count($GLOBALS['asclepiusCapturedTicketEmails']));
 assertMail('Timeout-onderwerp Frans', 'Mise à jour du ticket #' . $ticketId, $GLOBALS['asclepiusCapturedTicketEmails'][0]['subject']);
-assertMailTrue('Timeout-bericht is het origineel', str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'tekst die niet vertaald wordt'));
+assertMailTrue('Timeout-bericht is het origineel', str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], $original));
 assertMailTrue('Timeout-intro Frans', str_contains((string) $GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'], 'Un collaborateur a mis à jour votre ticket.'));
 assertMail('Eén fallback-logregel', 1, count($GLOBALS['asclepiusUpdateMailLog']));
 assertMailTrue('Log noemt de taal en de wachttijd', str_contains((string) $GLOBALS['asclepiusUpdateMailLog'][0], 'vertaling fr niet binnen ' . userUpdateMailWaitSeconds() . 's'));
@@ -212,8 +212,8 @@ $notYet = $store->enqueueUserUpdateMail(
     $messageId,
     'fr-update-mail@example.com',
     'fr',
-    hash('sha256', 'nog even wachten'),
-    'nog even wachten',
+    hash('sha256', $original),
+    $original,
     false,
     '',
     '',
@@ -226,8 +226,8 @@ assertMail('Dubbele rij voor dezelfde tekst wordt genegeerd', false, $store->enq
     $messageId,
     'fr-update-mail@example.com',
     'fr',
-    hash('sha256', 'nog even wachten'),
-    'nog even wachten',
+    hash('sha256', $original),
+    $original,
     false,
     '',
     '',
@@ -274,6 +274,79 @@ $frenchMails = array_values(array_filter(
 assertMail('Achtergrondvertaling stuurt de Franse mail', 1, count($frenchMails));
 assertMail('Wachtrij van het antwoord is leeg', 0, count($store->listUserUpdateMailQueue($replyId)));
 assertMailTrue('Flow is aangeroepen', count($calls) >= 1);
+
+echo PHP_EOL . "Gewijzigd bericht stuurt de oude mail niet" . PHP_EOL;
+foreach ($store->listUserUpdateMailQueue() as $leftover) {
+    $store->claimUserUpdateMail((int) ($leftover['id'] ?? 0));
+}
+$staleText = '[ ] Controle';
+$staleId = $store->addMessage($ticketId, 'ict@kvt.nl', 'admin', $staleText);
+discardQueuedTicketTranslations();
+$store->enqueueUserUpdateMail(
+    $ticketId,
+    $staleId,
+    'de-update-mail@example.com',
+    'de',
+    hash('sha256', $staleText),
+    $staleText,
+    false,
+    '',
+    '',
+    false,
+    time() - userUpdateMailWaitSeconds() - 5
+);
+$checked = $store->updateTicketMessageCheckboxState($ticketId, $staleId, 0, true, true, 'ict@kvt.nl');
+discardQueuedTicketTranslations();
+assertMail('Aangevinkte tekst', '[x] Controle', $checked);
+assertMail('Wachtrij van het oude bericht is leeg', 0, count($store->listUserUpdateMailQueue($staleId)));
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+$GLOBALS['asclepiusUpdateMailLog'] = [];
+dispatchQueuedUserUpdateMails($store, $staleId, time(), $GLOBALS['ictUsers']);
+assertMail('Geen mail met de oude tekst', 0, count($GLOBALS['asclepiusCapturedTicketEmails']));
+assertMail('Geen timeout-log voor een vervallen mail', 0, count($GLOBALS['asclepiusUpdateMailLog']));
+
+$store->enqueueUserUpdateMail(
+    $ticketId,
+    $messageId,
+    'de-update-mail@example.com',
+    'de',
+    hash('sha256', 'tekst die niet meer klopt'),
+    'tekst die niet meer klopt',
+    false,
+    '',
+    '',
+    false,
+    time() - userUpdateMailWaitSeconds() - 5
+);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+$GLOBALS['asclepiusUpdateMailLog'] = [];
+dispatchQueuedUserUpdateMails($store, $messageId, time(), $GLOBALS['ictUsers']);
+assertMail('Verouderde hash wordt niet verstuurd', 0, count($GLOBALS['asclepiusCapturedTicketEmails']));
+assertMail('Verouderde hash verdwijnt uit de wachtrij', 0, count($store->listUserUpdateMailQueue($messageId)));
+assertMail('Verouderde hash schrijft geen fallback-log', 0, count($GLOBALS['asclepiusUpdateMailLog']));
+
+echo PHP_EOL . "Een mail wordt maar één keer geclaimd" . PHP_EOL;
+$store->enqueueUserUpdateMail(
+    $ticketId,
+    $messageId,
+    'fr-update-mail@example.com',
+    'fr',
+    hash('sha256', $original),
+    $original,
+    false,
+    '',
+    '',
+    false,
+    time()
+);
+$claimRows = $store->listUserUpdateMailQueue($messageId);
+assertMail('Er staat één rij klaar om te claimen', 1, count($claimRows));
+$claimId = (int) ($claimRows[0]['id'] ?? 0);
+$firstClaim = $store->claimUserUpdateMail($claimId);
+$secondClaim = $store->claimUserUpdateMail($claimId);
+assertMailTrue('Eerste claim levert de rij', is_array($firstClaim));
+assertMail('Tweede claim krijgt niets', null, $secondClaim);
+assertMail('Geclaimde rij is weg', 0, count($store->listUserUpdateMailQueue($messageId)));
 
 echo PHP_EOL;
 echo "Geslaagd: {$passed}" . PHP_EOL;

@@ -2138,6 +2138,10 @@ class TicketStore
             ':entity_type' => $normalizedEntityType,
             ':entity_id' => $entityId,
         ]);
+
+        if ($normalizedEntityType === 'ticket_message') {
+            $this->discardUserUpdateMailsForMessage($entityId);
+        }
     }
 
     /**
@@ -2559,6 +2563,74 @@ class TicketStore
         return is_string($sourceLanguage) ? strtolower(trim($sourceLanguage)) : '';
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listTextTranslations(string $entityType, int $entityId, string $sourceHash): array
+    {
+        $normalizedEntityType = trim($entityType);
+        $normalizedSourceHash = trim($sourceHash);
+        if ($normalizedEntityType === '' || $entityId <= 0 || $normalizedSourceHash === '') {
+            return [];
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT target_language, source_language, translated_text
+             FROM ticket_text_translations
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND source_hash = :source_hash'
+        );
+        $statement->execute([
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':source_hash' => $normalizedSourceHash,
+        ]);
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    public function setTextTranslationSourceLanguage(string $entityType, int $entityId, string $sourceHash, string $sourceLanguage): void
+    {
+        $normalizedEntityType = trim($entityType);
+        $normalizedSourceHash = trim($sourceHash);
+        $normalizedSourceLanguage = strtolower(trim($sourceLanguage));
+        if ($normalizedEntityType === '' || $entityId <= 0 || $normalizedSourceHash === '' || $normalizedSourceLanguage === '') {
+            return;
+        }
+        if (!defined('SUPPORTED_LANGUAGES') || !is_array(SUPPORTED_LANGUAGES) || !array_key_exists($normalizedSourceLanguage, SUPPORTED_LANGUAGES)) {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'UPDATE ticket_text_translations
+             SET source_language = :source_language
+             WHERE entity_type = :entity_type
+               AND entity_id = :entity_id
+               AND source_hash = :source_hash
+               AND source_language != :source_language'
+        );
+        $statement->execute([
+            ':source_language' => $normalizedSourceLanguage,
+            ':entity_type' => $normalizedEntityType,
+            ':entity_id' => $entityId,
+            ':source_hash' => $normalizedSourceHash,
+        ]);
+    }
+
+    public function discardUserUpdateMailsForMessage(int $messageId): void
+    {
+        if ($messageId <= 0) {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'DELETE FROM ticket_update_mail_queue WHERE message_id = :message_id'
+        );
+        $statement->execute([':message_id' => $messageId]);
+    }
+
     public function enqueueUserUpdateMail(
         int $ticketId,
         int $messageId,
@@ -2662,11 +2734,12 @@ class TicketStore
 
             $delete = $this->pdo->prepare('DELETE FROM ticket_update_mail_queue WHERE id = :id');
             $delete->execute([':id' => $id]);
+            $deleted = $delete->rowCount() > 0;
             if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->commit();
             }
 
-            return $row;
+            return $deleted ? $row : null;
         } catch (Throwable $exception) {
             if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();

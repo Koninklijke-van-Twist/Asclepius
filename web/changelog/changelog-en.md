@@ -5,7 +5,7 @@ author: Cursor Agent
 
 An update email to a user follows the language that person has set, whether the message comes from the web interface or from the API (including a bot). An internal draft is only emailed once it becomes visible. The same applies to the confirmation of a new ticket. The subject, the fixed texts and the message itself are in that language.
 
-If the message is already in that language, or the translation is already ready, the email goes out at once. Otherwise it waits until the translation arrives. If that takes longer than three minutes, the email is sent anyway: fixed texts in the right language, the message in the original. That is logged.
+If the message is already in that language, or the translation is already ready, the email goes out at once. Otherwise it waits until the translation arrives. If that takes longer than three minutes, the email is sent anyway: fixed texts in the right language, the message in the original. That is logged. If the message changes before the email has gone out, that email is dropped. The same email is sent only once.
 
 ---
 id: 2026-10-14-translate-on-post
@@ -15,7 +15,7 @@ author: Cursor Agent
 
 A new ticket or a newly posted message is translated into every language right away. Posting itself does not wait for that. Existing messages are not translated afterwards in bulk; when you open a ticket you see a translation if it is already there, and otherwise it is still requested on demand.
 
-When the Copilot flow returns several languages in one answer, all of them are kept. Without the flow, Lara still works one language at a time. If the original text comes back in more than one language, none of those is chosen as the source language. Text that matches the original does not count as a translation.
+When the Copilot flow returns several languages in one answer, all of them are kept. Without the flow, Lara still works one language at a time. The source language is the language that matches the original, not Dutch by default. A reader in that source language sees the original. If the original text comes back in more than one language, none of those is chosen as the source language. Text that matches the original does not count as a translation.
 
 If you change a message or the title, the old translations are dropped and translated again. An internal draft is translated once it becomes visible.
 
