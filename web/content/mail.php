@@ -874,6 +874,8 @@ function updateMailMessageId(string $messageText, int $messageId, int $statusMes
  * Mail per taal van de ontvanger. Onderwerp, vaste teksten en het bericht
  * horen bij die taal. Ontvangers met dezelfde taal delen één mail.
  * Ontbreekt de vertaling, dan wacht die taal tot ze binnen is.
+ * Een uitgezet e-mailtype slaat alleen de mail over. Desktop en web-push
+ * gaan naar iedereen die de melding oorspronkelijk zou krijgen.
  *
  * @param list<string> $recipients
  * @param list<mixed> $ictUsers
@@ -920,40 +922,72 @@ function sendLocalizedTicketNotifications(
         $suffixKey = $statusChanged ? 'email.intro_update_status' : 'email.intro_update_no_status';
     }
 
+    $browserPool = normalizeNotificationRecipients($routed, $browserActorEmail);
+    $emailLookup = array_fill_keys($emailRecipients, true);
     $byLang = [];
     foreach ($emailRecipients as $email) {
         $lang = getUserMailLang($email);
-        $byLang[$lang][] = $email;
+        $byLang[$lang]['email'][] = $email;
+    }
+    foreach ($browserPool as $email) {
+        $lang = getUserMailLang($email);
+        $byLang[$lang]['browser'][] = $email;
     }
 
     $now = time();
     $sourceHash = hash('sha256', $messageText);
     $exclude = $excludeEmail !== null ? strtolower(trim($excludeEmail)) : '';
     $actor = $browserActorEmail !== null ? strtolower(trim($browserActorEmail)) : '';
-    foreach ($byLang as $lang => $emails) {
+    foreach ($byLang as $lang => $buckets) {
+        $emails = is_array($buckets['email'] ?? null) ? $buckets['email'] : [];
+        $browsers = is_array($buckets['browser'] ?? null) ? $buckets['browser'] : [];
         $decision = localizedMailDelivery($store, $messageId, $lang, $messageText, 0, $now);
         if ($decision === null) {
-            if ($messageId <= 0) {
-                continue;
+            if ($messageId > 0) {
+                foreach ($emails as $email) {
+                    $store->enqueueUserUpdateMail(
+                        $ticketId,
+                        $messageId,
+                        $email,
+                        $lang,
+                        $sourceHash,
+                        $messageText,
+                        $statusChanged,
+                        $exclude,
+                        $actor,
+                        $highImportance,
+                        null,
+                        $subjectKey,
+                        $introKey,
+                        $suffixKey,
+                        $adminPage,
+                        $adminNotificationType ?? ''
+                    );
+                }
             }
-            foreach ($emails as $email) {
-                $store->enqueueUserUpdateMail(
-                    $ticketId,
-                    $messageId,
-                    $email,
+            $desktopNow = [];
+            foreach ($browsers as $email) {
+                if (!isset($emailLookup[$email])) {
+                    $desktopNow[] = $email;
+                }
+            }
+            if ($desktopNow !== []) {
+                sendRenderedLocalizedMails(
+                    $store,
+                    $ictUsers,
+                    $ticket,
+                    [],
                     $lang,
-                    $sourceHash,
-                    $messageText,
-                    $statusChanged,
-                    $exclude,
-                    $actor,
+                    mailTextForRecipient($messageText, $messageText, $lang),
+                    $adminPage,
+                    $excludeEmail,
+                    $browserActorEmail,
                     $highImportance,
-                    null,
                     $subjectKey,
                     $introKey,
                     $suffixKey,
-                    $adminPage,
-                    $adminNotificationType ?? ''
+                    $forwards,
+                    $desktopNow
                 );
             }
             continue;
@@ -973,7 +1007,8 @@ function sendLocalizedTicketNotifications(
             $subjectKey,
             $introKey,
             $suffixKey,
-            $forwards
+            $forwards,
+            $browsers
         );
     }
 }
@@ -982,6 +1017,7 @@ function sendLocalizedTicketNotifications(
  * @param list<string> $recipients
  * @param list<mixed> $ictUsers
  * @param list<array{absent?: string, to?: string}> $forwards
+ * @param list<string>|null $browserRecipients Desktop en web-push. null = dezelfde ontvangers als de mail.
  */
 function sendRenderedLocalizedMails(
     TicketStore $store,
@@ -997,11 +1033,17 @@ function sendRenderedLocalizedMails(
     string $subjectKey,
     string $introKey,
     string $introSuffixKey,
-    array $forwards = []
+    array $forwards = [],
+    ?array $browserRecipients = null
 ): void {
     $ticketId = (int) ($ticket['id'] ?? 0);
-    $recipients = normalizeNotificationRecipients($recipients, $excludeEmail);
-    if ($ticketId <= 0 || $recipients === []) {
+    $emailRecipients = normalizeNotificationRecipients($recipients, $excludeEmail);
+    $desktopRecipients = $browserRecipients === null ? $emailRecipients : $browserRecipients;
+    $desktopRecipients = normalizeNotificationRecipients($desktopRecipients, $excludeEmail);
+    if ($browserActorEmail !== null) {
+        $desktopRecipients = normalizeNotificationRecipients($desktopRecipients, $browserActorEmail);
+    }
+    if ($ticketId <= 0 || ($emailRecipients === [] && $desktopRecipients === [])) {
         return;
     }
     if (!array_key_exists($lang, SUPPORTED_LANGUAGES)) {
@@ -1021,19 +1063,16 @@ function sendRenderedLocalizedMails(
         absenceForwardNote($forwards, $lang)
     );
     $subject = __mail($subjectKey, $lang, $ticketId);
-    sendTicketEmail($recipients, $subject, $body, $excludeEmail, $highImportance);
-
-    $browserRecipients = $recipients;
-    if ($browserActorEmail !== null) {
-        $browserRecipients = normalizeNotificationRecipients($browserRecipients, $browserActorEmail);
+    if ($emailRecipients !== []) {
+        sendTicketEmail($emailRecipients, $subject, $body, $excludeEmail, $highImportance);
     }
-    if ($browserRecipients === []) {
+    if ($desktopRecipients === []) {
         return;
     }
 
     $excerpt = extractDesktopNotificationBody($body);
-    $store->queueBrowserNotifications($browserRecipients, $ticketId, $subject, $excerpt);
-    sendWebPushNotifications($store, $ictUsers, $browserRecipients, $ticketId, $subject, $excerpt);
+    $store->queueBrowserNotifications($desktopRecipients, $ticketId, $subject, $excerpt);
+    sendWebPushNotifications($store, $ictUsers, $desktopRecipients, $ticketId, $subject, $excerpt);
 }
 
 /**
@@ -1138,6 +1177,50 @@ function logUserUpdateMailFallback(int $ticketId, string $recipientEmail, string
 }
 
 /**
+ * Geen e-mail: de ontvanger heeft dit type uitgezet.
+ * Desktop en web-push gaan wel weg, met de tekst die op dat moment klaarstaat.
+ *
+ * @param array<string, mixed> $row
+ * @param list<mixed> $ictUsers
+ */
+function deliverOptedOutQueuedBrowserNotification(TicketStore $store, array $ictUsers, array $row, string $messageText): void
+{
+    $ticketId = (int) ($row['ticket_id'] ?? 0);
+    $recipient = strtolower(trim((string) ($row['recipient_email'] ?? '')));
+    $ticket = $ticketId > 0 ? $store->getTicket($ticketId, true, '') : null;
+    if (!is_array($ticket) || $recipient === '') {
+        if ($recipient !== '') {
+            error_log('[asclepius] updatemail ticket ' . $ticketId . ' naar ' . $recipient . ': ticket ontbreekt, mail vervallen');
+        }
+
+        return;
+    }
+
+    $actor = trim((string) ($row['browser_actor_email'] ?? ''));
+    $lang = strtolower(trim((string) ($row['recipient_lang'] ?? 'nl')));
+    $category = (string) ($ticket['category'] ?? '');
+    $routing = routeNotificationRecipients($store, $ictUsers, [$recipient], $category);
+    $forwards = is_array($routing['forwards'] ?? null) ? $routing['forwards'] : [];
+    sendRenderedLocalizedMails(
+        $store,
+        $ictUsers,
+        $ticket,
+        [],
+        $lang,
+        $messageText,
+        !empty($row['admin_page']),
+        null,
+        $actor !== '' ? $actor : null,
+        !empty($row['high_importance']),
+        (string) ($row['subject_key'] ?? 'email.subject_update'),
+        (string) ($row['intro_key'] ?? 'email.intro_update'),
+        (string) ($row['intro_suffix_key'] ?? ''),
+        $forwards,
+        [$recipient]
+    );
+}
+
+/**
  * Verstuur wachtende updatemails waarvan de vertaling er is, of waarvan de wachttijd voorbij is.
  *
  * @param list<mixed>|null $ictUsers
@@ -1168,7 +1251,15 @@ function dispatchQueuedUserUpdateMails(TicketStore $store, ?int $messageId = nul
         if ($notificationType !== '' && $recipient !== '') {
             $allowed = filterAdminEmailRecipients($ictUsers, [$recipient], $notificationType);
             if (!in_array($recipient, $allowed, true)) {
-                $store->claimUserUpdateMail((int) ($row['id'] ?? 0));
+                $claimed = $store->claimUserUpdateMail((int) ($row['id'] ?? 0));
+                if (is_array($claimed)) {
+                    deliverOptedOutQueuedBrowserNotification(
+                        $store,
+                        $ictUsers,
+                        $claimed,
+                        (string) ($decision['text'] ?? '')
+                    );
+                }
                 continue;
             }
         }

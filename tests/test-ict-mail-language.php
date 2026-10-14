@@ -51,6 +51,17 @@ function assertIctMailTrue(string $label, bool $condition): void
     assertIctMail($label, true, $condition);
 }
 
+/** @return list<string> */
+function ictBrowserTitles(TicketStore $store, string $email): array
+{
+    $titles = [];
+    foreach ($store->pullBrowserNotifications($email) as $row) {
+        $titles[] = (string) ($row['title'] ?? '');
+    }
+
+    return $titles;
+}
+
 $reporter = 'en-reporter@example.com';
 $frenchIct = 'fr-ict@example.com';
 $frenchIctTwo = 'fr-ict-2@example.com';
@@ -243,6 +254,142 @@ assertIctMailTrue(
     'Bericht van de behandelaar is de Franse vertaling',
     str_contains((string) ($GLOBALS['asclepiusCapturedTicketEmails'][0]['plain'] ?? ''), "L'écran reste noir")
 );
+
+echo PHP_EOL . "E-mail opt-out laat desktop en web-push staan" . PHP_EOL;
+foreach ($prefEmails as $prefEmail) {
+    $store->pullBrowserNotifications($prefEmail);
+}
+$GLOBALS['__translationProviderCache'] = ['initialized' => true, 'provider' => null];
+saveAdminEmailPreference($frenchIct, 'new_ticket', false);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+notifyIctAboutTicket(
+    $store,
+    $ictUsers,
+    $ticket,
+    [$frenchIct, $germanIct, $frenchAssignee],
+    $description,
+    $messageId,
+    'email.subject_new_ticket',
+    'email.intro_new_ict',
+    $reporter,
+    $frenchAssignee,
+    'new_ticket'
+);
+$mailRecipients = [];
+foreach ($GLOBALS['asclepiusCapturedTicketEmails'] as $mail) {
+    foreach ($mail['recipients'] ?? [] as $recipient) {
+        $mailRecipients[] = (string) $recipient;
+    }
+}
+sort($mailRecipients);
+assertIctMail('Opt-out krijgt geen mail', [$germanIct, $frenchAssignee], $mailRecipients);
+assertIctMail(
+    'Opt-out krijgt wel de Franse bureaubladmelding',
+    ['Nouveau ticket #' . $ticketId],
+    ictBrowserTitles($store, $frenchIct)
+);
+assertIctMail(
+    'Ontvanger mét mail krijgt ook een bureaubladmelding',
+    ['Neues Ticket #' . $ticketId],
+    ictBrowserTitles($store, $germanIct)
+);
+assertIctMail('De behandelaar die de melding zet krijgt geen bureaubladmelding', [], ictBrowserTitles($store, $frenchAssignee));
+assertIctMail('De melder krijgt geen bureaubladmelding', [], ictBrowserTitles($store, $reporter));
+
+echo PHP_EOL . "Opt-out terwijl de vertaling nog ontbreekt" . PHP_EOL;
+$GLOBALS['__translationProviderCache'] = ['initialized' => true, 'provider' => $waitingProvider];
+saveAdminEmailPreference($frenchIctTwo, 'user_reply', false);
+$waitingText = 'Please restart the printer';
+$waitingId = $store->addMessage($ticketId, $reporter, 'user', $waitingText);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+notifyIctAboutTicket(
+    $store,
+    $ictUsers,
+    $ticket,
+    [$frenchIctTwo, $germanIct],
+    $waitingText,
+    $waitingId,
+    'email.subject_user_reply',
+    'email.intro_user_reply',
+    $reporter,
+    $reporter,
+    'user_reply'
+);
+assertIctMail('Nog geen mail zolang er gewacht wordt', 0, count($GLOBALS['asclepiusCapturedTicketEmails']));
+$queuedEmails = [];
+foreach ($store->listUserUpdateMailQueue($waitingId) as $row) {
+    $queuedEmails[] = (string) ($row['recipient_email'] ?? '');
+}
+sort($queuedEmails);
+assertIctMail('Alleen de ontvanger mét mail staat in de wachtrij', [$germanIct], $queuedEmails);
+assertIctMail(
+    'Opt-out krijgt meteen de Franse bureaubladmelding',
+    ['Réponse de l\'utilisateur sur le ticket #' . $ticketId],
+    ictBrowserTitles($store, $frenchIctTwo)
+);
+assertIctMail('Wie wacht op de vertaling heeft nog geen bureaubladmelding', [], ictBrowserTitles($store, $germanIct));
+$store->upsertTextTranslation(
+    'ticket_message',
+    $waitingId,
+    $ticketId,
+    'de',
+    'en',
+    hash('sha256', $waitingText),
+    'Bitte den Drucker neu starten'
+);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+dispatchQueuedUserUpdateMails($store, $waitingId, time(), $ictUsers);
+assertIctMail('Daarna alleen de Duitse mail', 1, count($GLOBALS['asclepiusCapturedTicketEmails']));
+assertIctMail('Duitse ontvanger na het wachten', [$germanIct], $GLOBALS['asclepiusCapturedTicketEmails'][0]['recipients'] ?? []);
+assertIctMail(
+    'Duitse bureaubladmelding komt mee met de mail',
+    ['Nutzerantwort auf Ticket #' . $ticketId],
+    ictBrowserTitles($store, $germanIct)
+);
+assertIctMail('Opt-out krijgt geen tweede bureaubladmelding', [], ictBrowserTitles($store, $frenchIctTwo));
+
+echo PHP_EOL . "Opt-out nadat de mail al in de wachtrij staat" . PHP_EOL;
+$laterText = 'The drawer is stuck';
+$laterId = $store->addMessage($ticketId, $reporter, 'user', $laterText);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+notifyIctAboutTicket(
+    $store,
+    $ictUsers,
+    $ticket,
+    [$frenchIct, $germanIct],
+    $laterText,
+    $laterId,
+    'email.subject_user_reply',
+    'email.intro_user_reply',
+    $reporter,
+    $reporter,
+    'user_reply'
+);
+assertIctMail('Frans wacht nog, nog geen bureaubladmelding', [], ictBrowserTitles($store, $frenchIct));
+assertIctMail('Duits wacht ook nog', [], ictBrowserTitles($store, $germanIct));
+saveAdminEmailPreference($frenchIct, 'user_reply', false);
+$store->upsertTextTranslation(
+    'ticket_message',
+    $laterId,
+    $ticketId,
+    'fr',
+    'en',
+    hash('sha256', $laterText),
+    'Le tiroir est bloqué'
+);
+$GLOBALS['asclepiusCapturedTicketEmails'] = [];
+dispatchQueuedUserUpdateMails($store, $laterId, time(), $ictUsers);
+assertIctMail('Geen mail meer nadat de voorkeur uit gaat', 0, count($GLOBALS['asclepiusCapturedTicketEmails']));
+assertIctMail(
+    'Wel alsnog de Franse bureaubladmelding',
+    ['Réponse de l\'utilisateur sur le ticket #' . $ticketId],
+    ictBrowserTitles($store, $frenchIct)
+);
+$stillQueued = [];
+foreach ($store->listUserUpdateMailQueue($laterId) as $row) {
+    $stillQueued[] = (string) ($row['recipient_email'] ?? '');
+}
+assertIctMail('Duits blijft wachten', [$germanIct], $stillQueued);
 
 echo PHP_EOL;
 echo "Geslaagd: {$passed}" . PHP_EOL;
