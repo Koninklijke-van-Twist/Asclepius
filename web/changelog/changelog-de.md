@@ -7,6 +7,8 @@ Eine neue Nachricht wird wieder ins Englische, Französische und Deutsche übers
 
 In Meine Tickets erschien die Titelübersetzung schnell, während die Nachrichten im geöffneten Ticket am Ladezeichen hängen blieben. Ein geöffnetes Ticket fordert diese Nachrichten jetzt nach. Läuft schon eine Übersetzung, wartet das geöffnete Ticket kurz und macht selbst weiter, wenn diese Übersetzung stehen bleibt.
 
+Eine neue Antwort in einem bestehenden Ticket blieb am Ladezeichen hängen, wenn die Hintergrundübersetzung den Text schon beansprucht, aber nicht gespeichert hatte. Das geöffnete Ticket schließt diese Übersetzung dann selbst ab. Die Liste bleibt schnell und zeigt den Titel.
+
 Die Schaltflächen für Original und Übersetzung, der Janus-Anwesenheitsstatus und die Kategorie Printerproblemen folgen der gewählten Sprache.
 
 id: 2026-10-14-update-mail-language

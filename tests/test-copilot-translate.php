@@ -1170,74 +1170,97 @@ assertCopilot('Oude cache blijft leesbaar', 'Old cached sentence', $legacyEnglis
 assertCopilot('Oude cache is niet pending', false, $legacyEnglish['translation_pending']);
 assertCopilot('Oude cache start geen flow', $callsBeforeLegacy, count($calls));
 
-echo PHP_EOL . "Detail wacht niet eindeloos op een claim" . PHP_EOL;
+echo PHP_EOL . "Antwoord in een bestaand ticket" . PHP_EOL;
 
-$detailText = 'Detail blijft hangen';
-$detailId = $store->addMessage($backgroundTicketId, 'user@kvt.nl', 'user', $detailText);
 discardQueuedTicketTranslations();
-$detailHash = hash('sha256', $detailText);
-$freshToken = $store->tryClaimTextTranslation('ticket_message', $detailId, $detailHash, 180, time());
-assertCopilotTrue('Verse claim lukt', is_string($freshToken) && $freshToken !== '');
-$callsBeforeFresh = count($calls);
-$freshBlocked = translateTicketTextForViewer(
-    $store,
-    'ticket_message',
-    $detailId,
-    $backgroundTicketId,
-    $detailText,
-    'en',
-    false,
-    false
+$existingCreated = $store->createTicket(
+    'Bestaande titel',
+    'hardware bestellen',
+    'user@kvt.nl',
+    'Eerste tekst',
+    []
 );
-assertCopilot('Lijst blijft pending bij een verse claim', true, $freshBlocked['translation_pending']);
-assertCopilot('Lijst start geen flow bij een verse claim', $callsBeforeFresh, count($calls));
-$callsBeforeWait = count($calls);
-$freshWait = translateTicketTextForViewer(
-    $store,
-    'ticket_message',
-    $detailId,
-    $backgroundTicketId,
-    $detailText,
-    'en',
-    false,
-    true,
-    0.0
-);
-assertCopilot('Detail blijft pending bij een verse claim', true, $freshWait['translation_pending']);
-assertCopilot('Verse claim start geen flow', $callsBeforeWait, count($calls));
-$store->releaseTextTranslationClaim('ticket_message', $detailId, (string) $freshToken);
-$staleToken = $store->tryClaimTextTranslation('ticket_message', $detailId, $detailHash, 180, time() - 30);
-assertCopilotTrue('Stilgevallen claim lukt', is_string($staleToken) && $staleToken !== '');
+$existingId = (int) ($existingCreated['ticket_id'] ?? 0);
+$existingTicket = $store->getTicket($existingId, true, 'ict@kvt.nl');
+$existingMessageId = (int) (($existingTicket['messages'][0]['id'] ?? 0));
 $scripted[] = [
     'status' => 200,
     'body' => copilotBundle('nl', [
-        'nl' => $detailText,
-        'en' => 'Detail stays stuck',
-        'fr' => 'Le detail reste bloque',
-        'de' => 'Detail bleibt haengen',
+        'nl' => 'Bestaande titel',
+        'en' => 'Existing title',
+        'fr' => 'Titre existant',
+        'de' => 'Bestehender Titel',
     ]),
     'error' => '',
 ];
-$callsBeforeSteal = count($calls);
-$stolen = translateTicketTextForViewer(
-    $store,
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('nl', [
+        'nl' => 'Eerste tekst',
+        'en' => 'First text',
+        'fr' => 'Premier texte',
+        'de' => 'Erster Text',
+    ]),
+    'error' => '',
+];
+flushQueuedTicketTranslations();
+$replyText = 'Antwoord op een bestaand ticket';
+$replyId = $store->addMessage($existingId, 'ict@kvt.nl', 'admin', $replyText);
+discardQueuedTicketTranslations();
+$replyHash = hash('sha256', $replyText);
+$backgroundClaim = $store->tryClaimTextTranslation(
     'ticket_message',
-    $detailId,
-    $backgroundTicketId,
-    $detailText,
-    'en',
-    false,
-    true,
-    0.0
+    $replyId,
+    $replyHash,
+    ticketTranslationClaimTtlSeconds()
 );
-assertCopilot('Detail neemt een stilgevallen claim over', false, $stolen['translation_pending']);
-assertCopilot('Detail toont de Engelse tekst', 'Detail stays stuck', $stolen['text']);
-assertCopilot('Overnemen kost precies een run', $callsBeforeSteal + 1, count($calls));
-$stolenFr = $store->getTextTranslation('ticket_message', $detailId, 'fr', $detailHash);
-assertCopilot('Overnemen bewaart Frans', 'Le detail reste bloque', (string) ($stolenFr['translated_text'] ?? ''));
-$stolenDe = $store->getTextTranslation('ticket_message', $detailId, 'de', $detailHash);
-assertCopilot('Overnemen bewaart Duits', 'Detail bleibt haengen', (string) ($stolenDe['translated_text'] ?? ''));
-$store->releaseTextTranslationClaim('ticket_message', $detailId, (string) $staleToken);
+assertCopilotTrue('Achtergrond pakt het nieuwe antwoord', is_string($backgroundClaim) && $backgroundClaim !== '');
+$callsBeforeList = count($calls);
+$openTicket = $store->getTicket($existingId, true, 'ict@kvt.nl');
+$listDetail = localizeTicketDetailForViewer($openTicket, $store, 'fr', false, false);
+assertCopilot('Lijst toont de bestaande titel als vertaald', true, $listDetail['title_is_translated']);
+assertCopilot('Lijsttitel is Frans', 'Titre existant', $listDetail['title']);
+$listReply = null;
+foreach ($listDetail['messages'] as $listMessage) {
+    if ((int) ($listMessage['id'] ?? 0) === $replyId) {
+        $listReply = $listMessage;
+    }
+    if ((int) ($listMessage['id'] ?? 0) === $existingMessageId) {
+        assertCopilot('Eerste bericht is al Frans', 'Premier texte', (string) ($listMessage['message_text'] ?? ''));
+        assertCopilot('Eerste bericht is niet pending', false, !empty($listMessage['translation_pending']));
+    }
+}
+assertCopilotTrue('Nieuw antwoord zit in het ticket', is_array($listReply));
+assertCopilot('Lijst laat het nieuwe antwoord pending', true, !empty($listReply['translation_pending']));
+assertCopilot('Lijst start geen flow voor het vastgepakte antwoord', $callsBeforeList, count($calls));
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('nl', [
+        'nl' => $replyText,
+        'en' => 'Reply on an existing ticket',
+        'fr' => 'Reponse sur un ticket existant',
+        'de' => 'Antwort auf ein bestehendes Ticket',
+    ]),
+    'error' => '',
+];
+$callsBeforeDetail = count($calls);
+$detail = localizeTicketDetailForViewer($openTicket, $store, 'fr', false, true, 0.0);
+$detailReply = null;
+foreach ($detail['messages'] as $detailMessage) {
+    if ((int) ($detailMessage['id'] ?? 0) === $replyId) {
+        $detailReply = $detailMessage;
+    }
+}
+assertCopilotTrue('Detail vindt het nieuwe antwoord', is_array($detailReply));
+assertCopilot('Detail maakt het nieuwe antwoord af', false, !empty($detailReply['translation_pending']));
+assertCopilot('Franse lezer ziet het antwoord', 'Reponse sur un ticket existant', (string) ($detailReply['message_text'] ?? ''));
+assertCopilot('Detail houdt de titel vertaald', true, $detail['title_is_translated']);
+assertCopilot('Detail kost precies een run', $callsBeforeDetail + 1, count($calls));
+$storedReplyEn = $store->getTextTranslation('ticket_message', $replyId, 'en', $replyHash);
+$storedReplyDe = $store->getTextTranslation('ticket_message', $replyId, 'de', $replyHash);
+assertCopilot('Antwoord bewaart ook Engels', 'Reply on an existing ticket', (string) ($storedReplyEn['translated_text'] ?? ''));
+assertCopilot('Antwoord bewaart ook Duits', 'Antwort auf ein bestehendes Ticket', (string) ($storedReplyDe['translated_text'] ?? ''));
+$store->releaseTextTranslationClaim('ticket_message', $replyId, (string) $backgroundClaim);
 
 CopilotTranslationProvider::useTransportForTests(null);
 resetCopilotProviderCache();

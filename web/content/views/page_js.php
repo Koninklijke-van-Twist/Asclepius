@@ -8745,7 +8745,7 @@
                 viewer_email: ticketPollPayload.viewer_email || '',
                 user_is_admin: !!ticketPollPayload.user_is_admin,
                 is_admin_portal: !!ticketPollPayload.is_admin_portal,
-                wait_for_inflight: cardHasPendingTranslation(card) ? 1 : 0
+                wait_for_inflight: (card.open || cardHasPendingTranslation(card)) ? 1 : 0
             };
             console.log('[translation] Requesting ticket #' + ticketId, translateParams);
 

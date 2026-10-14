@@ -247,7 +247,7 @@ function localizeTicketForViewer(array $ticket, TicketStore $store, string $view
     return $ticket;
 }
 
-function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, string $viewerLanguage, bool $cacheOnly = false, bool $waitForInFlight = false): array
+function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, string $viewerLanguage, bool $cacheOnly = false, bool $waitForInFlight = false, ?float $inFlightWaitSeconds = null): array
 {
     $ticketId = (int) ($ticketDetail['id'] ?? 0);
     $rawTitle = (string) ($ticketDetail['title'] ?? '');
@@ -259,7 +259,8 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
         $rawTitle,
         $viewerLanguage,
         $cacheOnly,
-        $waitForInFlight
+        $waitForInFlight,
+        $inFlightWaitSeconds
     );
 
     $ticketDetail['title_raw'] = $rawTitle;
@@ -281,7 +282,8 @@ function localizeTicketDetailForViewer(array $ticketDetail, TicketStore $store, 
             $rawMessageText,
             $viewerLanguage,
             $cacheOnly,
-            $waitForInFlight
+            $waitForInFlight,
+            $inFlightWaitSeconds
         );
 
         $message['message_text_raw'] = $rawMessageText;
@@ -331,16 +333,13 @@ function ticketTranslationClaimTtlSeconds(): int
 
 /**
  * De lijst keert meteen terug als een andere aanvraag de tekst heeft.
- * Het geopende ticket wacht kort op die aanvraag en neemt een stilgevallen claim over.
+ * Het geopende ticket wacht kort of de cache alsnog gevuld wordt, en neemt de claim
+ * daarna zelf over, ook als die net gezet is. Een achtergrondjob die de tekst
+ * vastpakt en niets wegschrijft, laat het geopende ticket anders pending.
  */
-function ticketTranslationInteractiveClaimStaleSeconds(): int
-{
-    return 12;
-}
-
 function ticketTranslationInFlightWaitSeconds(): float
 {
-    return 8.0;
+    return 2.0;
 }
 
 /**
@@ -356,21 +355,8 @@ function waitOrTakeOverTextTranslationClaim(
     string $targetLanguage,
     ?float $waitSeconds = null
 ): array|string|null {
-    $existing = $store->getTextTranslationClaim($entityType, $entityId);
-    $existingHash = is_array($existing) ? (string) ($existing['source_hash'] ?? '') : '';
-    $sameText = $existingHash !== ''
-        && strlen($existingHash) === strlen($sourceHash)
-        && hash_equals($existingHash, $sourceHash);
-    $age = $sameText ? time() - (int) ($existing['claimed_at'] ?? time()) : 0;
-    $staleSeconds = ticketTranslationInteractiveClaimStaleSeconds();
-    // tryClaim neemt over bij claimed_at < now - stale, dus één seconde korter zodat 12 seconden al geldt.
-    $takeoverAfter = max(0, $staleSeconds - 1);
-    if ($sameText && $age >= $staleSeconds) {
-        return $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, $takeoverAfter);
-    }
-
     $deadline = microtime(true) + max(0.0, $waitSeconds ?? ticketTranslationInFlightWaitSeconds());
-    while (microtime(true) < $deadline) {
+    while (true) {
         $cached = $store->getTextTranslation($entityType, $entityId, $targetLanguage, $sourceHash);
         if (is_array($cached)) {
             return ticketTranslationFromCacheRow($store, $entityType, $entityId, $sourceHash, $rawText, $targetLanguage, $cached);
@@ -383,7 +369,7 @@ function waitOrTakeOverTextTranslationClaim(
         usleep((int) (min(0.25, $slice) * 1000000));
     }
 
-    return $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, $takeoverAfter);
+    return $store->tryClaimTextTranslation($entityType, $entityId, $sourceHash, ticketTranslationClaimTtlSeconds(), null, true);
 }
 
 function ticketTranslationsCoverAllLanguages(TicketStore $store, string $entityType, int $entityId, string $sourceHash): bool

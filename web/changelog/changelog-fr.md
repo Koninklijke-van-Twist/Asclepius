@@ -7,6 +7,8 @@ Un nouveau message est de nouveau traduit en anglais, en français et en alleman
 
 Dans Mes tickets, la traduction du titre apparaissait vite, alors que les messages du ticket ouvert restaient sur l'icône de chargement. Ouvrir un ticket demande maintenant ces messages. Si une traduction est déjà en cours, le ticket ouvert attend un court instant et reprend de lui-même si cette traduction s'arrête.
 
+Une nouvelle réponse dans un ticket existant restait sur l'icône de chargement lorsque la traduction en arrière-plan avait déjà réservé ce texte sans l'enregistrer. Le ticket ouvert termine alors cette traduction lui-même. La liste reste rapide et affiche le titre.
+
 Les boutons pour afficher l'original ou la traduction, le statut de présence Janus et la catégorie Printerproblemen suivent la langue choisie.
 
 id: 2026-10-14-update-mail-language
