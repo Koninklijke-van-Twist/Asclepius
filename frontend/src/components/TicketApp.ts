@@ -79,15 +79,25 @@ export function mountTicketApp(root: HTMLElement): void {
 
   const apiKeyInput = el('input', {
     type: 'password',
-    placeholder: 'API-key (service of sessie)',
+    placeholder: 'Asclepius API-key',
     autocomplete: 'off',
+    'aria-label': 'Asclepius API-key',
   }) as HTMLInputElement;
-  const saveKeyBtn = el('button', { class: 'btn', type: 'button' }, 'Key opslaan');
+  const emailInput = el('input', {
+    type: 'email',
+    placeholder: 'viewer e-mail (ICT)',
+    autocomplete: 'username',
+    'aria-label': 'Viewer e-mail',
+  }) as HTMLInputElement;
+  apiKeyInput.value = storedApiKeyPublic();
+  emailInput.value = storedViewerEmail();
+  const saveKeyBtn = el('button', { class: 'btn btn-primary', type: 'button' }, 'Verbinden');
   const refreshBtn = el('button', { class: 'btn', type: 'button' }, 'Vernieuwen');
   const portalToggle = el('button', { class: 'btn', type: 'button' }, 'ICT-portaal');
   statusBar.append(
-    el('span', { class: 'muted' }, 'Sessie / key'),
+    el('span', { class: 'muted' }, 'Live Asclepius'),
     apiKeyInput,
+    emailInput,
     saveKeyBtn,
     refreshBtn,
     portalToggle
@@ -98,10 +108,22 @@ export function mountTicketApp(root: HTMLElement): void {
   statusSelect.append(new Option('Alle statussen', ''));
   controls.append(searchInput, statusSelect);
 
-  saveKeyBtn.addEventListener('click', () => {
-    setStoredApiKey(apiKeyInput.value.trim());
-    state.notice = 'API-key opgeslagen in deze browser.';
+  const connect = (): void => {
+    const key = apiKeyInput.value.trim();
+    const email = emailInput.value.trim().toLowerCase();
+    setStoredApiKey(key);
+    setStoredViewerEmail(email);
+    state.notice = key
+      ? 'API-key opgeslagen — live TicketStore via Asclepius.'
+      : 'API-key gewist.';
     void boot();
+  };
+  saveKeyBtn.addEventListener('click', connect);
+  apiKeyInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') connect();
+  });
+  emailInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') connect();
   });
   refreshBtn.addEventListener('click', () => void loadTickets());
   portalToggle.addEventListener('click', () => {

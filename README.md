@@ -24,7 +24,9 @@ npm run build   # → astropius-dist/ (Astro + PHP bridge)
 npm run dev     # Astro op :4321; proxy naar PHP :8080
 ```
 
-Lokaal PHP: `php -S 127.0.0.1:8080 -t web`. Serverlayout: `/asclepius` en `/astropius` als siblings. CI `deploy-astropius.yml` uploadt naar `ASTROPIUS_FTP_REMOTE_DIR` (niet master-FTP).
+Lokaal PHP: `php -S 127.0.0.1:8080 -t web`. Serverlayout: `/asclepius` en `/astropius` als siblings.
+
+**Branching:** langlevende branch `astropius_master` (Astropius + JSON API). Bij elke push op Asclepius `master` fuse’t workflow `sync-astropius-master.yml` die wijzigingen in `astropius_master` (nooit andersom). Deploy van de preview: `deploy-astropius.yml` op `astropius_master` → secret `ASTROPIUS_FTP_REMOTE_DIR`.
 
 ## Mímir (optioneel)
 

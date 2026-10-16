@@ -6,6 +6,7 @@ name: Deploy Astropius (Astro UI) to FTP
 on:
   push:
     branches:
+      - astropius_master
       - cursor/astro-ui-ed53
       - astropius
   workflow_dispatch:
