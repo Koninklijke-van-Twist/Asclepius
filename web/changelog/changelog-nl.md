@@ -1,3 +1,11 @@
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Kleur in codeblokken
+author: Cursor Agent
+
+Een codeblok in een ticketbericht krijgt kleur als je de taal aangeeft, bijvoorbeeld `php`, `sql`, `js` of `powershell`. Dat geldt ook als je de vertaling of het origineel bekijkt, en als het bericht later opnieuw geladen wordt. De code zelf wordt niet vertaald. Een blok zonder taal blijft gewone tekst. AL (Business Central) heeft geen kleuring en blijft ook gewone tekst.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Vertalingen verschijnen weer in alle talen

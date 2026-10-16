@@ -461,14 +461,24 @@ function ticketTranslationFromCacheRow(
 
 function ticketTranslationApplyStatusNotes(array $result, string $rawText, string $targetLanguage): array
 {
-    if (!function_exists('ticketStatusNotesInText') || ticketStatusNotesInText($rawText) === []) {
-        return $result;
+    if (function_exists('ticketStatusNotesInText') && ticketStatusNotesInText($rawText) !== []) {
+        $text = ticketTranslationDisplayText($rawText, (string) ($result['text'] ?? ''), $targetLanguage);
+        $result['text'] = $text;
+        if (!ticketTranslationTextsMatch($text, $rawText)) {
+            $result['is_translated'] = true;
+        }
     }
 
-    $text = ticketTranslationDisplayText($rawText, (string) ($result['text'] ?? ''), $targetLanguage);
-    $result['text'] = $text;
-    if (!ticketTranslationTextsMatch($text, $rawText)) {
-        $result['is_translated'] = true;
+    if (function_exists('restoreMessageFencedCodeBlocks')) {
+        $current = (string) ($result['text'] ?? '');
+        $restored = restoreMessageFencedCodeBlocks($current, $rawText);
+        if ($restored !== $current) {
+            $result['text'] = $restored;
+            if (ticketTranslationTextsMatch($restored, $rawText)) {
+                $result['text'] = $rawText;
+                $result['is_translated'] = false;
+            }
+        }
     }
 
     return $result;

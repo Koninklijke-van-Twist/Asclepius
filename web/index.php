@@ -136,6 +136,7 @@ $apiUrl = 'api.php';
     <?php require __DIR__ . '/content/views/view_ticket_share_modal.php'; ?>
     <?php require __DIR__ . '/content/views/view_publish_ghost_modal.php'; ?>
     <?php require __DIR__ . '/content/views/view_theevraagje_modal.php'; ?>
+    <script src="thirdparty/highlightjs/highlight.min.js"></script>
     <?php require __DIR__ . '/content/views/page_js.php'; ?>
     <?php require __DIR__ . '/content/views/bigscreen_js.php'; ?>
     </body>

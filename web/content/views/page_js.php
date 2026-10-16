@@ -11189,5 +11189,59 @@
                 observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
             }
         })();
+
+        var highlightMessageCodeBlocks = function (root)
+        {
+            if (!root || typeof root.querySelectorAll !== 'function' || !window.hljs || typeof window.hljs.getLanguage !== 'function' || typeof window.hljs.highlightElement !== 'function')
+            {
+                return;
+            }
+
+            root.querySelectorAll('pre.message-md-pre > code[class*="language-"]:not([data-md-highlighted])').forEach(function (block)
+            {
+                if (block.children && block.children.length > 0)
+                {
+                    block.setAttribute('data-md-highlighted', 'plain');
+                    return;
+                }
+
+                var match = String(block.className || '').match(/(?:^|\s)language-([a-z0-9_-]+)/i);
+                var language = match ? String(match[1] || '').toLowerCase() : '';
+                if (language === '' || !window.hljs.getLanguage(language))
+                {
+                    block.setAttribute('data-md-highlighted', 'plain');
+                    return;
+                }
+
+                try
+                {
+                    window.hljs.highlightElement(block);
+                    block.setAttribute('data-md-highlighted', 'yes');
+                }
+                catch (error)
+                {
+                    block.setAttribute('data-md-highlighted', 'plain');
+                }
+            });
+        };
+
+        highlightMessageCodeBlocks(document);
+        if (typeof MutationObserver !== 'undefined')
+        {
+            var highlightTimer = 0;
+            var highlightObserver = new MutationObserver(function ()
+            {
+                if (highlightTimer)
+                {
+                    return;
+                }
+                highlightTimer = window.setTimeout(function ()
+                {
+                    highlightTimer = 0;
+                    highlightMessageCodeBlocks(document);
+                }, 30);
+            });
+            highlightObserver.observe(document.body, { childList: true, subtree: true });
+        }
     });
 </script>

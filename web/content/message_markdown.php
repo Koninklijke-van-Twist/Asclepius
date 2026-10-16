@@ -227,6 +227,142 @@ function renderMessageMarkdownCodeBlock(string $language, string $code): string
     return '<pre class="message-md-pre"><code' . $class . '>' . h($code) . '</code></pre>';
 }
 
+/**
+ * Volledige afgesloten ```-hekken, in volgorde. Een hek zonder sluitregel telt niet:
+ * die blijft gewone tekst, net als bij het renderen.
+ *
+ * @return list<string>
+ */
+function messageFencedCodeBlocks(string $text): array
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+    $lines = explode("\n", $normalized);
+    $blocks = [];
+    $count = count($lines);
+    $index = 0;
+    while ($index < $count) {
+        $trimmed = trim((string) $lines[$index]);
+        if (preg_match('/^```([a-zA-Z0-9_-]*)[ \t]*$/', $trimmed) === 1) {
+            $close = null;
+            for ($lookAhead = $index + 1; $lookAhead < $count; $lookAhead++) {
+                if (preg_match('/^```[ \t]*$/', trim((string) $lines[$lookAhead])) === 1) {
+                    $close = $lookAhead;
+                    break;
+                }
+            }
+            if ($close !== null) {
+                $blocks[] = implode("\n", array_slice($lines, $index, $close - $index + 1));
+                $index = $close + 1;
+                continue;
+            }
+        }
+        $index++;
+    }
+
+    return $blocks;
+}
+
+/**
+ * Haalt afgesloten codehekken uit de tekst vóór de vertaler. De placeholder
+ * blijft staan zodat het blok op dezelfde plek terugkomt. De code zelf gaat
+ * niet naar de vertaaldienst.
+ *
+ * @return array{text: string, tokens: list<string>}
+ */
+function maskMessageFencedCodeBlocks(string $text): array
+{
+    $blocks = messageFencedCodeBlocks($text);
+    if ($blocks === []) {
+        return ['text' => $text, 'tokens' => []];
+    }
+
+    $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+    $tokens = [];
+    foreach ($blocks as $block) {
+        $placeholder = '⟦cb' . count($tokens) . '⟧';
+        $position = strpos($normalized, $block);
+        if ($position === false) {
+            continue;
+        }
+        $tokens[] = $block;
+        $normalized = substr_replace($normalized, $placeholder, $position, strlen($block));
+    }
+
+    return [
+        'text' => $normalized,
+        'tokens' => $tokens,
+    ];
+}
+
+/**
+ * Zet placeholders terug. Tekst die in het codeblok zelf staat, wordt niet
+ * nog een keer als placeholder gelezen.
+ *
+ * @param list<string> $tokens
+ */
+function unmaskMessageFencedCodeBlocks(string $text, array $tokens): string
+{
+    if ($tokens === []) {
+        return $text;
+    }
+
+    $parts = preg_split('/(⟦cb\d+⟧)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+    if (!is_array($parts)) {
+        return $text;
+    }
+
+    $out = '';
+    foreach ($parts as $part) {
+        if (preg_match('/^⟦cb(\d+)⟧$/u', $part, $match) === 1) {
+            $index = (int) $match[1];
+            $out .= array_key_exists($index, $tokens) ? (string) $tokens[$index] : $part;
+            continue;
+        }
+        $out .= $part;
+    }
+
+    return $out;
+}
+
+/**
+ * Zet codehekken uit de brontekst terug als een vertaling ze heeft vertaald
+ * of heeft laten vallen. Ontbrekende blokken komen achteraan, in de
+ * oorspronkelijke volgorde.
+ */
+function restoreMessageFencedCodeBlocks(string $displayText, string $rawText): string
+{
+    $rawBlocks = messageFencedCodeBlocks($rawText);
+    if ($rawBlocks === []) {
+        return $displayText;
+    }
+
+    $display = str_replace(["\r\n", "\r"], "\n", $displayText);
+    $displayBlocks = messageFencedCodeBlocks($display);
+    if ($displayBlocks === $rawBlocks) {
+        return $displayText;
+    }
+
+    $offset = 0;
+    $pairCount = min(count($displayBlocks), count($rawBlocks));
+    for ($index = 0; $index < $pairCount; $index++) {
+        $position = strpos($display, $displayBlocks[$index], $offset);
+        if ($position === false) {
+            break;
+        }
+        $display = substr_replace($display, $rawBlocks[$index], $position, strlen($displayBlocks[$index]));
+        $offset = $position + strlen($rawBlocks[$index]);
+    }
+
+    foreach ($rawBlocks as $block) {
+        if (!str_contains($display, $block)) {
+            $display = rtrim($display, "\n");
+            $display = ($display !== '' ? $display . "\n\n" : '') . $block;
+        }
+    }
+
+    return $display;
+}
+
 function isMessageMarkdownHeadingLine(string $trimmed): bool
 {
     return preg_match('/^#{1,6}\s+\S/', $trimmed) === 1;

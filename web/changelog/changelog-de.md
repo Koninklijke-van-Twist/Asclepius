@@ -1,3 +1,11 @@
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Farbe in Codeblöcken
+author: Cursor Agent
+
+Ein Codeblock in einer Ticketnachricht wird farbig, wenn Sie die Sprache angeben, zum Beispiel `php`, `sql`, `js` oder `powershell`. Das gilt auch, wenn Sie die Übersetzung oder das Original ansehen, und wenn die Nachricht später neu geladen wird. Der Code selbst wird nicht übersetzt. Ein Block ohne Sprache bleibt normaler Text. AL (Business Central) hat keine Färbung und bleibt ebenfalls normaler Text.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Übersetzungen erscheinen wieder in allen Sprachen

@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'message_markdown.php';
+
 class LaraTranslationProvider implements TranslationProvider
 {
     /**
@@ -13,7 +15,7 @@ class LaraTranslationProvider implements TranslationProvider
         'fr' => 'fr-FR',
     ];
 
-    private const KEYBOARD_TOKEN_PATTERN = '/(\[[A-Za-z0-9_-]{1,24}\])/';
+    private const KEYBOARD_TOKEN_PATTERN = '/(\[[A-Za-z0-9_-]{1,24}\]|⟦cb\d+⟧)/u';
 
     /**
      * Variabelen
@@ -35,7 +37,10 @@ class LaraTranslationProvider implements TranslationProvider
         $targetLocale = self::LOCALE_BY_APP_LANGUAGE[strtolower(trim($targetAppLanguage))]
             ?? self::LOCALE_BY_APP_LANGUAGE['nl'];
 
-        $payload = $this->buildPayload($rawText);
+        $codeMasked = function_exists('maskMessageFencedCodeBlocks')
+            ? maskMessageFencedCodeBlocks($rawText)
+            : ['text' => $rawText, 'tokens' => []];
+        $payload = $this->buildPayload((string) ($codeMasked['text'] ?? $rawText));
         $result  = $this->client->translate($payload, null, $targetLocale);
 
         $sourceLocale = method_exists($result, 'getSourceLanguage')
@@ -45,6 +50,15 @@ class LaraTranslationProvider implements TranslationProvider
         $translatedText = method_exists($result, 'getTranslation')
             ? $this->normalizeTranslation($result->getTranslation())
             : '';
+        if (function_exists('unmaskMessageFencedCodeBlocks')) {
+            $translatedText = unmaskMessageFencedCodeBlocks(
+                $translatedText,
+                is_array($codeMasked['tokens'] ?? null) ? $codeMasked['tokens'] : []
+            );
+        }
+        if (function_exists('restoreMessageFencedCodeBlocks')) {
+            $translatedText = restoreMessageFencedCodeBlocks($translatedText, $rawText);
+        }
 
         return [
             'translated_text' => $translatedText,
@@ -68,7 +82,7 @@ class LaraTranslationProvider implements TranslationProvider
             if ($segment === '') {
                 continue;
             }
-            $isToken  = preg_match('/^\[[A-Za-z0-9_-]{1,24}\]$/', $segment) === 1;
+            $isToken  = preg_match('/^(?:\[[A-Za-z0-9_-]{1,24}\]|⟦cb\d+⟧)$/u', $segment) === 1;
             $blocks[] = new \Lara\TextBlock($segment, !$isToken);
         }
 

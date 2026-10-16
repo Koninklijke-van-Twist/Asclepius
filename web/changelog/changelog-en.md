@@ -1,3 +1,11 @@
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Colour in code blocks
+author: Cursor Agent
+
+A code block in a ticket message is coloured when you name the language, for example `php`, `sql`, `js` or `powershell`. That also applies when you view the translation or the original, and when the message is loaded again later. The code itself is not translated. A block without a language stays plain text. AL (Business Central) has no colouring and stays plain text too.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Translations show again in every language
