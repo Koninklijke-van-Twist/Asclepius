@@ -5,6 +5,8 @@ author: Cursor Agent
 
 De ticketdatabase, bijlagen en tijdelijke bestanden zijn niet meer te downloaden zonder toegang. In een ticket blijven bijlagen zichtbaar als je bent ingelogd. Een koppeling die de API-sleutel gebruikt, kan een bijlage nog ophalen met die sleutel. Het cache-overzicht toont geen voorbeeldrijen meer.
 
+Zonder login geeft ook een link naar een onbekende bijlage de inlogpagina, zodat niet te zien is of die bijlage bestaat. Het bestand zelf komt volledig aan.
+
 ---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14

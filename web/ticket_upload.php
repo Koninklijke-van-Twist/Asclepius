@@ -180,6 +180,9 @@ function ticket_upload_send_file(array $attachment, ?string $uploadDirectory = n
     }
 
     ticket_upload_release_session_lock();
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
     header('Content-Type: ' . $mime);
     header('X-Content-Type-Options: nosniff');
     header('Content-Length: ' . (string) $size);
@@ -193,12 +196,49 @@ if (!ticket_upload_is_direct_request()) {
     return;
 }
 
+// Zelfde reden als bootstrap.php: een notice mag de binaire bijlage niet voorafgaan.
+ob_start();
 define('ASCLEPIUS_API_SKIP_ROUTER', true);
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'api.php';
 
 $attachmentId = max(0, (int) ($_GET['id'] ?? 0));
 $ticketId = max(0, (int) ($_GET['ticket'] ?? 0));
 $storedName = basename(str_replace('\\', '/', (string) ($_GET['file'] ?? '')));
+
+$providedKey = getApiKeyFromRequest();
+$apiClient = null;
+$hasServiceKey = false;
+$email = '';
+if ($providedKey !== '') {
+    $apiClient = loadApiClientByToken($providedKey);
+    $hasServiceKey = isValidApiKey($providedKey, is_array($apiKeys ?? null) ? $apiKeys : []);
+    if ($apiClient === null && !$hasServiceKey) {
+        ticket_upload_deny(401, 'Ongeldige API-key.');
+    }
+} else {
+    $loginLib = __DIR__ . '/../login/lib.php';
+    if (!is_file($loginLib)) {
+        ticket_upload_deny(403, 'Geen toegang');
+    }
+    require_once $loginLib;
+
+    global $allowedUsers;
+    $email = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+    if (isset($allowedUsers) && is_array($allowedUsers)) {
+        if (!ticket_upload_email_is_allowed($email, $allowedUsers)) {
+            $forbidden = __DIR__ . '/../login/403.php';
+            if (is_file($forbidden)) {
+                require $forbidden;
+                die();
+            }
+            ticket_upload_deny(403, 'Geen toegang');
+        }
+    } elseif ($email === '') {
+        ticket_upload_deny(403, 'Geen toegang');
+    }
+
+    ticket_upload_release_session_lock();
+}
 
 try {
     $store = new TicketStore(DATABASE_FILE, UPLOAD_DIRECTORY, is_array($ictUsers ?? null) ? $ictUsers : [], TICKET_CATEGORIES);
@@ -218,41 +258,12 @@ if (!is_array($attachment)) {
 
 $attachmentId = (int) ($attachment['id'] ?? 0);
 $isGhost = $attachmentId > 0 && $store->isGhostAttachment($attachmentId);
-$providedKey = getApiKeyFromRequest();
 if ($providedKey !== '') {
-    $apiClient = loadApiClientByToken($providedKey);
-    $hasServiceKey = isValidApiKey($providedKey, is_array($apiKeys ?? null) ? $apiKeys : []);
-    if ($apiClient === null && !$hasServiceKey) {
-        ticket_upload_deny(401, 'Ongeldige API-key.');
-    }
     if (!ticket_upload_api_may_read($hasServiceKey, $apiClient, $isGhost)) {
         ticket_upload_deny(404, 'Niet gevonden');
     }
     ticket_upload_send_file($attachment);
 }
-
-$loginLib = __DIR__ . '/../login/lib.php';
-if (!is_file($loginLib)) {
-    ticket_upload_deny(403, 'Geen toegang');
-}
-require_once $loginLib;
-
-global $allowedUsers;
-$email = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
-if (isset($allowedUsers) && is_array($allowedUsers)) {
-    if (!ticket_upload_email_is_allowed($email, $allowedUsers)) {
-        $forbidden = __DIR__ . '/../login/403.php';
-        if (is_file($forbidden)) {
-            require $forbidden;
-            die();
-        }
-        ticket_upload_deny(403, 'Geen toegang');
-    }
-} elseif ($email === '') {
-    ticket_upload_deny(403, 'Geen toegang');
-}
-
-ticket_upload_release_session_lock();
 
 if (!ticket_upload_browser_may_read($store, $attachment, $email, is_array($ictUsers ?? null) ? $ictUsers : [])) {
     ticket_upload_deny(404, 'Niet gevonden');

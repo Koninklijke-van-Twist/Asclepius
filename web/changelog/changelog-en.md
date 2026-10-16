@@ -5,6 +5,8 @@ author: Cursor Agent
 
 The ticket database, attachments and temporary files can no longer be downloaded without access. Attachments in a ticket stay visible when you are signed in. A connection that uses the API key can still fetch an attachment with that key. The cache overview no longer shows sample rows.
 
+Without signing in, a link to an unknown attachment also opens the login page, so it is not possible to tell whether that attachment exists. The file itself arrives complete.
+
 ---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14

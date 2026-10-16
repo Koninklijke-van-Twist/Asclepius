@@ -5,6 +5,8 @@ author: Cursor Agent
 
 Die Ticketdatenbank, Anhänge und temporäre Dateien lassen sich ohne Zugang nicht mehr herunterladen. In einem Ticket bleiben Anhänge sichtbar, wenn du angemeldet bist. Eine Anbindung mit dem API-Schlüssel kann einen Anhang weiterhin mit diesem Schlüssel abrufen. Die Cache-Übersicht zeigt keine Beispielzeilen mehr.
 
+Ohne Anmeldung führt auch ein Link zu einem unbekannten Anhang zur Anmeldeseite, sodass nicht erkennbar ist, ob dieser Anhang existiert. Die Datei selbst kommt vollständig an.
+
 ---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14

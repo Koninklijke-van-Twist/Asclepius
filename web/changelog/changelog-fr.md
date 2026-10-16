@@ -5,6 +5,8 @@ author: Cursor Agent
 
 La base des tickets, les pièces jointes et les fichiers temporaires ne se téléchargent plus sans accès. Dans un ticket, les pièces jointes restent visibles quand vous êtes connecté. Un raccordement qui utilise la clé API peut encore récupérer une pièce jointe avec cette clé. L'aperçu du cache n'affiche plus de lignes d'exemple.
 
+Sans connexion, un lien vers une pièce jointe inconnue ouvre aussi la page de connexion, de sorte qu'on ne peut pas voir si cette pièce jointe existe. Le fichier lui-même arrive en entier.
+
 ---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
