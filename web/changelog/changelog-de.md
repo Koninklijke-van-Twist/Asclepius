@@ -3,7 +3,7 @@ date: 2026-10-16
 title: Eingefügte Screenshots bleiben sichtbar
 author: Cursor Agent
 
-Ein Screenshot, den Sie mit Strg+V in eine Nachricht einfügen, bleibt nach dem Senden in der Nachricht stehen. Das gilt auch, wenn die Nachricht danach übersetzt wird. War das Bild schon bei der Nachricht gespeichert, aber nach einer Übersetzung verschwunden, ist es wieder zu sehen. Der Screenshot bleibt auch sichtbar, wenn eine Übersetzung das Bild mitten in den Satz setzt. Das Bild selbst wird nicht erneut hochgeladen.
+Ein Screenshot, den Sie mit Strg+V in eine Nachricht einfügen, bleibt nach dem Senden in der Nachricht stehen. Das gilt auch, wenn die Nachricht danach übersetzt wird. War das Bild schon bei der Nachricht gespeichert, aber nach einer Übersetzung verschwunden, ist es wieder zu sehen. Der Screenshot bleibt auch sichtbar, wenn eine Übersetzung das Bild mitten in den Satz setzt. Stehen zwei Screenshots direkt hintereinander in einer Zeile, verschwindet dieser Resttext und beide Bilder bleiben sichtbar. Das Bild selbst wird nicht erneut hochgeladen.
 
 ---
 id: 2026-10-14-translation-cache-i18n

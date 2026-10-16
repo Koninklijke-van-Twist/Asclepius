@@ -336,7 +336,7 @@ function removeInlineAttachmentMarkers(string $text): string
     $changed = false;
     foreach ($lines as $line) {
         $trimmed = trim($line);
-        if ($trimmed === '' || preg_match('/^\[\[attachment:(.+)\]\]$/', $trimmed) === 1 || !str_contains($line, '[[attachment:')) {
+        if ($trimmed === '' || preg_match('/^\[\[attachment:[^\]\n]+\]\]$/', $trimmed) === 1 || !str_contains($line, '[[attachment:')) {
             $rewritten[] = $line;
             continue;
         }

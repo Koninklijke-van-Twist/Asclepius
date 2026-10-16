@@ -3,7 +3,7 @@ date: 2026-10-16
 title: Geplakte schermafdrukken blijven zichtbaar
 author: Cursor Agent
 
-Een schermafdruk die je met Ctrl+V in een bericht plakt, blijft na het plaatsen in het bericht staan. Dat geldt ook als het bericht daarna vertaald wordt. Stond de afbeelding al bij het bericht, maar was die na een vertaling verdwenen, dan is die weer te zien. Ook wanneer de vertaling de afbeelding midden in de zin zet, blijft de schermafdruk zichtbaar. De afbeelding zelf wordt niet opnieuw geüpload.
+Een schermafdruk die je met Ctrl+V in een bericht plakt, blijft na het plaatsen in het bericht staan. Dat geldt ook als het bericht daarna vertaald wordt. Stond de afbeelding al bij het bericht, maar was die na een vertaling verdwenen, dan is die weer te zien. Ook wanneer de vertaling de afbeelding midden in de zin zet, blijft de schermafdruk zichtbaar. Staan twee schermafdrukken direct achter elkaar op één regel, dan verdwijnt die losse tekst en blijven beide afbeeldingen zichtbaar. De afbeelding zelf wordt niet opnieuw geüpload.
 
 ---
 id: 2026-10-14-translation-cache-i18n

@@ -84,6 +84,26 @@ assertShot(
     $inlineRestored === "First the text and then more text\n\n[[attachment:midden.png]]"
 );
 
+$twoRaw = "[[attachment:a.png]]\n[[attachment:b.png]]\n\nVerzenden lukt niet";
+$concatenated = "[[attachment:a.png]][[attachment:b.png]]\nVerzenden lukt niet";
+$concatenatedRestored = restoreMissingAttachmentMarkers($concatenated, $twoRaw);
+assertShot(
+    'Aaneengeschakelde markeringen komen elk op een eigen regel',
+    $concatenatedRestored === "[[attachment:a.png]]\n[[attachment:b.png]]\n\nVerzenden lukt niet"
+);
+assertShot(
+    'Aaneengeschakelde markering laat geen resttekst achter',
+    substr_count($concatenatedRestored, '[[attachment:') === 2
+        && !str_contains($concatenatedRestored, '[[attachment:a.png]][[attachment:b.png]]')
+);
+
+$spacedPair = "[[attachment:a.png]] [[attachment:b.png]]\nVerzenden lukt niet";
+$spacedRestored = restoreMissingAttachmentMarkers($spacedPair, $twoRaw);
+assertShot(
+    'Twee markeringen met een spatie ertussen komen elk op een eigen regel',
+    $spacedRestored === "[[attachment:a.png]]\n[[attachment:b.png]]\n\nVerzenden lukt niet"
+);
+
 $keptOwnLine = "[[attachment:schermafdruk.png]]\n\nSending failed";
 assertShot(
     'Markering die al op een eigen regel staat blijft één keer staan',
