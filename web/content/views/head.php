@@ -2211,6 +2211,9 @@
             font-size: 13px;
             font-weight: 700;
             cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
             transition: opacity 0.15s ease, filter 0.15s ease, transform 0.15s ease;
         }
 
@@ -4504,4 +4507,5 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="thirdparty/highlightjs/asclepius-light.css">
 </head>

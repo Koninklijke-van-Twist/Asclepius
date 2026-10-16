@@ -1,7 +1,17 @@
 # Third-Party Libraries
 
-All third-party code is loaded from CDN and executed client-side only.
+Preview libraries are loaded from a CDN and run in the browser only.
+Fenced code in ticket messages uses a local highlight.js subset, not a CDN.
 No user data is ever sent to external servers.
+
+## Ticket code blocks (local)
+
+- **Highlight.js 11.11.1** — syntax highlighting after the message is rendered
+  - Path: `web/thirdparty/highlightjs/highlight.min.js`
+  - CSS: `web/thirdparty/highlightjs/asclepius-light.css` (GitHub light, scoped to message code)
+  - Languages: javascript, php, sql, xml (also html), css, json, bash, powershell
+  - License: BSD-3-Clause (`highlightjs/LICENSE`)
+  - AL (Business Central) is not in this build and stays plain text
 
 ## Client-Side Preview Libraries (CDN)
 

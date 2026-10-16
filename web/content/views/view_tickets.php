@@ -113,7 +113,7 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                                 <label class="checkbox-chip <?= $statusSelected ? 'is-active' : 'is-inactive' ?>"
                                     style="--status-color: <?= h(getStatusColor($status)) ?>;"
                                     <?php if ($creatorTooltip !== ''): ?>title="<?= h($creatorTooltip) ?>"<?php endif; ?>>
-                                    <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?> onchange="this.form.submit()">
+                                    <input type="checkbox" name="status[]" value="<?= h($status) ?>" <?= $statusSelected ? 'checked' : '' ?>>
                                     <span><?= h(translateStatus($status)) ?></span>
                                 </label>
                             <?php endforeach; ?>
@@ -135,7 +135,7 @@ $showAdminOverviewSection = $isAdminPortal && $view === 'overview';
                             <?php $categorySelected = isCategoryFilterSelected($category, $categoryFilters, $categoryFilterRequestActive); ?>
                             <label class="checkbox-chip <?= $categorySelected ? 'is-active' : 'is-inactive' ?>"
                                 style="--status-color: <?= h(getCategoryColor($category)) ?>;">
-                                <input type="checkbox" name="category[]" value="<?= h($category) ?>" <?= $categorySelected ? 'checked' : '' ?> onchange="this.form.submit()">
+                                <input type="checkbox" name="category[]" value="<?= h($category) ?>" <?= $categorySelected ? 'checked' : '' ?>>
                                 <span><?= h(translateCategory($category)) ?></span>
                             </label>
                         <?php endforeach; ?>
