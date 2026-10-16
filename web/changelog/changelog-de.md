@@ -1,3 +1,11 @@
+id: 2026-10-16-filter-chip-double-click
+date: 2026-10-16
+title: Doppelklick lässt nur einen Status oder eine Kategorie an
+author: Cursor Agent
+
+Doppelklick oder Doppeltipp auf einen Status oder eine Kategorie in den Ticketfiltern. Nur diese Auswahl bleibt an; die anderen Auswahlen in derselben Gruppe gehen aus. Ein einfacher Klick schaltet eine Auswahl weiter an oder aus. Die Liste und die gespeicherten Filter folgen dieser Auswahl sofort, auch in der Verwaltungsübersicht.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Übersetzungen erscheinen wieder in allen Sprachen

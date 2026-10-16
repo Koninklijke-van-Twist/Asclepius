@@ -1,3 +1,11 @@
+id: 2026-10-16-filter-chip-double-click
+date: 2026-10-16
+title: Un double-clic ne garde qu’un statut ou une catégorie
+author: Cursor Agent
+
+Double-cliquez ou appuyez deux fois sur un statut ou une catégorie dans les filtres de tickets. Seul ce choix reste actif ; les autres choix du même groupe s’éteignent. Un simple clic active ou désactive toujours un choix. La liste et les filtres enregistrés suivent ce choix tout de suite, y compris dans la vue d’administration.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Les traductions réapparaissent dans toutes les langues

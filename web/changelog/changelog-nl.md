@@ -1,3 +1,11 @@
+id: 2026-10-16-filter-chip-double-click
+date: 2026-10-16
+title: Dubbelklik houdt één status of categorie aan
+author: Cursor Agent
+
+Dubbelklik of dubbeltik op een status of categorie in de ticketfilters. Alleen die keuze blijft aan; de andere keuzes in dezelfde groep gaan uit. Een enkele klik zet een keuze nog steeds aan of uit. De lijst en de bewaarde filters volgen die keuze meteen, ook in het beheeroverzicht.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Vertalingen verschijnen weer in alle talen
