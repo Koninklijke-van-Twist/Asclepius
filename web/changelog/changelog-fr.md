@@ -1,3 +1,11 @@
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: Le même bloc de code reste en double
+author: Cursor Agent
+
+Un message avec deux blocs de code identiques garde les deux dans la traduction, dans le ticket et dans le mail. Même si la traduction en a laissé tomber un.
+
+---
 id: 2026-10-16-code-highlight
 date: 2026-10-16
 title: Couleur dans les blocs de code

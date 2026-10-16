@@ -353,11 +353,20 @@ function restoreMessageFencedCodeBlocks(string $displayText, string $rawText): s
         $offset = $position + strlen($rawBlocks[$index]);
     }
 
+    // Zelfde hek telt per keer. str_contains zou het tweede blok als aanwezig
+    // zien zodra het eerste er nog staat, ook als de vertaler die placeholder
+    // heeft laten vallen.
+    $present = [];
+    foreach (messageFencedCodeBlocks($display) as $block) {
+        $present[$block] = ($present[$block] ?? 0) + 1;
+    }
     foreach ($rawBlocks as $block) {
-        if (!str_contains($display, $block)) {
-            $display = rtrim($display, "\n");
-            $display = ($display !== '' ? $display . "\n\n" : '') . $block;
+        if (($present[$block] ?? 0) > 0) {
+            $present[$block]--;
+            continue;
         }
+        $display = rtrim($display, "\n");
+        $display = ($display !== '' ? $display . "\n\n" : '') . $block;
     }
 
     return $display;

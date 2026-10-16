@@ -1,3 +1,11 @@
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: The same code block stays twice
+author: Cursor Agent
+
+A message with two identical code blocks keeps both in the translation, in the ticket, and in mail. That still holds when the translation dropped one of them.
+
+---
 id: 2026-10-16-code-highlight
 date: 2026-10-16
 title: Colour in code blocks

@@ -1,3 +1,11 @@
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: Derselbe Codeblock bleibt zweimal stehen
+author: Cursor Agent
+
+Eine Nachricht mit zwei gleichen Codeblöcken behält beide in der Übersetzung, im Ticket und in der Mail. Auch wenn die Übersetzung einen davon weggelassen hat.
+
+---
 id: 2026-10-16-code-highlight
 date: 2026-10-16
 title: Farbe in Codeblöcken

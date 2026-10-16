@@ -1,3 +1,11 @@
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: Hetzelfde codeblok blijft twee keer staan
+author: Cursor Agent
+
+Een bericht met twee dezelfde codeblokken houdt beide blokken in de vertaling, in het ticket en in de mail. Ook als de vertaling er een heeft weggelaten.
+
+---
 id: 2026-10-16-code-highlight
 date: 2026-10-16
 title: Kleur in codeblokken

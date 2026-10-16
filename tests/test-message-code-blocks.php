@@ -89,6 +89,27 @@ $dropped = restoreMessageFencedCodeBlocks("The query is:\nDone.", $raw);
 assertCodeTrue('Weggevallen hek komt terug', str_contains($dropped, "```sql\nSELECT naam FROM klanten;\n```"));
 assertCodeTrue('Weggevallen hek staat maar één keer', substr_count($dropped, 'SELECT naam FROM klanten;') === 1);
 
+$duplicateRaw = "Voor:\n```sql\nSELECT 1;\n```\nNa:\n```sql\nSELECT 1;\n```";
+$duplicateDropped = restoreMessageFencedCodeBlocks("Before:\n```sql\nSELECT 1;\n```\nAfter:", $duplicateRaw);
+assertCode(
+    'Tweede identiek hek komt terug als de placeholder wegvalt',
+    "Before:\n```sql\nSELECT 1;\n```\nAfter:\n\n```sql\nSELECT 1;\n```",
+    $duplicateDropped
+);
+assertCode(
+    'Herstel van twee identieke hekken blijft stabiel',
+    $duplicateDropped,
+    restoreMessageFencedCodeBlocks($duplicateDropped, $duplicateRaw)
+);
+$bothDropped = restoreMessageFencedCodeBlocks('Before: After.', $duplicateRaw);
+assertCodeTrue('Beide identieke hekken komen terug', substr_count($bothDropped, "```sql\nSELECT 1;\n```") === 2);
+$bothPresent = "Before:\n```sql\nSELECT 1;\n```\nAfter:\n```sql\nSELECT 1;\n```";
+assertCode(
+    'Twee aanwezige identieke hekken blijven twee',
+    $bothPresent,
+    restoreMessageFencedCodeBlocks($bothPresent, $duplicateRaw)
+);
+
 $applied = ticketTranslationApplyStatusNotes(
     ['text' => $translated, 'is_translated' => true],
     $raw,
