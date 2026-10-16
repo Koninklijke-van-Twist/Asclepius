@@ -1,3 +1,11 @@
+id: 2026-10-16-data-cache-access
+date: 2026-10-16
+title: Données et pièces jointes ne sont plus publiques
+author: Cursor Agent
+
+La base des tickets, les pièces jointes et les fichiers temporaires ne se téléchargent plus sans accès. Dans un ticket, les pièces jointes restent visibles quand vous êtes connecté. Un raccordement qui utilise la clé API peut encore récupérer une pièce jointe avec cette clé. L'aperçu du cache n'affiche plus de lignes d'exemple.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Les traductions réapparaissent dans toutes les langues

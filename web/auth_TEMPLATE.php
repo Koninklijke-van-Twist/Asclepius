@@ -42,3 +42,14 @@
 // $environment = 'Production';
 // $auth = $auth_list[$environment];
 // $baseUrl = 'https://my-bc-domain.com:7148/';
+
+// Wie odata.php?action=… mag aanroepen vanuit de browser. Zelfde lijst of map
+// als de gedeelde login. Zonder deze lijst weigert odata.php elke webactie.
+// $allowedUsers = [
+//     'user@kvt.nl',
+// ];
+
+// Optioneel, alleen als een HTTP-runner odata.php?action=… moet aanroepen
+// (nightly/hourly). Header X-Asclepius-Secret moet exact dit geheim zijn.
+// Weglaten: geen anonieme toegang. CLI (php web/nightly.php) heeft dit niet nodig.
+// $asclepiusRunnerSecret = '';

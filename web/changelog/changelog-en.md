@@ -1,3 +1,11 @@
+id: 2026-10-16-data-cache-access
+date: 2026-10-16
+title: Data and attachments are no longer public
+author: Cursor Agent
+
+The ticket database, attachments and temporary files can no longer be downloaded without access. Attachments in a ticket stay visible when you are signed in. A connection that uses the API key can still fetch an attachment with that key. The cache overview no longer shows sample rows.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Translations show again in every language

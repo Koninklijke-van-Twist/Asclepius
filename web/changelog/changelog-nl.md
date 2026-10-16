@@ -1,3 +1,11 @@
+id: 2026-10-16-data-cache-access
+date: 2026-10-16
+title: Gegevens en bijlagen niet meer openbaar
+author: Cursor Agent
+
+De ticketdatabase, bijlagen en tijdelijke bestanden zijn niet meer te downloaden zonder toegang. In een ticket blijven bijlagen zichtbaar als je bent ingelogd. Een koppeling die de API-sleutel gebruikt, kan een bijlage nog ophalen met die sleutel. Het cache-overzicht toont geen voorbeeldrijen meer.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Vertalingen verschijnen weer in alle talen

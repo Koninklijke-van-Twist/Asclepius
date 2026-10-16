@@ -927,23 +927,30 @@ function buildAttachmentDownloadHref(int $attachmentId): string
 
 function buildAttachmentDirectUrl(array $attachment): string
 {
-    $ticketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
-    $storedName = trim((string) ($attachment['stored_name'] ?? ''));
+    $attachmentId = (int) ($attachment['id'] ?? 0);
+    if ($attachmentId > 0) {
+        return 'ticket_upload.php?id=' . $attachmentId;
+    }
 
-    if ($ticketId > 0 && $storedName !== '') {
-        return 'data/ticket_uploads/' . rawurlencode((string) $ticketId) . '/' . rawurlencode($storedName);
+    $ticketId = max(0, (int) ($attachment['ticket_id'] ?? 0));
+    $storedName = basename(str_replace('\\', '/', trim((string) ($attachment['stored_name'] ?? ''))));
+    if ($ticketId > 0 && $storedName !== '' && $storedName !== '.' && $storedName !== '..') {
+        return 'ticket_upload.php?ticket=' . $ticketId . '&file=' . rawurlencode($storedName);
     }
 
     $storedPath = trim((string) ($attachment['stored_path'] ?? ''));
     if ($storedPath !== '') {
         $normalizedStoredPath = str_replace('\\', '/', $storedPath);
-        $marker = '/data/ticket_uploads/';
+        $marker = '/ticket_uploads/';
         $markerPosition = strpos($normalizedStoredPath, $marker);
         if ($markerPosition !== false) {
-            $relativePath = substr($normalizedStoredPath, $markerPosition + 1);
-            $segments = array_values(array_filter(explode('/', (string) $relativePath), static fn(string $segment): bool => $segment !== ''));
-            if ($segments !== []) {
-                return implode('/', array_map('rawurlencode', $segments));
+            $relativePath = substr($normalizedStoredPath, $markerPosition + strlen($marker));
+            $segments = array_values(array_filter(explode('/', (string) $relativePath), static fn(string $segment): bool => $segment !== '' && $segment !== '.' && $segment !== '..'));
+            if (count($segments) >= 2 && ctype_digit((string) $segments[0])) {
+                $file = basename((string) $segments[count($segments) - 1]);
+                if ($file !== '' && $file !== '.' && $file !== '..') {
+                    return 'ticket_upload.php?ticket=' . $segments[0] . '&file=' . rawurlencode($file);
+                }
             }
         }
     }

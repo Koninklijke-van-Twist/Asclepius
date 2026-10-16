@@ -1,3 +1,11 @@
+id: 2026-10-16-data-cache-access
+date: 2026-10-16
+title: Daten und Anhänge sind nicht mehr öffentlich
+author: Cursor Agent
+
+Die Ticketdatenbank, Anhänge und temporäre Dateien lassen sich ohne Zugang nicht mehr herunterladen. In einem Ticket bleiben Anhänge sichtbar, wenn du angemeldet bist. Eine Anbindung mit dem API-Schlüssel kann einen Anhang weiterhin mit diesem Schlüssel abrufen. Die Cache-Übersicht zeigt keine Beispielzeilen mehr.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Übersetzungen erscheinen wieder in allen Sprachen

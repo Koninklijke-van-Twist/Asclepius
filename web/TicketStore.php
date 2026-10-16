@@ -4016,6 +4016,28 @@ class TicketStore
         return $attachment !== false ? $attachment : null;
     }
 
+    public function getAttachmentByStoredName(int $ticketId, string $storedName): ?array
+    {
+        $storedName = basename(str_replace('\\', '/', trim($storedName)));
+        if ($ticketId <= 0 || $storedName === '' || $storedName === '.' || $storedName === '..') {
+            return null;
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT * FROM ticket_attachments
+             WHERE ticket_id = :ticket_id AND stored_name = :stored_name
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':ticket_id' => $ticketId,
+            ':stored_name' => $storedName,
+        ]);
+
+        $attachment = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $attachment !== false ? $attachment : null;
+    }
+
     public function queueBrowserNotifications(array $recipientEmails, int $ticketId, string $title, string $body): void
     {
         if ($ticketId <= 0) {

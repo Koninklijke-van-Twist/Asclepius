@@ -1,13 +1,44 @@
-
 web/auth.php
 
-web/cache/
+web/cache/*
+!web/cache/.htaccess
+!web/cache/index.html
+!web/cache/index.php
+!web/cache/odata/
+web/cache/odata/*
+!web/cache/odata/.htaccess
+!web/cache/odata/index.html
+!web/cache/odata/index.php
+
 web/update.notify
 web/update.complete
 
 BC Webservices.txt
 
-web/data/
+web/data/*
+!web/data/.htaccess
+!web/data/index.html
+!web/data/index.php
+!web/data/ticket_uploads/
+web/data/ticket_uploads/*
+!web/data/ticket_uploads/.htaccess
+!web/data/ticket_uploads/index.html
+!web/data/ticket_uploads/index.php
+!web/data/api_clients/
+web/data/api_clients/*
+!web/data/api_clients/.htaccess
+!web/data/api_clients/index.html
+!web/data/api_clients/index.php
+!web/data/theevraagje/
+web/data/theevraagje/*
+!web/data/theevraagje/.htaccess
+!web/data/theevraagje/index.html
+!web/data/theevraagje/index.php
+!web/data/user_prefs/
+web/data/user_prefs/*
+!web/data/user_prefs/.htaccess
+!web/data/user_prefs/index.html
+!web/data/user_prefs/index.php
 
 vapid-keys/
 

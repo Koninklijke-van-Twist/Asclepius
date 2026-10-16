@@ -182,7 +182,8 @@ assertTrue('Bijlage heeft id', (int) ($att['id'] ?? 0) > 0);
 assertSame('Bijlage-naam', 'rapport.pdf', $att['filename'] ?? null);
 assertSame('Mime via finfo', 'application/pdf', $att['mime_type'] ?? null);
 assertFalse('Niet inline', !empty($att['inline']));
-assertContains('URL wijst naar data/ticket_uploads', '/data/ticket_uploads/' . $ticketId . '/ticket_', (string) ($att['url'] ?? ''));
+assertContains('URL wijst naar ticket_upload.php', 'ticket_upload.php?id=' . (int) ($att['id'] ?? 0), (string) ($att['url'] ?? ''));
+assertFalse('Geen publieke data/ticket_uploads-URL', str_contains((string) ($att['url'] ?? ''), '/data/ticket_uploads/'));
 assertContains('download_url via index.php?download', 'index.php?download=' . (int) ($att['id'] ?? 0), (string) ($att['download_url'] ?? ''));
 assertSame('Tekst zonder marker', 'Zie bijlage', (string) ($valid['message']['message_text'] ?? ''));
 assertFalse('Geen serverpad in antwoord', str_contains((string) json_encode($valid), $uploadRoot));
@@ -216,7 +217,8 @@ assertSame('Bijlagenamen', ['retourlijst.png', 'scherm.gif', 'retourlijst-2.png'
 assertSame('Alle drie inline', [true, true, true], array_map(static fn(array $a): bool => !empty($a['inline']), $inline['attachments'] ?? []));
 $html = formatTicketMessageText($storedText, (int) $inline['message_id'], $inline['message']['attachments'] ?? []);
 assertContains('Weergave toont inline afbeelding', 'attachment-inline-image', $html);
-assertContains('Weergave verwijst naar opgeslagen bestand', 'data/ticket_uploads/' . $ticketId . '/ticket_', $html);
+assertContains('Weergave verwijst naar het bijlage-endpoint', 'ticket_upload.php?id=', $html);
+assertFalse('Weergave linkt niet naar data/ticket_uploads', str_contains($html, 'data/ticket_uploads/'));
 assertSame('Drie inline-afbeeldingen gerenderd', 3, substr_count($html, 'class="attachment-inline-image"'));
 
 $badRef = handleAddTicketMessageApiAction($store, $baseRequest + [

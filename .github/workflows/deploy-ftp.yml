@@ -118,15 +118,53 @@ jobs:
           set ftp:ssl-allow false
           set ftp:passive-mode yes
           cd "$FTP_REMOTE_DIR"
+          # SQLite, uploads, cache-JSON en de root-.htaccess blijven op de server.
+          # lftp: het laatste passende patroon wint. Includes staan ná de excludes,
+          # anders gaan data/.htaccess en cache/.htaccess niet mee.
           mirror -R --delete \
             --exclude-glob .htaccess \
             --exclude-glob cache/** \
+            --exclude-glob cache/odata/** \
+            --exclude-glob cache/odata/*/ \
             --exclude-glob data/** \
+            --exclude-glob data/ticket_uploads/** \
+            --exclude-glob data/ticket_uploads/*/ \
+            --exclude-glob data/api_clients/** \
+            --exclude-glob data/theevraagje/** \
+            --exclude-glob data/user_prefs/** \
             --exclude-glob analytics/*.sqlite \
             --exclude-glob analytics/*.sqlite-* \
             --exclude-glob auth.php \
             --exclude-glob index.php \
             --exclude-glob admin.php \
+            --include-glob cache/ \
+            --include-glob cache/odata/ \
+            --include-glob cache/.htaccess \
+            --include-glob cache/index.html \
+            --include-glob cache/index.php \
+            --include-glob cache/odata/.htaccess \
+            --include-glob cache/odata/index.html \
+            --include-glob cache/odata/index.php \
+            --include-glob data/ \
+            --include-glob data/ticket_uploads/ \
+            --include-glob data/api_clients/ \
+            --include-glob data/theevraagje/ \
+            --include-glob data/user_prefs/ \
+            --include-glob data/.htaccess \
+            --include-glob data/index.html \
+            --include-glob data/index.php \
+            --include-glob data/ticket_uploads/.htaccess \
+            --include-glob data/ticket_uploads/index.html \
+            --include-glob data/ticket_uploads/index.php \
+            --include-glob data/api_clients/.htaccess \
+            --include-glob data/api_clients/index.html \
+            --include-glob data/api_clients/index.php \
+            --include-glob data/theevraagje/.htaccess \
+            --include-glob data/theevraagje/index.html \
+            --include-glob data/theevraagje/index.php \
+            --include-glob data/user_prefs/.htaccess \
+            --include-glob data/user_prefs/index.html \
+            --include-glob data/user_prefs/index.php \
             ./web .
 
           set cmd:fail-exit false
