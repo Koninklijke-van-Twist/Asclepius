@@ -1,24 +1,11 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 
-// Built assets land under web/app so PHP can serve them same-origin.
+// Served at sleutels.kvt.nl/astropius — separate from Asclepius PHP under /asclepius.
 export default defineConfig({
-  base: '/asclepius/app/',
-  outDir: '../web/app',
+  base: '/astropius/',
+  outDir: '../astropius-dist',
   publicDir: 'public',
-  server: {
-    port: 4321,
-    proxy: {
-      '/asclepius/api.php': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-      },
-      '/asclepius/session_keepalive.php': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-      },
-    },
-  },
   vite: {
     server: {
       proxy: {

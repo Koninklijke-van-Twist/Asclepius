@@ -1,19 +1,17 @@
-# Asclepius Astro UI
+# Astropius (Asclepius Astro UI)
 
-Preview UI that consumes the PHP JSON API (`web/api.php`). The classic PHP pages remain the default until cutover.
+Preview UI at `/astropius`, talking to the PHP JSON API at `/asclepius/api.php`. Never replaces the Asclepius PHP deploy on master.
 
 ## Commands
 
 ```bash
 npm ci
 npm run dev    # http://localhost:4321 — proxies /asclepius/* to PHP :8080
-npm run build  # writes static files to ../web/app/
+npm run build  # → ../astropius-dist/ with base /astropius/
 ```
-
-Point PHP at `web/`:
 
 ```bash
 php -S 127.0.0.1:8080 -t ../web
 ```
 
-Use a service API-key or an authenticated PHP session cookie. Ticket live updates use `ticket_poll` with `format=json`.
+Use a service API-key or a session cookie that is visible to `/astropius`. Ticket live updates use `ticket_poll` with `format=json`.

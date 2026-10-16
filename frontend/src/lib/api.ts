@@ -97,6 +97,8 @@ const API_URL =
     (import.meta as ImportMeta & { env?: Record<string, string> }).env?.PUBLIC_ASCLEPIUS_API_URL) ||
   '/asclepius/api.php';
 
+/** Astro is hosted under /astropius; the PHP API stays under /asclepius. */
+
 function storedApiKey(): string {
   if (typeof localStorage === 'undefined') return '';
   return localStorage.getItem('asclepius.api_key') || '';

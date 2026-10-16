@@ -4085,9 +4085,9 @@ if ($method === 'POST') {
             'lookups' => buildTicketLookupsApiPayload('ticket_lookups'),
             'supported_languages' => array_keys(SUPPORTED_LANGUAGES),
             'ui' => [
-                'astro_base' => 'app/',
-                'legacy_index' => 'index.php',
-                'legacy_admin' => 'admin.php',
+                'astro_base' => '/astropius/',
+                'legacy_index' => '/asclepius/index.php',
+                'legacy_admin' => '/asclepius/admin.php',
             ],
         ]);
     }

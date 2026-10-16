@@ -1,9 +1,9 @@
 id: 2026-10-16-astro-ui-preview
 date: 2026-10-16
-title: Astro-voorvertoning naast de bestaande interface
+title: Astro-voorvertoning op /astropius
 author: Cursor Agent
 
-Er is een nieuwe Astro-interface onder `app/` voor tickets bekijken, openen, beantwoorden, status wijzigen en een nieuw ticket aanmaken. Die praat met dezelfde PHP-API. De bekende pagina’s (`index.php` / `admin.php`) blijven de standaard; in het menu staat een link **Astro** zodra die build aanwezig is.
+Er is een nieuwe Astro-interface op `/astropius` (aparte preview, niet de productieversie) voor tickets bekijken, openen, beantwoorden, status wijzigen en een nieuw ticket aanmaken. Die praat met dezelfde PHP-API onder `/asclepius`. De bekende pagina’s blijven de standaard; in het menu staat een link **Astro**.
 
 De live ticketlijst kan nu ook pure JSON teruggeven (`format=json`), zonder HTML-kaarten. Dat is bedoeld voor de nieuwe interface; de oude UI blijft HTML gebruiken.
 

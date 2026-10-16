@@ -1,0 +1,69 @@
+name: Deploy Astropius (Astro UI) to FTP
+
+# Separate from Asclepius master deploy. Publishes the Astro build to a path
+# such as sleutels.kvt.nl/astropius — never replaces /asclepius.
+
+on:
+  push:
+    branches:
+      - cursor/astro-ui-ed53
+      - astropius
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      FTP_HOST: ${{ secrets.FTP_HOST }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      # Prefer a dedicated remote dir; fall back only if explicitly set.
+      FTP_REMOTE_DIR: ${{ secrets.ASTROPIUS_FTP_REMOTE_DIR }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Require Astropius FTP remote
+        run: |
+          if [ -z "$FTP_REMOTE_DIR" ]; then
+            echo "Set repository secret ASTROPIUS_FTP_REMOTE_DIR (e.g. path that maps to /astropius)."
+            echo "Skipping upload; build-only verification continues."
+            echo "SKIP_UPLOAD=1" >> "$GITHUB_ENV"
+          else
+            echo "SKIP_UPLOAD=0" >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build Astro UI
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+          test -f ../astropius-dist/index.html
+
+      - name: Install lftp
+        if: env.SKIP_UPLOAD == '0'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Upload astropius-dist
+        if: env.SKIP_UPLOAD == '0'
+        run: |
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
+          set cmd:fail-exit true
+          set net:max-retries 2
+          set net:timeout 20
+          set ftp:ssl-allow false
+          set ftp:passive-mode yes
+          cd "$FTP_REMOTE_DIR"
+          mirror -R --delete --verbose ./astropius-dist .
+          bye
+          EOF

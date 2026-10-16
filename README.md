@@ -11,18 +11,18 @@ Intern ticketingssysteem voor KVT op sleutels.kvt.nl/asclepius (meldingen, aanvr
 - `web/hourly.php` — open-ticket trend snapshots (geen BC-OData)
 - `web/auth.php` — credentials (niet in git)
 
-## Astro UI (preview)
+## Astro UI / Astropius (preview)
 
-PHP (`index.php` / `admin.php`) blijft de productieversie. De Astro-app onder `web/app/` is een parallelle UI die JSON vraagt (`format=json` op `ticket_poll` / `ticket_thread`, plus `session_context`).
+PHP onder `/asclepius` blijft de productieversie en wordt **niet** vervangen door deze UI. De Astro-app hoort op een apart pad, bv. `https://sleutels.kvt.nl/astropius`, en praat met `/asclepius/api.php` (`format=json` op `ticket_poll` / `ticket_thread`, plus `session_context`).
 
 ```bash
 cd frontend
 npm ci
-npm run build   # → web/app/
-npm run dev     # proxy naar PHP op :8080; Astro op :4321
+npm run build   # → astropius-dist/ (base /astropius/)
+npm run dev     # Astro op :4321; proxy naar PHP :8080 voor /asclepius/*
 ```
 
-Lokaal PHP ernaast: `php -S 127.0.0.1:8080 -t web`. Deploy-workflow bouwt `frontend/` mee vóór FTP-upload.
+Lokaal PHP: `php -S 127.0.0.1:8080 -t web`. CI-workflow `deploy-astropius.yml` bouwt op de feature branch en uploadt naar secret `ASTROPIUS_FTP_REMOTE_DIR` (niet naar de Asclepius master-FTP). Sessies: cookie-`Path` moet `/` (of gedeeld) zijn, anders werkt alleen een API-key in de Astro-UI.
 
 ## Mímir (optioneel)
 

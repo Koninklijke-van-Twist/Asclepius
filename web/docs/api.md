@@ -687,7 +687,7 @@ Succes → `200`:
 
 `ticket_thread` — berichten van één ticket. `ticket_id`, plus dezelfde viewer/view/browse-context als `ticket_poll`. Ghosts alleen op ICT-overzicht. `404` `ticket_not_found`. Met `format=json` (of `json_data=1`): gestructureerde `messages[]` zonder `html`, plus volledig `ticket`-object. Zonder die vlag: `messages[]` met `{ id, html }` zoals voorheen.
 
-`session_context` — bootstrap voor de Astro/SPA-UI. Geeft `viewer` (e-mail, naam, admin/ICT-flags, taal), `csrf_token` (uit sessie indien aanwezig), `lookups` (categorieën/statussen), `supported_languages` en `ui`-paden (`astro_base`, legacy `index`/`admin`). Werkt met sessie-cookie en/of API-key.
+`session_context` — bootstrap voor de Astro/SPA-UI (preview op `/astropius`). Geeft `viewer` (e-mail, naam, admin/ICT-flags, taal), `csrf_token` (uit sessie indien aanwezig), `lookups` (categorieën/statussen), `supported_languages` en `ui`-paden (`astro_base` → `/astropius/`, legacy `/asclepius/index.php` / `admin.php`). Werkt met sessie-cookie en/of API-key.
 
 `related_completed_tickets` — suggesties bij nieuw ticket. `title`, `description`, `current_language`. Max. 8 afgehandelde publieke tickets: `{ id, title }`.
 
