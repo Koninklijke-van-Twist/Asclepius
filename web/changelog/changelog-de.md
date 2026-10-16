@@ -1,3 +1,13 @@
+id: 2026-10-16-search-by-date
+date: 2026-10-16
+title: Ticketsuche nach Datum
+author: Cursor Agent
+
+Das Suchfeld nimmt auch ein Datum an, in der Übersicht und in der Verwaltung. Es gilt für den Tag, an dem ein Ticket erstellt wurde, für die letzte Änderung und für das Datum einer sichtbaren Nachricht.
+
+Du kannst 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026 oder nur 2026 eingeben. Ohne Jahreszahl gilt das laufende Jahr. Ein Wort und ein Datum zusammen, wie printer 16-10, müssen beide zutreffen.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Übersetzungen erscheinen wieder in allen Sprachen

@@ -1,3 +1,13 @@
+id: 2026-10-16-search-by-date
+date: 2026-10-16
+title: Zoeken op datum in de ticketlijst
+author: Cursor Agent
+
+In het zoekveld kun je ook op een datum zoeken, in het overzicht en in het beheer. Dat geldt voor de dag waarop een ticket is aangemaakt, voor de laatste wijziging, en voor de datum van een zichtbaar bericht.
+
+Je kunt 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026 of alleen 2026 invoeren. Zonder jaartal geldt het lopende jaar. Een woord en een datum samen, zoals printer 16-10, moeten allebei kloppen.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Vertalingen verschijnen weer in alle talen

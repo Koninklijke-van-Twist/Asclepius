@@ -3370,6 +3370,273 @@ class TicketStore
     }
 
     /**
+     * Dutch month names accepted in the ticket search.
+     *
+     * @var array<string, int>
+     */
+    private const SEARCH_MONTHS = [
+        'jan' => 1,
+        'januari' => 1,
+        'feb' => 2,
+        'februari' => 2,
+        'mrt' => 3,
+        'maart' => 3,
+        'apr' => 4,
+        'april' => 4,
+        'mei' => 5,
+        'jun' => 6,
+        'juni' => 6,
+        'jul' => 7,
+        'juli' => 7,
+        'aug' => 8,
+        'augustus' => 8,
+        'sep' => 9,
+        'sept' => 9,
+        'september' => 9,
+        'okt' => 10,
+        'oktober' => 10,
+        'nov' => 11,
+        'november' => 11,
+        'dec' => 12,
+        'december' => 12,
+    ];
+
+    /**
+     * Split a search into text terms and date constraints.
+     * Date phrases are not also required as literal text.
+     * A day and month without a year use the current calendar year.
+     *
+     * @param list<string> $tokens
+     * @return array{text_terms: list<string>, dates: list<array{kind: string, value: string}>}
+     */
+    private function parseTicketSearchDates(array $tokens): array
+    {
+        $textTerms = [];
+        $dates = [];
+        $count = count($tokens);
+
+        for ($index = 0; $index < $count; $index++) {
+            $matched = $this->matchTicketSearchDate($tokens, $index);
+            if ($matched === null) {
+                $textTerms[] = $tokens[$index];
+                continue;
+            }
+
+            $dates[] = [
+                'kind' => $matched['kind'],
+                'value' => $matched['value'],
+            ];
+            $index += $matched['length'] - 1;
+        }
+
+        return [
+            'text_terms' => $textTerms,
+            'dates' => $dates,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{length: int, kind: string, value: string}|null
+     */
+    private function matchTicketSearchDate(array $tokens, int $index): ?array
+    {
+        $count = count($tokens);
+        $currentYear = (int) date('Y');
+
+        if ($index + 2 < $count) {
+            $day = $this->searchDayNumber($tokens[$index]);
+            $month = $this->searchMonthNumber($tokens[$index + 1]);
+            $year = $this->searchYearNumber($tokens[$index + 2]);
+            if ($day !== null && $month !== null && $year !== null && checkdate($month, $day, $year)) {
+                return [
+                    'length' => 3,
+                    'kind' => 'day',
+                    'value' => sprintf('%04d-%02d-%02d', $year, $month, $day),
+                ];
+            }
+        }
+
+        if ($index + 1 < $count) {
+            $day = $this->searchDayNumber($tokens[$index]);
+            $month = $this->searchMonthNumber($tokens[$index + 1]);
+            if ($day !== null && $month !== null && checkdate($month, $day, $currentYear)) {
+                return [
+                    'length' => 2,
+                    'kind' => 'day',
+                    'value' => sprintf('%04d-%02d-%02d', $currentYear, $month, $day),
+                ];
+            }
+
+            $month = $this->searchMonthNumber($tokens[$index]);
+            $year = $this->searchYearNumber($tokens[$index + 1]);
+            if ($month !== null && $year !== null) {
+                return [
+                    'length' => 2,
+                    'kind' => 'month',
+                    'value' => sprintf('%04d-%02d', $year, $month),
+                ];
+            }
+        }
+
+        return $this->matchSingleTicketSearchDateToken($tokens[$index] ?? '', $currentYear);
+    }
+
+    /**
+     * @return array{length: int, kind: string, value: string}|null
+     */
+    private function matchSingleTicketSearchDateToken(string $token, int $currentYear): ?array
+    {
+        if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $token, $matches) === 1) {
+            $year = (int) $matches[1];
+            $month = (int) $matches[2];
+            $day = (int) $matches[3];
+            if ($year >= 2000 && $year <= 2099 && checkdate($month, $day, $year)) {
+                return [
+                    'length' => 1,
+                    'kind' => 'day',
+                    'value' => sprintf('%04d-%02d-%02d', $year, $month, $day),
+                ];
+            }
+
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $token, $matches) === 1) {
+            $day = (int) $matches[1];
+            $month = (int) $matches[2];
+            $year = (int) $matches[3];
+            if ($year >= 2000 && $year <= 2099 && checkdate($month, $day, $year)) {
+                return [
+                    'length' => 1,
+                    'kind' => 'day',
+                    'value' => sprintf('%04d-%02d-%02d', $year, $month, $day),
+                ];
+            }
+
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2})[-\/](\d{1,2})$/', $token, $matches) === 1) {
+            $day = (int) $matches[1];
+            $month = (int) $matches[2];
+            if (checkdate($month, $day, $currentYear)) {
+                return [
+                    'length' => 1,
+                    'kind' => 'day',
+                    'value' => sprintf('%04d-%02d-%02d', $currentYear, $month, $day),
+                ];
+            }
+
+            return null;
+        }
+
+        if (preg_match('/^(\d{4})-(\d{1,2})$/', $token, $matches) === 1) {
+            $year = (int) $matches[1];
+            $month = (int) $matches[2];
+            if ($year >= 2000 && $year <= 2099 && $month >= 1 && $month <= 12) {
+                return [
+                    'length' => 1,
+                    'kind' => 'month',
+                    'value' => sprintf('%04d-%02d', $year, $month),
+                ];
+            }
+
+            return null;
+        }
+
+        $year = $this->searchYearNumber($token);
+        if ($year !== null) {
+            return [
+                'length' => 1,
+                'kind' => 'year',
+                'value' => sprintf('%04d', $year),
+            ];
+        }
+
+        return null;
+    }
+
+    private function searchDayNumber(string $token): ?int
+    {
+        if (preg_match('/^\d{1,2}$/', $token) !== 1) {
+            return null;
+        }
+
+        $day = (int) $token;
+        if ($day < 1 || $day > 31) {
+            return null;
+        }
+
+        return $day;
+    }
+
+    private function searchMonthNumber(string $token): ?int
+    {
+        $normalized = rtrim(self::unicodeLower(trim($token)), '.');
+        if ($normalized === '' || !isset(self::SEARCH_MONTHS[$normalized])) {
+            return null;
+        }
+
+        return self::SEARCH_MONTHS[$normalized];
+    }
+
+    private function searchYearNumber(string $token): ?int
+    {
+        if (preg_match('/^\d{4}$/', $token) !== 1) {
+            return null;
+        }
+
+        $year = (int) $token;
+        if ($year < 2000 || $year > 2099) {
+            return null;
+        }
+
+        return $year;
+    }
+
+    /**
+     * Match a parsed date against created, updated and non-ghost message dates.
+     * The compared value is produced here, never taken raw from the query.
+     *
+     * @param array{kind: string, value: string} $date
+     * @param array<string, mixed> $parameters
+     */
+    private function buildSearchDateCondition(int $index, array $date, array &$parameters): string
+    {
+        $kind = (string) ($date['kind'] ?? '');
+        $value = (string) ($date['value'] ?? '');
+        $length = match ($kind) {
+            'day' => 10,
+            'month' => 7,
+            'year' => 4,
+            default => 0,
+        };
+        if ($length === 0 || preg_match('/^\d{4}(-\d{2}(-\d{2})?)?$/', $value) !== 1 || strlen($value) !== $length) {
+            return '1 = 0';
+        }
+
+        $created = ':search_date_' . $index . '_created';
+        $updated = ':search_date_' . $index . '_updated';
+        $message = ':search_date_' . $index . '_message';
+        $parameters[$created] = $value;
+        $parameters[$updated] = $value;
+        $parameters[$message] = $value;
+
+        return "(
+            substr(COALESCE(t.created_at, ''), 1, {$length}) = {$created}
+            OR substr(COALESCE(t.updated_at, ''), 1, {$length}) = {$updated}
+            OR EXISTS (
+                SELECT 1
+                FROM ticket_messages tm
+                WHERE tm.ticket_id = t.id
+                  AND COALESCE(tm.is_ghost, 0) = 0
+                  AND substr(COALESCE(tm.created_at, ''), 1, {$length}) = {$message}
+            )
+        )";
+    }
+
+    /**
      * Extract ticket IDs that the search query names exactly (e.g. "42", "#42").
      *
      * @return list<int>
@@ -3476,8 +3743,9 @@ class TicketStore
                 $searchTerms = array_values(array_filter(array_map('trim', $searchTerms), static fn(string $term): bool => $term !== ''));
 
                 if ($searchTerms !== []) {
+                    $parsedSearch = $this->parseTicketSearchDates($searchTerms);
                     $searchConditions = [];
-                    foreach ($searchTerms as $index => $term) {
+                    foreach ($parsedSearch['text_terms'] as $index => $term) {
                         $placeholder = ':search_' . $index;
                         $parameters[$placeholder] = self::unicodeLower($term);
                         $searchConditions[] = "(
@@ -3520,7 +3788,13 @@ class TicketStore
                         )";
                     }
 
-                    $listConditions[] = implode(' AND ', $searchConditions);
+                    foreach ($parsedSearch['dates'] as $index => $date) {
+                        $searchConditions[] = $this->buildSearchDateCondition($index, $date, $parameters);
+                    }
+
+                    if ($searchConditions !== []) {
+                        $listConditions[] = implode(' AND ', $searchConditions);
+                    }
                 }
             }
         }

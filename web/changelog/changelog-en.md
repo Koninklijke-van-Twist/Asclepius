@@ -1,3 +1,13 @@
+id: 2026-10-16-search-by-date
+date: 2026-10-16
+title: Search the ticket list by date
+author: Cursor Agent
+
+The search field also accepts a date, in the overview and in admin. It matches the day a ticket was created, the last change, and the date of a visible message.
+
+You can enter 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026, or just 2026. Without a year, the current year is used. A word and a date together, such as printer 16-10, must both match.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Translations show again in every language
