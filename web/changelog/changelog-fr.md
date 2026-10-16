@@ -5,7 +5,7 @@ author: Cursor Agent
 
 Double-cliquez ou appuyez deux fois sur un statut ou une catégorie dans les filtres de tickets. Seul ce choix reste actif ; les autres choix du même groupe s’éteignent. Un simple clic active ou désactive toujours un choix. La liste et les filtres enregistrés suivent ce choix tout de suite, y compris dans la vue d’administration.
 
-Si vous ouvrez ensuite un ticket, suivez un lien ou choisissez Réinitialiser les filtres, cette action reste. Le clic sur le filtre n’est pas appliqué après coup. Une modification du champ de recherche ne laisse pas un filtre affiché comme actif alors que la liste utilise encore le choix précédent.
+Si vous ouvrez ensuite un ticket, suivez un lien ou choisissez Réinitialiser les filtres, cette action reste. Le clic sur le filtre n’est pas appliqué après coup. Faire défiler, ou relâcher un appui sans cliquer, ne le fait pas : le choix de filtre est quand même appliqué. Une modification du champ de recherche ne laisse pas un filtre affiché comme actif alors que la liste utilise encore le choix précédent.
 
 ---
 id: 2026-10-14-translation-cache-i18n

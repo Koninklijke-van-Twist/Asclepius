@@ -131,8 +131,9 @@
                     return !!(target && target.closest && target.closest('.checkbox-chip') && form.contains(target));
                 };
 
-                // Een ticket, een link of Reset mag het vertraagde formulier niet vervangen.
+                // Een echte klik op een ticket, een link of Reset vervangt het vertraagde formulier.
                 // De enkele klik vervalt dan, zonder de checkbox of de voorkeur te wijzigen.
+                // Scrollen of een afgebroken aanraking geeft geen klik en laat de timer staan.
                 var abandonPendingSingle = function (target)
                 {
                     if (!pendingChip || isPendingChipTarget(target))
@@ -145,11 +146,6 @@
                         clearPending();
                     }
                 };
-
-                document.addEventListener('pointerdown', function (event)
-                {
-                    abandonPendingSingle(event.target);
-                }, true);
 
                 document.addEventListener('click', function (event)
                 {
