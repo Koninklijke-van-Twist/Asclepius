@@ -1,3 +1,11 @@
+id: 2026-10-16-ghost-code-background
+date: 2026-10-16
+title: A code block in a ghost message is one panel
+author: Cursor Agent
+
+A code block in a ghost message has one background, not a white patch on every line. The code colours stay readable. In a normal message a code block looks the same as before.
+
+---
 id: 2026-10-16-close-public-data
 date: 2026-10-16
 title: Database and attachments are no longer public

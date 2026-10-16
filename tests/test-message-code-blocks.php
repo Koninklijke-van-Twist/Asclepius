@@ -311,6 +311,11 @@ assertCodeTrue('Codeblok is geen vertaalbaar TextBlock', !$codeWasTranslatable &
 assertCodeTrue('TextBlock-resultaat houdt de broncode', str_contains($blockResult['translated_text'], "echo '<script>';"));
 assertCodeTrue('TextBlock-resultaat houdt de toets', str_contains($blockResult['translated_text'], '[Enter]'));
 
+$highlightCss = (string) file_get_contents(__DIR__ . '/../web/thirdparty/highlightjs/asclepius-light.css');
+assertCodeTrue('Codeblok zet geen witte achtergrond op tokens', !str_contains($highlightCss, 'background:#fff') && !str_contains($highlightCss, 'background-color:#f0fff4'));
+assertCodeTrue('Regels in een codeblok blijven doorzichtig', str_contains($highlightCss, 'code.hljs span{background:transparent'));
+assertCodeTrue('Ghost-codeblok heeft één lichte achtergrond', str_contains($highlightCss, '.message.is-ghost .message-text .message-md-pre:has(> code.hljs){background:#f3f6fb'));
+
 echo PHP_EOL;
 echo "Resultaat: {$passed} geslaagd, {$failed} gefaald." . PHP_EOL;
 exit($failed > 0 ? 1 : 0);

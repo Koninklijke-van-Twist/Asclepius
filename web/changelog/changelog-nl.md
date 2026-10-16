@@ -1,3 +1,11 @@
+id: 2026-10-16-ghost-code-background
+date: 2026-10-16
+title: Codeblok in een ghostbericht is één vlak
+author: Cursor Agent
+
+Een codeblok in een ghostbericht heeft één achtergrond, niet een wit vlak per regel. De kleuren van de code blijven leesbaar. In een gewoon bericht ziet een codeblok er hetzelfde uit als eerder.
+
+---
 id: 2026-10-16-close-public-data
 date: 2026-10-16
 title: Database en bijlagen niet meer openbaar

@@ -1,3 +1,11 @@
+id: 2026-10-16-ghost-code-background
+date: 2026-10-16
+title: Ein Codeblock in einer Ghost-Nachricht ist eine Fläche
+author: Cursor Agent
+
+Ein Codeblock in einer Ghost-Nachricht hat einen Hintergrund, nicht ein weißes Feld pro Zeile. Die Codefarben bleiben lesbar. In einer normalen Nachricht sieht ein Codeblock aus wie zuvor.
+
+---
 id: 2026-10-16-close-public-data
 date: 2026-10-16
 title: Datenbank und Anhänge sind nicht mehr öffentlich

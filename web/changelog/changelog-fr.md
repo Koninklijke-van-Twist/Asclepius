@@ -1,3 +1,11 @@
+id: 2026-10-16-ghost-code-background
+date: 2026-10-16
+title: Un bloc de code dans un message fantôme forme un seul fond
+author: Cursor Agent
+
+Un bloc de code dans un message fantôme a un seul fond, pas un pavé blanc par ligne. Les couleurs du code restent lisibles. Dans un message normal, un bloc de code reste comme avant.
+
+---
 id: 2026-10-16-close-public-data
 date: 2026-10-16
 title: La base et les pièces jointes ne sont plus publiques
