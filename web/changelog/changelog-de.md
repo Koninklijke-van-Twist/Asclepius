@@ -5,6 +5,8 @@ author: Cursor Agent
 
 Doppelklick oder Doppeltipp auf einen Status oder eine Kategorie in den Ticketfiltern. Nur diese Auswahl bleibt an; die anderen Auswahlen in derselben Gruppe gehen aus. Ein einfacher Klick schaltet eine Auswahl weiter an oder aus. Die Liste und die gespeicherten Filter folgen dieser Auswahl sofort, auch in der Verwaltungsübersicht.
 
+Öffnest du kurz danach ein Ticket, folgst du einem Link oder wählst du Filter zurücksetzen, bleibt diese Aktion bestehen. Der Filterklick wird nicht nachträglich angewendet. Eine Änderung im Suchfeld lässt einen Filter nicht aktiv aussehen, während die Liste noch die vorherige Auswahl verwendet.
+
 ---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14

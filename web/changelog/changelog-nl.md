@@ -5,6 +5,8 @@ author: Cursor Agent
 
 Dubbelklik of dubbeltik op een status of categorie in de ticketfilters. Alleen die keuze blijft aan; de andere keuzes in dezelfde groep gaan uit. Een enkele klik zet een keuze nog steeds aan of uit. De lijst en de bewaarde filters volgen die keuze meteen, ook in het beheeroverzicht.
 
+Open je vlak daarna een ticket, volg je een link of kies je Reset filters, dan blijft die actie staan. De filterklik wordt niet alsnog toegepast. Een aanpassing in het zoekveld laat een filter niet aan lijken terwijl de lijst nog de vorige keuze gebruikt.
+
 ---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14

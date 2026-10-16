@@ -126,6 +126,36 @@
                     toggleChip(chip);
                 };
 
+                var isPendingChipTarget = function (target)
+                {
+                    return !!(target && target.closest && target.closest('.checkbox-chip') && form.contains(target));
+                };
+
+                // Een ticket, een link of Reset mag het vertraagde formulier niet vervangen.
+                // De enkele klik vervalt dan, zonder de checkbox of de voorkeur te wijzigen.
+                var abandonPendingSingle = function (target)
+                {
+                    if (!pendingChip || isPendingChipTarget(target))
+                    {
+                        return;
+                    }
+
+                    if (target && target.closest && (target.closest('a[href]') || target.closest('details.ticket-card')))
+                    {
+                        clearPending();
+                    }
+                };
+
+                document.addEventListener('pointerdown', function (event)
+                {
+                    abandonPendingSingle(event.target);
+                }, true);
+
+                document.addEventListener('click', function (event)
+                {
+                    abandonPendingSingle(event.target);
+                }, true);
+
                 form.addEventListener('change', function (event)
                 {
                     var target = event.target;
@@ -134,11 +164,30 @@
                         return;
                     }
 
+                    // Zoeken verstuurt het formulier niet. De wachtende klik blijft staan
+                    // en wordt nog opgeslagen als de timer het formulier verstuurt.
+                    if (target.name === 'search')
+                    {
+                        return;
+                    }
+
                     commitPendingSingle();
                 }, true);
 
-                form.addEventListener('submit', function ()
+                form.addEventListener('submit', function (event)
                 {
+                    var submitter = event.submitter || null;
+                    if (!submitter && document.activeElement && form.contains(document.activeElement))
+                    {
+                        submitter = document.activeElement;
+                    }
+
+                    // Enter in het zoekveld wordt live afgehandeld en slaat de chips niet op.
+                    if (submitter && submitter.name === 'search')
+                    {
+                        return;
+                    }
+
                     commitPendingSingle();
                 }, true);
 
