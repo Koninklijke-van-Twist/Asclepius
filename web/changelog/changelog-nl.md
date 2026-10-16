@@ -1,3 +1,19 @@
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: Hetzelfde codeblok blijft twee keer staan
+author: Cursor Agent
+
+Een bericht met twee dezelfde codeblokken houdt beide blokken in de vertaling, in het ticket en in de mail. Ook als de vertaling er een heeft weggelaten.
+
+---
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Kleur in codeblokken
+author: Cursor Agent
+
+Een codeblok in een ticketbericht krijgt kleur als je de taal aangeeft, bijvoorbeeld `php`, `sql`, `js` of `powershell`. Dat geldt ook als je de vertaling of het origineel bekijkt, en als het bericht later opnieuw geladen wordt. De code zelf wordt niet vertaald. Een blok zonder taal blijft gewone tekst. AL (Business Central) heeft geen kleuring en blijft ook gewone tekst.
+
+---
 id: 2026-10-16-search-by-date
 date: 2026-10-16
 title: Zoeken op datum in de ticketlijst

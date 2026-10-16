@@ -1,3 +1,19 @@
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: Derselbe Codeblock bleibt zweimal stehen
+author: Cursor Agent
+
+Eine Nachricht mit zwei gleichen Codeblöcken behält beide in der Übersetzung, im Ticket und in der Mail. Auch wenn die Übersetzung einen davon weggelassen hat.
+
+---
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Farbe in Codeblöcken
+author: Cursor Agent
+
+Ein Codeblock in einer Ticketnachricht wird farbig, wenn Sie die Sprache angeben, zum Beispiel `php`, `sql`, `js` oder `powershell`. Das gilt auch, wenn Sie die Übersetzung oder das Original ansehen, und wenn die Nachricht später neu geladen wird. Der Code selbst wird nicht übersetzt. Ein Block ohne Sprache bleibt normaler Text. AL (Business Central) hat keine Färbung und bleibt ebenfalls normaler Text.
+
+---
 id: 2026-10-16-search-by-date
 date: 2026-10-16
 title: Ticketsuche nach Datum

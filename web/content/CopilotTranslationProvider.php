@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'message_markdown.php';
+
 class CopilotTranslationProvider implements TranslationProvider
 {
     /**
@@ -154,7 +156,10 @@ class CopilotTranslationProvider implements TranslationProvider
      */
     private function requestTranslations(string $rawText, string $id): array
     {
-        $masked = $this->maskKeyboardTokens($rawText);
+        $codeMasked = function_exists('maskMessageFencedCodeBlocks')
+            ? maskMessageFencedCodeBlocks($rawText)
+            : ['text' => $rawText, 'tokens' => []];
+        $masked = $this->maskKeyboardTokens((string) ($codeMasked['text'] ?? $rawText));
         $languages = cpt_request_languages();
         $payload = [
             'id' => $id,
@@ -190,8 +195,16 @@ class CopilotTranslationProvider implements TranslationProvider
         }
 
         $translations = [];
+        $codeTokens = is_array($codeMasked['tokens'] ?? null) ? $codeMasked['tokens'] : [];
         foreach ($parsed['translations'] as $language => $translated) {
-            $translations[(string) $language] = $this->unmaskKeyboardTokens((string) $translated, $masked['tokens']);
+            $unmasked = $this->unmaskKeyboardTokens((string) $translated, $masked['tokens']);
+            if (function_exists('unmaskMessageFencedCodeBlocks')) {
+                $unmasked = unmaskMessageFencedCodeBlocks($unmasked, $codeTokens);
+            }
+            if (function_exists('restoreMessageFencedCodeBlocks')) {
+                $unmasked = restoreMessageFencedCodeBlocks($unmasked, $rawText);
+            }
+            $translations[(string) $language] = $unmasked;
         }
 
         return $translations;

@@ -1,3 +1,19 @@
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: Le même bloc de code reste en double
+author: Cursor Agent
+
+Un message avec deux blocs de code identiques garde les deux dans la traduction, dans le ticket et dans le mail. Même si la traduction en a laissé tomber un.
+
+---
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Couleur dans les blocs de code
+author: Cursor Agent
+
+Un bloc de code dans un message de ticket est coloré lorsque vous indiquez le langage, par exemple `php`, `sql`, `js` ou `powershell`. Cela vaut aussi quand vous affichez la traduction ou l'original, et quand le message est rechargé plus tard. Le code lui-même n'est pas traduit. Un bloc sans langage reste du texte brut. AL (Business Central) n'a pas de coloration et reste aussi du texte brut.
+
+---
 id: 2026-10-16-search-by-date
 date: 2026-10-16
 title: Recherche par date dans la liste des tickets

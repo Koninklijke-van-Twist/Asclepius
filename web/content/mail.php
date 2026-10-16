@@ -843,10 +843,16 @@ function queuedAbsenceForwards(array $row): ?array
 function mailTextForRecipient(string $sourceText, string $bodyText, string $lang): string
 {
     if (!function_exists('ticketTranslationDisplayText') || !function_exists('ticketStatusNotesInText') || ticketStatusNotesInText($sourceText) === []) {
-        return $bodyText !== '' ? $bodyText : $sourceText;
+        $text = $bodyText !== '' ? $bodyText : $sourceText;
+    } else {
+        $text = ticketTranslationDisplayText($sourceText, $bodyText, $lang);
     }
 
-    return ticketTranslationDisplayText($sourceText, $bodyText, $lang);
+    if (function_exists('restoreMessageFencedCodeBlocks')) {
+        return restoreMessageFencedCodeBlocks($text, $sourceText);
+    }
+
+    return $text;
 }
 
 /**

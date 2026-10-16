@@ -1,3 +1,19 @@
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: The same code block stays twice
+author: Cursor Agent
+
+A message with two identical code blocks keeps both in the translation, in the ticket, and in mail. That still holds when the translation dropped one of them.
+
+---
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Colour in code blocks
+author: Cursor Agent
+
+A code block in a ticket message is coloured when you name the language, for example `php`, `sql`, `js` or `powershell`. That also applies when you view the translation or the original, and when the message is loaded again later. The code itself is not translated. A block without a language stays plain text. AL (Business Central) has no colouring and stays plain text too.
+
+---
 id: 2026-10-16-search-by-date
 date: 2026-10-16
 title: Search the ticket list by date
