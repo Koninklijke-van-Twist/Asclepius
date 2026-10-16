@@ -3405,6 +3405,7 @@ class TicketStore
      * Split a search into text terms and date constraints.
      * Date phrases are not also required as literal text.
      * A day and month without a year use the current calendar year.
+     * A day, month and four-digit year that is not a real date matches nothing.
      *
      * @param list<string> $tokens
      * @return array{text_terms: list<string>, dates: list<array{kind: string, value: string}>}
@@ -3448,11 +3449,23 @@ class TicketStore
             $day = $this->searchDayNumber($tokens[$index]);
             $month = $this->searchMonthNumber($tokens[$index + 1]);
             $year = $this->searchYearNumber($tokens[$index + 2]);
-            if ($day !== null && $month !== null && $year !== null && checkdate($month, $day, $year)) {
+            $dayShaped = preg_match('/^\d{1,2}$/', $tokens[$index]) === 1;
+            $yearShaped = preg_match('/^\d{4}$/', $tokens[$index + 2]) === 1;
+            if ($dayShaped && $month !== null && $yearShaped) {
+                if ($day !== null && $year !== null && checkdate($month, $day, $year)) {
+                    return [
+                        'length' => 3,
+                        'kind' => 'day',
+                        'value' => sprintf('%04d-%02d-%02d', $year, $month, $day),
+                    ];
+                }
+
+                // Keep the whole phrase. A shorter match would still filter on the
+                // month or the current year and treat the leftover number as a ticket id.
                 return [
                     'length' => 3,
-                    'kind' => 'day',
-                    'value' => sprintf('%04d-%02d-%02d', $year, $month, $day),
+                    'kind' => 'invalid',
+                    'value' => '',
                 ];
             }
         }

@@ -5,7 +5,7 @@ author: Cursor Agent
 
 Das Suchfeld nimmt auch ein Datum an, in der Übersicht und in der Verwaltung. Es gilt für den Tag, an dem ein Ticket erstellt wurde, für die letzte Änderung und für das Datum einer sichtbaren Nachricht.
 
-Du kannst 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026 oder nur 2026 eingeben. Ohne Jahreszahl gilt das laufende Jahr. Ein Wort und ein Datum zusammen, wie printer 16-10, müssen beide zutreffen.
+Du kannst 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026 oder nur 2026 eingeben. Ohne Jahreszahl gilt das laufende Jahr. Ein Wort und ein Datum zusammen, wie printer 16-10, müssen beide zutreffen. Ein Datum, das es nicht geben kann, wie 31 februari 2026 oder 16 oktober 1999, liefert keine Tickets.
 
 ---
 id: 2026-10-14-translation-cache-i18n

@@ -5,7 +5,7 @@ author: Cursor Agent
 
 Le champ de recherche accepte aussi une date, dans la vue d’ensemble et dans l’administration. Elle correspond au jour de création d’un ticket, à la dernière modification et à la date d’un message visible.
 
-Vous pouvez saisir 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026 ou seulement 2026. Sans année, l’année en cours est utilisée. Un mot et une date ensemble, comme printer 16-10, doivent correspondre tous les deux.
+Vous pouvez saisir 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026 ou seulement 2026. Sans année, l’année en cours est utilisée. Un mot et une date ensemble, comme printer 16-10, doivent correspondre tous les deux. Une date impossible, comme 31 februari 2026 ou 16 oktober 1999, ne renvoie aucun ticket.
 
 ---
 id: 2026-10-14-translation-cache-i18n

@@ -315,6 +315,50 @@ $yearSearch = searchIds($store, (string) $year);
 assertTrue('Los jaartal vindt nog wel het ticket met dat nummer', in_array($year, $yearSearch, true));
 assertTrue('Los ticketnummer met hekje blijft werken', in_array(16, searchIds($store, '#16'), true));
 
+$february = (int) $store->createTicket(
+    'Melding 31',
+    'Anders',
+    'user@kvt.nl',
+    'Staat in februari',
+    [],
+    0,
+    []
+)['ticket_id'];
+stampTicket($store, $february, '2026-02-10T08:00:00+00:00', '2026-02-10T08:00:00+00:00');
+
+$ticketThirtyOne = (int) $store->createTicket(
+    'Ticket eenendertig',
+    'Anders',
+    'user@kvt.nl',
+    'Dit nummer hoort niet bij 31 februari',
+    [],
+    0,
+    []
+)['ticket_id'];
+stampTicket($store, $ticketThirtyOne, $old, $old);
+renumberTicket($store, $ticketThirtyOne, 31);
+
+$ticketNineteenNinetyNine = (int) $store->createTicket(
+    'Ticket negentiennegentig',
+    'Anders',
+    'user@kvt.nl',
+    'Dit nummer is een jaartal buiten het zoekbereik',
+    [],
+    0,
+    []
+)['ticket_id'];
+stampTicket($store, $ticketNineteenNinetyNine, $old, $old);
+renumberTicket($store, $ticketNineteenNinetyNine, 1999);
+
+$februaryHits = searchIds($store, 'februari 2026');
+assertTrue('februari 2026 vindt het februariticket', in_array($february, $februaryHits, true));
+assertSame('Ongeldige datum 31 februari 2026 matcht niets', [], searchIds($store, '31 februari 2026'));
+assertSame('Ongeldige datum 31 FEBRUARI 2026 matcht niets', [], searchIds($store, '31 FEBRUARI 2026'));
+assertSame('Jaartal buiten bereik 16 oktober 1999 matcht niets', [], searchIds($store, '16 oktober 1999'));
+assertSame('Onmogelijke dag 32 oktober 2026 matcht niets', [], searchIds($store, '32 oktober ' . $year));
+assertTrue('Los ticketnummer 31 blijft werken', in_array(31, searchIds($store, '31'), true));
+assertTrue('Ticket 1999 blijft op nummer vindbaar', in_array(1999, searchIds($store, '1999'), true));
+
 echo PHP_EOL;
 echo "Resultaat: {$passed} geslaagd, {$failed} gefaald." . PHP_EOL;
 exit($failed > 0 ? 1 : 0);
