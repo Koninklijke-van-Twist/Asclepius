@@ -154,6 +154,17 @@ export function setStoredApiKey(key: string): void {
   else localStorage.removeItem('asclepius.api_key');
 }
 
+export function setStoredViewerEmail(email: string): void {
+  if (typeof localStorage === 'undefined') return;
+  const normalized = email.trim().toLowerCase();
+  if (normalized) localStorage.setItem('asclepius.viewer_email', normalized);
+  else localStorage.removeItem('asclepius.viewer_email');
+}
+
+export function storedApiKeyPublic(): string {
+  return storedApiKey();
+}
+
 async function apiFetch<T>(
   init: RequestInit & { bodyObject?: Record<string, unknown> }
 ): Promise<T> {

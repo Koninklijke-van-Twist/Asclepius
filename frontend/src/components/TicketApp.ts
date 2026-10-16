@@ -8,6 +8,8 @@ import {
   fetchTicketThread,
   pollTickets,
   setStoredApiKey,
+  setStoredViewerEmail,
+  storedApiKeyPublic,
   storedViewerEmail,
   type PollResponse,
   type SessionContext,
