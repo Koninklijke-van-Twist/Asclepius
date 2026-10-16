@@ -8049,6 +8049,11 @@
                     ? storedHtml
                     : formatTicketMessageTextForToggle(String(nextText || ''), parseInt(messageNode.getAttribute('data-message-id') || '0', 10));
                 messageContent.setAttribute('data-showing', nextShowing);
+                var toggledCard = messageNode.closest('details.ticket-card');
+                if (toggledCard && typeof hydrateTicketThumbnails === 'function')
+                {
+                    hydrateTicketThumbnails(toggledCard);
+                }
                 messageToggle.setAttribute('data-showing', nextShowing);
                 messageToggle.textContent = nextShowing === 'translated'
                     ? String(messageToggle.getAttribute('data-label-original') || 'Show original')
@@ -8461,6 +8466,11 @@
             else if (!cardHasPendingTranslation(card))
             {
                 card.removeAttribute('data-messages-translation-pending');
+            }
+
+            if (typeof hydrateTicketThumbnails === 'function')
+            {
+                hydrateTicketThumbnails(card);
             }
         };
 

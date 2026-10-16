@@ -6,6 +6,14 @@ author: Cursor Agent
 De database, ticketbijlagen en tijdelijke cachebestanden zijn niet meer zonder inloggen te openen of te doorbladeren. Een afbeelding of andere bijlage in een ticket blijft zichtbaar zolang je bent ingelogd. De cache-indicator toont geen voorbeeldgegevens meer.
 
 ---
+id: 2026-10-16-pasted-screenshot-visible
+date: 2026-10-16
+title: Geplakte schermafdrukken blijven zichtbaar
+author: Cursor Agent
+
+Een schermafdruk die je met Ctrl+V in een bericht plakt, blijft na het plaatsen in het bericht staan. Dat geldt ook als het bericht daarna vertaald wordt. Stond de afbeelding al bij het bericht, maar was die na een vertaling verdwenen, dan is die weer te zien. Ook wanneer de vertaling de afbeelding midden in de zin zet, blijft de schermafdruk zichtbaar. Staan twee schermafdrukken direct achter elkaar op één regel, dan verdwijnt die losse tekst en blijven beide afbeeldingen zichtbaar. De afbeelding zelf wordt niet opnieuw geüpload.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Vertalingen verschijnen weer in alle talen

@@ -6,6 +6,14 @@ author: Cursor Agent
 La base de données, les pièces jointes des tickets et les fichiers de cache temporaires ne peuvent plus être ouverts ou parcourus sans connexion. Une image ou une autre pièce jointe dans un ticket reste visible tant que vous êtes connecté. L'indicateur de cache n'affiche plus de données d'exemple.
 
 ---
+id: 2026-10-16-pasted-screenshot-visible
+date: 2026-10-16
+title: Les captures collées restent visibles
+author: Cursor Agent
+
+Une capture d'écran collée dans un message avec Ctrl+V reste dans le message après l'envoi. Cela vaut aussi lorsque le message est ensuite traduit. Si l'image était déjà enregistrée avec le message mais avait disparu après une traduction, elle réapparaît. La capture reste aussi visible lorsqu'une traduction place l'image au milieu d'une phrase. Lorsque deux captures se retrouvent l'une à la suite de l'autre sur une même ligne, ce texte résiduel disparaît et les deux images restent visibles. L'image elle-même n'est pas téléversée à nouveau.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Les traductions réapparaissent dans toutes les langues

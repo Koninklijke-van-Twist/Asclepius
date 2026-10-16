@@ -461,14 +461,24 @@ function ticketTranslationFromCacheRow(
 
 function ticketTranslationApplyStatusNotes(array $result, string $rawText, string $targetLanguage): array
 {
-    if (!function_exists('ticketStatusNotesInText') || ticketStatusNotesInText($rawText) === []) {
-        return $result;
+    if (function_exists('ticketStatusNotesInText') && ticketStatusNotesInText($rawText) !== []) {
+        $text = ticketTranslationDisplayText($rawText, (string) ($result['text'] ?? ''), $targetLanguage);
+        $result['text'] = $text;
+        if (!ticketTranslationTextsMatch($text, $rawText)) {
+            $result['is_translated'] = true;
+        }
     }
 
-    $text = ticketTranslationDisplayText($rawText, (string) ($result['text'] ?? ''), $targetLanguage);
-    $result['text'] = $text;
-    if (!ticketTranslationTextsMatch($text, $rawText)) {
-        $result['is_translated'] = true;
+    // Een vertaling die [[attachment:…]] liet vallen, mag de schermafdruk niet verbergen.
+    if (function_exists('restoreMissingAttachmentMarkers')) {
+        $restored = restoreMissingAttachmentMarkers((string) ($result['text'] ?? ''), $rawText);
+        if ($restored !== (string) ($result['text'] ?? '')) {
+            $result['text'] = $restored;
+            if (ticketTranslationTextsMatch($restored, $rawText)) {
+                $result['text'] = $rawText;
+                $result['is_translated'] = false;
+            }
+        }
     }
 
     return $result;

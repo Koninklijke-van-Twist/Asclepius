@@ -6,6 +6,14 @@ author: Cursor Agent
 The database, ticket attachments and temporary cache files can no longer be opened or browsed without signing in. An image or other attachment in a ticket stays visible while you are signed in. The cache indicator no longer shows sample data.
 
 ---
+id: 2026-10-16-pasted-screenshot-visible
+date: 2026-10-16
+title: Pasted screenshots stay visible
+author: Cursor Agent
+
+A screenshot pasted into a message with Ctrl+V stays in the message after you post it. That still holds when the message is translated afterwards. If the image was already stored with the message but disappeared after a translation, it shows again. The screenshot also stays visible when a translation places the image in the middle of a sentence. When two screenshots end up directly after each other on one line, that leftover text disappears and both images stay visible. The image itself is not uploaded again.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Translations show again in every language

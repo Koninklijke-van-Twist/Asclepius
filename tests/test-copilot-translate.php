@@ -242,6 +242,31 @@ assertCopilot('Toetsnaam blijft staan', 'Press [Enter] to continue', $keyed['tra
 $keyPayload = json_decode($calls[2]['body'], true);
 assertCopilotTrue('Ruwe toetsnaam gaat niet naar de flow', is_array($keyPayload) && !str_contains((string) $keyPayload['text'], '[Enter]'));
 
+$withShot = "[[attachment:schermafdruk.png]]\n\nVerzenden lukt niet";
+$scripted[] = [
+    'status' => 200,
+    'body' => copilotBundle('nl', [
+        'nl' => "⟦att0⟧\n\nVerzenden lukt niet",
+        'en' => 'Sending failed',
+        'fr' => "⟦att0⟧\n\nL'envoi a échoué",
+        'de' => "⟦att0⟧\n\nSenden fehlgeschlagen",
+    ]),
+    'error' => '',
+];
+$shot = $provider->translateText($withShot, 'en');
+assertCopilot(
+    'Geplakte bijlage blijft in de vertaling, ook als de flow de placeholder weglaat',
+    "[[attachment:schermafdruk.png]]\n\nSending failed",
+    $shot['translated_text']
+);
+$shotPayload = json_decode((string) ($calls[count($calls) - 1]['body'] ?? ''), true);
+assertCopilotTrue(
+    'Bijlagemarker gaat als placeholder naar de flow',
+    is_array($shotPayload)
+        && str_contains((string) ($shotPayload['text'] ?? ''), '⟦att0⟧')
+        && !str_contains((string) ($shotPayload['text'] ?? ''), '[[attachment:')
+);
+
 $filtered = new CopilotTranslationProvider('https://example.invalid/flow', 25.0, $transport);
 $scripted[] = [
     'status' => 400,

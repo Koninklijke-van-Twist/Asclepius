@@ -1183,7 +1183,10 @@ function renderMessageReactionsHtml(array $message): string
 function renderTicketMessageHtml(array $message, string $currentPage, bool $enableUserProfile = false): string
 {
     $rawMessageText = (string) ($message['message_text_raw'] ?? ($message['message_text'] ?? ''));
-    $displayMessageText = (string) ($message['message_text'] ?? '');
+    $displayMessageText = restoreMissingAttachmentMarkers(
+        (string) ($message['message_text'] ?? ''),
+        $rawMessageText
+    );
     $messageAttachments = is_array($message['attachments'] ?? null) ? $message['attachments'] : [];
     $messageId = (int) ($message['id'] ?? 0);
     $translatedMessageHtml = formatTicketMessageText($displayMessageText, $messageId, $messageAttachments);
