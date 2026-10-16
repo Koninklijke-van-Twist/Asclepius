@@ -14,6 +14,42 @@ author: Cursor Agent
 Een schermafdruk die je met Ctrl+V in een bericht plakt, blijft na het plaatsen in het bericht staan. Dat geldt ook als het bericht daarna vertaald wordt. Stond de afbeelding al bij het bericht, maar was die na een vertaling verdwenen, dan is die weer te zien. Ook wanneer de vertaling de afbeelding midden in de zin zet, blijft de schermafdruk zichtbaar. Staan twee schermafdrukken direct achter elkaar op één regel, dan verdwijnt die losse tekst en blijven beide afbeeldingen zichtbaar. De afbeelding zelf wordt niet opnieuw geüpload.
 
 ---
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: Hetzelfde codeblok blijft twee keer staan
+author: Cursor Agent
+
+Een bericht met twee dezelfde codeblokken houdt beide blokken in de vertaling, in het ticket en in de mail. Ook als de vertaling er een heeft weggelaten.
+
+---
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Kleur in codeblokken
+author: Cursor Agent
+
+Een codeblok in een ticketbericht krijgt kleur als je de taal aangeeft, bijvoorbeeld `php`, `sql`, `js` of `powershell`. Dat geldt ook als je de vertaling of het origineel bekijkt, en als het bericht later opnieuw geladen wordt. De code zelf wordt niet vertaald. Een blok zonder taal blijft gewone tekst. AL (Business Central) heeft geen kleuring en blijft ook gewone tekst.
+
+---
+id: 2026-10-16-search-by-date
+date: 2026-10-16
+title: Zoeken op datum in de ticketlijst
+author: Cursor Agent
+
+In het zoekveld kun je ook op een datum zoeken, in het overzicht en in het beheer. Dat geldt voor de dag waarop een ticket is aangemaakt, voor de laatste wijziging, en voor de datum van een zichtbaar bericht.
+
+Je kunt 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026 of alleen 2026 invoeren. Zonder jaartal geldt het lopende jaar. Een woord en een datum samen, zoals printer 16-10, moeten allebei kloppen. Een datum die niet kan bestaan, zoals 31 februari 2026 of 16 oktober 1999, levert geen tickets op.
+
+---
+id: 2026-10-16-filter-chip-double-click
+date: 2026-10-16
+title: Dubbelklik houdt één status of categorie aan
+author: Cursor Agent
+
+Dubbelklik of dubbeltik op een status of categorie in de ticketfilters. Alleen die keuze blijft aan; de andere keuzes in dezelfde groep gaan uit. Een enkele klik zet een keuze nog steeds aan of uit. De lijst en de bewaarde filters volgen die keuze meteen, ook in het beheeroverzicht.
+
+Open je vlak daarna een ticket, volg je een link of kies je Reset filters, dan blijft die actie staan. De filterklik wordt niet alsnog toegepast. Scrollen of een aanraking die je loslaat zonder te klikken doet dat niet: de filterkeuze volgt dan alsnog. Een aanpassing in het zoekveld laat een filter niet aan lijken terwijl de lijst nog de vorige keuze gebruikt.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Vertalingen verschijnen weer in alle talen

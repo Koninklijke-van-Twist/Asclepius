@@ -14,6 +14,42 @@ author: Cursor Agent
 Une capture d'écran collée dans un message avec Ctrl+V reste dans le message après l'envoi. Cela vaut aussi lorsque le message est ensuite traduit. Si l'image était déjà enregistrée avec le message mais avait disparu après une traduction, elle réapparaît. La capture reste aussi visible lorsqu'une traduction place l'image au milieu d'une phrase. Lorsque deux captures se retrouvent l'une à la suite de l'autre sur une même ligne, ce texte résiduel disparaît et les deux images restent visibles. L'image elle-même n'est pas téléversée à nouveau.
 
 ---
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: Le même bloc de code reste en double
+author: Cursor Agent
+
+Un message avec deux blocs de code identiques garde les deux dans la traduction, dans le ticket et dans le mail. Même si la traduction en a laissé tomber un.
+
+---
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Couleur dans les blocs de code
+author: Cursor Agent
+
+Un bloc de code dans un message de ticket est coloré lorsque vous indiquez le langage, par exemple `php`, `sql`, `js` ou `powershell`. Cela vaut aussi quand vous affichez la traduction ou l'original, et quand le message est rechargé plus tard. Le code lui-même n'est pas traduit. Un bloc sans langage reste du texte brut. AL (Business Central) n'a pas de coloration et reste aussi du texte brut.
+
+---
+id: 2026-10-16-search-by-date
+date: 2026-10-16
+title: Recherche par date dans la liste des tickets
+author: Cursor Agent
+
+Le champ de recherche accepte aussi une date, dans la vue d’ensemble et dans l’administration. Elle correspond au jour de création d’un ticket, à la dernière modification et à la date d’un message visible.
+
+Vous pouvez saisir 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026 ou seulement 2026. Sans année, l’année en cours est utilisée. Un mot et une date ensemble, comme printer 16-10, doivent correspondre tous les deux. Une date impossible, comme 31 februari 2026 ou 16 oktober 1999, ne renvoie aucun ticket.
+
+---
+id: 2026-10-16-filter-chip-double-click
+date: 2026-10-16
+title: Un double-clic ne garde qu’un statut ou une catégorie
+author: Cursor Agent
+
+Double-cliquez ou appuyez deux fois sur un statut ou une catégorie dans les filtres de tickets. Seul ce choix reste actif ; les autres choix du même groupe s’éteignent. Un simple clic active ou désactive toujours un choix. La liste et les filtres enregistrés suivent ce choix tout de suite, y compris dans la vue d’administration.
+
+Si vous ouvrez ensuite un ticket, suivez un lien ou choisissez Réinitialiser les filtres, cette action reste. Le clic sur le filtre n’est pas appliqué après coup. Faire défiler, ou relâcher un appui sans cliquer, ne le fait pas : le choix de filtre est quand même appliqué. Une modification du champ de recherche ne laisse pas un filtre affiché comme actif alors que la liste utilise encore le choix précédent.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Les traductions réapparaissent dans toutes les langues

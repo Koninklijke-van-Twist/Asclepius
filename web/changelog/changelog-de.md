@@ -14,6 +14,42 @@ author: Cursor Agent
 Ein Screenshot, den Sie mit Strg+V in eine Nachricht einfügen, bleibt nach dem Senden in der Nachricht stehen. Das gilt auch, wenn die Nachricht danach übersetzt wird. War das Bild schon bei der Nachricht gespeichert, aber nach einer Übersetzung verschwunden, ist es wieder zu sehen. Der Screenshot bleibt auch sichtbar, wenn eine Übersetzung das Bild mitten in den Satz setzt. Stehen zwei Screenshots direkt hintereinander in einer Zeile, verschwindet dieser Resttext und beide Bilder bleiben sichtbar. Das Bild selbst wird nicht erneut hochgeladen.
 
 ---
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: Derselbe Codeblock bleibt zweimal stehen
+author: Cursor Agent
+
+Eine Nachricht mit zwei gleichen Codeblöcken behält beide in der Übersetzung, im Ticket und in der Mail. Auch wenn die Übersetzung einen davon weggelassen hat.
+
+---
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Farbe in Codeblöcken
+author: Cursor Agent
+
+Ein Codeblock in einer Ticketnachricht wird farbig, wenn Sie die Sprache angeben, zum Beispiel `php`, `sql`, `js` oder `powershell`. Das gilt auch, wenn Sie die Übersetzung oder das Original ansehen, und wenn die Nachricht später neu geladen wird. Der Code selbst wird nicht übersetzt. Ein Block ohne Sprache bleibt normaler Text. AL (Business Central) hat keine Färbung und bleibt ebenfalls normaler Text.
+
+---
+id: 2026-10-16-search-by-date
+date: 2026-10-16
+title: Ticketsuche nach Datum
+author: Cursor Agent
+
+Das Suchfeld nimmt auch ein Datum an, in der Übersicht und in der Verwaltung. Es gilt für den Tag, an dem ein Ticket erstellt wurde, für die letzte Änderung und für das Datum einer sichtbaren Nachricht.
+
+Du kannst 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026 oder nur 2026 eingeben. Ohne Jahreszahl gilt das laufende Jahr. Ein Wort und ein Datum zusammen, wie printer 16-10, müssen beide zutreffen. Ein Datum, das es nicht geben kann, wie 31 februari 2026 oder 16 oktober 1999, liefert keine Tickets.
+
+---
+id: 2026-10-16-filter-chip-double-click
+date: 2026-10-16
+title: Doppelklick lässt nur einen Status oder eine Kategorie an
+author: Cursor Agent
+
+Doppelklick oder Doppeltipp auf einen Status oder eine Kategorie in den Ticketfiltern. Nur diese Auswahl bleibt an; die anderen Auswahlen in derselben Gruppe gehen aus. Ein einfacher Klick schaltet eine Auswahl weiter an oder aus. Die Liste und die gespeicherten Filter folgen dieser Auswahl sofort, auch in der Verwaltungsübersicht.
+
+Öffnest du kurz danach ein Ticket, folgst du einem Link oder wählst du Filter zurücksetzen, bleibt diese Aktion bestehen. Der Filterklick wird nicht nachträglich angewendet. Scrollen oder eine Berührung, die du loslässt ohne zu klicken, tut das nicht: die Filterauswahl wird dann doch übernommen. Eine Änderung im Suchfeld lässt einen Filter nicht aktiv aussehen, während die Liste noch die vorherige Auswahl verwendet.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Übersetzungen erscheinen wieder in allen Sprachen

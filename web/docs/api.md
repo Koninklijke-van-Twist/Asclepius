@@ -683,7 +683,7 @@ Succes → `200`:
 
 ### Live UI (browser)
 
-`ticket_poll` — vernieuw de ticketlijst. Zelfde filtervelden als de UI: `current_page`, `viewer_email`, `can_manage_tickets`, `user_is_admin`, `is_admin_portal`, `csrf_token`, `open_ticket_id`, `view`, `browse_mode`, `assigned_filter`, `search_query`, `status_filters`, `status_filters_selected`, `status_filter_active`, `category_filters`, `category_filters_selected`, `category_filter_active`, `page`, `per_page`, `last_signature`, `current_language`. Ongewijzigd: `{ "success": true, "unchanged": true, "signature" }`. Anders HTML-kaarten, paginatie, `empty_html`.
+`ticket_poll` — vernieuw de ticketlijst. Zelfde filtervelden als de UI: `current_page`, `viewer_email`, `can_manage_tickets`, `user_is_admin`, `is_admin_portal`, `csrf_token`, `open_ticket_id`, `view`, `browse_mode`, `assigned_filter`, `search_query`, `status_filters`, `status_filters_selected`, `status_filter_active`, `category_filters`, `category_filters_selected`, `category_filter_active`, `page`, `per_page`, `last_signature`, `current_language`. `search_query` combineert woorden met datums. Een datum herkent `16-10-2026`, `16/10/2026`, `16-10`, `16 okt`, `16 oktober 2026`, `2026-10-16`, `okt 2026` / `oktober 2026` en een jaartal zoals `2026`. Zonder jaartal geldt het lopende jaar. De datum matcht aanmaakdatum, laatste wijziging of de datum van een zichtbaar bericht. Ongewijzigd: `{ "success": true, "unchanged": true, "signature" }`. Anders HTML-kaarten, paginatie, `empty_html`.
 
 `ticket_thread` — berichten van één ticket als HTML. `ticket_id`, plus dezelfde viewer/view/browse-context als `ticket_poll`. Ghosts alleen op ICT-overzicht. `404` `ticket_not_found`.
 
@@ -726,7 +726,7 @@ Vereisen geldige `csrf_token` uit de browsersessie.
 
 Fouten: `csrf`, `invalid_user`, `invalid_webhook_url`, `send_key_required`. Zie **Welke webhook** bij de uitgaande ticket-webhook.
 
-`save_ticket_overview_search` — `search_query`. Slaat de zoekterm in de overzichtsfilters van de gebruiker op.
+`save_ticket_overview_search` — `search_query`. Slaat de zoekterm in de overzichtsfilters van de gebruiker op. Zelfde datumherkenning als `ticket_poll`.
 
 `mark_changelog_read` — admin. `entry_id`. Response: `read_ids`.
 

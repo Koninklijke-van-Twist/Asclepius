@@ -14,6 +14,42 @@ author: Cursor Agent
 A screenshot pasted into a message with Ctrl+V stays in the message after you post it. That still holds when the message is translated afterwards. If the image was already stored with the message but disappeared after a translation, it shows again. The screenshot also stays visible when a translation places the image in the middle of a sentence. When two screenshots end up directly after each other on one line, that leftover text disappears and both images stay visible. The image itself is not uploaded again.
 
 ---
+id: 2026-10-16-duplicate-code-blocks
+date: 2026-10-16
+title: The same code block stays twice
+author: Cursor Agent
+
+A message with two identical code blocks keeps both in the translation, in the ticket, and in mail. That still holds when the translation dropped one of them.
+
+---
+id: 2026-10-16-code-highlight
+date: 2026-10-16
+title: Colour in code blocks
+author: Cursor Agent
+
+A code block in a ticket message is coloured when you name the language, for example `php`, `sql`, `js` or `powershell`. That also applies when you view the translation or the original, and when the message is loaded again later. The code itself is not translated. A block without a language stays plain text. AL (Business Central) has no colouring and stays plain text too.
+
+---
+id: 2026-10-16-search-by-date
+date: 2026-10-16
+title: Search the ticket list by date
+author: Cursor Agent
+
+The search field also accepts a date, in the overview and in admin. It matches the day a ticket was created, the last change, and the date of a visible message.
+
+You can enter 16-10-2026, 16/10/2026, 16-10, 16 okt, 16 oktober 2026, 2026-10-16, okt 2026, oktober 2026, or just 2026. Without a year, the current year is used. A word and a date together, such as printer 16-10, must both match. A date that cannot exist, such as 31 februari 2026 or 16 oktober 1999, returns no tickets.
+
+---
+id: 2026-10-16-filter-chip-double-click
+date: 2026-10-16
+title: Double-click keeps one status or category
+author: Cursor Agent
+
+Double-click or double-tap a status or category in the ticket filters. Only that choice stays on; the other choices in the same group turn off. A single click still turns a choice on or off. The list and the saved filters follow that choice straight away, including on the admin overview.
+
+If you then open a ticket, follow a link, or choose Reset filters, that action stays. The filter click is not applied afterwards. Scrolling, or a touch you release without clicking, does not do that: the filter choice is still applied. Changing the search field does not leave a filter looking on while the list still uses the previous choice.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Translations show again in every language

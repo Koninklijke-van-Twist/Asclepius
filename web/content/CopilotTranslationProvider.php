@@ -156,7 +156,10 @@ class CopilotTranslationProvider implements TranslationProvider
      */
     private function requestTranslations(string $rawText, string $id): array
     {
-        $masked = $this->maskKeyboardTokens($rawText);
+        $codeMasked = function_exists('maskMessageFencedCodeBlocks')
+            ? maskMessageFencedCodeBlocks($rawText)
+            : ['text' => $rawText, 'tokens' => []];
+        $masked = $this->maskKeyboardTokens((string) ($codeMasked['text'] ?? $rawText));
         $languages = cpt_request_languages();
         $payload = [
             'id' => $id,
@@ -193,10 +196,17 @@ class CopilotTranslationProvider implements TranslationProvider
 
         $translations = [];
         $attachmentTokens = is_array($masked['attachment_tokens'] ?? null) ? $masked['attachment_tokens'] : [];
+        $codeTokens = is_array($codeMasked['tokens'] ?? null) ? $codeMasked['tokens'] : [];
         foreach ($parsed['translations'] as $language => $translated) {
             $unmasked = $this->unmaskKeyboardTokens((string) $translated, $masked['tokens'], $attachmentTokens);
             if (function_exists('restoreMissingAttachmentMarkers')) {
                 $unmasked = restoreMissingAttachmentMarkers($unmasked, $rawText);
+            }
+            if (function_exists('unmaskMessageFencedCodeBlocks')) {
+                $unmasked = unmaskMessageFencedCodeBlocks($unmasked, $codeTokens);
+            }
+            if (function_exists('restoreMessageFencedCodeBlocks')) {
+                $unmasked = restoreMessageFencedCodeBlocks($unmasked, $rawText);
             }
             $translations[(string) $language] = $unmasked;
         }

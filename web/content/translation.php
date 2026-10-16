@@ -480,6 +480,17 @@ function ticketTranslationApplyStatusNotes(array $result, string $rawText, strin
             }
         }
     }
+    if (function_exists('restoreMessageFencedCodeBlocks')) {
+        $current = (string) ($result['text'] ?? '');
+        $restored = restoreMessageFencedCodeBlocks($current, $rawText);
+        if ($restored !== $current) {
+            $result['text'] = $restored;
+            if (ticketTranslationTextsMatch($restored, $rawText)) {
+                $result['text'] = $rawText;
+                $result['is_translated'] = false;
+            }
+        }
+    }
 
     return $result;
 }
