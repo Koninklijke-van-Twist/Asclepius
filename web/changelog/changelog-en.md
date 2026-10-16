@@ -1,3 +1,13 @@
+id: 2026-10-16-filter-chip-double-click
+date: 2026-10-16
+title: Double-click keeps one status or category
+author: Cursor Agent
+
+Double-click or double-tap a status or category in the ticket filters. Only that choice stays on; the other choices in the same group turn off. A single click still turns a choice on or off. The list and the saved filters follow that choice straight away, including on the admin overview.
+
+If you then open a ticket, follow a link, or choose Reset filters, that action stays. The filter click is not applied afterwards. Scrolling, or a touch you release without clicking, does not do that: the filter choice is still applied. Changing the search field does not leave a filter looking on while the list still uses the previous choice.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Translations show again in every language

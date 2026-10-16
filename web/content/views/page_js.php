@@ -36,6 +36,238 @@
             syncPriorityVisibility();
         }
 
+        (function initFilterChipExclusiveSelect()
+        {
+            // Wacht tot het gebaar af is voordat de checkbox en de voorkeur wijzigen,
+            // zodat een dubbelklik niet eerst twee toggles indient.
+            var DOUBLE_CLICK_MS = 500;
+            var forms = document.querySelectorAll('form.filters-form');
+            if (!forms.length)
+            {
+                return;
+            }
+
+            var syncChip = function (chip)
+            {
+                var input = chip.querySelector('input[type="checkbox"]');
+                if (!input)
+                {
+                    return;
+                }
+
+                chip.classList.toggle('is-active', input.checked);
+                chip.classList.toggle('is-inactive', !input.checked);
+            };
+
+            var toggleChip = function (chip)
+            {
+                var input = chip.querySelector('input[type="checkbox"]');
+                if (!input)
+                {
+                    return;
+                }
+
+                input.checked = !input.checked;
+                syncChip(chip);
+            };
+
+            var selectOnlyChip = function (group, chip)
+            {
+                group.querySelectorAll('.checkbox-chip').forEach(function (other)
+                {
+                    var input = other.querySelector('input[type="checkbox"]');
+                    if (!input)
+                    {
+                        return;
+                    }
+
+                    input.checked = other === chip;
+                    syncChip(other);
+                });
+            };
+
+            forms.forEach(function (form)
+            {
+                var pendingChip = null;
+                var pendingTimer = 0;
+                var submitted = false;
+
+                var clearPending = function ()
+                {
+                    if (pendingTimer)
+                    {
+                        window.clearTimeout(pendingTimer);
+                        pendingTimer = 0;
+                    }
+                    pendingChip = null;
+                };
+
+                var submitForm = function ()
+                {
+                    if (submitted)
+                    {
+                        return;
+                    }
+
+                    submitted = true;
+                    clearPending();
+                    form.submit();
+                };
+
+                var commitPendingSingle = function ()
+                {
+                    if (!pendingChip)
+                    {
+                        return;
+                    }
+
+                    var chip = pendingChip;
+                    clearPending();
+                    toggleChip(chip);
+                };
+
+                var isPendingChipTarget = function (target)
+                {
+                    return !!(target && target.closest && target.closest('.checkbox-chip') && form.contains(target));
+                };
+
+                // Een echte klik op een ticket, een link of Reset vervangt het vertraagde formulier.
+                // De enkele klik vervalt dan, zonder de checkbox of de voorkeur te wijzigen.
+                // Scrollen of een afgebroken aanraking geeft geen klik en laat de timer staan.
+                var abandonPendingSingle = function (target)
+                {
+                    if (!pendingChip || isPendingChipTarget(target))
+                    {
+                        return;
+                    }
+
+                    if (target && target.closest && (target.closest('a[href]') || target.closest('details.ticket-card')))
+                    {
+                        clearPending();
+                    }
+                };
+
+                document.addEventListener('click', function (event)
+                {
+                    abandonPendingSingle(event.target);
+                }, true);
+
+                form.addEventListener('change', function (event)
+                {
+                    var target = event.target;
+                    if (!target || (target.closest && target.closest('.checkbox-chip')))
+                    {
+                        return;
+                    }
+
+                    // Zoeken verstuurt het formulier niet. De wachtende klik blijft staan
+                    // en wordt nog opgeslagen als de timer het formulier verstuurt.
+                    if (target.name === 'search')
+                    {
+                        return;
+                    }
+
+                    commitPendingSingle();
+                }, true);
+
+                form.addEventListener('submit', function (event)
+                {
+                    var submitter = event.submitter || null;
+                    if (!submitter && document.activeElement && form.contains(document.activeElement))
+                    {
+                        submitter = document.activeElement;
+                    }
+
+                    // Enter in het zoekveld wordt live afgehandeld en slaat de chips niet op.
+                    if (submitter && submitter.name === 'search')
+                    {
+                        return;
+                    }
+
+                    commitPendingSingle();
+                }, true);
+
+                form.querySelectorAll('.checkbox-group').forEach(function (group)
+                {
+                    group.querySelectorAll('.checkbox-chip').forEach(function (chip)
+                    {
+                        var input = chip.querySelector('input[type="checkbox"]');
+                        if (!input)
+                        {
+                            return;
+                        }
+
+                        chip.addEventListener('selectstart', function (event)
+                        {
+                            event.preventDefault();
+                        });
+
+                        chip.addEventListener('mousedown', function (event)
+                        {
+                            if (event.detail > 1)
+                            {
+                                event.preventDefault();
+                            }
+                        });
+
+                        chip.addEventListener('dblclick', function (event)
+                        {
+                            event.preventDefault();
+                        });
+
+                        chip.addEventListener('click', function (event)
+                        {
+                            if (event.detail === 0 || submitted)
+                            {
+                                return;
+                            }
+
+                            event.preventDefault();
+
+                            if (pendingChip === chip)
+                            {
+                                clearPending();
+                                selectOnlyChip(group, chip);
+                                submitForm();
+                                return;
+                            }
+
+                            if (pendingChip)
+                            {
+                                commitPendingSingle();
+                            }
+
+                            pendingChip = chip;
+                            pendingTimer = window.setTimeout(function ()
+                            {
+                                pendingTimer = 0;
+                                pendingChip = null;
+                                toggleChip(chip);
+                                submitForm();
+                            }, DOUBLE_CLICK_MS);
+                        });
+
+                        input.addEventListener('change', function ()
+                        {
+                            if (submitted)
+                            {
+                                return;
+                            }
+
+                            if (pendingChip && pendingChip !== chip)
+                            {
+                                toggleChip(pendingChip);
+                            }
+
+                            clearPending();
+                            syncChip(chip);
+                            submitForm();
+                        });
+                    });
+                });
+            });
+        })();
+
         var escapeHtml = function (value)
         {
             return String(value || '')
