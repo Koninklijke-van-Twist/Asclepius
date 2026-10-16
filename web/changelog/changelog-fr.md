@@ -1,3 +1,13 @@
+id: 2026-10-16-astro-ui-preview
+date: 2026-10-16
+title: Aperçu Astro à côté de l’interface existante
+author: Cursor Agent
+
+Une nouvelle interface Astro sous `app/` permet de consulter les tickets, les ouvrir, répondre, changer le statut et créer un ticket. Elle utilise la même API PHP. Les pages habituelles (`index.php` / `admin.php`) restent la norme ; le menu affiche un lien **Astro** lorsque ce build est présent.
+
+La liste des tickets en direct peut aussi renvoyer du JSON pur (`format=json`), sans cartes HTML. C’est destiné à la nouvelle interface ; l’ancienne UI continue d’utiliser le HTML.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Les traductions réapparaissent dans toutes les langues

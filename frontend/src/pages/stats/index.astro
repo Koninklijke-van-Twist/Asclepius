@@ -1,0 +1,20 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+---
+<AppLayout title="Stats" active="stats">
+  <div class="panel stack">
+    <h2>Statistieken</h2>
+    <p class="muted">
+      Open-ticket trends en category snapshots via de JSON API. Volledige grafieken blijven in
+      <a href="/asclepius/admin.php?view=stats">admin.php?view=stats</a>.
+    </p>
+    <div id="stats-panel"></div>
+  </div>
+</AppLayout>
+<script>
+  import { mountApiPanel } from '../../components/TicketApp';
+  const root = document.getElementById('stats-panel');
+  if (root) {
+    mountApiPanel(root, 'category_open_snapshots', 'Category open snapshots', () => ({}));
+  }
+</script>

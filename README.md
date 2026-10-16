@@ -5,10 +5,24 @@ Intern ticketingssysteem voor KVT op sleutels.kvt.nl/asclepius (meldingen, aanvr
 ## Structuur
 
 - `web/` — app (tickets UI, API, webhooks, Graph user directory)
+- `frontend/` — Astro UI (preview). Build landt in `web/app/` (zelfde origin als `api.php`)
 - `web/odata.php` — OData-client + lokale filecache-widget + optionele Mímir-proxy
 - `web/nightly.php` — theevraagje-onderhoud (geen BC-OData)
 - `web/hourly.php` — open-ticket trend snapshots (geen BC-OData)
 - `web/auth.php` — credentials (niet in git)
+
+## Astro UI (preview)
+
+PHP (`index.php` / `admin.php`) blijft de productieversie. De Astro-app onder `web/app/` is een parallelle UI die JSON vraagt (`format=json` op `ticket_poll` / `ticket_thread`, plus `session_context`).
+
+```bash
+cd frontend
+npm ci
+npm run build   # → web/app/
+npm run dev     # proxy naar PHP op :8080; Astro op :4321
+```
+
+Lokaal PHP ernaast: `php -S 127.0.0.1:8080 -t web`. Deploy-workflow bouwt `frontend/` mee vóór FTP-upload.
 
 ## Mímir (optioneel)
 

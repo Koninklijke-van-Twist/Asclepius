@@ -1,0 +1,17 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+---
+<AppLayout title="Bigscreen" active="bigscreen">
+  <div class="panel stack">
+    <h2>Bigscreen</h2>
+    <p class="muted">Live JSON-poll voor het ICT-bigscreen. De bestaande PHP bigscreen JS blijft de productieversie.</p>
+    <div id="bigscreen-panel"></div>
+  </div>
+</AppLayout>
+<script>
+  import { mountApiPanel } from '../../components/TicketApp';
+  const root = document.getElementById('bigscreen-panel');
+  if (root) {
+    mountApiPanel(root, 'bigscreen_poll', 'Bigscreen poll', () => ({ format: 'json' }));
+  }
+</script>

@@ -1,0 +1,20 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+---
+<AppLayout title="Voorkeuren" active="prefs">
+  <div class="panel stack">
+    <h2>Voorkeuren</h2>
+    <p class="muted">
+      E-mailvoorkeuren en Grok-webhook staan in
+      <a href="/asclepius/admin.php?view=email_prefs">admin.php?view=email_prefs</a>.
+    </p>
+    <div id="prefs-panel"></div>
+  </div>
+</AppLayout>
+<script>
+  import { mountApiPanel } from '../../components/TicketApp';
+  const root = document.getElementById('prefs-panel');
+  if (root) {
+    mountApiPanel(root, 'session_context', 'Viewer', () => ({ current_language: 'nl' }));
+  }
+</script>

@@ -683,13 +683,15 @@ Succes → `200`:
 
 ### Live UI (browser)
 
-`ticket_poll` — vernieuw de ticketlijst. Zelfde filtervelden als de UI: `current_page`, `viewer_email`, `can_manage_tickets`, `user_is_admin`, `is_admin_portal`, `csrf_token`, `open_ticket_id`, `view`, `browse_mode`, `assigned_filter`, `search_query`, `status_filters`, `status_filters_selected`, `status_filter_active`, `category_filters`, `category_filters_selected`, `category_filter_active`, `page`, `per_page`, `last_signature`, `current_language`. Ongewijzigd: `{ "success": true, "unchanged": true, "signature" }`. Anders HTML-kaarten, paginatie, `empty_html`.
+`ticket_poll` — vernieuw de ticketlijst. Zelfde filtervelden als de UI: `current_page`, `viewer_email`, `can_manage_tickets`, `user_is_admin`, `is_admin_portal`, `csrf_token`, `open_ticket_id`, `view`, `browse_mode`, `assigned_filter`, `search_query`, `status_filters`, `status_filters_selected`, `status_filter_active`, `category_filters`, `category_filters_selected`, `category_filter_active`, `page`, `per_page`, `last_signature`, `current_language`. Optioneel `format` (`json` / `data` / `structured`) of `json_data=1`: dan geen HTML-fragmenten (`card_html`, `pagination_html`, `empty_html`, message-`html`), wel gestructureerde ticketvelden, `messages[]` met o.a. `message_text` / `sender_email` / `attachments` / `reactions`, `pagination` (object), `empty_message`, `viewer` en `format: "json"`. Zonder die vlag blijft het oude HTML-antwoord (`format: "html"`) voor de PHP-UI. Ongewijzigd: `{ "success": true, "unchanged": true, "signature" }`.
 
-`ticket_thread` — berichten van één ticket als HTML. `ticket_id`, plus dezelfde viewer/view/browse-context als `ticket_poll`. Ghosts alleen op ICT-overzicht. `404` `ticket_not_found`.
+`ticket_thread` — berichten van één ticket. `ticket_id`, plus dezelfde viewer/view/browse-context als `ticket_poll`. Ghosts alleen op ICT-overzicht. `404` `ticket_not_found`. Met `format=json` (of `json_data=1`): gestructureerde `messages[]` zonder `html`, plus volledig `ticket`-object. Zonder die vlag: `messages[]` met `{ id, html }` zoals voorheen.
+
+`session_context` — bootstrap voor de Astro/SPA-UI. Geeft `viewer` (e-mail, naam, admin/ICT-flags, taal), `csrf_token` (uit sessie indien aanwezig), `lookups` (categorieën/statussen), `supported_languages` en `ui`-paden (`astro_base`, legacy `index`/`admin`). Werkt met sessie-cookie en/of API-key.
 
 `related_completed_tickets` — suggesties bij nieuw ticket. `title`, `description`, `current_language`. Max. 8 afgehandelde publieke tickets: `{ id, title }`.
 
-`related_ticket_preview` — HTML-kaart van een afgehandeld publiek ticket. `ticket_id`, `current_page`, `viewer_email`, `csrf_token`, `current_language`.
+`related_ticket_preview` — afgehandeld publiek ticket. `ticket_id`, `current_page`, `viewer_email`, `csrf_token`, `current_language`. Standaard HTML-kaart in `card_html`. Met `format=json`: gestructureerd `ticket`-object, geen `card_html`.
 
 `open_ticket_duplicate_tip` — lijkt-op-open-ticket voor dezelfde aanvrager. `title`, `viewer_email`. `match` of `null`.
 

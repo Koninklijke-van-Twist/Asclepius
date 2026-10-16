@@ -1,0 +1,24 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+---
+<AppLayout title="Templates" active="templates">
+  <div class="panel stack">
+    <h2>Templates</h2>
+    <p class="muted">
+      Beheer blijft in
+      <a href="/asclepius/admin.php?view=template_tickets">admin.php?view=template_tickets</a>.
+      Hieronder de JSON-lijst via <kbd>manage_ticket_template</kbd>.
+    </p>
+    <div id="templates-panel"></div>
+  </div>
+</AppLayout>
+<script>
+  import { mountApiPanel } from '../../components/TicketApp';
+  const root = document.getElementById('templates-panel');
+  if (root) {
+    mountApiPanel(root, 'manage_ticket_template', 'Templates', () => ({
+      operation: 'list',
+      format: 'json',
+    }));
+  }
+</script>

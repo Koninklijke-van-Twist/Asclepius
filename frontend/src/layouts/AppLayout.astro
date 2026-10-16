@@ -1,0 +1,60 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  active?: string;
+}
+
+const { title = 'Asclepius', active = 'tickets' } = Astro.props;
+const links = [
+  { href: './', id: 'tickets', label: 'Tickets' },
+  { href: './new/', id: 'new', label: 'Nieuw' },
+  { href: './settings/', id: 'settings', label: 'Instellingen' },
+  { href: './roles/', id: 'roles', label: 'Rollen' },
+  { href: './prefs/', id: 'prefs', label: 'Voorkeuren' },
+  { href: './stats/', id: 'stats', label: 'Stats' },
+  { href: './templates/', id: 'templates', label: 'Templates' },
+  { href: './changelog/', id: 'changelog', label: 'Changelog' },
+  { href: './bigscreen/', id: 'bigscreen', label: 'Bigscreen' },
+  { href: './api-docs/', id: 'api-docs', label: 'API' },
+];
+---
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>{title} · Asclepius</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">Asclepius</div>
+        <nav class="nav" aria-label="Hoofdmenu">
+          {
+            links.map((link) => (
+              <a href={link.href} aria-current={active === link.id ? 'page' : undefined}>
+                {link.label}
+              </a>
+            ))
+          }
+        </nav>
+      </header>
+      <slot />
+      <p class="legacy-note">
+        PHP UI blijft beschikbaar via
+        <a href="/asclepius/index.php">index.php</a>
+        /
+        <a href="/asclepius/admin.php">admin.php</a>
+        tot cutover.
+      </p>
+    </div>
+  </body>
+</html>

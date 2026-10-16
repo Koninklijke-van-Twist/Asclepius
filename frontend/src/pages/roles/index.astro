@@ -1,0 +1,21 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+---
+<AppLayout title="Rollen" active="roles">
+  <div class="panel stack">
+    <h2>Rollen</h2>
+    <p class="muted">
+      Rolbeheer blijft beschikbaar in
+      <a href="/asclepius/admin.php?view=roles">admin.php?view=roles</a>.
+      Deze Astro-pagina toont de huidige sessie-/ICT-context.
+    </p>
+    <div id="roles-panel"></div>
+  </div>
+</AppLayout>
+<script>
+  import { mountApiPanel } from '../../components/TicketApp';
+  const root = document.getElementById('roles-panel');
+  if (root) {
+    mountApiPanel(root, 'session_context', 'ICT-toegang', () => ({ current_language: 'nl' }));
+  }
+</script>

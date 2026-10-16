@@ -1,0 +1,11 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+---
+<AppLayout title="Tickets" active="tickets">
+  <div id="ticket-app"></div>
+</AppLayout>
+<script>
+  import { mountTicketApp } from '../components/TicketApp';
+  const root = document.getElementById('ticket-app');
+  if (root) mountTicketApp(root);
+</script>

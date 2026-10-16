@@ -1,3 +1,13 @@
+id: 2026-10-16-astro-ui-preview
+date: 2026-10-16
+title: Astro-Vorschau neben der bestehenden Oberfläche
+author: Cursor Agent
+
+Unter `app/` gibt es eine neue Astro-Oberfläche zum Ansehen von Tickets, Öffnen, Antworten, Status ändern und ein neues Ticket anlegen. Sie spricht dieselbe PHP-API an. Die bekannten Seiten (`index.php` / `admin.php`) bleiben Standard; im Menü erscheint der Link **Astro**, sobald der Build vorhanden ist.
+
+Die Live-Ticketliste kann jetzt auch reines JSON zurückgeben (`format=json`), ohne HTML-Karten. Das ist für die neue Oberfläche; die alte UI nutzt weiter HTML.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Übersetzungen erscheinen wieder in allen Sprachen

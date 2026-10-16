@@ -1,0 +1,27 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+---
+<AppLayout title="API" active="api-docs">
+  <div class="panel stack">
+    <h2>API-documentatie</h2>
+    <p>
+      Publieke specificatie:
+      <a href="/asclepius/index.php?view=api">index.php?view=api</a>
+      ·
+      <a href="/asclepius/docs/api.md">docs/api.md</a>
+    </p>
+    <p class="muted">
+      Voor de Astro UI: stuur <kbd>format=json</kbd> (of <kbd>json_data=1</kbd>) mee bij
+      <kbd>ticket_poll</kbd>, <kbd>ticket_thread</kbd> en <kbd>related_ticket_preview</kbd>.
+      Gebruik <kbd>session_context</kbd> voor viewer, CSRF en lookups.
+    </p>
+    <div id="lookups-panel"></div>
+  </div>
+</AppLayout>
+<script>
+  import { mountApiPanel } from '../../components/TicketApp';
+  const root = document.getElementById('lookups-panel');
+  if (root) {
+    mountApiPanel(root, 'ticket_lookups', 'Lookups', () => ({}));
+  }
+</script>

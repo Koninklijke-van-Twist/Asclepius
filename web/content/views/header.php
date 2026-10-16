@@ -56,6 +56,9 @@ $currentLang = getCurrentLanguage();
             <?= h(formatUserDisplayName($userEmail)) ?><?= $userIsAdmin ? h(__('header.admin_suffix')) : '' ?>
         </a>
         <a class="nav-link <?= !$isAdminPortal && !in_array($view, ['all_tickets', 'my_tickets', 'api'], true) ? 'active' : '' ?>" href="index.php"><?= h(__('nav.new_ticket')) ?></a>
+        <?php if (is_file(__DIR__ . '/../../app/index.html')): ?>
+            <a class="nav-link" href="app/" title="Astro UI (preview)"><?= h('Astro') ?></a>
+        <?php endif; ?>
         <?php if (!$isFullIctAdmin): ?>
             <a class="nav-link <?= !$isAdminPortal && $view === 'all_tickets' ? 'active' : '' ?>"
                 href="index.php?view=all_tickets"><?= h(__('nav.all_tickets')) ?></a>

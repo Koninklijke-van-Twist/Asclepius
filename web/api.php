@@ -435,6 +435,7 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
             'unchanged' => true,
         ];
     }
+    $jsonData = apiPayloadWantsJsonData($payload);
     $pollContext = [
         'currentPage' => $currentPage,
         'canManageTickets' => $canManageTickets,
@@ -451,35 +452,71 @@ function buildTicketPollApiPayload(TicketStore $store, array $payload, ?array $a
         'recentCustomStatuses' => $canManageTickets ? getRecentCustomStatusesForUser($viewerEmail) : [],
         'includeGhostMessages' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
         'showGhostToggle' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
+        'includeHtml' => !$jsonData,
     ];
 
     $isAllTicketsView = $browseMode === 'all_completed_public';
-    $paginationHtml = buildTicketPollPaginationHtml(
-        $currentPage,
-        $ticketPage,
-        $ticketTotalPages,
-        $statusFiltersSelected,
-        $categoryFiltersSelected,
-        $assignedFilter,
-        $searchQuery,
-        $isAllTicketsView ? 'all_tickets' : $view,
-        $isAdminPortal,
-        $statusFilterRequestActive,
-        $categoryFilterRequestActive,
-        $openTicketId
-    );
-
-    return [
-        'success' => true,
-        'signature' => $signature,
-        'tickets' => buildTicketPollItemsFromTickets($store, $tickets, $pollContext, $currentLanguage),
-        'is_empty' => $tickets === [],
-        'empty_html' => '<div class="empty-state">' . ($isAdminPortal ? h(__('tickets.empty_admin')) : ($isAllTicketsView ? h(__('tickets.empty_all')) : ($view === 'my_tickets' ? h(__('tickets.empty_my')) : h(__('tickets.empty_user'))))) . '</div>',
+    $emptyMessage = $isAdminPortal
+        ? __('tickets.empty_admin')
+        : ($isAllTicketsView
+            ? __('tickets.empty_all')
+            : ($view === 'my_tickets' ? __('tickets.empty_my') : __('tickets.empty_user')));
+    $pagination = [
         'page' => $ticketPage,
+        'per_page' => $perPage,
         'total_pages' => $ticketTotalPages,
         'total_count' => $ticketTotalCount,
-        'pagination_html' => $paginationHtml,
+        'view' => $isAllTicketsView ? 'all_tickets' : $view,
+        'browse_mode' => $browseMode,
+        'status_filters' => $statusFiltersSelected,
+        'category_filters' => $categoryFiltersSelected,
+        'assigned_filter' => $assignedFilter,
+        'search_query' => $searchQuery,
+        'status_filter_active' => $statusFilterRequestActive,
+        'category_filter_active' => $categoryFilterRequestActive,
+        'open_ticket_id' => $openTicketId,
     ];
+
+    $response = [
+        'success' => true,
+        'signature' => $signature,
+        'format' => $jsonData ? 'json' : 'html',
+        'tickets' => buildTicketPollItemsFromTickets($store, $tickets, $pollContext, $currentLanguage),
+        'is_empty' => $tickets === [],
+        'empty_message' => $emptyMessage,
+        'page' => $ticketPage,
+        'per_page' => $perPage,
+        'total_pages' => $ticketTotalPages,
+        'total_count' => $ticketTotalCount,
+        'pagination' => $pagination,
+        'viewer' => [
+            'email' => $viewerEmail,
+            'can_manage_tickets' => $canManageTickets,
+            'user_is_admin' => $userIsAdmin,
+            'is_admin_portal' => $isAdminPortal,
+            'language' => $currentLanguage,
+        ],
+    ];
+
+    if (!$jsonData) {
+        $response['empty_html'] = '<div class="empty-state">' . h($emptyMessage) . '</div>';
+        $response['pagination_html'] = buildTicketPollPaginationHtml(
+            $currentPage,
+            $ticketPage,
+            $ticketTotalPages,
+            $statusFiltersSelected,
+            $categoryFiltersSelected,
+            $assignedFilter,
+            $searchQuery,
+            $isAllTicketsView ? 'all_tickets' : $view,
+            $isAdminPortal,
+            $statusFilterRequestActive,
+            $categoryFilterRequestActive,
+            $openTicketId
+        );
+    }
+
+    return $response;
 }
 
 function buildRelatedCompletedTicketsApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
@@ -572,7 +609,8 @@ function buildRelatedTicketPreviewApiPayload(TicketStore $store, array $payload,
     $ticket = localizeTicketForViewer($ticket, $store, $currentLanguage, true);
     $ticketDetail = localizeTicketDetailForViewer($ticket, $store, $currentLanguage, true);
     $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
-    $cardHtml = renderTicketCardHtml($ticket, $ticketDetail, [
+    $jsonData = apiPayloadWantsJsonData($payload);
+    $cardContext = [
         'currentPage' => $currentPage,
         'canManageTickets' => false,
         'userIsAdmin' => false,
@@ -590,13 +628,20 @@ function buildRelatedTicketPreviewApiPayload(TicketStore $store, array $payload,
         'showGhostToggle' => false,
         'activeCustomStatuses' => [],
         'recentCustomStatuses' => [],
-    ]);
-
-    return [
-        'success' => true,
-        'ticket_id' => $ticketId,
-        'card_html' => $cardHtml,
+        'includeHtml' => !$jsonData,
     ];
+
+    $response = [
+        'success' => true,
+        'format' => $jsonData ? 'json' : 'html',
+        'ticket_id' => $ticketId,
+        'ticket' => buildTicketPollEntry($ticket, $ticketDetail, $cardContext),
+    ];
+    if (!$jsonData) {
+        $response['card_html'] = renderTicketCardHtml($ticket, $ticketDetail, $cardContext);
+    }
+
+    return $response;
 }
 
 function buildOpenTicketDuplicateTipApiPayload(TicketStore $store, array $payload, ?array $apiClient): array
@@ -3939,6 +3984,7 @@ if ($method === 'POST') {
         if (!$canManageTickets && $view === 'all_tickets') {
             $browseMode = 'all_completed_public';
         }
+        $jsonData = apiPayloadWantsJsonData($payload);
 
         $ticketDetail = $store->getTicket(
             $ticketId,
@@ -3953,18 +3999,96 @@ if ($method === 'POST') {
         }
 
         $ticketDetail = localizeTicketDetailForViewer($ticketDetail, $store, $currentLanguage, true);
+        $messageContext = [
+            'currentPage' => $currentPage,
+            'isAdminPortal' => $isAdminPortal,
+        ];
         $messages = array_map(
-            static fn(array $message): array => [
-                'id' => (int) ($message['id'] ?? 0),
-                'html' => renderTicketMessageHtml($message, $currentPage, $isAdminPortal),
-            ],
+            static fn(array $message): array => serializeTicketMessageForApi($message, $messageContext, !$jsonData),
             $ticketDetail['messages'] ?? []
         );
 
-        sendJson(200, [
+        $response = [
             'success' => true,
+            'format' => $jsonData ? 'json' : 'html',
             'ticket_id' => $ticketId,
             'messages' => $messages,
+        ];
+        if ($jsonData) {
+            $response['ticket'] = buildTicketPollEntry(
+                $ticketDetail,
+                $ticketDetail,
+                [
+                    'currentPage' => $currentPage,
+                    'canManageTickets' => $canManageTickets,
+                    'userIsAdmin' => $userIsAdmin,
+                    'isAdminPortal' => $isAdminPortal,
+                    'ictUsers' => $ictUsersList,
+                    'store' => $store,
+                    'csrfToken' => (string) ($payload['csrf_token'] ?? ''),
+                    'openTicketId' => $ticketId,
+                    'view' => $view,
+                    'isReadOnlyTicket' => $browseMode === 'all_completed_public',
+                    'viewerEmail' => $viewerEmail,
+                    'includeGhostMessages' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
+                    'showGhostToggle' => shouldIncludeGhostMessages($canManageTickets, $isAdminPortal, $view),
+                    'includeHtml' => false,
+                    'activeCustomStatuses' => $canManageTickets ? $store->getActiveCustomStatuses($accessCategories) : [],
+                    'recentCustomStatuses' => $canManageTickets ? getRecentCustomStatusesForUser($viewerEmail) : [],
+                ]
+            );
+        }
+
+        sendJson(200, $response);
+    }
+
+    if ($action === 'session_context') {
+        global $ictUsers;
+
+        ensureApiSessionStarted();
+        $viewerEmail = strtolower(trim((string) ($apiClient['email'] ?? ($payload['viewer_email'] ?? ''))));
+        if ($viewerEmail === '' && !empty($_SESSION['user']['email'])) {
+            $viewerEmail = strtolower(trim((string) $_SESSION['user']['email']));
+        }
+        $ictUsersList = is_array($ictUsers ?? null) ? $ictUsers : [];
+        $ictAccess = resolveIctAccessContextForEmail($store, $ictUsersList, $viewerEmail, true);
+        $userIsAdmin = !empty($apiClient['is_admin'])
+            || !empty($ictAccess['is_full_ict_admin'])
+            || !empty($ictAccess['is_limited_ict'])
+            || !empty($_SESSION['user']['admin']);
+        $csrfToken = (string) ($_SESSION['csrf_token'] ?? '');
+        if ($csrfToken === '' && session_status() === PHP_SESSION_ACTIVE) {
+            $csrfToken = bin2hex(random_bytes(32));
+            $_SESSION['csrf_token'] = $csrfToken;
+        }
+        $language = strtolower(trim((string) ($payload['current_language'] ?? '')));
+        if ($language === '' && function_exists('currentLanguage')) {
+            $language = (string) currentLanguage();
+        }
+        if (!array_key_exists($language, SUPPORTED_LANGUAGES)) {
+            $language = 'nl';
+        }
+
+        sendJson(200, [
+            'success' => true,
+            'viewer' => [
+                'email' => $viewerEmail,
+                'name' => $viewerEmail !== '' ? formatUserDisplayName($viewerEmail) : '',
+                'is_admin' => $userIsAdmin,
+                'is_full_ict_admin' => !empty($ictAccess['is_full_ict_admin']),
+                'is_limited_ict' => !empty($ictAccess['is_limited_ict']),
+                'access_categories' => $ictAccess['access_categories'] ?? [],
+                'language' => $language,
+            ],
+            'csrf_token' => $csrfToken,
+            'has_session_api_key' => !empty($_SESSION['user']['api_key']),
+            'lookups' => buildTicketLookupsApiPayload('ticket_lookups'),
+            'supported_languages' => array_keys(SUPPORTED_LANGUAGES),
+            'ui' => [
+                'astro_base' => 'app/',
+                'legacy_index' => 'index.php',
+                'legacy_admin' => 'admin.php',
+            ],
         ]);
     }
 

@@ -1885,22 +1885,123 @@ function renderTicketCardHtml(array $ticket, ?array $ticketDetail, array $contex
     return trim((string) ob_get_clean());
 }
 
+/**
+ * True when the client wants structured JSON for Astro/SPA UIs (no HTML fragments).
+ */
+function apiPayloadWantsJsonData(array $payload): bool
+{
+    $format = strtolower(trim((string) ($payload['format'] ?? ($payload['response_format'] ?? ''))));
+    if (in_array($format, ['json', 'data', 'structured'], true)) {
+        return true;
+    }
+
+    $flag = $payload['json_data'] ?? false;
+    if (is_bool($flag)) {
+        return $flag;
+    }
+    if (is_int($flag) || is_float($flag)) {
+        return (int) $flag === 1;
+    }
+
+    $normalized = strtolower(trim((string) $flag));
+
+    return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function serializeTicketAttachmentForApi(array $attachment): array
+{
+    return [
+        'id' => (int) ($attachment['id'] ?? 0),
+        'original_name' => (string) ($attachment['original_name'] ?? ''),
+        'mime_type' => (string) ($attachment['mime_type'] ?? ''),
+        'file_size' => (int) ($attachment['file_size'] ?? 0),
+        'is_image' => isImageAttachment($attachment),
+        'can_preview' => canPreviewFile($attachment),
+    ];
+}
+
+/**
+ * Structured message payload for JSON-first UIs. Keeps optional HTML for the legacy client.
+ *
+ * @return array<string, mixed>
+ */
+function serializeTicketMessageForApi(array $message, array $context = [], bool $includeHtml = false): array
+{
+    $senderEmail = strtolower(trim((string) ($message['sender_email'] ?? '')));
+    $serialized = [
+        'id' => (int) ($message['id'] ?? 0),
+        'ticket_id' => (int) ($message['ticket_id'] ?? 0),
+        'sender_email' => $senderEmail,
+        'sender_name' => (string) (
+            $message['sender_display_name']
+            ?? $message['sender_name']
+            ?? ($senderEmail !== '' ? formatUserDisplayName($senderEmail) : '')
+        ),
+        'sender_role' => (string) ($message['sender_role'] ?? ''),
+        'sender_title' => (string) (
+            $message['sender_role_title']
+            ?? $message['sender_title']
+            ?? ''
+        ),
+        'message_text' => (string) ($message['message_text'] ?? ''),
+        'created_at' => (string) ($message['created_at'] ?? ''),
+        'created_at_label' => formatDateTime((string) ($message['created_at'] ?? '')),
+        'is_ghost' => !empty($message['is_ghost']),
+        'is_ai_assistant' => !empty($message['is_ai_assistant']),
+        'attachments' => array_map(
+            static fn(array $attachment): array => serializeTicketAttachmentForApi($attachment),
+            is_array($message['attachments'] ?? null) ? $message['attachments'] : []
+        ),
+        'reactions' => is_array($message['reactions'] ?? null) ? $message['reactions'] : [],
+    ];
+
+    if ($includeHtml) {
+        $serialized['html'] = renderTicketMessageHtml(
+            $message,
+            (string) ($context['currentPage'] ?? 'index.php'),
+            !empty($context['isAdminPortal'])
+        );
+    }
+
+    return $serialized;
+}
+
 function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $context = []): array
 {
     $ticketOpenDuration = getTicketOpenDurationSeconds($ticket);
     $assignedEmail = (string) ($ticket['assigned_email'] ?? '');
     $participantEmails = is_array($ticketDetail['participant_emails'] ?? null) ? $ticketDetail['participant_emails'] : [(string) ($ticket['user_email'] ?? '')];
     $requesterSummary = buildRequesterSummary($participantEmails, (string) ($ticket['user_email'] ?? ''));
+    $includeHtml = !array_key_exists('includeHtml', $context) || !empty($context['includeHtml']);
+    $messages = is_array($ticketDetail['messages'] ?? null) ? $ticketDetail['messages'] : [];
 
-    return [
+    $entry = [
         'id' => (int) ($ticket['id'] ?? 0),
         'title' => (string) ($ticket['title'] ?? ''),
+        'description' => (string) ($ticketDetail['description'] ?? $ticket['description'] ?? ''),
         'user_email' => (string) ($ticket['user_email'] ?? ''),
+        'user_name' => formatUserDisplayName((string) ($ticket['user_email'] ?? '')),
         'requester_label' => (string) ($requesterSummary['label'] ?? ''),
         'requester_tooltip' => (string) ($requesterSummary['tooltip'] ?? ''),
         'participant_emails' => array_values($requesterSummary['participants'] ?? []),
+        'participants' => array_map(
+            static fn(string $email): array => [
+                'email' => $email,
+                'name' => formatUserDisplayName($email),
+            ],
+            array_values(array_filter(
+                array_map('strval', $requesterSummary['participants'] ?? []),
+                static fn(string $email): bool => $email !== ''
+            ))
+        ),
         'category' => (string) ($ticket['category'] ?? ''),
         'category_label' => translateCategory((string) ($ticket['category'] ?? '')),
+        'created_at' => (string) ($ticket['created_at'] ?? ''),
+        'updated_at' => (string) ($ticket['updated_at'] ?? ''),
+        'resolved_at' => (string) ($ticket['resolved_at'] ?? ''),
         'created_at_label' => formatDateTime((string) ($ticket['created_at'] ?? '')),
         'updated_at_label' => formatDateTime((string) ($ticket['updated_at'] ?? '')),
         'due_date' => (string) ($ticket['due_date'] ?? ''),
@@ -1913,32 +2014,29 @@ function buildTicketPollEntry(array $ticket, ?array $ticketDetail, array $contex
         'priority_color' => getPriorityColor((int) ($ticket['priority'] ?? 0)),
         'category_color' => getCategoryColor((string) ($ticket['category'] ?? '')),
         'assigned_email' => $assignedEmail,
+        'assigned_name' => $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : '',
         'assigned_label' => $assignedEmail !== '' ? formatUserDisplayName($assignedEmail) : __('ticket.unassigned'),
         'assigned_color' => emailToHexColor((string) ($assignedEmail !== '' ? $assignedEmail : 'onbekend@kvt.nl')),
         'is_private' => !empty($ticket['is_private']),
         'ai_advice_pending' => (int) ($ticket['ai_advice_pending'] ?? 0),
         'last_message_is_ai' => !empty($ticket['last_message_is_ai']),
-        'ai_advice_available' => isTicketAiAdviceAvailable(
-            $ticket,
-            is_array($ticketDetail['messages'] ?? null) ? $ticketDetail['messages'] : null
-        ),
-        'message_count' => (int) ($ticket['message_count'] ?? 0),
+        'ai_advice_available' => isTicketAiAdviceAvailable($ticket, $messages),
+        'message_count' => (int) ($ticket['message_count'] ?? count($messages)),
+        'attachment_count' => (int) ($ticket['attachment_count'] ?? 0),
         'time_open_label' => formatDurationSeconds($ticketOpenDuration),
         'meta_created_value' => formatDateTime((string) ($ticket['created_at'] ?? '')) . ' · ' . formatDurationSeconds($ticketOpenDuration),
         'meta_updated_value' => formatDateTime((string) ($ticket['updated_at'] ?? '')),
-        'card_html' => renderTicketCardHtml($ticket, $ticketDetail, $context),
         'messages' => array_map(
-            static fn(array $message): array => [
-                'id' => (int) ($message['id'] ?? 0),
-                'html' => renderTicketMessageHtml(
-                    $message,
-                    (string) ($context['currentPage'] ?? 'index.php'),
-                    !empty($context['isAdminPortal'])
-                ),
-            ],
-            $ticketDetail['messages'] ?? []
+            static fn(array $message): array => serializeTicketMessageForApi($message, $context, $includeHtml),
+            $messages
         ),
     ];
+
+    if ($includeHtml) {
+        $entry['card_html'] = renderTicketCardHtml($ticket, $ticketDetail, $context);
+    }
+
+    return $entry;
 }
 
 function normalizeSavedTicketOverviewFilters(

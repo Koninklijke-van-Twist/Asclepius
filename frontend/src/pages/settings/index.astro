@@ -1,0 +1,21 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+---
+<AppLayout title="Instellingen" active="settings">
+  <div class="panel stack">
+    <h2>Instellingen</h2>
+    <p class="muted">
+      ICT-instellingen (sorteervolgorde, notificaties, appearance) blijven in de PHP-UI tot de
+      Astro-port die schermen 1-op-1 overneemt. Gebruik ondertussen
+      <a href="/asclepius/admin.php?view=settings">admin.php?view=settings</a>.
+    </p>
+    <div id="settings-panel"></div>
+  </div>
+</AppLayout>
+<script>
+  import { mountApiPanel } from '../../components/TicketApp';
+  const root = document.getElementById('settings-panel');
+  if (root) {
+    mountApiPanel(root, 'session_context', 'Sessiecontext', () => ({ current_language: 'nl' }));
+  }
+</script>

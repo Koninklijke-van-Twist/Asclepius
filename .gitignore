@@ -19,3 +19,8 @@ vendor/
 
 web/analytics/analytics.sqlite
 web/analytics/analytics.sqlite-*
+
+frontend/node_modules/
+frontend/dist/
+frontend/.astro/
+web/app/
