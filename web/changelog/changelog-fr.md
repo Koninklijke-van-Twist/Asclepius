@@ -3,7 +3,7 @@ date: 2026-10-16
 title: Les captures collées restent visibles
 author: Cursor Agent
 
-Une capture d'écran collée dans un message avec Ctrl+V reste dans le message après l'envoi. Cela vaut aussi lorsque le message est ensuite traduit. Si l'image était déjà enregistrée avec le message mais avait disparu après une traduction, elle réapparaît. L'image elle-même n'est pas téléversée à nouveau.
+Une capture d'écran collée dans un message avec Ctrl+V reste dans le message après l'envoi. Cela vaut aussi lorsque le message est ensuite traduit. Si l'image était déjà enregistrée avec le message mais avait disparu après une traduction, elle réapparaît. La capture reste aussi visible lorsqu'une traduction place l'image au milieu d'une phrase. L'image elle-même n'est pas téléversée à nouveau.
 
 ---
 id: 2026-10-14-translation-cache-i18n

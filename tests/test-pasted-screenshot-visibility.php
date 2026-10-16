@@ -66,6 +66,38 @@ assertShot(
 );
 assertShot('Engelse tekst blijft een vertaling', !empty($englishShown['is_translated']));
 
+$flattened = '[[attachment:schermafdruk.png]] Sending failed';
+$flattenedRestored = restoreMissingAttachmentMarkers($flattened, $raw);
+assertShot(
+    'Afgeplatte markering komt terug op een eigen regel',
+    $flattenedRestored === "[[attachment:schermafdruk.png]]\n\nSending failed"
+);
+assertShot(
+    'Afgeplatte markering wordt niet verdubbeld',
+    substr_count($flattenedRestored, '[[attachment:schermafdruk.png]]') === 1
+);
+
+$inlineMiddle = 'First the text [[attachment:midden.png]] and then more text';
+$inlineRestored = restoreMissingAttachmentMarkers($inlineMiddle, $middleRaw);
+assertShot(
+    'Markering midden in de zin komt achteraan op een eigen regel',
+    $inlineRestored === "First the text and then more text\n\n[[attachment:midden.png]]"
+);
+
+$keptOwnLine = "[[attachment:schermafdruk.png]]\n\nSending failed";
+assertShot(
+    'Markering die al op een eigen regel staat blijft één keer staan',
+    restoreMissingAttachmentMarkers($keptOwnLine, $raw) === $keptOwnLine
+);
+
+$flatStored = ticketTranslationStoredResult($raw, 'en', $flattened, 'nl');
+$flatShown = ticketTranslationApplyStatusNotes($flatStored, $raw, 'en');
+assertShot(
+    'Opgeslagen afgeplatte vertaling houdt de schermafdruk',
+    ($flatShown['text'] ?? '') === "[[attachment:schermafdruk.png]]\n\nSending failed"
+);
+assertShot('Afgeplatte tekst blijft een vertaling', !empty($flatShown['is_translated']));
+
 $png = [
     'id' => 1346,
     'ticket_id' => 1244,
@@ -89,6 +121,23 @@ assertShot('Inline-afbeelding wijst naar de opgeslagen bijlage', str_contains($h
 assertShot('Berichttekst blijft staan', str_contains($html, 'Verzenden lukt niet'));
 assertShot('Schermafdruk staat niet nog eens in de bijlagelijst', !str_contains($html, 'class="attachment-list"'));
 assertShot('Precies één inline-afbeelding', substr_count($html, 'class="attachment-inline-image"') === 1);
+
+$flatHtml = renderTicketMessageHtml([
+    'id' => 5634,
+    'sender_email' => 'user@kvt.nl',
+    'sender_role' => 'user',
+    'created_at' => '2026-10-15T11:00:00+00:00',
+    'message_text' => $flattened,
+    'message_text_raw' => $raw,
+    'attachments' => [$png],
+], 'index.php');
+assertShot('Afgeplatte vertaling toont de schermafdruk inline', str_contains($flatHtml, 'class="attachment-inline-image"'));
+assertShot('Afgeplatte vertaling wijst naar de opgeslagen bijlage', str_contains($flatHtml, 'data/ticket_uploads/1244/ticket_abc.png'));
+assertShot('Afgeplatte vertaling houdt de zin', str_contains($flatHtml, 'Sending failed'));
+$flatBody = formatTicketMessageText($flattenedRestored, 5634, [$png]);
+assertShot('Afgeplatte markering blijft geen ruwe tekst', !str_contains($flatBody, '[[attachment:'));
+assertShot('Schermafdruk staat niet nog eens in de bijlagelijst van de vertaling', !str_contains($flatHtml, 'class="attachment-list"'));
+assertShot('Precies één inline-afbeelding in de afgeplatte vertaling', substr_count($flatHtml, 'class="attachment-inline-image"') === 1);
 
 $dataUrl = formatTicketMessageText('[plaatje](data:image/png;base64,aaaa)');
 assertShot('data:-URL wordt geen link', !str_contains($dataUrl, 'href="data:'));

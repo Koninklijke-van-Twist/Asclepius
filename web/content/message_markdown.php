@@ -321,15 +321,57 @@ function unmaskMessageAttachmentMarkers(string $text, array $tokens): string
 }
 
 /**
+ * Haalt [[attachment:…]] weg van regels die nog andere tekst bevatten.
+ * Alleen een markering op een eigen regel wordt als afbeelding getoond.
+ */
+function removeInlineAttachmentMarkers(string $text): string
+{
+    if (!str_contains($text, '[[attachment:')) {
+        return $text;
+    }
+
+    $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+    $lines = explode("\n", $normalized);
+    $rewritten = [];
+    $changed = false;
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        if ($trimmed === '' || preg_match('/^\[\[attachment:(.+)\]\]$/', $trimmed) === 1 || !str_contains($line, '[[attachment:')) {
+            $rewritten[] = $line;
+            continue;
+        }
+
+        $without = preg_replace('/\[\[attachment:[^\]\n]+\]\]/', '', $line);
+        if (!is_string($without) || $without === $line) {
+            $rewritten[] = $line;
+            continue;
+        }
+
+        $collapsed = preg_replace('/[ \t]{2,}/', ' ', $without);
+        $rewritten[] = trim(is_string($collapsed) ? $collapsed : $without);
+        $changed = true;
+    }
+
+    if (!$changed) {
+        return $text;
+    }
+
+    return implode("\n", $rewritten);
+}
+
+/**
  * Zet bijlagemarkeringen uit de originele tekst terug als een vertaling ze
- * heeft laten vallen. Markeringen vóór de eerste tekst komen vooraan, de rest
- * achteraan, in de oorspronkelijke volgorde.
+ * heeft laten vallen of op dezelfde regel als andere tekst heeft gezet.
+ * Alleen een markering op een eigen regel telt als aanwezig. Markeringen vóór
+ * de eerste tekst komen vooraan, de rest achteraan, in de oorspronkelijke volgorde.
  */
 function restoreMissingAttachmentMarkers(string $displayText, string $rawText): string
 {
     if ($rawText === '' || $displayText === $rawText) {
         return $displayText;
     }
+
+    $displayText = removeInlineAttachmentMarkers($displayText);
 
     $present = [];
     foreach (messageAttachmentMarkerNames($displayText) as $name) {
@@ -343,7 +385,7 @@ function restoreMissingAttachmentMarkers(string $displayText, string $rawText): 
     foreach (explode("\n", $normalized) as $line) {
         if (preg_match('/^\[\[attachment:(.+)\]\]$/', trim($line), $match) === 1) {
             $name = trim((string) ($match[1] ?? ''));
-            if ($name === '' || isset($present[$name]) || str_contains($displayText, messageAttachmentMarker($name))) {
+            if ($name === '' || isset($present[$name])) {
                 if ($name !== '') {
                     $present[$name] = true;
                 }
