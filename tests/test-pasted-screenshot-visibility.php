@@ -137,7 +137,7 @@ $html = renderTicketMessageHtml([
     'attachments' => [$png],
 ], 'index.php');
 assertShot('Bericht toont de schermafdruk inline', str_contains($html, 'class="attachment-inline-image"'));
-assertShot('Inline-afbeelding wijst naar de opgeslagen bijlage', str_contains($html, 'data/ticket_uploads/1244/ticket_abc.png'));
+assertShot('Inline-afbeelding wijst naar de ingelogde preview-route', str_contains($html, 'download=1346&amp;preview=1') && !str_contains($html, 'data/ticket_uploads/'));
 assertShot('Berichttekst blijft staan', str_contains($html, 'Verzenden lukt niet'));
 assertShot('Schermafdruk staat niet nog eens in de bijlagelijst', !str_contains($html, 'class="attachment-list"'));
 assertShot('Precies één inline-afbeelding', substr_count($html, 'class="attachment-inline-image"') === 1);
@@ -152,7 +152,7 @@ $flatHtml = renderTicketMessageHtml([
     'attachments' => [$png],
 ], 'index.php');
 assertShot('Afgeplatte vertaling toont de schermafdruk inline', str_contains($flatHtml, 'class="attachment-inline-image"'));
-assertShot('Afgeplatte vertaling wijst naar de opgeslagen bijlage', str_contains($flatHtml, 'data/ticket_uploads/1244/ticket_abc.png'));
+assertShot('Afgeplatte vertaling wijst naar de ingelogde preview-route', str_contains($flatHtml, 'download=1346&amp;preview=1') && !str_contains($flatHtml, 'data/ticket_uploads/'));
 assertShot('Afgeplatte vertaling houdt de zin', str_contains($flatHtml, 'Sending failed'));
 $flatBody = formatTicketMessageText($flattenedRestored, 5634, [$png]);
 assertShot('Afgeplatte markering blijft geen ruwe tekst', !str_contains($flatBody, '[[attachment:'));
