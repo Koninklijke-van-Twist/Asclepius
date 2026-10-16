@@ -1,3 +1,11 @@
+id: 2026-10-16-pasted-screenshot-visible
+date: 2026-10-16
+title: Geplakte schermafdrukken blijven zichtbaar
+author: Cursor Agent
+
+Een schermafdruk die je met Ctrl+V in een bericht plakt, blijft na het plaatsen in het bericht staan. Dat geldt ook als het bericht daarna vertaald wordt. Stond de afbeelding al bij het bericht, maar was die na een vertaling verdwenen, dan is die weer te zien. De afbeelding zelf wordt niet opnieuw geüpload.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Vertalingen verschijnen weer in alle talen

@@ -1,3 +1,11 @@
+id: 2026-10-16-pasted-screenshot-visible
+date: 2026-10-16
+title: Pasted screenshots stay visible
+author: Cursor Agent
+
+A screenshot pasted into a message with Ctrl+V stays in the message after you post it. That still holds when the message is translated afterwards. If the image was already stored with the message but disappeared after a translation, it shows again. The image itself is not uploaded again.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Translations show again in every language

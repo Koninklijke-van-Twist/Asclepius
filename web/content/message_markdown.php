@@ -257,6 +257,128 @@ function isMessageMarkdownAttachmentLine(string $trimmed): bool
     return preg_match('/^\[\[attachment:(.+)\]\]$/', $trimmed) === 1;
 }
 
+/**
+ * @return list<string> bestandsnamen van [[attachment:naam]] op een eigen regel
+ */
+function messageAttachmentMarkerNames(string $messageText): array
+{
+    $names = [];
+    $normalized = str_replace(["\r\n", "\r"], "\n", $messageText);
+    foreach (explode("\n", $normalized) as $line) {
+        if (preg_match('/^\[\[attachment:(.+)\]\]$/', trim($line), $match) !== 1) {
+            continue;
+        }
+        $name = trim((string) ($match[1] ?? ''));
+        if ($name !== '') {
+            $names[] = $name;
+        }
+    }
+
+    return $names;
+}
+
+function messageAttachmentMarker(string $filename): string
+{
+    return '[[attachment:' . str_replace(['[', ']'], '', $filename) . ']]';
+}
+
+/**
+ * Haalt [[attachment:…]] uit de tekst vóór de vertaler. De placeholder blijft
+ * staan zodat de markering op dezelfde plek terugkomt.
+ *
+ * @return array{text: string, tokens: list<string>}
+ */
+function maskMessageAttachmentMarkers(string $text): array
+{
+    $tokens = [];
+    $masked = preg_replace_callback(
+        '/\[\[attachment:[^\]\r\n]+\]\]/',
+        static function (array $match) use (&$tokens): string {
+            $placeholder = '⟦att' . count($tokens) . '⟧';
+            $tokens[] = (string) $match[0];
+
+            return $placeholder;
+        },
+        $text
+    );
+
+    return [
+        'text' => is_string($masked) ? $masked : $text,
+        'tokens' => $tokens,
+    ];
+}
+
+/**
+ * @param list<string> $tokens
+ */
+function unmaskMessageAttachmentMarkers(string $text, array $tokens): string
+{
+    foreach ($tokens as $index => $token) {
+        $text = str_replace('⟦att' . $index . '⟧', (string) $token, $text);
+    }
+
+    return $text;
+}
+
+/**
+ * Zet bijlagemarkeringen uit de originele tekst terug als een vertaling ze
+ * heeft laten vallen. Markeringen vóór de eerste tekst komen vooraan, de rest
+ * achteraan, in de oorspronkelijke volgorde.
+ */
+function restoreMissingAttachmentMarkers(string $displayText, string $rawText): string
+{
+    if ($rawText === '' || $displayText === $rawText) {
+        return $displayText;
+    }
+
+    $present = [];
+    foreach (messageAttachmentMarkerNames($displayText) as $name) {
+        $present[$name] = true;
+    }
+
+    $prefix = [];
+    $suffix = [];
+    $seenProse = false;
+    $normalized = str_replace(["\r\n", "\r"], "\n", $rawText);
+    foreach (explode("\n", $normalized) as $line) {
+        if (preg_match('/^\[\[attachment:(.+)\]\]$/', trim($line), $match) === 1) {
+            $name = trim((string) ($match[1] ?? ''));
+            if ($name === '' || isset($present[$name]) || str_contains($displayText, messageAttachmentMarker($name))) {
+                if ($name !== '') {
+                    $present[$name] = true;
+                }
+                continue;
+            }
+            $present[$name] = true;
+            $marker = messageAttachmentMarker($name);
+            if ($seenProse) {
+                $suffix[] = $marker;
+            } else {
+                $prefix[] = $marker;
+            }
+            continue;
+        }
+        if (trim($line) !== '') {
+            $seenProse = true;
+        }
+    }
+
+    if ($prefix === [] && $suffix === []) {
+        return $displayText;
+    }
+
+    $display = str_replace(["\r\n", "\r"], "\n", $displayText);
+    if ($prefix !== []) {
+        $display = implode("\n", $prefix) . ($display !== '' ? "\n\n" . ltrim($display, "\n") : '');
+    }
+    if ($suffix !== []) {
+        $display = rtrim($display, "\n");
+        $display = ($display !== '' ? $display . "\n\n" : '') . implode("\n\n", $suffix);
+    }
+
+    return $display;
+}
+
 function isMessageMarkdownCheckboxLine(string $line): bool
 {
     return preg_match('/^(\s*)\[( |x|X)\](?:\s+(.*))?$/', $line) === 1;
