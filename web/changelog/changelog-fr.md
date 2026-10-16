@@ -1,3 +1,11 @@
+id: 2026-10-16-close-public-data
+date: 2026-10-16
+title: La base et les pièces jointes ne sont plus publiques
+author: Cursor Agent
+
+La base de données, les pièces jointes des tickets et les fichiers de cache temporaires ne peuvent plus être ouverts ou parcourus sans connexion. Une image ou une autre pièce jointe dans un ticket reste visible tant que vous êtes connecté. L'indicateur de cache n'affiche plus de données d'exemple.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Les traductions réapparaissent dans toutes les langues

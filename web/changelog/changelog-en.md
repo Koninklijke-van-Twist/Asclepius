@@ -1,3 +1,11 @@
+id: 2026-10-16-close-public-data
+date: 2026-10-16
+title: Database and attachments are no longer public
+author: Cursor Agent
+
+The database, ticket attachments and temporary cache files can no longer be opened or browsed without signing in. An image or other attachment in a ticket stays visible while you are signed in. The cache indicator no longer shows sample data.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Translations show again in every language

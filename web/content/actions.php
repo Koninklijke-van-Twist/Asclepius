@@ -70,36 +70,84 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
         exit(__('flash.attachment_missing'));
     }
 
+    if (function_exists('session_status') && function_exists('session_write_close') && session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+
     while (ob_get_level() > 0) {
         ob_end_clean();
     }
 
-    $contentDispositionType = ($inlinePreviewRequested && isImageAttachment($attachment)) ? 'inline' : 'attachment';
+    $serveInline = $inlinePreviewRequested;
+    $contentDispositionType = $serveInline ? 'inline' : 'attachment';
     $fileMTime = filemtime($storedPath);
     $etag = '"' . sha1($storedPath . '|' . (string) $fileSize . '|' . (string) ($fileMTime === false ? 0 : $fileMTime)) . '"';
+    $rangeHeader = $serveInline ? trim((string) ($_SERVER['HTTP_RANGE'] ?? '')) : '';
 
-    if ($inlinePreviewRequested && isImageAttachment($attachment)) {
+    if ($serveInline) {
+        header('Accept-Ranges: bytes');
         header('Cache-Control: private, max-age=300, must-revalidate');
         if ($fileMTime !== false) {
             header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $fileMTime) . ' GMT');
         }
         header('ETag: ' . $etag);
 
-        $ifNoneMatch = trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
-        $ifModifiedSinceRaw = trim((string) ($_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? ''));
-        $ifModifiedSince = $ifModifiedSinceRaw !== '' ? strtotime($ifModifiedSinceRaw) : false;
-        if (($ifNoneMatch !== '' && hash_equals($etag, $ifNoneMatch)) || ($fileMTime !== false && $ifModifiedSince !== false && $ifModifiedSince >= $fileMTime)) {
-            http_response_code(304);
-            exit;
+        if ($rangeHeader === '') {
+            $ifNoneMatch = trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
+            $ifModifiedSinceRaw = trim((string) ($_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? ''));
+            $ifModifiedSince = $ifModifiedSinceRaw !== '' ? strtotime($ifModifiedSinceRaw) : false;
+            if (($ifNoneMatch !== '' && hash_equals($etag, $ifNoneMatch)) || ($fileMTime !== false && $ifModifiedSince !== false && $ifModifiedSince >= $fileMTime)) {
+                http_response_code(304);
+                exit;
+            }
         }
     } else {
         header('Cache-Control: private, no-store');
+        header('Accept-Ranges: none');
+    }
+
+    $range = ($serveInline && $rangeHeader !== '') ? parseAttachmentByteRange($fileSize, $rangeHeader) : null;
+    if (is_array($range) && !empty($range['unsatisfiable'])) {
+        http_response_code(416);
+        header('Content-Range: bytes */' . (string) $fileSize);
+        exit;
     }
 
     header('Content-Description: File Transfer');
     header('Content-Type: ' . ((string) ($attachment['mime_type'] ?? '') !== '' ? $attachment['mime_type'] : 'application/octet-stream'));
     header('Content-Transfer-Encoding: binary');
     header('Content-Disposition: ' . $contentDispositionType . '; filename="' . $downloadName . '"');
+    header('X-Content-Type-Options: nosniff');
+
+    if (is_array($range) && !empty($range['partial'])) {
+        $rangeStart = (int) $range['start'];
+        $rangeEnd = (int) $range['end'];
+        $rangeLength = $rangeEnd - $rangeStart + 1;
+        $handle = fopen($storedPath, 'rb');
+        if ($handle === false) {
+            http_response_code(500);
+            exit(__('flash.attachment_missing'));
+        }
+        if (fseek($handle, $rangeStart) !== 0) {
+            fclose($handle);
+            http_response_code(500);
+            exit(__('flash.attachment_missing'));
+        }
+        http_response_code(206);
+        header('Content-Range: bytes ' . $rangeStart . '-' . $rangeEnd . '/' . (string) $fileSize);
+        header('Content-Length: ' . (string) $rangeLength);
+        while ($rangeLength > 0 && !feof($handle)) {
+            $chunk = fread($handle, (int) min(8192, $rangeLength));
+            if (!is_string($chunk) || $chunk === '') {
+                break;
+            }
+            echo $chunk;
+            $rangeLength -= strlen($chunk);
+        }
+        fclose($handle);
+        exit;
+    }
+
     header('Content-Length: ' . (string) $fileSize);
     readfile($storedPath);
     exit;

@@ -272,7 +272,7 @@ Opgeslagen tekst: `Hoi Ivan, zo ziet de Retourlijst in Consus er nu uit:\n[[atta
 Limieten en controle (alles wordt gecontroleerd **vóórdat** het ticket of een bericht wordt aangepast, dus ook vóór een `status` of `assigned_email` in hetzelfde verzoek):
 
 - max **10** bijlagen per bericht, max **10 MB** per bestand, max **40 MB** samen. Ook de `post_max_size` van de server geldt (base64 is ongeveer 33% groter).
-- toegestane extensies: `png`, `jpg`, `jpeg`, `gif`, `webp`, `pdf`, `txt`, `log`, `csv`, `docx`, `xlsx`, `pptx`. De inhoud wordt met `finfo` gecontroleerd en moet bij de extensie passen. Een `.png` met html-inhoud wordt geweigerd. `svg`, `html` en scripts mogen niet (die zouden via de directe upload-URL uitgevoerd kunnen worden).
+- toegestane extensies: `png`, `jpg`, `jpeg`, `gif`, `webp`, `pdf`, `txt`, `log`, `csv`, `docx`, `xlsx`, `pptx`. De inhoud wordt met `finfo` gecontroleerd en moet bij de extensie passen. Een `.png` met html-inhoud wordt geweigerd. `svg`, `html` en scripts mogen niet. Het uploadpad wordt door de webserver niet uitgeleverd; de thread haalt een bijlage op via de ingelogde download.
 - Het bericht en de bijlagen worden in één databasetransactie opgeslagen. Mislukt het opslaan van een bijlage, dan wordt het bericht teruggedraaid en worden al verplaatste bestanden verwijderd.
 
 Bijlagefouten (met `error_code`, een leesbare `error_message`, waar mogelijk `attachment_index` / `attachment_filename`, en `hints` met een voorbeeld):
@@ -299,7 +299,7 @@ Bij succes heeft het antwoord ook:
 "ticket_url": "https://sleutels.kvt.nl/asclepius/index.php?open=123"
 ```
 
-`url` is de directe bestands-URL (die gebruikt de thread ook voor de afbeelding). Voor `download_url` moet je ingelogd zijn. Zonder `attachments` blijft het antwoord precies zoals hiervoor.
+`url` is het opslagpad onder `data/ticket_uploads/`. De webserver levert dat pad niet uit. De thread toont de afbeelding via `download_url` met `&preview=1` (inline, met Content-Type en Content-Disposition). Voor `download_url` moet je ingelogd zijn. Zonder `attachments` blijft het antwoord precies zoals hiervoor.
 
 Notificaties: een zichtbaar bericht met bijlagen volgt dezelfde regels als een bericht zonder bijlagen, in de webinterface en via de API. De updatemail naar deelnemers gaat bij een zichtbare tekst, een statuswijziging, een toewijzing of openbare bijlagen, in de taal van elke ontvanger. Bij `ghost: true` horen de bijlagen bij het ghost-bericht en gaat er nog geen mail weg. In de mail staan inline markers als `📎 bestandsnaam`.
 

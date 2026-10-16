@@ -80,7 +80,8 @@ if ($format === 'auto' || $format === '') {
     $format = getPreviewFormat($attachment) ?? 'text';
 }
 
-$downloadUrl = buildAttachmentDirectUrl($attachment);
+$downloadPage = !empty($_SESSION['user']['admin']) ? 'admin.php' : 'index.php';
+$downloadUrl = buildAttachmentContentUrl($attachment, $downloadPage);
 if ($downloadUrl === '' && in_array($format, ['pdf', 'excel', 'word', 'video'], true)) {
     http_response_code(500);
     exit('Preview path not available');

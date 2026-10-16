@@ -111,6 +111,10 @@ jobs:
           umask 022
           find ./web -type d -exec chmod 755 {} +
           find ./web -type f -exec chmod 644 {} +
+          # Cache-JSON, uploads, sqlite en de root-.htaccess blijven op de server.
+          # lftp: het laatste passende patroon wint. Includes staan daarom
+          # na de excludes, anders uploadt data/.htaccess niet.
+          # Uitgesloten bestanden (database, uploads, cache-JSON) worden niet verwijderd.
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
           set cmd:fail-exit true
           set net:max-retries 2
@@ -121,12 +125,55 @@ jobs:
           mirror -R --delete \
             --exclude-glob .htaccess \
             --exclude-glob cache/** \
+            --exclude-glob cache/odata/** \
+            --exclude-glob cache/odata/*/ \
             --exclude-glob data/** \
+            --exclude-glob data/ticket_uploads/** \
+            --exclude-glob data/ticket_uploads/*/ \
+            --exclude-glob data/user_avatars/** \
+            --exclude-glob data/theevraagje/** \
+            --exclude-glob data/api_clients/** \
+            --exclude-glob data/user_prefs/** \
             --exclude-glob analytics/*.sqlite \
             --exclude-glob analytics/*.sqlite-* \
             --exclude-glob auth.php \
             --exclude-glob index.php \
             --exclude-glob admin.php \
+            --include-glob cache/ \
+            --include-glob cache/odata/ \
+            --include-glob cache/.htaccess \
+            --include-glob cache/index.html \
+            --include-glob cache/index.php \
+            --include-glob cache/odata/.htaccess \
+            --include-glob cache/odata/index.html \
+            --include-glob cache/odata/index.php \
+            --include-glob data/ \
+            --include-glob data/.htaccess \
+            --include-glob data/index.html \
+            --include-glob data/index.php \
+            --include-glob data/ticket_uploads/ \
+            --include-glob data/ticket_uploads/.htaccess \
+            --include-glob data/ticket_uploads/index.html \
+            --include-glob data/ticket_uploads/index.php \
+            --include-glob data/user_avatars/ \
+            --include-glob data/user_avatars/.htaccess \
+            --include-glob data/user_avatars/index.html \
+            --include-glob data/user_avatars/index.php \
+            --include-glob data/theevraagje/ \
+            --include-glob data/theevraagje/.htaccess \
+            --include-glob data/theevraagje/index.html \
+            --include-glob data/theevraagje/index.php \
+            --include-glob data/api_clients/ \
+            --include-glob data/api_clients/.htaccess \
+            --include-glob data/api_clients/index.html \
+            --include-glob data/api_clients/index.php \
+            --include-glob data/user_prefs/ \
+            --include-glob data/user_prefs/.htaccess \
+            --include-glob data/user_prefs/index.html \
+            --include-glob data/user_prefs/index.php \
+            --include-glob analytics/.htaccess \
+            --include-glob analytics/index.html \
+            --include-glob analytics/index.php \
             ./web .
 
           set cmd:fail-exit false

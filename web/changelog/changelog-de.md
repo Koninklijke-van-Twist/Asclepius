@@ -1,3 +1,11 @@
+id: 2026-10-16-close-public-data
+date: 2026-10-16
+title: Datenbank und Anhänge sind nicht mehr öffentlich
+author: Cursor Agent
+
+Die Datenbank, Ticketanhänge und temporäre Cache-Dateien lassen sich ohne Anmeldung nicht mehr öffnen oder durchblättern. Ein Bild oder ein anderer Anhang in einem Ticket bleibt sichtbar, solange Sie angemeldet sind. Die Cache-Anzeige zeigt keine Beispieldaten mehr.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Übersetzungen erscheinen wieder in allen Sprachen

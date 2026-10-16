@@ -27,6 +27,7 @@ if (!is_file($path) || filesize($path) <= 0) {
 
 $mtime = (int) filemtime($path);
 header('Content-Type: image/png');
+header('Content-Disposition: inline; filename="theevraagje.png"');
 header('Cache-Control: private, max-age=300');
 header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
 readfile($path);

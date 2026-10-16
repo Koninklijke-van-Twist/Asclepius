@@ -34,5 +34,6 @@ if (!is_file($path)) {
 }
 
 header('Content-Type: image/png');
-header('Cache-Control: public, max-age=31536000, immutable');
+header('Content-Disposition: inline; filename="avatar.png"');
+header('Cache-Control: private, max-age=31536000, immutable');
 readfile($path);

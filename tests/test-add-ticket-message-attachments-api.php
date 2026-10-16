@@ -216,7 +216,9 @@ assertSame('Bijlagenamen', ['retourlijst.png', 'scherm.gif', 'retourlijst-2.png'
 assertSame('Alle drie inline', [true, true, true], array_map(static fn(array $a): bool => !empty($a['inline']), $inline['attachments'] ?? []));
 $html = formatTicketMessageText($storedText, (int) $inline['message_id'], $inline['message']['attachments'] ?? []);
 assertContains('Weergave toont inline afbeelding', 'attachment-inline-image', $html);
-assertContains('Weergave verwijst naar opgeslagen bestand', 'data/ticket_uploads/' . $ticketId . '/ticket_', $html);
+assertContains('Weergave loopt via ingelogde download', 'download=', $html);
+assertContains('Voorbeeld toont de bijlage inline', 'preview=1', $html);
+assertFalse('Weergave wijst niet naar het ruwe uploadpad', str_contains($html, 'data/ticket_uploads/'));
 assertSame('Drie inline-afbeeldingen gerenderd', 3, substr_count($html, 'class="attachment-inline-image"'));
 
 $badRef = handleAddTicketMessageApiAction($store, $baseRequest + [

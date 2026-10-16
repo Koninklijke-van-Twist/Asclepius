@@ -951,6 +951,97 @@ function buildAttachmentDirectUrl(array $attachment): string
     return '';
 }
 
+function buildAttachmentContentUrl(array $attachment, string $page = ''): string
+{
+    $attachmentId = (int) ($attachment['id'] ?? 0);
+    if ($attachmentId <= 0) {
+        return '';
+    }
+
+    $query = 'download=' . $attachmentId . '&preview=1';
+    if ($page === '') {
+        return '?' . $query;
+    }
+
+    return $page . '?' . $query;
+}
+
+/**
+ * @return array{partial: bool, unsatisfiable: bool, start: int, end: int}
+ */
+function parseAttachmentByteRange(int $fileSize, string $rangeHeader): array
+{
+    $fullEnd = max(0, $fileSize - 1);
+    $none = [
+        'partial' => false,
+        'unsatisfiable' => false,
+        'start' => 0,
+        'end' => $fullEnd,
+    ];
+    $rangeHeader = trim($rangeHeader);
+    if ($rangeHeader === '' || $fileSize <= 0) {
+        return $none;
+    }
+    if (preg_match('/^bytes=(\d*)-(\d*)$/', $rangeHeader, $match) !== 1) {
+        return [
+            'partial' => false,
+            'unsatisfiable' => true,
+            'start' => 0,
+            'end' => 0,
+        ];
+    }
+
+    $startText = $match[1];
+    $endText = $match[2];
+    if ($startText === '' && $endText === '') {
+        return [
+            'partial' => false,
+            'unsatisfiable' => true,
+            'start' => 0,
+            'end' => 0,
+        ];
+    }
+
+    if ($startText === '') {
+        $suffix = (int) $endText;
+        if ($suffix <= 0) {
+            return [
+                'partial' => false,
+                'unsatisfiable' => true,
+                'start' => 0,
+                'end' => 0,
+            ];
+        }
+        $suffix = min($suffix, $fileSize);
+
+        return [
+            'partial' => true,
+            'unsatisfiable' => false,
+            'start' => $fileSize - $suffix,
+            'end' => $fileSize - 1,
+        ];
+    }
+
+    $start = (int) $startText;
+    $end = $endText === '' ? $fileSize - 1 : (int) $endText;
+    if ($start < 0 || $start >= $fileSize || $end < $start) {
+        return [
+            'partial' => false,
+            'unsatisfiable' => true,
+            'start' => 0,
+            'end' => 0,
+        ];
+    }
+    $end = min($end, $fileSize - 1);
+
+    return [
+        'partial' => !($start === 0 && $end === $fileSize - 1),
+        'unsatisfiable' => false,
+        'start' => $start,
+        'end' => $end,
+    ];
+}
+
 function buildAttachmentMessageMarker(string $filename): string
 {
     return '[[attachment:' . str_replace(['[', ']'], '', $filename) . ']]';
@@ -991,7 +1082,7 @@ function findAttachmentByOriginalName(array $attachments, string $name): ?array
 
 function renderMessageInlineAttachmentHtml(array $attachment): string
 {
-    $previewUrl = buildAttachmentDirectUrl($attachment);
+    $previewUrl = buildAttachmentContentUrl($attachment);
     $originalName = (string) ($attachment['original_name'] ?? '');
     $attachmentId = (int) ($attachment['id'] ?? 0);
     $downloadHref = buildAttachmentDownloadHref($attachmentId);
@@ -1184,7 +1275,7 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
                 <?php foreach ($listAttachments as $attachmentIndex => $attachment): ?>
                     <?php
                     $attachmentId = (int) ($attachment['id'] ?? 0);
-                    $previewUrl = buildAttachmentDirectUrl($attachment);
+                    $previewUrl = buildAttachmentContentUrl($attachment);
                     $downloadHref = buildAttachmentDownloadHref($attachmentId);
                     $downloadName = buildAttachmentDownloadFilename($attachment, (string) ($attachment['requester_email'] ?? ''));
                     $isImageAttachment = isImageAttachment($attachment);

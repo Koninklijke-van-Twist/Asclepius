@@ -1,3 +1,11 @@
+id: 2026-10-16-close-public-data
+date: 2026-10-16
+title: Database en bijlagen niet meer openbaar
+author: Cursor Agent
+
+De database, ticketbijlagen en tijdelijke cachebestanden zijn niet meer zonder inloggen te openen of te doorbladeren. Een afbeelding of andere bijlage in een ticket blijft zichtbaar zolang je bent ingelogd. De cache-indicator toont geen voorbeeldgegevens meer.
+
+---
 id: 2026-10-14-translation-cache-i18n
 date: 2026-10-14
 title: Vertalingen verschijnen weer in alle talen
