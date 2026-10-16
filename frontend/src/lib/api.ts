@@ -93,9 +93,11 @@ export type SessionContext = {
 };
 
 /**
- * Live TicketStore access:
- * - /astropius/api.php → PHP bridge that requires Asclepius api.php (same SQLite)
- * - fallback /asclepius/api.php when bridge is unavailable
+ * Live TicketStore: always hit Asclepius api.php on this host.
+ * - Local `npm run dev`: Vite proxies /asclepius/api.php → PHP :8080
+ * - Production: same-origin https://…/asclepius/api.php
+ * Override with PUBLIC_ASCLEPIUS_API_URL if needed.
+ * Note: /astropius/api.php is the FTP bridge; Astro's base path shadows it in dev (404).
  */
 function resolveApiUrl(): string {
   const envUrl =
@@ -103,13 +105,6 @@ function resolveApiUrl(): string {
       ? (import.meta as ImportMeta & { env?: Record<string, string> }).env?.PUBLIC_ASCLEPIUS_API_URL
       : undefined;
   if (envUrl) return envUrl;
-
-  if (typeof location !== 'undefined') {
-    if (location.pathname.startsWith('/astropius')) {
-      return `${location.origin}/astropius/api.php`;
-    }
-  }
-
   return '/asclepius/api.php';
 }
 
@@ -181,16 +176,26 @@ async function apiFetch<T>(
     body = JSON.stringify(init.bodyObject);
   }
 
-  const response = await fetch(resolveApiUrl(), {
+  const url = resolveApiUrl();
+  const response = await fetch(url, {
     ...init,
     credentials: 'include',
     headers,
     body,
   });
 
-  const data = (await response.json()) as T & { error?: string; success?: boolean };
+  const raw = await response.text();
+  let data: T & { error?: string; success?: boolean; errors?: string[] };
+  try {
+    data = JSON.parse(raw) as T & { error?: string; success?: boolean; errors?: string[] };
+  } catch {
+    throw new Error(
+      `API gaf geen JSON (${response.status}) via ${url}. Draait PHP op :8080?`
+    );
+  }
   if (!response.ok) {
-    throw new Error(data.error || `HTTP ${response.status}`);
+    const detail = data.errors?.join(', ') || data.error || `HTTP ${response.status}`;
+    throw new Error(detail);
   }
   return data;
 }
