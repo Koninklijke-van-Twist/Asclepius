@@ -195,9 +195,13 @@ class CopilotTranslationProvider implements TranslationProvider
         }
 
         $translations = [];
+        $attachmentTokens = is_array($masked['attachment_tokens'] ?? null) ? $masked['attachment_tokens'] : [];
         $codeTokens = is_array($codeMasked['tokens'] ?? null) ? $codeMasked['tokens'] : [];
         foreach ($parsed['translations'] as $language => $translated) {
-            $unmasked = $this->unmaskKeyboardTokens((string) $translated, $masked['tokens']);
+            $unmasked = $this->unmaskKeyboardTokens((string) $translated, $masked['tokens'], $attachmentTokens);
+            if (function_exists('restoreMissingAttachmentMarkers')) {
+                $unmasked = restoreMissingAttachmentMarkers($unmasked, $rawText);
+            }
             if (function_exists('unmaskMessageFencedCodeBlocks')) {
                 $unmasked = unmaskMessageFencedCodeBlocks($unmasked, $codeTokens);
             }
@@ -256,8 +260,14 @@ class CopilotTranslationProvider implements TranslationProvider
     /**
      * @return array{text: string, tokens: list<string>}
      */
+    /**
+     * @return array{text: string, tokens: list<string>, attachment_tokens: list<string>}
+     */
     private function maskKeyboardTokens(string $rawText): array
     {
+        $attachments = function_exists('maskMessageAttachmentMarkers')
+            ? maskMessageAttachmentMarkers($rawText)
+            : ['text' => $rawText, 'tokens' => []];
         $tokens = [];
         $masked = preg_replace_callback(
             self::KEYBOARD_TOKEN_PATTERN,
@@ -267,22 +277,27 @@ class CopilotTranslationProvider implements TranslationProvider
 
                 return $placeholder;
             },
-            $rawText
+            (string) ($attachments['text'] ?? $rawText)
         );
 
         return [
-            'text' => is_string($masked) ? $masked : $rawText,
+            'text' => is_string($masked) ? $masked : (string) ($attachments['text'] ?? $rawText),
             'tokens' => $tokens,
+            'attachment_tokens' => is_array($attachments['tokens'] ?? null) ? $attachments['tokens'] : [],
         ];
     }
 
     /**
      * @param list<string> $tokens
+     * @param list<string> $attachmentTokens
      */
-    private function unmaskKeyboardTokens(string $text, array $tokens): string
+    private function unmaskKeyboardTokens(string $text, array $tokens, array $attachmentTokens = []): string
     {
         foreach ($tokens as $index => $token) {
             $text = str_replace('⟦kb' . $index . '⟧', $token, $text);
+        }
+        if ($attachmentTokens !== [] && function_exists('unmaskMessageAttachmentMarkers')) {
+            $text = unmaskMessageAttachmentMarkers($text, $attachmentTokens);
         }
 
         return $text;

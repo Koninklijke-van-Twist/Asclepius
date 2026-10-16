@@ -469,6 +469,17 @@ function ticketTranslationApplyStatusNotes(array $result, string $rawText, strin
         }
     }
 
+    // Een vertaling die [[attachment:…]] liet vallen, mag de schermafdruk niet verbergen.
+    if (function_exists('restoreMissingAttachmentMarkers')) {
+        $restored = restoreMissingAttachmentMarkers((string) ($result['text'] ?? ''), $rawText);
+        if ($restored !== (string) ($result['text'] ?? '')) {
+            $result['text'] = $restored;
+            if (ticketTranslationTextsMatch($restored, $rawText)) {
+                $result['text'] = $rawText;
+                $result['is_translated'] = false;
+            }
+        }
+    }
     if (function_exists('restoreMessageFencedCodeBlocks')) {
         $current = (string) ($result['text'] ?? '');
         $restored = restoreMessageFencedCodeBlocks($current, $rawText);

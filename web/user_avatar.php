@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/kvt_protect_dirs.php';
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'logincheck.php';
@@ -34,5 +35,6 @@ if (!is_file($path)) {
 }
 
 header('Content-Type: image/png');
-header('Cache-Control: public, max-age=31536000, immutable');
+header('Content-Disposition: inline; filename="avatar.png"');
+header('Cache-Control: private, max-age=31536000, immutable');
 readfile($path);

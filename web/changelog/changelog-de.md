@@ -1,3 +1,19 @@
+id: 2026-10-16-close-public-data
+date: 2026-10-16
+title: Datenbank und Anhänge sind nicht mehr öffentlich
+author: Cursor Agent
+
+Die Datenbank, Ticketanhänge und temporäre Cache-Dateien lassen sich ohne Anmeldung nicht mehr öffnen oder durchblättern. Ein Bild oder ein anderer Anhang in einem Ticket bleibt sichtbar, solange Sie angemeldet sind. Die Cache-Anzeige zeigt keine Beispieldaten mehr.
+
+---
+id: 2026-10-16-pasted-screenshot-visible
+date: 2026-10-16
+title: Eingefügte Screenshots bleiben sichtbar
+author: Cursor Agent
+
+Ein Screenshot, den Sie mit Strg+V in eine Nachricht einfügen, bleibt nach dem Senden in der Nachricht stehen. Das gilt auch, wenn die Nachricht danach übersetzt wird. War das Bild schon bei der Nachricht gespeichert, aber nach einer Übersetzung verschwunden, ist es wieder zu sehen. Der Screenshot bleibt auch sichtbar, wenn eine Übersetzung das Bild mitten in den Satz setzt. Stehen zwei Screenshots direkt hintereinander in einer Zeile, verschwindet dieser Resttext und beide Bilder bleiben sichtbar. Das Bild selbst wird nicht erneut hochgeladen.
+
+---
 id: 2026-10-16-duplicate-code-blocks
 date: 2026-10-16
 title: Derselbe Codeblock bleibt zweimal stehen

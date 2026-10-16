@@ -58,6 +58,12 @@ jobs:
       - name: Write version file
         run: echo "${{ github.sha }}" > ./web/version
 
+      # Deploy-guard: draait hetzelfde mirror-commando tegen een nep-server (file://) met
+      # dummybestanden op de paden uit .github/deploy-protected.txt. Faalt als er iets
+      # beschermds verdwijnt of overschreven wordt; dan draait de FTP-stap niet.
+      - name: Deploy-guard (beschermde server-paden)
+        run: bash .github/deploy-guard.sh .github/workflows/deploy-ftp.yml
+
       - name: Upload update.notify (pre-update warning)
         run: |
           umask 022

@@ -42,3 +42,14 @@
 // $environment = 'Production';
 // $auth = $auth_list[$environment];
 // $baseUrl = 'https://my-bc-domain.com:7148/';
+
+// Optioneel, alleen als een HTTP-runner odata.php?action=… moet aanroepen.
+// Header X-Asclepius-Secret moet exact dit geheim zijn. Weglaten: geen anonieme toegang.
+// CLI (php web/nightly.php) heeft dit niet nodig.
+// $asclepiusRunnerSecret = '';
+
+// Wie odata.php?action=cache_status, cache_delete of cache_clear mag aanroepen.
+// Zelfde vorm als de login: een lijst e-mailadressen, of e-mail => rechten.
+// $allowedUsers = [
+//     "user@kvt.nl",
+// ];

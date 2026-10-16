@@ -1,4 +1,5 @@
 ﻿<?php
+require_once __DIR__ . '/kvt_protect_dirs.php';
 
 require_once __DIR__ . '/content/bootstrap.php';
 require_once __DIR__ . '/content/constants.php';
