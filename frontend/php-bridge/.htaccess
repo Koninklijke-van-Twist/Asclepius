@@ -1,0 +1,17 @@
+# Prefer index.html for SPA routes; keep PHP API bridge executable.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /astropius/
+
+  # Live TicketStore bridge
+  RewriteRule ^api\.php$ - [L]
+  RewriteRule ^session_keepalive\.php$ - [L]
+
+  # Existing files/assets
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # SPA fallback
+  RewriteRule ^ index.html [L]
+</IfModule>

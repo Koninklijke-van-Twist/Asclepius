@@ -1,17 +1,17 @@
 # Astropius (Asclepius Astro UI)
 
-Preview UI at `/astropius`, talking to the PHP JSON API at `/asclepius/api.php`. Never replaces the Asclepius PHP deploy on master.
+Preview UI at `/astropius`. **Live TicketStore:** `api.php` in the build `require`s Asclepius `api.php` (same SQLite). Never replaces the Asclepius PHP deploy on master.
 
 ## Commands
 
 ```bash
 npm ci
-npm run dev    # http://localhost:4321 — proxies /asclepius/* to PHP :8080
-npm run build  # → ../astropius-dist/ with base /astropius/
+npm run dev    # http://localhost:4321 — proxies API to PHP :8080
+npm run build  # → ../astropius-dist/ (Astro + php-bridge)
 ```
 
 ```bash
 php -S 127.0.0.1:8080 -t ../web
 ```
 
-Use a service API-key or a session cookie that is visible to `/astropius`. Ticket live updates use `ticket_poll` with `format=json`.
+Open Asclepius, click **Astro** (`astropius_launch.php`) to hand over your session key, then use `/astropius`. Or paste a service API-key in the UI.

@@ -3,7 +3,7 @@ date: 2026-10-16
 title: Aperçu Astro sur /astropius
 author: Cursor Agent
 
-Une nouvelle interface Astro sur `/astropius` (aperçu séparé, pas la production) permet de consulter les tickets, les ouvrir, répondre, changer le statut et créer un ticket. Elle utilise la même API PHP sous `/asclepius`. Les pages habituelles restent la norme ; le menu affiche un lien **Astro**.
+Une nouvelle interface Astro sur `/astropius` (aperçu séparé, pas la production) permet de consulter les tickets, les ouvrir, répondre, changer le statut et créer un ticket. Elle utilise le **même TicketStore live** qu’Asclepius (pas de base séparée) : `astropius/api.php` charge l’API Asclepius. Les nouveaux tickets apparaissent tout de suite. Le lien **Astro** du menu transmet votre session Asclepius.
 
 La liste des tickets en direct peut aussi renvoyer du JSON pur (`format=json`), sans cartes HTML. C’est destiné à la nouvelle interface ; l’ancienne UI continue d’utiliser le HTML.
 

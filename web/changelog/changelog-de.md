@@ -3,7 +3,7 @@ date: 2026-10-16
 title: Astro-Vorschau unter /astropius
 author: Cursor Agent
 
-Unter `/astropius` gibt es eine neue Astro-Oberfläche (eigene Vorschau, nicht Produktion) zum Ansehen von Tickets, Öffnen, Antworten, Status ändern und ein neues Ticket anlegen. Sie spricht dieselbe PHP-API unter `/asclepius` an. Die bekannten Seiten bleiben Standard; im Menü erscheint der Link **Astro**.
+Unter `/astropius` gibt es eine neue Astro-Oberfläche (eigene Vorschau, nicht Produktion) zum Ansehen von Tickets, Öffnen, Antworten, Status ändern und ein neues Ticket anlegen. Sie nutzt denselben **lebenden TicketStore** wie Asclepius (keine eigene Datenbank): `astropius/api.php` lädt die Asclepius-API. Neue Tickets erscheinen sofort. Über den Menüpunkt **Astro** wird die Asclepius-Sitzung übergeben.
 
 Die Live-Ticketliste kann jetzt auch reines JSON zurückgeben (`format=json`), ohne HTML-Karten. Das ist für die neue Oberfläche; die alte UI nutzt weiter HTML.
 

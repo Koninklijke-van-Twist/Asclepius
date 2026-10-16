@@ -92,16 +92,60 @@ export type SessionContext = {
   error?: string;
 };
 
-const API_URL =
-  (typeof import.meta !== 'undefined' &&
-    (import.meta as ImportMeta & { env?: Record<string, string> }).env?.PUBLIC_ASCLEPIUS_API_URL) ||
-  '/asclepius/api.php';
+/**
+ * Live TicketStore access:
+ * - /astropius/api.php → PHP bridge that requires Asclepius api.php (same SQLite)
+ * - fallback /asclepius/api.php when bridge is unavailable
+ */
+function resolveApiUrl(): string {
+  const envUrl =
+    typeof import.meta !== 'undefined'
+      ? (import.meta as ImportMeta & { env?: Record<string, string> }).env?.PUBLIC_ASCLEPIUS_API_URL
+      : undefined;
+  if (envUrl) return envUrl;
 
-/** Astro is hosted under /astropius; the PHP API stays under /asclepius. */
+  if (typeof location !== 'undefined') {
+    if (location.pathname.startsWith('/astropius')) {
+      return `${location.origin}/astropius/api.php`;
+    }
+  }
+
+  return '/asclepius/api.php';
+}
+
+function readCookie(name: string): string {
+  if (typeof document === 'undefined') return '';
+  const prefix = `${name}=`;
+  for (const part of document.cookie.split(';')) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(prefix)) {
+      return decodeURIComponent(trimmed.slice(prefix.length));
+    }
+  }
+  return '';
+}
+
+/** Pull Asclepius handoff cookies (from /asclepius/astropius_launch.php) into localStorage. */
+export function adoptLiveAsclepiusHandoff(): { apiKey: string; email: string } {
+  const apiKey = readCookie('asclepius_astropius_key');
+  const email = readCookie('asclepius_astropius_email');
+  if (apiKey) setStoredApiKey(apiKey);
+  if (email && typeof localStorage !== 'undefined') {
+    localStorage.setItem('asclepius.viewer_email', email);
+  }
+  return { apiKey, email };
+}
 
 function storedApiKey(): string {
   if (typeof localStorage === 'undefined') return '';
-  return localStorage.getItem('asclepius.api_key') || '';
+  const stored = localStorage.getItem('asclepius.api_key') || '';
+  if (stored) return stored;
+  return readCookie('asclepius_astropius_key');
+}
+
+export function storedViewerEmail(): string {
+  if (typeof localStorage === 'undefined') return '';
+  return localStorage.getItem('asclepius.viewer_email') || readCookie('asclepius_astropius_email') || '';
 }
 
 export function setStoredApiKey(key: string): void {
@@ -110,22 +154,27 @@ export function setStoredApiKey(key: string): void {
   else localStorage.removeItem('asclepius.api_key');
 }
 
-export async function apiPost<T = Record<string, unknown>>(
-  action: string,
-  body: Record<string, unknown> = {}
+async function apiFetch<T>(
+  init: RequestInit & { bodyObject?: Record<string, unknown> }
 ): Promise<T> {
   const apiKey = storedApiKey();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     Accept: 'application/json',
+    ...(init.headers as Record<string, string> | undefined),
   };
   if (apiKey) headers['X-API-Key'] = apiKey;
 
-  const response = await fetch(API_URL, {
-    method: 'POST',
+  let body = init.body;
+  if (init.bodyObject) {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(init.bodyObject);
+  }
+
+  const response = await fetch(resolveApiUrl(), {
+    ...init,
     credentials: 'include',
     headers,
-    body: JSON.stringify({ action, format: 'json', ...body }),
+    body,
   });
 
   const data = (await response.json()) as T & { error?: string; success?: boolean };
@@ -135,23 +184,43 @@ export async function apiPost<T = Record<string, unknown>>(
   return data;
 }
 
+export async function apiPost<T = Record<string, unknown>>(
+  action: string,
+  body: Record<string, unknown> = {}
+): Promise<T> {
+  return apiFetch<T>({
+    method: 'POST',
+    bodyObject: { action, format: 'json', ...body },
+  });
+}
+
 export async function fetchSessionContext(
   extras: Record<string, unknown> = {}
 ): Promise<SessionContext> {
-  return apiPost<SessionContext>('session_context', extras);
+  adoptLiveAsclepiusHandoff();
+  const email = storedViewerEmail();
+  return apiPost<SessionContext>('session_context', {
+    current_language: 'nl',
+    ...(email ? { viewer_email: email } : {}),
+    ...extras,
+  });
 }
 
 export async function pollTickets(
   params: Record<string, unknown>
 ): Promise<PollResponse> {
-  return apiPost<PollResponse>('ticket_poll', params);
+  const email = storedViewerEmail();
+  return apiPost<PollResponse>('ticket_poll', {
+    ...(email ? { viewer_email: email } : {}),
+    ...params,
+  });
 }
 
 export async function fetchTicketThread(
   ticketId: number,
   params: Record<string, unknown> = {}
 ): Promise<{ success: boolean; ticket?: Ticket; messages?: TicketMessage[]; error?: string }> {
-  return apiPost('ticket_thread', { ticket_id: ticketId, ...params });
+  return apiPost('ticket_thread', { ticket_id: ticketId, format: 'json', ...params });
 }
 
 export async function createTicket(payload: {
@@ -162,20 +231,10 @@ export async function createTicket(payload: {
   priority?: number;
   csrf_token?: string;
 }): Promise<{ success: boolean; ticket_id?: number; error?: string; errors?: string[] }> {
-  const apiKey = storedApiKey();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  };
-  if (apiKey) headers['X-API-Key'] = apiKey;
-
-  const response = await fetch(API_URL, {
+  return apiFetch({
     method: 'POST',
-    credentials: 'include',
-    headers,
-    body: JSON.stringify(payload),
+    bodyObject: payload,
   });
-  return response.json();
 }
 
 export async function addTicketMessage(payload: {

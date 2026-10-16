@@ -1,5 +1,6 @@
 import {
   addTicketMessage,
+  adoptLiveAsclepiusHandoff,
   apiPost,
   changeTicketStatus,
   createTicket,
@@ -7,6 +8,7 @@ import {
   fetchTicketThread,
   pollTickets,
   setStoredApiKey,
+  storedViewerEmail,
   type PollResponse,
   type SessionContext,
   type Ticket,
@@ -117,7 +119,7 @@ export function mountTicketApp(root: HTMLElement): void {
   });
 
   function viewerEmail(): string {
-    return state.session?.viewer?.email || '';
+    return state.session?.viewer?.email || storedViewerEmail() || '';
   }
 
   function csrf(): string {
@@ -368,6 +370,11 @@ export function mountTicketApp(root: HTMLElement): void {
     state.loading = true;
     renderStatus();
     try {
+      const handoff = adoptLiveAsclepiusHandoff();
+      if (handoff.apiKey) {
+        apiKeyInput.value = handoff.apiKey;
+        state.notice = 'Live Asclepius-sessie gekoppeld (TicketStore).';
+      }
       state.session = await fetchSessionContext({ current_language: 'nl' });
       const statuses = state.session.lookups?.statuses || [];
       statusSelect.replaceChildren(new Option('Alle statussen', ''));

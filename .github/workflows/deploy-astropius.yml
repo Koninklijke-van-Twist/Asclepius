@@ -41,12 +41,15 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Build Astro UI
+      - name: Build Astro UI + live TicketStore PHP bridge
         run: |
           cd frontend
           npm ci
           npm run build
           test -f ../astropius-dist/index.html
+          test -f ../astropius-dist/api.php
+          # Bridge must resolve sibling Asclepius web (TicketStore + SQLite).
+          grep -q 'api.php' ../astropius-dist/api.php
 
       - name: Install lftp
         if: env.SKIP_UPLOAD == '0'
@@ -54,7 +57,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lftp
 
-      - name: Upload astropius-dist
+      - name: Upload astropius-dist (static + api.php bridge to live Asclepius)
         if: env.SKIP_UPLOAD == '0'
         run: |
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_HOST" << EOF
@@ -64,6 +67,6 @@ jobs:
           set ftp:ssl-allow false
           set ftp:passive-mode yes
           cd "$FTP_REMOTE_DIR"
-          mirror -R --delete --verbose ./astropius-dist .
+          mirror -R --delete --verbose --exclude-glob .git ./astropius-dist .
           bye
           EOF
