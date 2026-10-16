@@ -3649,24 +3649,36 @@ class TicketStore
         }
 
         $ids = [];
-        $candidates = preg_split('/\s+/u', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $candidates[] = $searchQuery;
+        $tokens = preg_split('/\s+/u', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $tokenCount = count($tokens);
+        for ($index = 0; $index < $tokenCount; $index++) {
+            $matched = $this->matchTicketSearchDate($tokens, $index);
+            if ($matched !== null && $matched['length'] > 1) {
+                $index += $matched['length'] - 1;
+                continue;
+            }
 
-        foreach ($candidates as $candidate) {
-            $candidate = trim((string) $candidate);
-            if ($candidate === '') {
-                continue;
-            }
-            if (preg_match('/^#?(\d+)$/u', $candidate, $matches) !== 1) {
-                continue;
-            }
-            $ticketId = (int) ($matches[1] ?? 0);
-            if ($ticketId > 0) {
-                $ids[$ticketId] = $ticketId;
-            }
+            $this->rememberExactTicketId($ids, $tokens[$index]);
         }
+        $this->rememberExactTicketId($ids, $searchQuery);
 
         return array_values($ids);
+    }
+
+    /**
+     * @param array<int, int> $ids
+     */
+    private function rememberExactTicketId(array &$ids, string $candidate): void
+    {
+        $candidate = trim($candidate);
+        if ($candidate === '' || preg_match('/^#?(\d+)$/u', $candidate, $matches) !== 1) {
+            return;
+        }
+
+        $ticketId = (int) ($matches[1] ?? 0);
+        if ($ticketId > 0) {
+            $ids[$ticketId] = $ticketId;
+        }
     }
 
     private function buildTicketListFilters(bool $isAdmin, string $userEmail, array $statusFilters, ?string $assignedFilter, array $categoryFilters, ?string $searchQuery, string $browseMode, ?array $accessCategories = null): array

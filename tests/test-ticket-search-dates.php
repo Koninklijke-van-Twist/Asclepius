@@ -267,6 +267,54 @@ assertSame(
     $store->countTickets(true, 'ict@kvt.nl', [], null, [], '16-10')
 );
 
+function renumberTicket(TicketStore $store, int $from, int $to): void
+{
+    $pdo = storePdo($store);
+    $pdo->exec('PRAGMA foreign_keys = OFF');
+    foreach (['ticket_messages', 'ticket_participants', 'ticket_status_transitions'] as $table) {
+        $statement = $pdo->prepare('UPDATE ' . $table . ' SET ticket_id = :to WHERE ticket_id = :from');
+        $statement->execute([':to' => $to, ':from' => $from]);
+    }
+    $statement = $pdo->prepare('UPDATE tickets SET id = :to WHERE id = :from');
+    $statement->execute([':to' => $to, ':from' => $from]);
+    $pdo->exec('PRAGMA foreign_keys = ON');
+}
+
+$ticketSixteen = (int) $store->createTicket(
+    'Ticket zestien',
+    'Anders',
+    'user@kvt.nl',
+    'Dit is nummer 16 en hoort niet bij 16 oktober',
+    [],
+    0,
+    []
+)['ticket_id'];
+stampTicket($store, $ticketSixteen, $old, $old);
+renumberTicket($store, $ticketSixteen, 16);
+
+$ticketYearNumber = (int) $store->createTicket(
+    'Ticket met jaartal als nummer',
+    'Anders',
+    'user@kvt.nl',
+    'Dit nummer is een jaartal maar het ticket is oud',
+    [],
+    0,
+    []
+)['ticket_id'];
+stampTicket($store, $ticketYearNumber, $old, $old);
+renumberTicket($store, $ticketYearNumber, $year);
+
+$octoberWords = searchIds($store, '16 okt');
+assertTrue('16 okt toont het ticket van die dag', in_array($printer, $octoberWords, true));
+assertTrue('16 okt haalt ticketnummer 16 er niet bij', !in_array(16, $octoberWords, true));
+
+$fullDateWords = searchIds($store, '16 oktober ' . $year);
+assertTrue('16 oktober en jaartal haalt die ticketnummers er niet bij', !in_array(16, $fullDateWords, true) && !in_array($year, $fullDateWords, true));
+
+$yearSearch = searchIds($store, (string) $year);
+assertTrue('Los jaartal vindt nog wel het ticket met dat nummer', in_array($year, $yearSearch, true));
+assertTrue('Los ticketnummer met hekje blijft werken', in_array(16, searchIds($store, '#16'), true));
+
 echo PHP_EOL;
 echo "Resultaat: {$passed} geslaagd, {$failed} gefaald." . PHP_EOL;
 exit($failed > 0 ? 1 : 0);
