@@ -14,4 +14,19 @@ npm run build  # → ../astropius-dist/ (Astro + php-bridge)
 php -S 127.0.0.1:8080 -t ../web
 ```
 
-Open Asclepius, click **Astro** (`astropius_launch.php`) to hand over your session key, then use `/astropius`. Or paste a service API-key in the UI.
+## Local
+
+```bash
+php -S 127.0.0.1:8080 -t ../web
+npm run dev   # http://127.0.0.1:4321/astropius/
+```
+
+In the UI use API-key `local-dev-key` and e-mail `ict@kvt.nl` (stub `web/auth.php`). That hits the **local** SQLite via Vite proxy `/asclepius/api.php`.
+
+To use a **production** Asclepius key against live tickets:
+
+```bash
+ASCLEPIUS_LIVE_ORIGIN=https://sleutels.kvt.nl npm run dev
+```
+
+Then paste your real API-key + ICT e-mail and click **Verbinden**.
