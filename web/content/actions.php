@@ -70,12 +70,29 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
         exit(__('flash.attachment_missing'));
     }
 
+    $wantsThumb = $inlinePreviewRequested
+        && isset($_GET['thumb'])
+        && (string) $_GET['thumb'] === '1'
+        && isImageAttachment($attachment);
+    $thumbBytes = $wantsThumb ? renderAttachmentThumbnailJpeg($storedPath) : null;
+
     if (function_exists('session_status') && function_exists('session_write_close') && session_status() === PHP_SESSION_ACTIVE) {
         session_write_close();
     }
 
     while (ob_get_level() > 0) {
         ob_end_clean();
+    }
+
+    if (is_string($thumbBytes) && $thumbBytes !== '') {
+        header('Content-Type: image/jpeg');
+        header('Content-Length: ' . (string) strlen($thumbBytes));
+        header('Content-Disposition: inline; filename="preview.jpg"');
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, max-age=86400');
+        header('Accept-Ranges: none');
+        echo $thumbBytes;
+        exit;
     }
 
     $serveInline = $inlinePreviewRequested;
@@ -113,8 +130,16 @@ if (isset($_GET['download']) && $store instanceof TicketStore) {
         exit;
     }
 
+    $servedMime = str_replace(["\r", "\n"], '', (string) ($attachment['mime_type'] ?? ''));
+    if ($serveInline && isImageAttachment($attachment)) {
+        $servedMime = imageMimeForAttachment($attachment);
+    }
+    if ($servedMime === '') {
+        $servedMime = 'application/octet-stream';
+    }
+
     header('Content-Description: File Transfer');
-    header('Content-Type: ' . ((string) ($attachment['mime_type'] ?? '') !== '' ? $attachment['mime_type'] : 'application/octet-stream'));
+    header('Content-Type: ' . $servedMime);
     header('Content-Transfer-Encoding: binary');
     header('Content-Disposition: ' . $contentDispositionType . '; filename="' . $downloadName . '"');
     header('X-Content-Type-Options: nosniff');

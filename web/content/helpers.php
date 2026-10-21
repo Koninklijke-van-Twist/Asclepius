@@ -967,6 +967,155 @@ function buildAttachmentContentUrl(array $attachment, string $page = ''): string
 }
 
 /**
+ * Content-Type die een browser in een img-tag mag tonen.
+ * API-uploads kunnen als application/octet-stream zijn opgeslagen terwijl
+ * de extensie wel een afbeelding is; nosniff blokkeert die anders.
+ */
+function imageMimeForAttachment(array $attachment): string
+{
+    $fromExtension = match (attachmentFileExtension($attachment)) {
+        'jpg', 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+        'bmp' => 'image/bmp',
+        'svg' => 'image/svg+xml',
+        default => '',
+    };
+    $mime = strtolower(trim((string) ($attachment['mime_type'] ?? '')));
+    if ($mime === 'image/jpg') {
+        $mime = 'image/jpeg';
+    }
+    $mimeIsImage = $mime !== '' && preg_match('/^image\/[a-z0-9.+-]+$/', $mime) === 1;
+    if ($fromExtension !== '' && ($mime === '' || $mime === 'application/octet-stream' || !$mimeIsImage)) {
+        return $fromExtension;
+    }
+    if ($mimeIsImage) {
+        return $mime;
+    }
+
+    return $fromExtension !== '' ? $fromExtension : 'application/octet-stream';
+}
+
+function buildAttachmentThumbnailUrl(array $attachment, string $page = ''): string
+{
+    if (!isImageAttachment($attachment)) {
+        return '';
+    }
+
+    $fullUrl = buildAttachmentContentUrl($attachment, $page);
+    if ($fullUrl === '' || attachmentFileExtension($attachment) === 'svg') {
+        return $fullUrl;
+    }
+
+    return $fullUrl . '&thumb=1';
+}
+
+/**
+ * JPEG-miniatuur van een opgeslagen afbeelding, of null als dat niet lukt.
+ * Bestaande bijlagen hebben geen miniatuurbestand; de aanroeper valt dan
+ * terug op het origineel.
+ */
+function renderAttachmentThumbnailJpeg(string $storedPath): ?string
+{
+    if ($storedPath === '' || !is_file($storedPath)) {
+        return null;
+    }
+    if (!function_exists('imagecreatefromstring') || !function_exists('imagejpeg') || !function_exists('imagecreatetruecolor')) {
+        return null;
+    }
+
+    $size = @filesize($storedPath);
+    if ($size === false || $size <= 0 || $size > 8 * 1024 * 1024) {
+        return null;
+    }
+
+    $info = @getimagesize($storedPath);
+    if (!is_array($info)) {
+        return null;
+    }
+    $width = (int) ($info[0] ?? 0);
+    $height = (int) ($info[1] ?? 0);
+    $mime = (string) ($info['mime'] ?? '');
+    if ($width <= 0 || $height <= 0 || $width > 8000 || $height > 8000) {
+        return null;
+    }
+    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
+        return null;
+    }
+
+    $cachePath = $storedPath . '.thumb.jpg';
+    if (is_file($cachePath)) {
+        $cacheMtime = @filemtime($cachePath);
+        $sourceMtime = @filemtime($storedPath);
+        $cached = @file_get_contents($cachePath);
+        if (is_string($cached) && $cached !== '' && $cacheMtime !== false && $sourceMtime !== false && $cacheMtime >= $sourceMtime) {
+            return $cached;
+        }
+    }
+
+    $binary = @file_get_contents($storedPath);
+    if (!is_string($binary) || $binary === '') {
+        return null;
+    }
+    $source = @imagecreatefromstring($binary);
+    unset($binary);
+    if ($source === false) {
+        return null;
+    }
+
+    $scale = min(480 / $width, 320 / $height, 1);
+    $targetWidth = max(1, (int) round($width * $scale));
+    $targetHeight = max(1, (int) round($height * $scale));
+    $thumb = imagecreatetruecolor($targetWidth, $targetHeight);
+    if ($thumb === false) {
+        imagedestroy($source);
+
+        return null;
+    }
+
+    $white = imagecolorallocate($thumb, 255, 255, 255);
+    imagefilledrectangle($thumb, 0, 0, $targetWidth, $targetHeight, $white);
+    imagecopyresampled($thumb, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+    imagedestroy($source);
+
+    ob_start();
+    $written = imagejpeg($thumb, null, 82);
+    $bytes = ob_get_clean();
+    imagedestroy($thumb);
+    if ($written !== true || !is_string($bytes) || $bytes === '') {
+        return null;
+    }
+
+    @file_put_contents($cachePath, $bytes, LOCK_EX);
+
+    return $bytes;
+}
+
+function renderAttachmentPreviewImage(array $attachment, string $class, string $loading = 'lazy', string $fetchPriority = 'auto'): string
+{
+    $fullUrl = buildAttachmentContentUrl($attachment);
+    $thumbUrl = buildAttachmentThumbnailUrl($attachment);
+    if ($thumbUrl === '') {
+        $thumbUrl = $fullUrl;
+    }
+    $loading = $loading === 'eager' ? 'eager' : 'lazy';
+    $fetchPriority = in_array($fetchPriority, ['high', 'low', 'auto'], true) ? $fetchPriority : 'auto';
+    $priorityAttr = $fetchPriority === 'auto' ? '' : ' fetchpriority="' . h($fetchPriority) . '"';
+
+    return '<img class="' . h($class) . '"'
+        . ' src="' . h($thumbUrl) . '"'
+        . ' data-thumb-src="' . h($thumbUrl) . '"'
+        . ' data-full-src="' . h($fullUrl) . '"'
+        . ' alt="' . h((string) ($attachment['original_name'] ?? '')) . '"'
+        . ' loading="' . h($loading) . '"'
+        . $priorityAttr
+        . ' decoding="async"'
+        . ' onerror="if(this.dataset.thumbFallback!==\'1\'&&this.dataset.fullSrc&&this.getAttribute(\'src\')!==this.dataset.fullSrc){this.dataset.thumbFallback=\'1\';this.src=this.dataset.fullSrc;}"'
+        . '>';
+}
+
+/**
  * @return array{partial: bool, unsatisfiable: bool, start: int, end: int}
  */
 function parseAttachmentByteRange(int $fileSize, string $rangeHeader): array
@@ -1100,8 +1249,7 @@ function renderMessageInlineAttachmentHtml(array $attachment): string
                     data-preview-src="<?= h($previewUrl) ?>"
                     data-preview-alt="<?= h($originalName) ?>"
                     aria-label="<?= h(__('ticket.preview_image')) ?>">
-                    <img class="attachment-inline-image" data-thumb-src="<?= h($previewUrl) ?>" src=""
-                        alt="<?= h($originalName) ?>" loading="lazy" decoding="async">
+                    <?= renderAttachmentPreviewImage($attachment, 'attachment-inline-image') ?>
                 </button>
             </div>
         <?php elseif (canPreviewFile($attachment)): ?>
@@ -1293,9 +1441,7 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
                                 data-preview-src="<?= h($previewUrl) ?>"
                                 data-preview-alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>"
                                 aria-label="<?= h(__('ticket.preview_image')) ?>">
-                                <img class="attachment-thumb" data-thumb-src="<?= h($previewUrl) ?>" src=""
-                                    alt="<?= h((string) ($attachment['original_name'] ?? '')) ?>" loading="<?= h($thumbLoading) ?>"
-                                    fetchpriority="<?= h($thumbFetchPriority) ?>" decoding="async">
+                                <?= renderAttachmentPreviewImage($attachment, 'attachment-thumb', $thumbLoading, $thumbFetchPriority) ?>
                             </button>
                         <?php endif; ?>
                         <?php if (canPreviewFile($attachment) && !$isImageAttachment): ?>

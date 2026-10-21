@@ -1,3 +1,11 @@
+id: 2026-10-21-attachment-image-previews
+date: 2026-10-21
+title: Image attachment previews
+author: Cursor Agent
+
+An image attached to a ticket message shows a preview again, including images added through the attachments API. If there is no thumbnail, the original file is shown. Other file types keep their existing icon.
+
+---
 id: 2026-10-16-ghost-code-background
 date: 2026-10-16
 title: A code block in a ghost message is one panel
