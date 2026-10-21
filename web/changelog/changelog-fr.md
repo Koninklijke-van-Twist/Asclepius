@@ -1,3 +1,11 @@
+id: 2026-10-21-attachment-image-previews
+date: 2026-10-21
+title: Aperçu des images jointes
+author: Cursor Agent
+
+Une image jointe à un message de ticket affiche de nouveau un aperçu, y compris lorsqu'elle a été ajoutée via l'API des pièces jointes. S'il n'y a pas de miniature, le fichier d'origine s'affiche. Les autres types de fichiers gardent leur icône actuelle.
+
+---
 id: 2026-10-16-ghost-code-background
 date: 2026-10-16
 title: Un bloc de code dans un message fantôme forme un seul fond

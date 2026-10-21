@@ -299,7 +299,7 @@ Bij succes heeft het antwoord ook:
 "ticket_url": "https://sleutels.kvt.nl/asclepius/index.php?open=123"
 ```
 
-`url` is het opslagpad onder `data/ticket_uploads/`. De webserver levert dat pad niet uit. De thread toont de afbeelding via `download_url` met `&preview=1` (inline, met Content-Type en Content-Disposition). Voor `download_url` moet je ingelogd zijn. Zonder `attachments` blijft het antwoord precies zoals hiervoor.
+`url` is het opslagpad onder `data/ticket_uploads/`. De webserver levert dat pad niet uit. De thread toont de afbeelding via `download_url` met `&preview=1` (inline, met Content-Type en Content-Disposition). Het kleine voorbeeld vraagt `&preview=1&thumb=1`. Lukt die miniatuur niet, dan valt de pagina terug op het origineel via `&preview=1`. Voor `download_url` moet je ingelogd zijn. Zonder `attachments` blijft het antwoord precies zoals hiervoor.
 
 Notificaties: een zichtbaar bericht met bijlagen volgt dezelfde regels als een bericht zonder bijlagen, in de webinterface en via de API. De updatemail naar deelnemers gaat bij een zichtbare tekst, een statuswijziging, een toewijzing of openbare bijlagen, in de taal van elke ontvanger. Bij `ghost: true` horen de bijlagen bij het ghost-bericht en gaat er nog geen mail weg. In de mail staan inline markers als `📎 bestandsnaam`.
 

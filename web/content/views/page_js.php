@@ -10567,64 +10567,58 @@
             });
         }
 
-        // File preview modal + lazy thumbnails
+        // File preview modal + image previews.
+        // De src staat al in de HTML (miniatuur, of het origineel als die ontbreekt).
+        // Een mislukte miniatuur valt terug op data-full-src; de src wordt niet leeggemaakt,
+        // anders blijft een plat gebroken icoon staan terwijl de klik wel werkt.
         var previewModal = null;
         var previewIframe = null;
-        var pendingThumbImages = [];
-        var activeThumbLoads = 0;
-        var MAX_CONCURRENT_THUMB_LOADS = 2;
 
-        var loadNextThumbImage = function ()
+        var bindAttachmentImagePreview = function (imageThumb)
         {
-            while (activeThumbLoads < MAX_CONCURRENT_THUMB_LOADS && pendingThumbImages.length > 0)
-            {
-                var imageThumb = pendingThumbImages.shift();
-                if (!imageThumb || imageThumb.dataset.thumbLoaded === '1')
-                {
-                    continue;
-                }
-
-                var thumbSrc = imageThumb.getAttribute('data-thumb-src') || '';
-                if (!thumbSrc)
-                {
-                    var missingSrcButton = imageThumb.closest('.attachment-thumb-button');
-                    if (missingSrcButton)
-                    {
-                        missingSrcButton.remove();
-                    }
-                    continue;
-                }
-
-                activeThumbLoads += 1;
-                imageThumb.dataset.thumbLoaded = '1';
-
-                var finalizeThumbLoad = function ()
-                {
-                    activeThumbLoads = Math.max(0, activeThumbLoads - 1);
-                    loadNextThumbImage();
-                };
-
-                imageThumb.addEventListener('load', finalizeThumbLoad, { once: true });
-                imageThumb.addEventListener('error', function ()
-                {
-                    imageThumb.removeAttribute('src');
-                    imageThumb.dataset.thumbLoaded = '0';
-                    finalizeThumbLoad();
-                }, { once: true });
-                imageThumb.src = thumbSrc;
-            }
-        };
-
-        var enqueueThumbImage = function (imageThumb)
-        {
-            if (!imageThumb || imageThumb.dataset.thumbQueued === '1' || imageThumb.dataset.thumbLoaded === '1')
+            if (!imageThumb || imageThumb.dataset.thumbBound === '1')
             {
                 return;
             }
 
-            imageThumb.dataset.thumbQueued = '1';
-            pendingThumbImages.push(imageThumb);
-            loadNextThumbImage();
+            imageThumb.dataset.thumbBound = '1';
+            var thumbSrc = imageThumb.getAttribute('data-thumb-src') || '';
+            var fullSrc = imageThumb.getAttribute('data-full-src') || thumbSrc;
+            if (!thumbSrc && !fullSrc)
+            {
+                var missingSrcButton = imageThumb.closest('.attachment-thumb-button');
+                if (missingSrcButton)
+                {
+                    missingSrcButton.remove();
+                }
+                return;
+            }
+
+            var useFullImage = function ()
+            {
+                if (!fullSrc || imageThumb.dataset.thumbFallback === '1')
+                {
+                    return;
+                }
+                if ((imageThumb.getAttribute('src') || '') === fullSrc)
+                {
+                    return;
+                }
+                imageThumb.dataset.thumbFallback = '1';
+                imageThumb.loading = 'eager';
+                imageThumb.src = fullSrc;
+            };
+
+            imageThumb.addEventListener('error', useFullImage);
+            if (!imageThumb.getAttribute('src'))
+            {
+                imageThumb.src = thumbSrc || fullSrc;
+            }
+            else if (imageThumb.complete && imageThumb.naturalWidth === 0)
+            {
+                useFullImage();
+            }
+            imageThumb.loading = 'eager';
         };
 
         var hydrateTicketThumbnails = function (ticketCard)
@@ -10634,9 +10628,9 @@
                 return;
             }
 
-            ticketCard.querySelectorAll('img[data-thumb-src]').forEach(function (imageThumb)
+            ticketCard.querySelectorAll('img[data-thumb-src], img[data-full-src]').forEach(function (imageThumb)
             {
-                enqueueThumbImage(imageThumb);
+                bindAttachmentImagePreview(imageThumb);
             });
 
             ticketCard.querySelectorAll('[data-file-thumb-open]').forEach(function (thumbButton)

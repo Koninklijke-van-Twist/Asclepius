@@ -3061,6 +3061,10 @@
             max-height: 320px;
             width: auto;
             height: auto;
+            min-width: 120px;
+            min-height: 72px;
+            object-fit: contain;
+            background: #fff;
             border-radius: 8px;
             margin-bottom: 0;
         }
@@ -3534,16 +3538,20 @@
             border-radius: 10px;
             padding: 2px;
             background: #fff;
-            line-height: 0;
+            color: #10233f;
+            font-weight: 600;
+            line-height: 1.2;
             cursor: zoom-in;
         }
 
         .attachment-thumb {
             display: block;
             width: 100px;
+            height: 70px;
             max-width: 100px;
             max-height: 70px;
             object-fit: cover;
+            background: #f4f7fb;
             border-radius: 8px;
         }
 
@@ -3741,6 +3749,7 @@
             }
 
             .attachment-thumb {
+                height: 64px;
                 max-height: 64px;
             }
 

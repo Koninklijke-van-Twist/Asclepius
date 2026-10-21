@@ -1,3 +1,11 @@
+id: 2026-10-21-attachment-image-previews
+date: 2026-10-21
+title: Vorschau von Bildanhängen
+author: Cursor Agent
+
+Ein Bild an einer Ticketnachricht zeigt wieder eine Vorschau, auch wenn es über die Anhang-API hinzugefügt wurde. Fehlt eine Miniatur, wird die Originaldatei angezeigt. Andere Dateitypen behalten ihr bisheriges Symbol.
+
+---
 id: 2026-10-16-ghost-code-background
 date: 2026-10-16
 title: Ein Codeblock in einer Ghost-Nachricht ist eine Fläche

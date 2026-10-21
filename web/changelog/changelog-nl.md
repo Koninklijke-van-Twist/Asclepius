@@ -1,3 +1,11 @@
+id: 2026-10-21-attachment-image-previews
+date: 2026-10-21
+title: Voorbeeld van afbeeldingsbijlagen
+author: Cursor Agent
+
+Een afbeelding bij een ticketbericht toont weer een voorbeeld, ook als die via de bijlagen-API is toegevoegd. Ontbreekt een miniatuur, dan wordt het originele bestand getoond. Andere bestandstypen houden hun bestaande icoon.
+
+---
 id: 2026-10-16-ghost-code-background
 date: 2026-10-16
 title: Codeblok in een ghostbericht is één vlak
