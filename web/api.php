@@ -2430,6 +2430,76 @@ function buildApiAttachmentAbsoluteUrl(string $relativePath): string
 }
 
 /**
+ * API-download-URL voor een bijlage (vereist X-API-Key; zelfde autorisatie als GET ?id=).
+ */
+function buildApiAttachmentDownloadUrl(int $attachmentId): string
+{
+    return $attachmentId > 0 ? buildApiAttachmentAbsoluteUrl('api.php?action=get_attachment&id=' . $attachmentId) : '';
+}
+
+/**
+ * Voegt download_url toe aan elke bijlage in een ticket (berichten en ticket-niveau).
+ */
+function addApiDownloadUrlsToTicket(array $ticket): array
+{
+    $enrich = static function (array $attachments): array {
+        foreach ($attachments as $i => $attachment) {
+            if (is_array($attachment)) {
+                $attachments[$i]['download_url'] = buildApiAttachmentDownloadUrl((int) ($attachment['id'] ?? 0));
+            }
+        }
+        return $attachments;
+    };
+    if (is_array($ticket['attachments'] ?? null)) {
+        $ticket['attachments'] = $enrich($ticket['attachments']);
+    }
+    foreach ((is_array($ticket['messages'] ?? null) ? $ticket['messages'] : []) as $m => $message) {
+        if (is_array($message) && is_array($message['attachments'] ?? null)) {
+            $ticket['messages'][$m]['attachments'] = $enrich($message['attachments']);
+        }
+    }
+    return $ticket;
+}
+
+/**
+ * Streamt een bijlage voor een geauthenticeerde API-client. Zelfde rechten als GET ?id= (volledige ticketinzage).
+ */
+function streamApiAttachment(TicketStore $store, int $attachmentId, bool $inline): void
+{
+    $attachment = $attachmentId > 0 ? $store->getAttachment($attachmentId) : null;
+    $storedPath = is_array($attachment) ? (string) ($attachment['stored_path'] ?? '') : '';
+    $ticketId = is_array($attachment) ? max(0, (int) ($attachment['ticket_id'] ?? 0)) : 0;
+    $ticket = $ticketId > 0 ? $store->getTicket($ticketId, true, '', 'default', true) : null;
+    if ($attachment === null || $ticket === null || $storedPath === '' || !is_file($storedPath)) {
+        sendJson(404, ['success' => false, 'error' => 'attachment_not_found']);
+    }
+    clearstatcache(true, $storedPath);
+    $size = filesize($storedPath);
+    if ($size === false) {
+        sendJson(500, ['success' => false, 'error' => 'attachment_missing']);
+    }
+    $mime = str_replace(["\r", "\n"], '', (string) ($attachment['mime_type'] ?? ''));
+    if (isImageAttachment($attachment)) {
+        $mime = imageMimeForAttachment($attachment);
+    }
+    if ($mime === '') {
+        $mime = 'application/octet-stream';
+    }
+    $name = buildAttachmentDownloadFilename($attachment, (string) ($ticket['user_email'] ?? ''));
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    http_response_code(200);
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . (string) $size);
+    header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $name . '"');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, no-store');
+    readfile($storedPath);
+    exit;
+}
+
+/**
  * @return list<array<string, mixed>>
  */
 function buildApiMessageAttachmentsResponse(?array $message, array $inlineNames): array
@@ -2450,7 +2520,8 @@ function buildApiMessageAttachmentsResponse(?array $message, array $inlineNames)
             'inline' => in_array($name, $inlineNames, true),
             'marker' => buildAttachmentMessageMarker($name),
             'url' => $directUrl !== '' ? buildApiAttachmentAbsoluteUrl($directUrl) : '',
-            'download_url' => $attachmentId > 0 ? buildApiAttachmentAbsoluteUrl('index.php?download=' . $attachmentId) : '',
+            'download_url' => buildApiAttachmentDownloadUrl($attachmentId),
+            'web_download_url' => $attachmentId > 0 ? buildApiAttachmentAbsoluteUrl('index.php?download=' . $attachmentId) : '',
         ];
     }
 
@@ -3810,6 +3881,10 @@ if ($method === 'GET') {
         sendJson(200, buildTicketLookupsApiPayload($getAction));
     }
 
+    if ($getAction === 'get_attachment') {
+        streamApiAttachment($store, max(0, (int) ($_GET['id'] ?? 0)), isApiTruthy($_GET['inline'] ?? $_GET['preview'] ?? false));
+    }
+
     $ticketId = max(0, (int) ($_GET['id'] ?? 0));
 
     if ($ticketId > 0) {
@@ -3824,7 +3899,7 @@ if ($method === 'GET') {
 
         sendJson(200, [
             'success' => true,
-            'ticket' => $ticket,
+            'ticket' => addApiDownloadUrlsToTicket($ticket),
         ]);
     }
 
