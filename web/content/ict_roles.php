@@ -158,7 +158,7 @@ function buildLimitedRoleStatsBundle(TicketStore $store, int $roleId, array $acc
         'waiting_third_party_tickets' => 0,
     ];
     $statsByAssignee = [];
-    foreach ($roleMemberEmails as $memberEmail) {
+    foreach (array_merge([''], $roleMemberEmails) as $memberEmail) {
         $statsByAssignee[$memberEmail] = [
             'user_email' => $memberEmail,
             'handled_count' => 0,
@@ -195,7 +195,11 @@ function buildLimitedRoleStatsBundle(TicketStore $store, int $roleId, array $acc
         }
 
         $assignee = strtolower(trim((string) ($scopedTicket['assigned_email'] ?? '')));
-        if ($assignee !== '' && isset($statsByAssignee[$assignee])) {
+        if ($assignee !== '' && !isset($statsByAssignee[$assignee])) {
+            // Assignees outside the role (other groups / ictUsers) with tickets in the role's categories also count.
+            $statsByAssignee[$assignee] = ['user_email' => $assignee] + $statsByAssignee[''];
+        }
+        if ($assignee !== '') {
             if ($status === 'afgehandeld') {
                 $statsByAssignee[$assignee]['handled_count']++;
             } else {
@@ -220,7 +224,7 @@ function buildLimitedRoleStatsBundle(TicketStore $store, int $roleId, array $acc
 
     return [
         'overall' => $overallStats,
-        'ict' => array_values($statsByAssignee),
+        'ict' => array_values(array_diff_key($statsByAssignee, ['' => true])),
         'requester' => $requesterStats,
         'tickets' => $scopedTickets,
     ];
