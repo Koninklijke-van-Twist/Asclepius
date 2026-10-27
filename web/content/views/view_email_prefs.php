@@ -289,6 +289,13 @@
                             : __('grok_webhook.send_key_placeholder')) ?>">
                 </label>
                 <p class="hint"><?= h(__('grok_webhook.send_key_help')) ?></p>
+                <label class="email-prefs-label">
+                    <input type="checkbox" name="also_default" data-grok-webhook-also-default
+                        data-stored="<?= !empty($grokWebhookPrefs['also_default']) ? '1' : '0' ?>"
+                        <?= !empty($grokWebhookPrefs['also_default']) ? 'checked' : '' ?>
+                        <?= !empty($grokWebhookPrefs['configured']) ? '' : 'disabled' ?>>
+                    <span><?= h(__('grok_webhook.also_default')) ?></span>
+                </label>
                 <div class="button-row">
                     <button type="submit" class="primary-button" data-grok-webhook-save><?= h(__('grok_webhook.save')) ?></button>
                     <button type="button" class="secondary-button" data-grok-webhook-clear

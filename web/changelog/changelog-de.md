@@ -1,3 +1,13 @@
+id: 2026-10-27-grok-default-webhook-optional
+date: 2026-10-27
+title: Standard-Grok-Bot neben deinem eigenen Webhook
+author: Cursor Agent
+
+Unter deinem eigenen Grok-Webhook in **Präferenzen** gibt es ein Kontrollkästchen: *Zusätzlich weiterhin den Standard-Grok-Bot-Webhook neben meinem eigenen Webhook verwenden.* Es lässt sich nur mit gültigem Webhook und Sendeschlüssel ändern.
+
+Ist es aus, erhält bei dir zugewiesenen Tickets nur dein Webhook die Meldung, nicht der Standard-Grok-Bot. Ist es an, erhalten beide die Meldung, wie bisher. Mit eigenem Webhook ist es standardmäßig aus, auch wenn du schon einen Webhook hattest. Tickets anderer oder ohne Bearbeiter gehen weiterhin an den Standard-Grok-Bot.
+
+---
 id: 2026-10-21-attachment-image-previews
 date: 2026-10-21
 title: Vorschau von Bildanhängen

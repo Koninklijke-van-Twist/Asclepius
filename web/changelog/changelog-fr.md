@@ -1,3 +1,13 @@
+id: 2026-10-27-grok-default-webhook-optional
+date: 2026-10-27
+title: Bot Grok par défaut en plus de ton webhook
+author: Cursor Agent
+
+Sous ton webhook Grok personnel dans **Préférences**, une case à cocher : *Continuer à utiliser aussi le webhook Grok par défaut en plus de mon propre webhook.* Elle ne se modifie qu’avec un webhook et une clé d’envoi valides.
+
+Décochée, les tickets qui te sont assignés notifient uniquement ton webhook, pas le bot Grok par défaut. Cochée, les deux sont notifiés, comme avant. Avec ton propre webhook, la case est décochée par défaut, y compris si tu avais déjà un webhook. Les tickets des autres ou sans responsable vont toujours au bot Grok par défaut.
+
+---
 id: 2026-10-21-attachment-image-previews
 date: 2026-10-21
 title: Aperçu des images jointes
