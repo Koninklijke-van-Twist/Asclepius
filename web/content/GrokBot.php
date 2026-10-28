@@ -7,7 +7,10 @@
  * when it is enabled, with that config's sender_email, default_name and
  * default_title. Exception: the ticket assignee has a personal webhook and
  * turned "also use the default webhook" off (the default for a stored
- * webhook); then only the personal webhook is called for that ticket.
+ * webhook); then only the personal webhook is called for that ticket. For
+ * AI-advies only the requester decides: with a valid personal webhook and the
+ * checkbox off the global webhook is skipped; the assignee's checkbox does not
+ * count there. Personal webhooks of assignee and requester still fire (deduped).
  *
  * A personal webhook saved under Voorkeuren fires for the same event as well
  * when the ticket assignee has one configured, and when an acting ICT user is
@@ -330,7 +333,13 @@ class GrokBot
         }
 
         $assigned = self::assignedEmail($ticketId, $context);
-        $skipGlobal = self::assigneeSkipsDefaultWebhook($assigned);
+        $actor = self::actorEmail($context);
+        if ($type === self::EVENT_RE_EVALUATE_AND_ADVISE && $actor !== '') {
+            // AI-advies: only the requester's choice decides the global webhook.
+            $skipGlobal = self::userSkipsDefaultWebhook($actor);
+        } else {
+            $skipGlobal = self::userSkipsDefaultWebhook($assigned);
+        }
         $sent = $skipGlobal ? false : self::deliverWebhook($ticketId, $type, $config, $extra);
 
         foreach (self::personalWebhookConfigs($ticketId, $context, $assigned) as $personalConfig) {
@@ -425,15 +434,28 @@ class GrokBot
     }
 
     /**
-     * The assignee turned off "also use the default webhook" and has a personal
-     * webhook that passes the send-time URL check, so only that one is called.
+     * Acting ICT user from the context (AI-advies requester). '' when none or invalid.
+     *
+     * @param array<string, mixed> $context
      */
-    private static function assigneeSkipsDefaultWebhook(string $assigned): bool
+    private static function actorEmail(array $context): string
     {
-        if ($assigned === '') {
+        $actor = strtolower(trim((string) ($context['actor_email'] ?? '')));
+
+        return $actor !== '' && filter_var($actor, FILTER_VALIDATE_EMAIL) ? $actor : '';
+    }
+
+    /**
+     * The user turned off "also use the default webhook" and has a personal
+     * webhook that passes the send-time URL check. Applies to the assignee for
+     * every event, and to the AI-advies requester for that event.
+     */
+    private static function userSkipsDefaultWebhook(string $email): bool
+    {
+        if ($email === '') {
             return false;
         }
-        $stored = self::readUserWebhook($assigned);
+        $stored = self::readUserWebhook($email);
 
         return $stored !== null && !$stored['also_default'] && self::isAllowedWebhookUrl($stored['webhook_url']);
     }

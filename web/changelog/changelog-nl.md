@@ -7,6 +7,8 @@ Onder je eigen Grok-webhook in **Voorkeuren** staat een vinkje: *Nog steeds addi
 
 Staat het uit, dan krijgt bij tickets die aan jou zijn toegewezen alleen jouw webhook de melding, niet de standaard Grok-bot. Staat het aan, dan krijgen ze allebei de melding, zoals eerder. Met een eigen webhook staat het vinkje standaard uit. Dat geldt ook als je al een webhook had. Tickets van anderen of zonder behandelaar gaan zoals voorheen naar de standaard Grok-bot.
 
+Voor **AI-advies** telt jouw vinkje als jij het advies aanvraagt, ook bij een ticket van iemand anders: staat het uit, dan gaat het advies naar jouw eigen bot en niet naar de standaard Grok-bot. Het vinkje van de behandelaar telt dan niet. Zonder eigen webhook gaat AI-advies naar de standaard Grok-bot.
+
 ---
 id: 2026-10-21-attachment-image-previews
 date: 2026-10-21

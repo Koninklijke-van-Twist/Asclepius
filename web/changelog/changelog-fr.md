@@ -7,6 +7,8 @@ Sous ton webhook Grok personnel dans **Préférences**, une case à cocher : *Co
 
 Décochée, les tickets qui te sont assignés notifient uniquement ton webhook, pas le bot Grok par défaut. Cochée, les deux sont notifiés, comme avant. Avec ton propre webhook, la case est décochée par défaut, y compris si tu avais déjà un webhook. Les tickets des autres ou sans responsable vont toujours au bot Grok par défaut.
 
+Pour le **conseil IA**, ta case compte quand c’est toi qui le demandes, même sur le ticket de quelqu’un d’autre : décochée, le conseil va à ton propre bot et pas au bot Grok par défaut. La case du responsable ne compte pas alors. Sans webhook personnel, le conseil IA va au bot Grok par défaut.
+
 ---
 id: 2026-10-21-attachment-image-previews
 date: 2026-10-21

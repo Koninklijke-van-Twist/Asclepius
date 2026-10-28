@@ -356,12 +356,14 @@ Headers:
 
 ### Welke webhook
 
-De centrale webhook uit `auth.php` (`$grokBot`) blijft bij elke gebeurtenis hierboven aangeroepen worden, zolang `enabled` aan staat en `webhook_url` geldig is. Afzender, weergavenaam en titel blijven `sender_email`, `default_name` en `default_title` uit die config. Een URL is geldig als het `http` of `https` is en de host niet naar loopback, een privénetwerk, link-local, CGNAT of een metadata-adres wijst. Die controle gebeurt opnieuw vlak voor verzending; het verzoek gaat naar het dan gecontroleerde adres en volgt geen redirect.
+De centrale webhook uit `auth.php` (`$grokBot`) wordt bij elke gebeurtenis hierboven aangeroepen (uitzondering: zie het vinkje *standaard Grok-bot* hieronder), zolang `enabled` aan staat en `webhook_url` geldig is. Afzender, weergavenaam en titel blijven `sender_email`, `default_name` en `default_title` uit die config. Een URL is geldig als het `http` of `https` is en de host niet naar loopback, een privénetwerk, link-local, CGNAT of een metadata-adres wijst. Die controle gebeurt opnieuw vlak voor verzending; het verzoek gaat naar het dan gecontroleerde adres en volgt geen redirect.
 
 Daarnaast kan een beheerder onder **Voorkeuren** een eigen webhook-URL en verzendsleutel zetten (`save_grok_webhook`). Die persoonlijke webhook krijgt **dezelfde gebeurtenis erbij** wanneer:
 
 - het ticket aan die gebruiker is toegewezen, of
 - die gebruiker AI-advies aanvraagt (`re-evaluate-ticket-and-advise`; dan ook als die persoon niet de behandelaar is)
+
+Vinkje *standaard Grok-bot* (`also_default`, standaard uit bij een eigen webhook): staat het uit en is de persoonlijke URL vlak voor verzending geldig, dan wordt de centrale webhook overgeslagen. Bij gewone ticketgebeurtenissen telt het vinkje van de **behandelaar**; bij AI-advies alleen dat van de **aanvrager**.
 
 Dezelfde persoon wordt één keer aangeroepen. Zijn URL én verzendsleutel gelijk aan de centrale webhook, dan volgt geen tweede aanroep: de centrale afzender blijft dan gelden.
 

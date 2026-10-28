@@ -296,8 +296,8 @@ $adviceSent = GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, 'Kijk nog ee
     'assigned_email' => 'assignee-webhook@example.com',
 ]);
 assertTrue('AI-advies met persoonlijke webhooks slaagt', $adviceSent);
-assertSame('AI-advies: centraal, behandelaar en aanvrager van advies', [
-    'https://example.com/global-webhook',
+// Aanvrager heeft een eigen webhook zonder opgeslagen keuze (= uit): geen centraal.
+assertSame('AI-advies: behandelaar en aanvrager, centraal uit door aanvrager', [
     'https://example.com/personal-webhook',
     'https://example.com/actor-webhook',
 ], capturedUrls());
@@ -350,13 +350,64 @@ assertSame('Vinkje uit: AI-advies zonder centraal', [
     'https://example.com/personal-webhook',
     'https://example.com/actor-webhook',
 ], capturedUrls());
-GrokBot::saveUserWebhook('actor-webhook@example.com', 'https://example.com/actor-webhook', '', null, true);
+echo PHP_EOL . "--- AI-advies: alleen het vinkje van de aanvrager telt ---" . PHP_EOL;
+$advise = static function (string $actor, string $assigned) use ($store, $ticketId): array {
+    resetCaptured();
+    GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, '', null, [
+        'actor_email' => $actor,
+        'assigned_email' => $assigned,
+    ]);
+    return capturedUrls();
+};
+$A = 'assignee-webhook@example.com';
+$R = 'actor-webhook@example.com';
+// Aanvrager uit, behandelaar aan.
+GrokBot::saveUserWebhook($A, 'https://example.com/personal-webhook', '', null, true);
+GrokBot::saveUserWebhook($R, 'https://example.com/actor-webhook', '', null, false);
+assertSame('Aanvrager uit / behandelaar aan: geen centraal', [
+    'https://example.com/personal-webhook',
+    'https://example.com/actor-webhook',
+], $advise($R, $A));
+// Aanvrager aan, behandelaar uit.
+GrokBot::saveUserWebhook($A, 'https://example.com/personal-webhook', '', null, false);
+GrokBot::saveUserWebhook($R, 'https://example.com/actor-webhook', '', null, true);
+assertSame('Aanvrager aan / behandelaar uit: centraal blijft', [
+    'https://example.com/global-webhook',
+    'https://example.com/personal-webhook',
+    'https://example.com/actor-webhook',
+], $advise($R, $A));
+// Beide uit.
+GrokBot::saveUserWebhook($R, 'https://example.com/actor-webhook', '', null, false);
+assertSame('Beide uit: geen centraal', [
+    'https://example.com/personal-webhook',
+    'https://example.com/actor-webhook',
+], $advise($R, $A));
+// Aanvrager is behandelaar.
+assertSame('Aanvrager = behandelaar, uit: alleen eigen webhook', [
+    'https://example.com/personal-webhook',
+], $advise($A, $A));
+GrokBot::saveUserWebhook($A, 'https://example.com/personal-webhook', '', null, true);
+assertSame('Aanvrager = behandelaar, aan: centraal en eigen', [
+    'https://example.com/global-webhook',
+    'https://example.com/personal-webhook',
+], $advise($A, $A));
+// Aanvrager zonder webhook, behandelaar uit.
+GrokBot::saveUserWebhook($A, 'https://example.com/personal-webhook', '', null, false);
+assertSame('Aanvrager zonder webhook: centraal en behandelaar', [
+    'https://example.com/global-webhook',
+    'https://example.com/personal-webhook',
+], $advise('nobody@example.com', $A));
+// Andere gebeurtenissen: nog steeds alleen de behandelaar.
 resetCaptured();
-GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, '', null, [
-    'actor_email' => 'assignee-webhook@example.com',
-    'assigned_email' => 'actor-webhook@example.com',
-]);
-assertSame('Niet-toegewezen aanvrager laat centraal staan', [
+GrokBot::notifyTicketSolved($store, $ticketId, null, ['assigned_email' => $R, 'actor_email' => $A]);
+assertSame('Afhandelen: vinkje van behandelaar (uit) telt', [
+    'https://example.com/actor-webhook',
+    'https://example.com/personal-webhook',
+], capturedUrls());
+GrokBot::saveUserWebhook($R, 'https://example.com/actor-webhook', '', null, true);
+resetCaptured();
+GrokBot::notifyTicketSolved($store, $ticketId, null, ['assigned_email' => $R, 'actor_email' => $A]);
+assertSame('Afhandelen: actor-vinkje telt niet', [
     'https://example.com/global-webhook',
     'https://example.com/actor-webhook',
     'https://example.com/personal-webhook',

@@ -7,6 +7,8 @@ Under your own Grok webhook in **Preferences** there is a checkbox: *Also keep u
 
 When it is off, tickets assigned to you notify only your webhook, not the default Grok bot. When it is on, both are notified, as before. With your own webhook the checkbox is off by default, including if you already had a webhook. Tickets of others or without an assignee still go to the default Grok bot.
 
+For **AI advice**, your checkbox counts when you request the advice, also on someone else's ticket: when it is off, the advice goes to your own bot and not to the default Grok bot. The assignee's checkbox does not count then. Without your own webhook, AI advice goes to the default Grok bot.
+
 ---
 id: 2026-10-21-attachment-image-previews
 date: 2026-10-21
