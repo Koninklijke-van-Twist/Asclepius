@@ -3,9 +3,14 @@
 /**
  * Outbound Grok webhooks.
  *
- * The global webhook from auth.php ($grokBot) keeps firing for every ticket
- * event when it is enabled, with that config's sender_email, default_name
- * and default_title.
+ * The global webhook from auth.php ($grokBot) fires for every ticket event
+ * when it is enabled, with that config's sender_email, default_name and
+ * default_title. Exception: the ticket assignee has a personal webhook and
+ * turned "also use the default webhook" off (the default for a stored
+ * webhook); then only the personal webhook is called for that ticket. For
+ * AI-advies only the requester decides: with a valid personal webhook and the
+ * checkbox off the global webhook is skipped; the assignee's checkbox does not
+ * count there. Personal webhooks of assignee and requester still fire (deduped).
  *
  * A personal webhook saved under Voorkeuren fires for the same event as well
  * when the ticket assignee has one configured, and when an acting ICT user is
@@ -179,6 +184,8 @@ class GrokBot
                 'configured' => false,
                 'webhook_url' => '',
                 'has_send_key' => false,
+                // Without a personal webhook only the default bot applies.
+                'also_default' => true,
             ];
         }
 
@@ -186,22 +193,26 @@ class GrokBot
             'configured' => true,
             'webhook_url' => $stored['webhook_url'],
             'has_send_key' => $stored['send_key'] !== '',
+            'also_default' => $stored['also_default'],
         ];
     }
 
     /**
      * Store a personal webhook in the existing user-prefs JSON (web/data, not in git).
      * An empty send key keeps the key already stored for this user.
+     * $alsoDefault: also call the auth.php webhook for tickets assigned to this
+     * user. Null keeps the stored choice (off when none is stored).
      *
-     * @return array{ok: bool, error_code: string, webhook: array{configured: bool, webhook_url: string, has_send_key: bool}}
+     * @return array{ok: bool, error_code: string, webhook: array<string, mixed>}
      */
-    public static function saveUserWebhook(string $email, string $webhookUrl, string $sendKey, ?string $displayName = null): array
+    public static function saveUserWebhook(string $email, string $webhookUrl, string $sendKey, ?string $displayName = null, ?bool $alsoDefault = null): array
     {
         $email = strtolower(trim($email));
         $empty = [
             'configured' => false,
             'webhook_url' => '',
             'has_send_key' => false,
+            'also_default' => true,
         ];
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !function_exists('saveUserPref')) {
             return [
@@ -249,6 +260,7 @@ class GrokBot
             'webhook_url' => $webhookUrl,
             'send_key' => $sendKey,
             'display_name' => $name,
+            'also_default' => $alsoDefault ?? ($existing['also_default'] ?? false),
             'updated_at' => date('c'),
         ]);
         self::restrictUserPrefsFile($email);
@@ -316,13 +328,22 @@ class GrokBot
             $config = is_array($grokBot ?? null) ? $grokBot : [];
         }
 
-        $sent = self::deliverWebhook($ticketId, $type, $config, $extra);
         if (!empty($context['skip_personal'])) {
-            return $sent;
+            return self::deliverWebhook($ticketId, $type, $config, $extra);
         }
 
-        foreach (self::personalWebhookConfigs($ticketId, $context) as $personalConfig) {
-            if (self::sameWebhookDestination($config, $personalConfig)) {
+        $assigned = self::assignedEmail($ticketId, $context);
+        $actor = self::actorEmail($context);
+        if ($type === self::EVENT_RE_EVALUATE_AND_ADVISE && $actor !== '') {
+            // AI-advies: only the requester's choice decides the global webhook.
+            $skipGlobal = self::userSkipsDefaultWebhook($actor);
+        } else {
+            $skipGlobal = self::userSkipsDefaultWebhook($assigned);
+        }
+        $sent = $skipGlobal ? false : self::deliverWebhook($ticketId, $type, $config, $extra);
+
+        foreach (self::personalWebhookConfigs($ticketId, $context, $assigned) as $personalConfig) {
+            if (!$skipGlobal && self::sameWebhookDestination($config, $personalConfig)) {
                 continue;
             }
             if (self::deliverWebhook($ticketId, $type, $personalConfig, $extra)) {
@@ -372,15 +393,11 @@ class GrokBot
      * @param array<string, mixed> $context
      * @return list<array<string, mixed>>
      */
-    private static function personalWebhookConfigs(int $ticketId, array $context): array
+    private static function personalWebhookConfigs(int $ticketId, array $context, ?string $assigned = null): array
     {
         $emails = [];
-        $assigned = strtolower(trim((string) ($context['assigned_email'] ?? '')));
-        $store = $context['store'] ?? null;
-        if ($assigned === '' && $ticketId > 0 && $store instanceof TicketStore && method_exists($store, 'getTicketAssigneeEmail')) {
-            $assigned = strtolower(trim($store->getTicketAssigneeEmail($ticketId)));
-        }
-        if ($assigned !== '' && filter_var($assigned, FILTER_VALIDATE_EMAIL)) {
+        $assigned = $assigned ?? self::assignedEmail($ticketId, $context);
+        if ($assigned !== '') {
             $emails[$assigned] = $assigned;
         }
 
@@ -398,6 +415,49 @@ class GrokBot
         }
 
         return $configs;
+    }
+
+    /**
+     * Ticket assignee from the context, else from the store. '' when none or invalid.
+     *
+     * @param array<string, mixed> $context
+     */
+    private static function assignedEmail(int $ticketId, array $context): string
+    {
+        $assigned = strtolower(trim((string) ($context['assigned_email'] ?? '')));
+        $store = $context['store'] ?? null;
+        if ($assigned === '' && $ticketId > 0 && $store instanceof TicketStore && method_exists($store, 'getTicketAssigneeEmail')) {
+            $assigned = strtolower(trim($store->getTicketAssigneeEmail($ticketId)));
+        }
+
+        return $assigned !== '' && filter_var($assigned, FILTER_VALIDATE_EMAIL) ? $assigned : '';
+    }
+
+    /**
+     * Acting ICT user from the context (AI-advies requester). '' when none or invalid.
+     *
+     * @param array<string, mixed> $context
+     */
+    private static function actorEmail(array $context): string
+    {
+        $actor = strtolower(trim((string) ($context['actor_email'] ?? '')));
+
+        return $actor !== '' && filter_var($actor, FILTER_VALIDATE_EMAIL) ? $actor : '';
+    }
+
+    /**
+     * The user turned off "also use the default webhook" and has a personal
+     * webhook that passes the send-time URL check. Applies to the assignee for
+     * every event, and to the AI-advies requester for that event.
+     */
+    private static function userSkipsDefaultWebhook(string $email): bool
+    {
+        if ($email === '') {
+            return false;
+        }
+        $stored = self::readUserWebhook($email);
+
+        return $stored !== null && !$stored['also_default'] && self::isAllowedWebhookUrl($stored['webhook_url']);
     }
 
     /**
@@ -441,7 +501,7 @@ class GrokBot
     }
 
     /**
-     * @return array{webhook_url: string, send_key: string, display_name: string}|null
+     * @return array{webhook_url: string, send_key: string, display_name: string, also_default: bool}|null
      */
     private static function readUserWebhook(string $email): ?array
     {
@@ -470,6 +530,8 @@ class GrokBot
             'webhook_url' => $url,
             'send_key' => $sendKey,
             'display_name' => trim((string) ($stored['display_name'] ?? '')),
+            // Missing (webhooks saved before this option): off.
+            'also_default' => !empty($stored['also_default']),
         ];
     }
 

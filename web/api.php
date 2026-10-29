@@ -3173,7 +3173,9 @@ function handleSaveGrokWebhookApiAction(array $payload, ?array $apiClient): arra
     $saved = GrokBot::saveUserWebhook(
         $sessionEmail,
         (string) ($payload['webhook_url'] ?? ''),
-        (string) ($payload['send_key'] ?? '')
+        (string) ($payload['send_key'] ?? ''),
+        null,
+        array_key_exists('also_default', $payload) ? isApiTruthy($payload['also_default']) : null
     );
     if (empty($saved['ok'])) {
         $errorCode = (string) ($saved['error_code'] ?? 'invalid_webhook_url');

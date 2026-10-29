@@ -1584,6 +1584,47 @@
             var grokWebhookUrl = grokWebhookRoot.querySelector('[data-grok-webhook-url]');
             var grokWebhookKey = grokWebhookRoot.querySelector('[data-grok-webhook-key]');
             var grokWebhookClear = grokWebhookRoot.querySelector('[data-grok-webhook-clear]');
+            var grokWebhookAlsoDefault = grokWebhookRoot.querySelector('[data-grok-webhook-also-default]');
+            // Same shape rule as the server (http/https with a host); the server repeats the full check.
+            var isGrokWebhookUrlShape = function (value)
+            {
+                try
+                {
+                    var parsed = new URL(String(value || '').trim());
+                    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname !== '';
+                }
+                catch (error)
+                {
+                    return false;
+                }
+            };
+            var syncGrokWebhookAlsoDefault = function ()
+            {
+                if (!grokWebhookAlsoDefault)
+                {
+                    return;
+                }
+
+                var hasKey = (grokWebhookKey && grokWebhookKey.value.trim() !== '')
+                    || grokWebhookRoot.getAttribute('data-has-send-key') === '1';
+                var usable = hasKey && isGrokWebhookUrlShape(grokWebhookUrl ? grokWebhookUrl.value : '');
+                if (usable === !grokWebhookAlsoDefault.disabled)
+                {
+                    return;
+                }
+                grokWebhookAlsoDefault.disabled = !usable;
+                // Blank webhook: only the default bot applies. Own webhook: stored choice, off by default.
+                grokWebhookAlsoDefault.checked = usable
+                    ? grokWebhookAlsoDefault.getAttribute('data-stored') === '1'
+                    : true;
+            };
+            [grokWebhookUrl, grokWebhookKey].forEach(function (field)
+            {
+                if (field)
+                {
+                    field.addEventListener('input', syncGrokWebhookAlsoDefault);
+                }
+            });
             var grokWebhookFeedback = grokWebhookRoot.querySelector('[data-grok-webhook-feedback]');
             var grokWebhookFeedbackTimer = null;
             var grokWebhookViewerEmail = (document.querySelector('[data-preferences-section]') || grokWebhookRoot)
@@ -1635,6 +1676,14 @@
                     grokWebhookClear.hidden = !configured;
                 }
                 grokWebhookRoot.setAttribute('data-has-send-key', hasKey ? '1' : '0');
+                if (grokWebhookAlsoDefault)
+                {
+                    var alsoDefault = !configured || !!(webhook && webhook.also_default);
+                    grokWebhookAlsoDefault.setAttribute('data-stored', configured && alsoDefault ? '1' : '0');
+                    grokWebhookAlsoDefault.disabled = !configured;
+                    grokWebhookAlsoDefault.checked = alsoDefault;
+                    syncGrokWebhookAlsoDefault();
+                }
             };
             var postGrokWebhook = function (body)
             {
@@ -1667,7 +1716,8 @@
                     event.preventDefault();
                     postGrokWebhook({
                         webhook_url: grokWebhookUrl ? grokWebhookUrl.value : '',
-                        send_key: grokWebhookKey ? grokWebhookKey.value : ''
+                        send_key: grokWebhookKey ? grokWebhookKey.value : '',
+                        also_default: !!(grokWebhookAlsoDefault && !grokWebhookAlsoDefault.disabled && grokWebhookAlsoDefault.checked)
                     }).then(function (result)
                     {
                         var data = result.data || {};

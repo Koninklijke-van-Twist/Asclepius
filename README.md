@@ -57,14 +57,16 @@ Een nieuw ticket of nieuw bericht start de vertaling meteen nadat het antwoord n
 
 ## Grok-webhooks
 
-De centrale bot staat in `web/auth.php` als `$grokBot` (niet in git). Die webhook blijft bij elke ticketgebeurtenis (`new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened`, `re-evaluate-ticket-and-advise`) aangeroepen worden, met `sender_email`, `default_name` en `default_title` uit die config.
+De centrale bot staat in `web/auth.php` als `$grokBot` (niet in git). Die webhook wordt bij elke ticketgebeurtenis (`new-ticket`, `ticket-solved`, `user-reply`, `ticket-reopened`, `re-evaluate-ticket-and-advise`) aangeroepen (behalve in het geval hieronder), met `sender_email`, `default_name` en `default_title` uit die config.
 
 Daarnaast kan elke beheerder onder **Voorkeuren** een eigen webhook-URL en verzendsleutel zetten. Die staat in de gebruikersvoorkeuren (`web/data/user_prefs/`, niet in git), niet in `auth.php`. Dezelfde gebeurtenis gaat óók naar die persoonlijke webhook wanneer:
 
 - het ticket aan die gebruiker is toegewezen, of
 - die gebruiker AI-advies aanvraagt.
 
-Is dat dezelfde URL én dezelfde sleutel als de centrale webhook, dan volgt geen tweede aanroep. De api-key van de persoonlijke webhook gebruikt het e-mailadres en de naam van die gebruiker, met titel `Assistent`. De bot mag naam en titel in `add_ticket_message` nog steeds zelf zetten.
+Is dat dezelfde URL én dezelfde sleutel als de centrale webhook, dan volgt geen tweede aanroep.
+
+Onder de persoonlijke webhook staat het vinkje *Nog steeds additioneel de standaard Grok-bot webhook gebruiken naast mijn eigen webhook* (`also_default` in `grok_webhook`). Het kan alleen gezet worden met een geldige webhook en verzendsleutel; zonder eigen webhook geldt altijd de standaard-bot. Staat het uit (standaard bij een eigen webhook, ook voor bestaande webhooks zonder opgeslagen keuze), dan wordt de centrale webhook overgeslagen voor tickets die aan die gebruiker zijn toegewezen, mits de persoonlijke URL vlak voor verzending nog geldig is. Bij **AI-advies** (`re-evaluate-ticket-and-advise`) beslist alleen het vinkje van de **aanvrager**: heeft die een geldige eigen webhook met het vinkje uit, dan gaat het advies naar die eigen bot en niet naar de centrale; met het vinkje aan naar beide; zonder (geldige) eigen webhook naar de centrale. Het vinkje van de behandelaar telt bij AI-advies niet. De persoonlijke webhooks van behandelaar en aanvrager krijgen het advies zoals voorheen (dezelfde persoon één keer). Bij alle andere gebeurtenissen telt alleen de behandelaar; tickets zonder behandelaar (of met een behandelaar zonder eigen webhook) houden het huidige gedrag. De api-key van de persoonlijke webhook gebruikt het e-mailadres en de naam van die gebruiker, met titel `Assistent`. De bot mag naam en titel in `add_ticket_message` nog steeds zelf zetten.
 
 Zowel de centrale URL als een persoonlijke URL moet `http` of `https` zijn. Een host die naar loopback, een privénetwerk, link-local, CGNAT of een metadata-adres wijst, wordt geweigerd bij het opslaan en opnieuw vlak voor verzending. Een redirect wordt niet gevolgd. Zie `web/docs/api.md`.
 

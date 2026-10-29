@@ -155,12 +155,22 @@ $store = new TicketStore(
     TICKET_CATEGORIES
 );
 
-$saved = GrokBot::saveUserWebhook(
+assertTrue('Zonder webhook geldt standaard-bot', GrokBot::publicUserWebhook('assignee-webhook@example.com')['also_default']);
+$defaultOff = GrokBot::saveUserWebhook(
     'assignee-webhook@example.com',
     'https://example.com/personal-webhook',
     'personal-send-key',
     'Tim Falken'
 );
+assertFalse('Eigen webhook: standaard-bot standaard uit', $defaultOff['webhook']['also_default']);
+$saved = GrokBot::saveUserWebhook(
+    'assignee-webhook@example.com',
+    'https://example.com/personal-webhook',
+    'personal-send-key',
+    'Tim Falken',
+    true
+);
+assertTrue('Vinkje aan wordt bewaard', $saved['webhook']['also_default']);
 assertTrue('Opslaan persoonlijke webhook', !empty($saved['ok']));
 assertSame('Publieke view heeft geen sleutel', false, array_key_exists('send_key', $saved['webhook']));
 assertTrue('Publieke view meldt sleutel', !empty($saved['webhook']['has_send_key']));
@@ -286,8 +296,8 @@ $adviceSent = GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, 'Kijk nog ee
     'assigned_email' => 'assignee-webhook@example.com',
 ]);
 assertTrue('AI-advies met persoonlijke webhooks slaagt', $adviceSent);
-assertSame('AI-advies: centraal, behandelaar en aanvrager van advies', [
-    'https://example.com/global-webhook',
+// Aanvrager heeft een eigen webhook zonder opgeslagen keuze (= uit): geen centraal.
+assertSame('AI-advies: behandelaar en aanvrager, centraal uit door aanvrager', [
     'https://example.com/personal-webhook',
     'https://example.com/actor-webhook',
 ], capturedUrls());
@@ -325,8 +335,104 @@ $onlyPersonal = GrokBot::notifyTicketSolved($store, $ticketId, null, [
 ]);
 assertSame('Alleen persoonlijk als centraal uit staat', ['https://example.com/personal-webhook'], capturedUrls());
 
+$GLOBALS['grokBot']['enabled'] = true;
+echo PHP_EOL . "--- Standaard-bot uit voor eigen tickets ---" . PHP_EOL;
+GrokBot::saveUserWebhook('assignee-webhook@example.com', 'https://example.com/personal-webhook', '', null, false);
+resetCaptured();
+GrokBot::notifyTicketSolved($store, $ticketId, null, ['assigned_email' => 'assignee-webhook@example.com']);
+assertSame('Vinkje uit: alleen persoonlijk', ['https://example.com/personal-webhook'], capturedUrls());
+resetCaptured();
+GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, '', null, [
+    'actor_email' => 'actor-webhook@example.com',
+    'assigned_email' => 'assignee-webhook@example.com',
+]);
+assertSame('Vinkje uit: AI-advies zonder centraal', [
+    'https://example.com/personal-webhook',
+    'https://example.com/actor-webhook',
+], capturedUrls());
+echo PHP_EOL . "--- AI-advies: alleen het vinkje van de aanvrager telt ---" . PHP_EOL;
+$advise = static function (string $actor, string $assigned) use ($store, $ticketId): array {
+    resetCaptured();
+    GrokBot::notifyReEvaluateAndAdvise($store, $ticketId, '', null, [
+        'actor_email' => $actor,
+        'assigned_email' => $assigned,
+    ]);
+    return capturedUrls();
+};
+$A = 'assignee-webhook@example.com';
+$R = 'actor-webhook@example.com';
+// Aanvrager uit, behandelaar aan.
+GrokBot::saveUserWebhook($A, 'https://example.com/personal-webhook', '', null, true);
+GrokBot::saveUserWebhook($R, 'https://example.com/actor-webhook', '', null, false);
+assertSame('Aanvrager uit / behandelaar aan: geen centraal', [
+    'https://example.com/personal-webhook',
+    'https://example.com/actor-webhook',
+], $advise($R, $A));
+// Aanvrager aan, behandelaar uit.
+GrokBot::saveUserWebhook($A, 'https://example.com/personal-webhook', '', null, false);
+GrokBot::saveUserWebhook($R, 'https://example.com/actor-webhook', '', null, true);
+assertSame('Aanvrager aan / behandelaar uit: centraal blijft', [
+    'https://example.com/global-webhook',
+    'https://example.com/personal-webhook',
+    'https://example.com/actor-webhook',
+], $advise($R, $A));
+// Beide uit.
+GrokBot::saveUserWebhook($R, 'https://example.com/actor-webhook', '', null, false);
+assertSame('Beide uit: geen centraal', [
+    'https://example.com/personal-webhook',
+    'https://example.com/actor-webhook',
+], $advise($R, $A));
+// Aanvrager is behandelaar.
+assertSame('Aanvrager = behandelaar, uit: alleen eigen webhook', [
+    'https://example.com/personal-webhook',
+], $advise($A, $A));
+GrokBot::saveUserWebhook($A, 'https://example.com/personal-webhook', '', null, true);
+assertSame('Aanvrager = behandelaar, aan: centraal en eigen', [
+    'https://example.com/global-webhook',
+    'https://example.com/personal-webhook',
+], $advise($A, $A));
+// Aanvrager zonder webhook, behandelaar uit.
+GrokBot::saveUserWebhook($A, 'https://example.com/personal-webhook', '', null, false);
+assertSame('Aanvrager zonder webhook: centraal en behandelaar', [
+    'https://example.com/global-webhook',
+    'https://example.com/personal-webhook',
+], $advise('nobody@example.com', $A));
+// Andere gebeurtenissen: nog steeds alleen de behandelaar.
+resetCaptured();
+GrokBot::notifyTicketSolved($store, $ticketId, null, ['assigned_email' => $R, 'actor_email' => $A]);
+assertSame('Afhandelen: vinkje van behandelaar (uit) telt', [
+    'https://example.com/actor-webhook',
+    'https://example.com/personal-webhook',
+], capturedUrls());
+GrokBot::saveUserWebhook($R, 'https://example.com/actor-webhook', '', null, true);
+resetCaptured();
+GrokBot::notifyTicketSolved($store, $ticketId, null, ['assigned_email' => $R, 'actor_email' => $A]);
+assertSame('Afhandelen: actor-vinkje telt niet', [
+    'https://example.com/global-webhook',
+    'https://example.com/actor-webhook',
+    'https://example.com/personal-webhook',
+], capturedUrls());
+GrokBot::saveUserWebhook('assignee-webhook@example.com', 'https://example.com/global-webhook', 'global-send-key', null, false);
+resetCaptured();
+GrokBot::notifyTicketSolved($store, $ticketId, null, ['assigned_email' => 'assignee-webhook@example.com']);
+assertSame('Vinkje uit met zelfde bestemming: één keer', ['https://example.com/global-webhook'], capturedUrls());
+$prefPath = (string) getUserPrefsPath('assignee-webhook@example.com');
+$legacy = json_decode((string) file_get_contents($prefPath), true);
+unset($legacy['grok_webhook']['also_default']);
+$legacy['grok_webhook']['webhook_url'] = 'https://example.com/personal-webhook';
+$legacy['grok_webhook']['send_key'] = 'personal-send-key';
+file_put_contents($prefPath, json_encode($legacy));
+assertFalse('Bestaande webhook zonder keuze: uit', GrokBot::publicUserWebhook('assignee-webhook@example.com')['also_default']);
+resetCaptured();
+GrokBot::notifyTicketSolved($store, $ticketId, null, ['assigned_email' => 'assignee-webhook@example.com']);
+assertSame('Bestaande webhook zonder keuze: alleen persoonlijk', ['https://example.com/personal-webhook'], capturedUrls());
+resetCaptured();
+GrokBot::notifyTicketSolved($store, $ticketId, null, ['assigned_email' => 'nobody@example.com']);
+assertSame('Behandelaar zonder eigen webhook: alleen centraal', ['https://example.com/global-webhook'], capturedUrls());
+
 resetCaptured();
 GrokBot::clearUserWebhook('assignee-webhook@example.com');
+assertTrue('Na wissen weer standaard-bot', GrokBot::publicUserWebhook('assignee-webhook@example.com')['also_default']);
 assertFalse('Wissen haalt de webhook weg', GrokBot::publicUserWebhook('assignee-webhook@example.com')['configured']);
 $GLOBALS['grokBot']['enabled'] = true;
 $store->updateTicket($ticketId, 'afgehandeld', 'assignee-webhook@example.com', 0, null);
@@ -344,6 +450,14 @@ $apiSaved = handleSaveGrokWebhookApiAction([
     'viewer_email' => 'someone-else@example.com',
 ], null);
 assertTrue('API slaat webhook op voor de sessie', !empty($apiSaved['success']));
+assertFalse('API zonder vinkje: standaard uit', !empty($apiSaved['grok_webhook']['also_default']));
+$apiOn = handleSaveGrokWebhookApiAction([
+    'csrf_token' => 'csrf-test-token',
+    'webhook_url' => 'https://example.com/session-webhook',
+    'send_key' => '',
+    'also_default' => true,
+], null);
+assertTrue('API bewaart vinkje aan', !empty($apiOn['grok_webhook']['also_default']));
 assertSame('API-URL', 'https://example.com/session-webhook', (string) ($apiSaved['grok_webhook']['webhook_url'] ?? ''));
 assertFalse('API-antwoord bevat de sleutel niet', strpos(json_encode($apiSaved), 'session-secret') !== false);
 $sessionPref = (string) file_get_contents((string) getUserPrefsPath('session-webhook@example.com'));
@@ -448,7 +562,7 @@ assertSame('localhost blijft geblokkeerd', 'invalid_webhook_url', (string) ($loc
 GrokBot::setWebhookDnsOverride(static function (string $host): array {
     return strtolower($host) === 'rebind.example' ? ['93.184.216.34'] : ['93.184.216.34'];
 });
-$storedRebind = GrokBot::saveUserWebhook('assignee-webhook@example.com', 'https://rebind.example/personal', 'rebind-key', 'Tim Falken');
+$storedRebind = GrokBot::saveUserWebhook('assignee-webhook@example.com', 'https://rebind.example/personal', 'rebind-key', 'Tim Falken', true);
 assertTrue('Opslaan terwijl DNS nog publiek is', !empty($storedRebind['ok']));
 GrokBot::setWebhookDnsOverride(static function (string $host): array {
     return strtolower($host) === 'rebind.example' ? ['127.0.0.1'] : ['93.184.216.34'];
