@@ -2266,6 +2266,38 @@ function getSelectableTicketCategories(): array
     ));
 }
 
+/**
+ * Vooraf invullen van 'Nieuw ticket' via GET (links uit e-mail), bijv.
+ * ?new_category=Business%20Central&new_title=...&new_description=... (Markdown).
+ * Alleen voorinvullen: de gebruiker past aan en slaat zelf op. Onbekende categorie = leeg.
+ */
+function getNewTicketPrefill(array $query): array
+{
+    $text = static function ($value, int $max): string {
+        if (!is_string($value)) {
+            return '';
+        }
+        $value = str_replace(["\r\n", "\r"], "\n", $value);
+        $value = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value);
+        return mb_substr($value, 0, $max, 'UTF-8');
+    };
+    $category = '';
+    $wanted = mb_strtolower(trim($text($query['new_category'] ?? '', 200)), 'UTF-8');
+    if ($wanted !== '') {
+        foreach (getSelectableTicketCategories() as $candidate) {
+            if (mb_strtolower($candidate, 'UTF-8') === $wanted) {
+                $category = $candidate;
+                break;
+            }
+        }
+    }
+    return [
+        'category' => $category,
+        'title' => trim(str_replace("\n", ' ', $text($query['new_title'] ?? '', 150))),
+        'description' => $text($query['new_description'] ?? '', 20000),
+    ];
+}
+
 function getTemplateTicketCategories(): array
 {
     return TEMPLATE_TICKET_CATEGORIES;

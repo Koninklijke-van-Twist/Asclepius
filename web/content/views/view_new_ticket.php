@@ -1,4 +1,5 @@
 <?php if (!$isAdminPortal && !in_array($view, ['all_tickets', 'my_tickets', 'api'], true)): ?>
+    <?php $newTicketPrefill = getNewTicketPrefill($_GET); ?>
     <section class="panel">
         <h2><?= h(__('new_ticket.heading')) ?></h2>
         <p class="panel-intro"><?= h(__('new_ticket.intro')) ?></p>
@@ -11,6 +12,7 @@
                 <label>
                     <?= h(__('new_ticket.title_label')) ?>
                     <input type="text" id="title" name="title" maxlength="150"
+                        value="<?= h($newTicketPrefill['title']) ?>"
                         placeholder="<?= h(__('new_ticket.title_placeholder')) ?>" required>
                 </label>
                 <label>
@@ -18,7 +20,7 @@
                     <select id="category" name="category" required>
                         <option value=""><?= h(__('new_ticket.category_option')) ?></option>
                         <?php foreach (getSelectableTicketCategories() as $category): ?>
-                            <option value="<?= h($category) ?>"><?= h(translateCategory($category)) ?></option>
+                            <option value="<?= h($category) ?>"<?= $category === $newTicketPrefill['category'] ? ' selected' : '' ?>><?= h(translateCategory($category)) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </label>
@@ -28,7 +30,7 @@
                 <?= h(__('new_ticket.description_label')) ?>
                 <div class="textarea-wrapper">
                     <textarea id="description" name="description" placeholder="<?= h(__('new_ticket.description_placeholder')) ?>"
-                        required></textarea>
+                        required><?= h($newTicketPrefill['description']) ?></textarea>
                     <button type="button" class="key-picker-toggle" title="<?= h(__('ticket.key_picker_tooltip')) ?>"
                         aria-label="<?= h(__('ticket.key_picker_tooltip')) ?>">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
