@@ -1,3 +1,10 @@
+id: 2026-11-06-bot-requester-full-description
+date: 2026-11-06
+title: Ticket on behalf of a bot, with the full text
+author: Cursor Agent
+
+A service integration can open a ticket under its own requester name and email without creating an account. A flag turns off only the confirmation email. A long description is stored in full; if it is too large, the ticket is refused.
+---
 id: 2026-11-06-stats-trend-smooth-lines
 date: 2026-11-06
 title: Smooth lines in the trend chart

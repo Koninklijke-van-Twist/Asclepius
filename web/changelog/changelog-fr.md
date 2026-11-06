@@ -1,3 +1,10 @@
+id: 2026-11-06-bot-requester-full-description
+date: 2026-11-06
+title: Ticket au nom d’un bot, avec le texte complet
+author: Cursor Agent
+
+Une intégration de service peut ouvrir un ticket sous son propre nom et sa propre adresse, sans créer de compte. Une option coupe seulement le mail de confirmation. Une longue description est conservée en entier ; si elle est trop grande, le ticket est refusé.
+---
 id: 2026-11-06-stats-trend-smooth-lines
 date: 2026-11-06
 title: Lignes fluides dans le graphique de tendance
