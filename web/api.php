@@ -287,12 +287,16 @@ function getRequestBody(): array
     $contentType = strtolower(trim((string) ($_SERVER['CONTENT_TYPE'] ?? '')));
     $payload = [];
 
+    $GLOBALS['asclepiusLastRawRequestBytes'] = null;
     if (str_contains($contentType, 'application/json')) {
         $rawBody = file_get_contents('php://input');
-        if (is_string($rawBody) && trim($rawBody) !== '') {
-            $decoded = json_decode($rawBody, true);
-            if (is_array($decoded)) {
-                $payload = $decoded;
+        if (is_string($rawBody)) {
+            $GLOBALS['asclepiusLastRawRequestBytes'] = strlen($rawBody);
+            if (trim($rawBody) !== '') {
+                $decoded = json_decode($rawBody, true);
+                if (is_array($decoded)) {
+                    $payload = $decoded;
+                }
             }
         }
     }
@@ -3724,19 +3728,141 @@ function handleRequestPageAccessApiAction(TicketStore $store, array $payload, ?a
 }
 
 /**
+ * Strikte bool. null = ongeldig. Afwezigheid van het veld telt niet als false.
+ */
+function parseExplicitApiBool(mixed $value): ?bool
+{
+    if (is_bool($value)) {
+        return $value;
+    }
+    if (is_int($value) && ($value === 0 || $value === 1)) {
+        return $value === 1;
+    }
+    if (!is_string($value)) {
+        return null;
+    }
+
+    $normalized = strtolower(trim($value));
+    if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+        return true;
+    }
+    if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+        return false;
+    }
+
+    return null;
+}
+
+/**
+ * Eigen aanvragersnaam en mailonderdrukking: service-key, of de server zelf zonder gebruikersclient.
+ * Een sessie-, webhook- of login-key kan hiermee geen identiteit of mailgedrag van iemand anders zetten.
+ */
+function apiMayUseBotCreateOptions(?array $apiClient, bool $hasValidServiceApiKey): bool
+{
+    if (is_array($apiClient) && ($apiClient['kind'] ?? '') === 'login_rotating') {
+        return false;
+    }
+    if ($hasValidServiceApiKey) {
+        return true;
+    }
+
+    return isTrustedApiRequester() && $apiClient === null;
+}
+
+function requesterNameConflictsWithKnownIdentity(string $email, array $ictUsers): bool
+{
+    $email = strtolower(trim($email));
+    if ($email === '') {
+        return false;
+    }
+
+    foreach (extractIctUserEmails($ictUsers) as $ictEmail) {
+        if ($ictEmail === $email) {
+            return true;
+        }
+    }
+
+    $display = formatUserDisplayName($email);
+
+    return $display !== '' && strtolower($display) !== $email;
+}
+
+/**
  * POST zonder action: nieuw ticket, met dezelfde bevestiging als de webinterface.
  *
  * @param array<string, mixed> $payload
  * @param array<string, mixed>|null $apiClient
  * @return array{status: int, body: array<string, mixed>}
  */
-function handleCreateTicketApiAction(TicketStore $store, array $payload, ?array $apiClient): array
+function handleCreateTicketApiAction(TicketStore $store, array $payload, ?array $apiClient, bool $hasValidServiceApiKey = false): array
 {
     global $ictUsers;
 
+    $rawBytes = $GLOBALS['asclepiusLastRawRequestBytes'] ?? null;
+    if (is_int($rawBytes) && $rawBytes > TICKET_CREATE_JSON_MAX_BYTES) {
+        return [
+            'status' => 413,
+            'body' => [
+                'success' => false,
+                'error' => 'request_too_large',
+                'max_bytes' => TICKET_CREATE_JSON_MAX_BYTES,
+                'actual_bytes' => $rawBytes,
+            ],
+        ];
+    }
+
+    $requestsBotName = array_key_exists('requester_name', $payload);
+    $requestsSuppress = array_key_exists('suppress_create_mail', $payload);
+    if (($requestsBotName || $requestsSuppress) && !apiMayUseBotCreateOptions($apiClient, $hasValidServiceApiKey)) {
+        return [
+            'status' => 403,
+            'body' => [
+                'success' => false,
+                'error' => $requestsBotName ? 'requester_name_forbidden' : 'suppress_create_mail_forbidden',
+            ],
+        ];
+    }
+
+    $suppressCreateMail = false;
+    if ($requestsSuppress) {
+        $parsedSuppress = parseExplicitApiBool($payload['suppress_create_mail']);
+        if ($parsedSuppress === null) {
+            return [
+                'status' => 422,
+                'body' => [
+                    'success' => false,
+                    'error' => 'invalid_suppress_create_mail',
+                    'errors' => ['suppress_create_mail moet true of false zijn.'],
+                ],
+            ];
+        }
+        $suppressCreateMail = $parsedSuppress;
+    }
+
     $title = trim((string) ($payload['title'] ?? ''));
     $category = trim((string) ($payload['category'] ?? ''));
-    $description = trim((string) ($payload['description'] ?? ''));
+    $description = '';
+    $descriptionIsText = false;
+    if (is_string($payload['description'] ?? null)) {
+        $description = $payload['description'];
+        $descriptionIsText = true;
+    } elseif (is_int($payload['description'] ?? null) || is_float($payload['description'] ?? null)) {
+        $description = (string) $payload['description'];
+        $descriptionIsText = true;
+    }
+    if ($descriptionIsText && strlen($description) > TICKET_DESCRIPTION_MAX_BYTES) {
+        return [
+            'status' => 422,
+            'body' => [
+                'success' => false,
+                'error' => 'description_too_large',
+                'max_bytes' => TICKET_DESCRIPTION_MAX_BYTES,
+                'actual_bytes' => strlen($description),
+                'errors' => ['Beschrijving is te lang.'],
+            ],
+        ];
+    }
+
     $userEmail = strtolower(trim((string) ($payload['user_email'] ?? '')));
     $priority = max(0, min(2, (int) ($payload['priority'] ?? 0)));
     $participantEmailsRaw = $payload['participant_emails'] ?? [];
@@ -3757,6 +3883,25 @@ function handleCreateTicketApiAction(TicketStore $store, array $payload, ?array 
         $userEmail = (string) $apiClient['email'];
     }
 
+    $requesterDisplayName = null;
+    $requesterNameInvalid = false;
+    if ($requestsBotName) {
+        $rawName = $payload['requester_name'];
+        $trimmedName = is_string($rawName) ? trim($rawName) : '';
+        $nameLength = function_exists('mb_strlen') ? mb_strlen($trimmedName) : strlen($trimmedName);
+        $nameControls = is_string($rawName) ? preg_match('/\p{C}/u', $trimmedName) : 1;
+        if (
+            !is_string($rawName)
+            || $trimmedName === ''
+            || $nameLength > REQUESTER_DISPLAY_NAME_MAX_CHARS
+            || $nameControls !== 0
+        ) {
+            $requesterNameInvalid = true;
+        } else {
+            $requesterDisplayName = $trimmedName;
+        }
+    }
+
     $errors = [];
     if ($title === '') {
         $errors[] = 'Titel is verplicht.';
@@ -3764,29 +3909,63 @@ function handleCreateTicketApiAction(TicketStore $store, array $payload, ?array 
     if (!in_array($category, TICKET_CATEGORIES, true)) {
         $errors[] = 'Categorie is ongeldig.';
     }
-    if ($description === '') {
+    if (!$descriptionIsText || trim($description) === '') {
         $errors[] = 'Beschrijving is verplicht.';
     }
     if (!filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'user_email moet een geldig e-mailadres zijn.';
     }
+    if ($requesterNameInvalid) {
+        $errors[] = 'requester_name is ongeldig.';
+    }
 
     if ($errors !== []) {
+        $body = [
+            'success' => false,
+            'errors' => $errors,
+        ];
+        if ($requesterNameInvalid) {
+            $body['error'] = 'invalid_requester_name';
+        }
+
+        return [
+            'status' => 422,
+            'body' => $body,
+        ];
+    }
+
+    if (
+        $requesterDisplayName !== null
+        && requesterNameConflictsWithKnownIdentity($userEmail, is_array($ictUsers) ? $ictUsers : [])
+    ) {
         return [
             'status' => 422,
             'body' => [
                 'success' => false,
-                'errors' => $errors,
+                'error' => 'requester_identity_conflict',
+                'errors' => ['requester_name hoort bij een bestaand persoon en wordt niet overschreven.'],
             ],
         ];
     }
 
     try {
-        $result = $store->createTicket($title, $category, $userEmail, $description, [], $priority, $participantEmails);
+        $result = $store->createTicket(
+            $title,
+            $category,
+            $userEmail,
+            $description,
+            [],
+            $priority,
+            $participantEmails,
+            null,
+            null,
+            $requesterDisplayName
+        );
         $ticketId = (int) ($result['ticket_id'] ?? 0);
         $ticket = $store->getTicket($ticketId, true, '');
+        $messageId = is_array($ticket) ? firstTicketMessageId($ticket) : 0;
 
-        if (is_array($ticket)) {
+        if (!$suppressCreateMail && is_array($ticket)) {
             $actorEmail = '';
             if (is_array($apiClient)) {
                 $actorEmail = strtolower(trim((string) ($apiClient['email'] ?? '')));
@@ -3802,11 +3981,14 @@ function handleCreateTicketApiAction(TicketStore $store, array $payload, ?array 
                 is_array($ictUsers) ? $ictUsers : [],
                 $ticket,
                 $description,
-                firstTicketMessageId($ticket),
+                $messageId,
                 $introKey,
                 $actorEmail !== '' ? $actorEmail : null
             );
         }
+
+        $descriptionQueued = $messageId > 0
+            && in_array('ticket_message:' . $messageId, queuedTicketTranslationKeys(), true);
 
         return [
             'status' => 201,
@@ -3815,7 +3997,25 @@ function handleCreateTicketApiAction(TicketStore $store, array $payload, ?array 
                 'ticket_id' => $ticketId,
                 'assigned_email' => $result['assigned_email'] ?? null,
                 'ticket_url' => buildAsclepiusTicketUrl($ticketId),
+                'suppress_create_mail' => $suppressCreateMail,
+                'description_bytes' => strlen($description),
+                'description_translation_queued' => $descriptionQueued,
+                'translation_skip_reason' => strlen($description) > TICKET_TRANSLATION_MAX_BYTES
+                    ? 'description_exceeds_translation_limit'
+                    : null,
                 'ticket' => $ticket,
+            ],
+        ];
+    } catch (InvalidArgumentException $exception) {
+        $message = $exception->getMessage();
+        $code = $message === 'Beschrijving is te lang.' ? 'description_too_large' : 'invalid_requester_name';
+
+        return [
+            'status' => 422,
+            'body' => [
+                'success' => false,
+                'error' => $code,
+                'errors' => [$message],
             ],
         ];
     } catch (Throwable $exception) {
@@ -4347,7 +4547,12 @@ if ($method === 'POST') {
         ]);
     }
 
-    $createdTicket = handleCreateTicketApiAction($store, $payload, is_array($apiClient ?? null) ? $apiClient : null);
+    $createdTicket = handleCreateTicketApiAction(
+        $store,
+        $payload,
+        is_array($apiClient ?? null) ? $apiClient : null,
+        $hasValidServiceApiKey
+    );
     sendJson($createdTicket['status'], $createdTicket['body']);
 }
 
