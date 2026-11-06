@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'mail_reply.php';
+
 function encodeMailHeader(string $value): string
 {
     if ($value === '') {
@@ -74,6 +76,8 @@ function requesterUpdateMailHasHighImportance(bool $statusChanged, string $newSt
 /**
  * Bouwt een multipart/alternative MIME-body (plain + html) of een eenvoudige text/plain body.
  * Geeft [headers_string, body_string] terug.
+ *
+ * @param array{message_id?: string, in_reply_to?: string, references?: list<string>, reply_to?: string} $thread
  */
 function buildMimeParts(
     string $fromEmail,
@@ -82,16 +86,27 @@ function buildMimeParts(
     string $subject,
     string $plain,
     ?string $html,
-    bool $highImportance = false
+    bool $highImportance = false,
+    array $thread = []
 ): array {
     $baseHeaders = [
         'From: ' . formatMailAddress($fromName, $fromEmail),
         'To: ' . implode(', ', $recipients),
         'Subject: ' . encodeMailHeader($subject),
         'Date: ' . date(DATE_RFC2822),
-        'Message-ID: <' . uniqid('ticket-', true) . '@kvt.nl>',
+        'Message-ID: <' . ($thread['message_id'] ?? uniqid('ticket-', true) . '@kvt.nl') . '>',
         'MIME-Version: 1.0',
     ];
+
+    if (!empty($thread['in_reply_to'])) {
+        $baseHeaders[] = 'In-Reply-To: <' . $thread['in_reply_to'] . '>';
+    }
+    if (!empty($thread['references'])) {
+        $baseHeaders[] = 'References: <' . implode('> <', $thread['references']) . '>';
+    }
+    if (!empty($thread['reply_to'])) {
+        $baseHeaders[] = 'Reply-To: ' . $thread['reply_to'];
+    }
 
     if ($highImportance) {
         $baseHeaders[] = 'Importance: high';
@@ -128,7 +143,8 @@ function sendViaSmtp(
     string $subject,
     string $plain,
     ?string $html = null,
-    bool $highImportance = false
+    bool $highImportance = false,
+    array $thread = []
 ): bool {
     $host = trim((string) ($smtp['host'] ?? ''));
     $port = (int) ($smtp['port'] ?? 25);
@@ -188,7 +204,7 @@ function sendViaSmtp(
 
         smtpCommand($socket, 'DATA', [354]);
 
-        [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, $recipients, $subject, $plain, $html, $highImportance);
+        [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, $recipients, $subject, $plain, $html, $highImportance, $thread);
         $raw = $headersString . "\r\n\r\n" . str_replace("\n.", "\n..", $bodyString) . "\r\n.\r\n";
         fwrite($socket, $raw);
         smtpExpect($socket, [250]);
@@ -208,7 +224,9 @@ function sendTicketEmail(
     string $subject,
     string $message,
     ?string $excludeEmail = null,
-    bool $highImportance = false
+    bool $highImportance = false,
+    ?TicketStore $store = null,
+    int $ticketId = 0
 ): void {
     global $mailSettings;
 
@@ -235,6 +253,7 @@ function sendTicketEmail(
     $smtp = (array) ($mailSettings['smtp'] ?? []);
 
     ['plain' => $plain, 'html' => $html] = splitMailBody($message);
+    $thread = $ticketId > 0 ? buildTicketMailThread($store, $ticketId) : [];
 
     if (isset($GLOBALS['asclepiusCapturedTicketEmails']) && is_array($GLOBALS['asclepiusCapturedTicketEmails'])) {
         $GLOBALS['asclepiusCapturedTicketEmails'][] = [
@@ -243,17 +262,18 @@ function sendTicketEmail(
             'plain' => $plain,
             'html' => $html,
             'high_importance' => $highImportance,
+            'thread' => $thread,
         ];
 
         return;
     }
 
-    if ($smtp !== [] && sendViaSmtp($smtp, $fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html, $highImportance)) {
+    if ($smtp !== [] && sendViaSmtp($smtp, $fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html, $highImportance, $thread)) {
         return;
     }
 
     // Fallback: mail() — multipart als HTML beschikbaar
-    [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html, $highImportance);
+    [$headersString, $bodyString] = buildMimeParts($fromEmail, $fromName, array_values($normalizedRecipients), $fullSubject, $plain, $html, $highImportance, $thread);
 
     @mail(
         implode(', ', array_values($normalizedRecipients)),
@@ -261,6 +281,33 @@ function sendTicketEmail(
         $bodyString,
         $headersString
     );
+}
+
+/**
+ * Vaste Message-ID per uitgestuurde ticketmail, gekoppeld aan In-Reply-To/References van eerdere
+ * mails over dit ticket. Reply-To alleen als de reply-ingest voor dit ticket aanstaat.
+ *
+ * @return array{message_id: string, in_reply_to?: string, references?: list<string>, reply_to?: string}
+ */
+function buildTicketMailThread(?TicketStore $store, int $ticketId): array
+{
+    $thread = ['message_id' => generateTicketMailMessageId($ticketId)];
+
+    if ($store instanceof TicketStore) {
+        $previous = $store->getTicketMailThread($ticketId);
+        if ($previous !== []) {
+            $thread['in_reply_to'] = end($previous);
+            $thread['references'] = $previous;
+        }
+        $store->recordTicketMailMessage($ticketId, $thread['message_id']);
+    }
+
+    $mailbox = mailReplyIngestConfig()['mailbox'];
+    if ($mailbox !== '' && mailReplyIngestEnabledForTicket($ticketId)) {
+        $thread['reply_to'] = $mailbox;
+    }
+
+    return $thread;
 }
 
 function routeNotificationRecipients(?TicketStore $store, array $ictUsers, array $recipients, ?string $ticketCategory = null): array
@@ -728,7 +775,7 @@ function sendTicketNotification(
     $emailRecipients = filterAdminEmailRecipients($ictUsers, $routedRecipients, $adminNotificationType);
     $finalMessage = appendMailNote($message, (string) ($routing['note'] ?? ''));
 
-    sendTicketEmail($emailRecipients, $subject, $finalMessage, $excludeEmail, $highImportance);
+    sendTicketEmail($emailRecipients, $subject, $finalMessage, $excludeEmail, $highImportance, $store, (int) $ticketId);
 
     if (!$store instanceof TicketStore || $ticketId === null || $ticketId <= 0) {
         return;
@@ -1108,7 +1155,7 @@ function sendRenderedLocalizedMails(
     );
     $subject = __mail($subjectKey, $lang, $ticketId);
     if ($emailRecipients !== []) {
-        sendTicketEmail($emailRecipients, $subject, $body, $excludeEmail, $highImportance);
+        sendTicketEmail($emailRecipients, $subject, $body, $excludeEmail, $highImportance, $store, $ticketId);
     }
     if ($desktopRecipients === []) {
         return;

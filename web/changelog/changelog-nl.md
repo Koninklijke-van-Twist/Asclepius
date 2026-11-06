@@ -1,3 +1,15 @@
+id: 2026-11-06-mail-reply-ingest
+date: 2026-11-06
+title: Antwoorden per e-mail komen in het ticket
+author: Cursor Agent
+
+Wie op een ticketmail antwoordt, ziet het antwoord straks als bericht in het ticket staan, onder de naam van de afzender. Citaten van eerdere mails en de handtekening worden weggelaten. Alleen de aanvrager en deelnemers van het ticket kunnen zo reageren; automatische antwoorden worden genegeerd.
+
+De behandelaar krijgt dezelfde melding als bij een reactie in Asclepius, en een ticket dat op *afwachtende op gebruiker* stond gaat naar *in behandeling*.
+
+Dit staat standaard uit en wordt eerst voor een paar tickets aangezet door een beheerder.
+
+---
 id: 2026-10-27-grok-default-webhook-optional
 date: 2026-10-27
 title: Standaard Grok-bot naast je eigen webhook

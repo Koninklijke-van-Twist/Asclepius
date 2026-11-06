@@ -2930,6 +2930,144 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
     return $response;
 }
 
+/**
+ * Antwoord per e-mail op een ticketmail, aangeleverd door een externe inbox-watcher
+ * (Power Automate of Graph) met een service-key. Plaatst het schone antwoord als
+ * gebruikersbericht via add_ticket_message met as_user; zie docs/api.md.
+ *
+ * @return array<string, mixed>
+ */
+function handleIngestTicketReplyMailApiAction(TicketStore $store, array $payload, bool $hasValidServiceApiKey): array
+{
+    global $mailSettings;
+
+    if (!$hasValidServiceApiKey) {
+        return ['success' => false, 'error' => 'forbidden', 'error_code' => 'forbidden'];
+    }
+
+    $ignored = static fn(string $reason, int $ticketId = 0): array => [
+        'success' => true,
+        'ingested' => false,
+        'reason' => $reason,
+    ] + ($ticketId > 0 ? ['ticket_id' => $ticketId] : []);
+
+    $config = mailReplyIngestConfig();
+    if (!$config['enabled']) {
+        return $ignored('ingest_disabled');
+    }
+
+    $messageId = normalizeMailMessageId((string) ($payload['message_id'] ?? $payload['internet_message_id'] ?? ''));
+    $fromEmail = strtolower(trim((string) ($payload['from_email'] ?? '')));
+    if ($messageId === '' || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+        return ['success' => false, 'error' => 'invalid_payload', 'error_code' => 'invalid_payload'];
+    }
+
+    $subject = (string) ($payload['subject'] ?? '');
+    $ownAddresses = array_filter([$config['mailbox'], (string) ($mailSettings['from_email'] ?? 'kvtbot@kvt.nl')]);
+    $ignoreReason = mailReplyIgnoreReason(
+        $fromEmail,
+        $subject,
+        $messageId,
+        normalizeMailHeaders(is_array($payload['headers'] ?? null) ? $payload['headers'] : []),
+        $ownAddresses
+    );
+    if ($ignoreReason !== null) {
+        return $ignored($ignoreReason);
+    }
+
+    $match = matchMailToTicketId(
+        array_merge(
+            parseMailMessageIdList($payload['references'] ?? ''),
+            parseMailMessageIdList($payload['in_reply_to'] ?? '')
+        ),
+        $subject,
+        static fn(array $ids): int => $store->findTicketIdByMailMessageIds($ids)
+    );
+    $ticketId = $match['ticket_id'];
+    if ($ticketId <= 0) {
+        return $ignored('no_ticket_match');
+    }
+    if (!mailReplyIngestEnabledForTicket($ticketId)) {
+        return $ignored('ticket_not_enabled', $ticketId);
+    }
+
+    $text = extractMailReplyText((string) ($payload['body_text'] ?? ''), (string) ($payload['body_html'] ?? ''));
+    if ($text === '') {
+        return $ignored('empty_body', $ticketId);
+    }
+
+    if (!$store->claimIngestedMail($messageId, $ticketId)) {
+        return $ignored('duplicate', $ticketId);
+    }
+
+    try {
+        $result = handleAddTicketMessageApiAction($store, [
+            'ticket_id' => $ticketId,
+            'message' => $text,
+            'sender_email' => $fromEmail,
+            'as_user' => true,
+        ], null, true);
+    } catch (Throwable $exception) {
+        $store->releaseIngestedMail($messageId);
+        error_log('[asclepius] reply-ingest ticket ' . $ticketId . ': ' . $exception->getMessage());
+
+        return ['success' => false, 'error' => 'ingest_failed', 'error_code' => 'ingest_failed'];
+    }
+
+    if (empty($result['success'])) {
+        $store->releaseIngestedMail($messageId);
+        $errorCode = (string) ($result['error_code'] ?? $result['error'] ?? '');
+        if ($errorCode === 'forbidden') {
+            return $ignored('sender_not_on_ticket', $ticketId);
+        }
+        if ($errorCode === 'ticket_not_found') {
+            return $ignored('ticket_not_found', $ticketId);
+        }
+
+        return ['success' => false, 'error' => 'ingest_failed', 'error_code' => 'ingest_failed', 'details' => $errorCode];
+    }
+
+    try {
+        $ictUsersList = is_array($GLOBALS['ictUsers'] ?? null) ? $GLOBALS['ictUsers'] : [];
+        $updatedTicket = $store->getTicket($ticketId, true, $fromEmail);
+        if ($updatedTicket !== null) {
+            // De gedeelde mailbox heeft deze mail al ontvangen; geen dubbele melding daarheen.
+            $recipients = array_values(array_diff(
+                resolveIctNotifyRecipients(
+                    $store,
+                    (string) ($updatedTicket['assigned_email'] ?? ''),
+                    (string) ($updatedTicket['category'] ?? ''),
+                    $ictUsersList
+                ),
+                [$config['mailbox']]
+            ));
+            notifyIctAboutTicket(
+                $store,
+                $ictUsersList,
+                $updatedTicket,
+                $recipients,
+                $text,
+                (int) ($result['message_id'] ?? 0),
+                'email.subject_user_reply',
+                'email.intro_user_reply',
+                $fromEmail,
+                $fromEmail,
+                'user_reply'
+            );
+        }
+    } catch (Throwable $exception) {
+        error_log('[asclepius] reply-ingest melding ticket ' . $ticketId . ': ' . $exception->getMessage());
+    }
+
+    return [
+        'success' => true,
+        'ingested' => true,
+        'ticket_id' => $ticketId,
+        'message_id' => (int) ($result['message_id'] ?? 0),
+        'matched_via' => $match['via'],
+    ];
+}
+
 function buildBigscreenPollApiPayload(TicketStore $store, ?array $apiClient = null): array
 {
     global $ictUsers;
@@ -3968,6 +4106,18 @@ if ($method === 'POST') {
             };
         }
         sendJson($statusCode, $messageResponse);
+    }
+
+    if ($action === 'ingest_ticket_reply_mail') {
+        $ingestResponse = handleIngestTicketReplyMailApiAction($store, $payload, $hasValidServiceApiKey);
+        $statusCode = empty($ingestResponse['success'])
+            ? match ((string) ($ingestResponse['error_code'] ?? '')) {
+                'forbidden' => 403,
+                'ingest_failed' => 500,
+                default => 422,
+            }
+            : 200;
+        sendJson($statusCode, $ingestResponse);
     }
 
     if ($action === 'ticket_poll') {

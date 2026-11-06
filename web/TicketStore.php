@@ -4743,6 +4743,63 @@ class TicketStore
         ]);
     }
 
+    /** Onthoudt een uitgestuurde Message-ID zodat een antwoord op die mail terug te koppelen is. */
+    public function recordTicketMailMessage(int $ticketId, string $messageId): void
+    {
+        $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ticket_mail_messages (message_id, ticket_id, created_at) VALUES (:message_id, :ticket_id, :created_at)'
+        )->execute([':message_id' => $messageId, ':ticket_id' => $ticketId, ':created_at' => time()]);
+    }
+
+    /**
+     * Laatste uitgestuurde Message-ID's van een ticket, oudste eerst, voor In-Reply-To en References.
+     *
+     * @return list<string>
+     */
+    public function getTicketMailThread(int $ticketId, int $limit = 10): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT message_id FROM ticket_mail_messages WHERE ticket_id = :ticket_id ORDER BY created_at DESC, rowid DESC LIMIT :limit'
+        );
+        $stmt->bindValue(':ticket_id', $ticketId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
+        $stmt->execute();
+
+        return array_reverse(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN)));
+    }
+
+    /** @param list<string> $messageIds Genormaliseerd (kleine letters, zonder haakjes). */
+    public function findTicketIdByMailMessageIds(array $messageIds): int
+    {
+        if ($messageIds === []) {
+            return 0;
+        }
+
+        $stmt = $this->pdo->prepare(
+            'SELECT ticket_id FROM ticket_mail_messages WHERE message_id IN (' . implode(',', array_fill(0, count($messageIds), '?')) . ')
+             ORDER BY created_at DESC, rowid DESC LIMIT 1'
+        );
+        $stmt->execute(array_values($messageIds));
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /** True als deze inkomende Message-ID nieuw is; false als hij al verwerkt (of in verwerking) is. */
+    public function claimIngestedMail(string $messageId, int $ticketId): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'INSERT OR IGNORE INTO ticket_mail_ingest (message_id, ticket_id, created_at) VALUES (:message_id, :ticket_id, :created_at)'
+        );
+        $stmt->execute([':message_id' => $messageId, ':ticket_id' => $ticketId, ':created_at' => time()]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    public function releaseIngestedMail(string $messageId): void
+    {
+        $this->pdo->prepare('DELETE FROM ticket_mail_ingest WHERE message_id = :message_id')->execute([':message_id' => $messageId]);
+    }
+
     public function hasRecentApiTicketEvent(int $ticketId, string $kind, int $withinSeconds = 60): bool
     {
         if ($ticketId <= 0 || $withinSeconds < 0 || ($kind !== 'message' && $kind !== 'status')) {
@@ -5010,6 +5067,22 @@ class TicketStore
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ticket_id INTEGER NOT NULL,
                 kind TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )'
+        );
+
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_mail_messages (
+                message_id TEXT PRIMARY KEY,
+                ticket_id INTEGER NOT NULL,
+                created_at INTEGER NOT NULL
+            )'
+        );
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_mail_messages_ticket ON ticket_mail_messages(ticket_id, created_at)');
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS ticket_mail_ingest (
+                message_id TEXT PRIMARY KEY,
+                ticket_id INTEGER NOT NULL,
                 created_at INTEGER NOT NULL
             )'
         );
