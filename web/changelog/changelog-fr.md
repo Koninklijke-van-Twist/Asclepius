@@ -1,3 +1,11 @@
+id: 2026-11-06-long-message-fold
+date: 2026-11-06
+title: Les longs messages commencent repliés
+author: Cursor Agent
+
+Un long message de ticket montre d’abord le début, avec un fondu. En dessous, un bouton ouvre seulement ce message en entier. Les messages plus courts restent comme avant.
+
+---
 id: 2026-11-06-bot-requester-full-description
 date: 2026-11-06
 title: Ticket au nom d’un bot, avec le texte complet

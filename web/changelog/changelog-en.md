@@ -1,3 +1,11 @@
+id: 2026-11-06-long-message-fold
+date: 2026-11-06
+title: Long messages start collapsed
+author: Cursor Agent
+
+A long ticket message shows the beginning first, with a soft fade. Under it is a control that expands only that message. Shorter messages stay as they were.
+
+---
 id: 2026-11-06-bot-requester-full-description
 date: 2026-11-06
 title: Ticket on behalf of a bot, with the full text

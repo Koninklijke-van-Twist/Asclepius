@@ -1417,7 +1417,7 @@ function renderTicketMessageHtml(array $message, string $currentPage, bool $enab
                 data-translated-html="<?= h((string) json_encode($translatedMessageHtml, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
                 data-original-html="<?= h((string) json_encode($originalMessageHtml, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
                 data-showing="translated">
-                <?= $translatedMessageHtml ?>
+                <?= renderFoldableMessageBody($displayMessageText, $translatedMessageHtml, $messageId, $messageAttachments) ?>
             </div>
         <?php endif; ?>
 
@@ -3682,6 +3682,40 @@ function makeTextInteractive(string $text, bool $forEmail = false): string
 function formatTicketMessageText(?string $messageText, int $messageId = 0, array $attachments = []): string
 {
     return renderTicketMessageMarkdown($messageText, $messageId, $attachments, false);
+}
+
+/**
+ * Lange berichten: preview van de eerste bronregels plus de volledige HTML eronder.
+ * Zonder JavaScript toont een noscript-stijl de volledige HTML. Niets wordt uit de tekst geknipt.
+ *
+ * @param list<array<string, mixed>> $attachments
+ */
+function renderFoldableMessageBody(string $sourceText, string $fullHtml, int $messageId, array $attachments = []): string
+{
+    $previewSource = messageFoldPreviewSource($sourceText);
+    if ($previewSource === null) {
+        return $fullHtml;
+    }
+
+    $previewHtml = formatTicketMessageText($previewSource, $messageId, $attachments);
+    $fullId = $messageId > 0 ? 'message-fold-full-' . $messageId : '';
+
+    return '<div class="message-fold is-collapsed" data-role="message-fold" data-expanded="0">'
+        . '<div class="message-fold-preview" data-role="message-fold-preview">'
+        . $previewHtml
+        . '<div class="message-fold-fade" aria-hidden="true"></div>'
+        . '</div>'
+        . '<div class="message-fold-full" data-role="message-fold-full"'
+        . ($fullId !== '' ? ' id="' . h($fullId) . '"' : '')
+        . '>'
+        . $fullHtml
+        . '</div>'
+        . '<button type="button" class="message-fold-toggle" data-role="message-fold-toggle" aria-expanded="false"'
+        . ($fullId !== '' ? ' aria-controls="' . h($fullId) . '"' : '')
+        . '>'
+        . h(__('ticket.show_full_message'))
+        . '</button>'
+        . '</div>';
 }
 
 function formatTicketMessageTextForEmail(?string $messageText): string

@@ -796,6 +796,50 @@ function tryRenderMessageMarkdownTable(array $lines, int $index, bool $forEmail)
     ];
 }
 
+/**
+ * Bronregels van de getoonde tekst: newlines genormaliseerd, daarna trim, dan splitsen.
+ * Een visuele terugloop telt niet als extra regel. Een lege regel telt wel.
+ *
+ * @return list<string>
+ */
+function messageDisplaySourceLines(string $text): array
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", trim($text));
+    if ($normalized === '') {
+        return [];
+    }
+
+    return explode("\n", $normalized);
+}
+
+/**
+ * Eerste N bronregels, of null als het bericht niet langer is dan de grens.
+ * Een open codeblok wordt in de preview gesloten zodat die regels als code blijven.
+ */
+function messageFoldPreviewSource(string $text, ?int $limit = null): ?string
+{
+    $limit = $limit ?? (defined('TICKET_MESSAGE_FOLD_LINE_LIMIT') ? (int) TICKET_MESSAGE_FOLD_LINE_LIMIT : 35);
+    $lines = messageDisplaySourceLines($text);
+    if (count($lines) <= $limit) {
+        return null;
+    }
+
+    $preview = array_slice($lines, 0, $limit);
+    $fenceOpen = false;
+    foreach ($preview as $line) {
+        if (isMessageMarkdownFenceLine(trim($line))) {
+            $fenceOpen = !$fenceOpen;
+        }
+    }
+
+    $body = implode("\n", $preview);
+    if ($fenceOpen) {
+        $body .= "\n```";
+    }
+
+    return $body;
+}
+
 function renderTicketMessageMarkdown(?string $messageText, int $messageId = 0, array $attachments = [], bool $forEmail = false): string
 {
     $normalized = str_replace(["\r\n", "\r"], "\n", trim((string) $messageText));

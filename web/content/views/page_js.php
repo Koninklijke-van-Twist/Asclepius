@@ -4031,6 +4031,7 @@
             {
                 content.textContent = text;
             }
+            installMessageFold(content, text, parseInt(messageNode.getAttribute('data-message-id') || '0', 10));
         };
 
         var confirmPublishGhostMessage = function ()
@@ -8380,6 +8381,68 @@
             return parts.join('');
         };
 
+        var MESSAGE_FOLD_LINE_LIMIT = <?= (int) TICKET_MESSAGE_FOLD_LINE_LIMIT ?>;
+        var MESSAGE_FOLD_LABEL = <?= json_encode(__('ticket.show_full_message'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+
+        var messageDisplaySourceLines = function (text)
+        {
+            var normalized = String(text || '').replace(/\r\n?/g, '\n').trim();
+            if (normalized === '')
+            {
+                return [];
+            }
+            return normalized.split('\n');
+        };
+
+        var messageFoldPreviewSource = function (text)
+        {
+            var lines = messageDisplaySourceLines(text);
+            if (lines.length <= MESSAGE_FOLD_LINE_LIMIT)
+            {
+                return '';
+            }
+            var preview = lines.slice(0, MESSAGE_FOLD_LINE_LIMIT);
+            var fenceOpen = false;
+            preview.forEach(function (line)
+            {
+                if (/^```([a-zA-Z0-9_-]*)[ \t]*$/.test(String(line).trim()))
+                {
+                    fenceOpen = !fenceOpen;
+                }
+            });
+            var body = preview.join('\n');
+            if (fenceOpen)
+            {
+                body += '\n```';
+            }
+            return body;
+        };
+
+        var installMessageFold = function (content, sourceText, messageId)
+        {
+            if (!content || content.querySelector('[data-role="message-fold"]'))
+            {
+                return;
+            }
+            var previewSource = messageFoldPreviewSource(sourceText);
+            if (previewSource === '')
+            {
+                return;
+            }
+            var fullHtml = content.innerHTML;
+            var previewHtml = formatTicketMessageTextForToggle(previewSource, messageId);
+            var numericId = parseInt(messageId || 0, 10);
+            var fullId = numericId > 0 ? 'message-fold-full-' + numericId : '';
+            content.innerHTML = '<div class="message-fold is-collapsed" data-role="message-fold" data-expanded="0">'
+                + '<div class="message-fold-preview" data-role="message-fold-preview">' + previewHtml
+                + '<div class="message-fold-fade" aria-hidden="true"></div></div>'
+                + '<div class="message-fold-full" data-role="message-fold-full"' + (fullId !== '' ? ' id="' + fullId + '"' : '') + '>'
+                + fullHtml + '</div>'
+                + '<button type="button" class="message-fold-toggle" data-role="message-fold-toggle" aria-expanded="false"'
+                + (fullId !== '' ? ' aria-controls="' + fullId + '"' : '') + '>'
+                + escapeHtml(MESSAGE_FOLD_LABEL) + '</button></div>';
+        };
+
         var readMessageHtmlAttribute = function (node, attributeName)
         {
             if (!node)
@@ -8391,6 +8454,28 @@
 
         document.addEventListener('click', function (event)
         {
+            var foldToggle = event.target.closest('[data-role="message-fold-toggle"]');
+            if (foldToggle)
+            {
+                event.preventDefault();
+                var fold = foldToggle.closest('[data-role="message-fold"]');
+                if (!fold)
+                {
+                    return;
+                }
+                fold.classList.remove('is-collapsed');
+                fold.setAttribute('data-expanded', '1');
+                foldToggle.hidden = true;
+                foldToggle.setAttribute('aria-expanded', 'true');
+                var full = fold.querySelector('[data-role="message-fold-full"]');
+                if (full)
+                {
+                    full.setAttribute('tabindex', '-1');
+                    full.focus();
+                }
+                return;
+            }
+
             var messageToggle = event.target.closest('[data-role="message-translation-toggle"]');
             if (messageToggle)
             {
@@ -8415,6 +8500,11 @@
                     ? storedHtml
                     : formatTicketMessageTextForToggle(String(nextText || ''), parseInt(messageNode.getAttribute('data-message-id') || '0', 10));
                 messageContent.setAttribute('data-showing', nextShowing);
+                installMessageFold(
+                    messageContent,
+                    String(nextText || ''),
+                    parseInt(messageNode.getAttribute('data-message-id') || '0', 10)
+                );
                 var toggledCard = messageNode.closest('details.ticket-card');
                 if (toggledCard && typeof hydrateTicketThumbnails === 'function')
                 {
@@ -8769,9 +8859,14 @@
                         messageContent.setAttribute('data-original-html', JSON.stringify(rawHtml));
                     }
                     messageContent.setAttribute('data-showing', 'translated');
+                    var keepFoldOpen = messageContent.querySelector('[data-role="message-fold"][data-expanded="1"]') !== null;
                     messageContent.innerHTML = displayHtml !== ''
                         ? displayHtml
                         : formatTicketMessageTextForToggle(displayText, msg.id);
+                    if (!keepFoldOpen)
+                    {
+                        installMessageFold(messageContent, displayText, msg.id);
+                    }
                 }
 
                 messageNode.setAttribute('data-translation-status', 'loaded');
