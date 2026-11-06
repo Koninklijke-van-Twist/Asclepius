@@ -1,3 +1,11 @@
+id: 2026-11-06-stats-trend-smooth-lines
+date: 2026-11-06
+title: Weiche Linien im Trenddiagramm
+author: Cursor Agent
+
+Unter **ICT-Statistiken**, bei **Offene Tickets im Zeitverlauf**, verlaufen die Linien als weiche Kurve durch dieselben Messpunkte. Die Linie bleibt auf den gemessenen Anzahlen und geht nicht unter null oder über einen Hoch- oder Tiefpunkt hinaus.
+
+---
 id: 2026-10-27-grok-default-webhook-optional
 date: 2026-10-27
 title: Standard-Grok-Bot neben deinem eigenen Webhook

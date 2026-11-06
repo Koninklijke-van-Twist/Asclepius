@@ -1,3 +1,11 @@
+id: 2026-11-06-stats-trend-smooth-lines
+date: 2026-11-06
+title: Vloeiende lijnen in de trendgrafiek
+author: Cursor Agent
+
+Op **ICT-statistieken**, onder **Open tickets over tijd**, lopen de lijnen in een vloeiende kromme door dezelfde meetpunten. De lijn blijft op de gemeten aantallen en gaat niet onder nul of voorbij een piek of dal.
+
+---
 id: 2026-10-27-grok-default-webhook-optional
 date: 2026-10-27
 title: Standaard Grok-bot naast je eigen webhook
