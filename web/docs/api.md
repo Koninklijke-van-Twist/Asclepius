@@ -130,6 +130,10 @@ Optioneel:
 
 - `priority` — `0` (normaal), `1` of `2`
 - `participant_emails` — string (kommagescheiden) of array van e-mailadressen
+- `requester_name` — weergavenaam van de aanvrager, alleen met een **service-key** of trusted localhost zonder gebruikersclient. Maximaal 80 Unicode-tekens. Spaties aan de uiteinden vallen weg; de opgeslagen naam komt letterlijk terug. Stuur je het veld mee, dan mag het niet leeg zijn en geen stuurtekens bevatten.
+- `suppress_create_mail` — bool, dezelfde bevoegdheid als `requester_name`. Alleen de waarden `true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off` (JSON-bool of die strings). Elke andere waarde, ook `"maybe"` of `"false"` met een typefout, geeft `422` `invalid_suppress_create_mail` en er wordt geen ticket gemaakt. Afwezig betekent `false`: de bevestigingsmail gaat weg zoals voorheen. Een adres op `.invalid` onderdrukt de mail **niet** vanzelf.
+
+`requester_name` maakt geen mailbox, login, api-client, directory-naam of extra deelnemer. Het ticket houdt de gewone aanvrager: `user_email` plus die ene deelnemerrij die create altijd zet. Een e-mailadres dat al een directorynaam heeft, of dat een ICT-account is, wordt geweigerd (`422` `requester_identity_conflict`). De bestaande naam en rechten blijven staan. Zonder `requester_name` en zonder `suppress_create_mail` is create ongewijzigd, ook voor een persoonlijke login-key: die blijft het ticket op de eigen gebruiker zetten en mag deze twee velden niet sturen (`403` `requester_name_forbidden` of `suppress_create_mail_forbidden`). Een sessie-key of webhook-key evenmin.
 
 Voorbeeld:
 
@@ -143,6 +147,19 @@ Voorbeeld:
 }
 ```
 
+Bot-aanvrager, zonder bevestigingsmail:
+
+```json
+{
+  "title": "Projecten zonder projectmanager",
+  "category": "Business Central",
+  "description": "…volledige tekst…",
+  "requester_email": "ariadne@bots.invalid",
+  "requester_name": "Ariadne",
+  "suppress_create_mail": true
+}
+```
+
 Succes → `201`:
 
 ```json
@@ -151,17 +168,45 @@ Succes → `201`:
   "ticket_id": 123,
   "assigned_email": "ict@kvt.nl",
   "ticket_url": "https://sleutels.kvt.nl/asclepius/index.php?open=123",
+  "suppress_create_mail": false,
+  "description_bytes": 34,
+  "description_translation_queued": true,
+  "translation_skip_reason": null,
   "ticket": { }
 }
 ```
 
 `ticket_url` is dezelfde link als de knop "Ticketlink kopiëren" in de UI (`index.php?open=<id>`).
 
-Na een geslaagd antwoord start de vertaling van de titel en de eerste tekst op de achtergrond, voor alle talen. Het aanmaken wacht daar niet op. Bestaande tickets worden niet achteraf allemaal vertaald. De bevestiging naar deelnemers volgt de taal van elke ontvanger en wacht zo nodig op de vertaling van de beschrijving, hetzelfde als een updatemail (zie `change_ticket_status`). Deze POST zonder `action` stuurt die bevestiging ook, via hetzelfde pad als de webinterface. Doet de aanvrager het zelf, dan staat er dat het ticket is ontvangen. Doet iemand anders of een service-key het namens die persoon, dan staat er dat het ticket namens de ontvanger is aangemaakt.
+`description` wordt opgeslagen zoals aangeleverd, inclusief een afsluitende newline. Alleen een lege of witruimte-only tekst wordt geweigerd. De grens is **2097152 bytes** (2 MiB), de UTF-8-lengte van de opgeslagen string (`strlen`, geen tekenaantal). Daarboven `422` `description_too_large` met `max_bytes` en `actual_bytes`. Er wordt niets ingekort en er komt geen ticket.
 
-Tip voor sleutels-apps die namens een gebruiker een ticket melden: gebruik de service-key (`asclepius_api_key` uit `login/cfg.php`), zet `user_email` op de ingelogde gebruiker en kies categorie `sleutels.kvt.nl web-applicatieproblemen`.
+De ruwe JSON-body van deze create mag maximaal **3145728 bytes** (3 MiB) zijn. Daarboven `413` `request_too_large` met `max_bytes` en `actual_bytes`, zonder ticket. Andere acties, zoals een bericht met bijlage, gebruiken deze grens niet.
 
-Validatiefouten → `422` met `errors` (array van strings).
+Readback van de tekst: `ticket.description` en het eerste bericht `messages[].message_text` zijn dezelfde bytes. De lijst `GET api.php` zonder `id` bevat nog steeds geen beschrijving. `GET api.php?id=` en het create-antwoord wel.
+
+Readback van de aanvrager, in het ticketobject van create, van `GET api.php?id=` en van de lijst:
+
+- `user_email` — het adres uit `user_email` of `requester_email`
+- `requester_display_name` — de opgeslagen `requester_name`, of `null` als die niet is gezet
+- `requester_name` — alleen aanwezig als `requester_display_name` gevuld is; dezelfde string
+- `user_name` — die opgeslagen naam als die er is. Anders de directorynaam, of het e-mailadres als er geen directorynaam is. Nooit de naam van de sessiegebruiker
+- `participants[].name` — voor het e-mailadres van de aanvrager dezelfde opgeslagen naam
+
+Het eerste bericht heeft `sender_email` = `user_email`, en `sender_display_name` / `sender_name` = de opgeslagen naam als die is gezet. De thread toont die naam. De gebruikersdirectory krijgt de botnaam niet, dus een naamlookup op alleen het adres blijft het adres zelf.
+
+`suppress_create_mail: true` slaat alleen `notifyRequesterOfCreatedTicket` over. Dat is de bevestigingsmail naar de deelnemers (`email.subject_created`, introductie “zelf aangemaakt” of “namens jou aangemaakt”), de wachtrijrij voor die mail, en de desktopmelding die bij diezelfde bevestiging hoort. Wat blijft: het ticket, de toewijzing, de deelnemerrij van de aanvrager, de webhook `new-ticket` (payload alleen `type`, `ticket_id`, `api_key`; de beschrijving zit daar niet in) en latere updatemails als er daarna een bericht of statuswijziging komt. Create via deze POST mailt ICT niet; dat blijft zo. De webinterface mailt ICT bij een nieuw ticket nog wel, en kent deze vlag niet.
+
+Vertaling: de titel gaat nog naar de vertaler als er een provider is en de titel binnen de grens valt. De beschrijving gaat alleen mee als die maximaal **131072 bytes** (128 KiB) is. Daarboven blijft de originele tekst heel, `description_translation_queued` is `false` en `translation_skip_reason` is `description_exceeds_translation_limit`. Er gaat dan geen externe vertaalopdracht voor die tekst weg. Een latere `translate_ticket` geeft het origineel terug met dezelfde foutcode en roept de vertaler niet aan. Zonder provider is `description_translation_queued` `false` en `translation_skip_reason` `null`, behalve als de tekst boven de 128 KiB zit.
+
+De bevestigingsmail, als die niet onderdrukt is, bevat de volledige beschrijving. Alleen het voorbeeld in de desktopmelding blijft de eerste 220 tekens; dat is geen inkorting van het ticket. SMTP, de webserver en PHP `post_max_size` / `memory_limit` op de productiehost zijn hier niet gemeten. Lokaal is de kolom SQLite `TEXT` (geen afkapping op 2 MiB). De productie-SQLite, proxy en `php.ini` kunnen een verzoek eerder weigeren; dat is dan een fout van de host, niet een stille inkorting in deze API.
+
+Markdown in de beschrijving, inclusief pipetabellen, wordt bij weergave geëscaped. Ruwe HTML in een cel wordt tekst, geen markup.
+
+Na een geslaagd antwoord start de vertaling van de titel en, binnen 128 KiB, van de eerste tekst op de achtergrond, voor alle talen. Het aanmaken wacht daar niet op. Bestaande tickets worden niet achteraf allemaal vertaald. De bevestiging naar deelnemers volgt de taal van elke ontvanger en wacht zo nodig op de vertaling van de beschrijving, hetzelfde als een updatemail (zie `change_ticket_status`), behalve als `suppress_create_mail` `true` is. Deze POST zonder `action` stuurt die bevestiging ook, via hetzelfde pad als de webinterface. Doet de aanvrager het zelf, dan staat er dat het ticket is ontvangen. Doet iemand anders of een service-key het namens die persoon, dan staat er dat het ticket namens de ontvanger is aangemaakt.
+
+Tip voor sleutels-apps die namens een gebruiker een ticket melden: gebruik de service-key (`asclepius_api_key` uit `login/cfg.php`), zet `user_email` op de ingelogde gebruiker en kies categorie `sleutels.kvt.nl web-applicatieproblemen`. Laat `requester_name` weg: een bekend persoon krijgt geen andere naam.
+
+Validatiefouten → `422` met `errors` (array van strings). Nieuwe foutcodes staan hierboven. Een kolom `requester_display_name` op `tickets` wordt bij het openen van de database toegevoegd als die er nog niet is. Er is geen aparte migratie.
 
 ## POST — `add_ticket_message`
 
