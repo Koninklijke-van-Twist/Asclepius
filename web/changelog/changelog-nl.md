@@ -10,6 +10,21 @@ De behandelaar krijgt dezelfde melding als bij een reactie in Asclepius, en een 
 Dit staat standaard uit en wordt eerst voor een paar tickets aangezet door een beheerder.
 
 ---
+id: 2026-11-06-bot-requester-full-description
+date: 2026-11-06
+title: Ticket namens een bot, met de volledige tekst
+author: Cursor Agent
+
+Een service-integratie kan een nieuw ticket op een eigen aanvragersnaam en e-mailadres zetten, zonder daar een account van te maken. Een vlag zet alleen de bevestigingsmail uit. Een lange beschrijving wordt helemaal bewaard; is die te groot, dan wordt het ticket geweigerd.
+---
+id: 2026-11-06-stats-trend-smooth-lines
+date: 2026-11-06
+title: Vloeiende lijnen in de trendgrafiek
+author: Cursor Agent
+
+Op **ICT-statistieken**, onder **Open tickets over tijd**, lopen de lijnen in een vloeiende kromme door dezelfde meetpunten. De lijn blijft op de gemeten aantallen en gaat niet onder nul of voorbij een piek of dal.
+
+---
 id: 2026-10-27-grok-default-webhook-optional
 date: 2026-10-27
 title: Standaard Grok-bot naast je eigen webhook

@@ -42,6 +42,13 @@ const TICKET_STATUSES = [
     'afgehandeld',
 ];
 const CUSTOM_TICKET_STATUS_MAX_LENGTH = 40;
+/** Opgeslagen beschrijving in UTF-8-bytes. Daarboven faalt create; er wordt niets afgekapt. */
+const TICKET_DESCRIPTION_MAX_BYTES = 2097152;
+/** Ruwe JSON-body van ticket-create, in bytes. Daarboven 413 en geen ticket. */
+const TICKET_CREATE_JSON_MAX_BYTES = 3145728;
+/** Langere tekst blijft opgeslagen maar gaat niet naar de vertaler. */
+const TICKET_TRANSLATION_MAX_BYTES = 131072;
+const REQUESTER_DISPLAY_NAME_MAX_CHARS = 80;
 const STATUS_COLORS = [
     'ingediend' => '#2563eb',
     'in behandeling' => '#d97706',

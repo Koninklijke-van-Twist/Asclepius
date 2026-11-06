@@ -10,6 +10,21 @@ Le responsable reçoit la même notification que pour une réponse dans Asclepiu
 C'est désactivé par défaut et d'abord activé par un administrateur pour quelques tickets.
 
 ---
+id: 2026-11-06-bot-requester-full-description
+date: 2026-11-06
+title: Ticket au nom d’un bot, avec le texte complet
+author: Cursor Agent
+
+Une intégration de service peut ouvrir un ticket sous son propre nom et sa propre adresse, sans créer de compte. Une option coupe seulement le mail de confirmation. Une longue description est conservée en entier ; si elle est trop grande, le ticket est refusé.
+---
+id: 2026-11-06-stats-trend-smooth-lines
+date: 2026-11-06
+title: Lignes fluides dans le graphique de tendance
+author: Cursor Agent
+
+Dans **Statistiques ICT**, sous **Tickets ouverts dans le temps**, les lignes forment une courbe fluide par les mêmes points de mesure. La ligne reste sur les nombres mesurés et ne passe pas sous zéro ni au-delà d’un pic ou d’un creux.
+
+---
 id: 2026-10-27-grok-default-webhook-optional
 date: 2026-10-27
 title: Bot Grok par défaut en plus de ton webhook

@@ -19,7 +19,7 @@ class TicketStore
     /** Bot ghost arrived after request; waiting for a human (ICT/user) message. */
     public const AI_ADVICE_AWAITING_HUMAN = 2;
 
-    private const TICKET_LIST_COLUMNS = 't.id, t.title, t.category, t.user_email, t.assigned_email, t.status, t.priority, t.created_at, t.updated_at, t.due_date, t.resolved_at, t.is_private, t.ai_advice_pending, t.last_message_is_ai';
+    private const TICKET_LIST_COLUMNS = 't.id, t.title, t.category, t.user_email, t.requester_display_name, t.assigned_email, t.status, t.priority, t.created_at, t.updated_at, t.due_date, t.resolved_at, t.is_private, t.ai_advice_pending, t.last_message_is_ai';
 
     private PDO $pdo;
     private string $databasePath;
@@ -1793,7 +1793,8 @@ class TicketStore
         int $priority = 0,
         array $additionalParticipants = [],
         ?string $dueDate = null,
-        ?string $forcedAssignee = null
+        ?string $forcedAssignee = null,
+        ?string $requesterDisplayName = null
     ): array {
         $userEmail = strtolower(trim($userEmail));
         $priority = max(0, min(2, $priority));
@@ -1801,18 +1802,23 @@ class TicketStore
         $assignee = $normalizedForcedAssignee !== '' ? $normalizedForcedAssignee : $this->pickAssignee($category);
         $now = date('c');
         $normalizedDueDate = $this->normalizeDueDate($dueDate);
+        if (strlen($description) > TICKET_DESCRIPTION_MAX_BYTES) {
+            throw new InvalidArgumentException('Beschrijving is te lang.');
+        }
+        $requesterDisplayName = $this->validatedRequesterDisplayName($requesterDisplayName);
 
         $this->pdo->beginTransaction();
 
         try {
             $ticketStatement = $this->pdo->prepare(
-                'INSERT INTO tickets (title, category, user_email, assigned_email, status, description, priority, due_date, created_at, updated_at)
-                 VALUES (:title, :category, :user_email, :assigned_email, :status, :description, :priority, :due_date, :created_at, :updated_at)'
+                'INSERT INTO tickets (title, category, user_email, requester_display_name, assigned_email, status, description, priority, due_date, created_at, updated_at)
+                 VALUES (:title, :category, :user_email, :requester_display_name, :assigned_email, :status, :description, :priority, :due_date, :created_at, :updated_at)'
             );
             $ticketStatement->execute([
                 ':title' => $title,
                 ':category' => $category,
                 ':user_email' => $userEmail,
+                ':requester_display_name' => $requesterDisplayName,
                 ':assigned_email' => $assignee,
                 ':status' => 'ingediend',
                 ':description' => $description,
@@ -1842,13 +1848,14 @@ class TicketStore
             $this->insertStatusTransition($ticketId, 'ingediend', $now, null);
 
             $messageStatement = $this->pdo->prepare(
-                'INSERT INTO ticket_messages (ticket_id, sender_email, sender_role, message_text, created_at)
-                 VALUES (:ticket_id, :sender_email, :sender_role, :message_text, :created_at)'
+                'INSERT INTO ticket_messages (ticket_id, sender_email, sender_role, sender_display_name, message_text, created_at)
+                 VALUES (:ticket_id, :sender_email, :sender_role, :sender_display_name, :message_text, :created_at)'
             );
             $messageStatement->execute([
                 ':ticket_id' => $ticketId,
                 ':sender_email' => $userEmail,
                 ':sender_role' => 'user',
+                ':sender_display_name' => $requesterDisplayName,
                 ':message_text' => $description,
                 ':created_at' => $now,
             ]);
@@ -2421,6 +2428,25 @@ class TicketStore
         }
 
         return $messageId;
+    }
+
+    private function validatedRequesterDisplayName(?string $name): ?string
+    {
+        if ($name === null) {
+            return null;
+        }
+
+        $name = trim($name);
+        if ($name === '') {
+            return null;
+        }
+
+        $length = function_exists('mb_strlen') ? mb_strlen($name) : strlen($name);
+        if ($length > REQUESTER_DISPLAY_NAME_MAX_CHARS || preg_match('/\p{C}/u', $name) !== 0) {
+            throw new InvalidArgumentException('requester_name is ongeldig.');
+        }
+
+        return $name;
     }
 
     private static function normalizeMessageIdentity(?string $value, int $maxLength): ?string
@@ -4841,6 +4867,7 @@ class TicketStore
                 assigned_email TEXT DEFAULT NULL,
                 status TEXT NOT NULL DEFAULT "ingediend",
                 description TEXT NOT NULL DEFAULT "",
+                requester_display_name TEXT DEFAULT NULL,
                 priority INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -5033,6 +5060,7 @@ class TicketStore
         $this->ensureColumn('tickets', 'assigned_email', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'status', 'TEXT NOT NULL DEFAULT "ingediend"');
         $this->ensureColumn('tickets', 'description', 'TEXT NOT NULL DEFAULT ""');
+        $this->ensureColumn('tickets', 'requester_display_name', 'TEXT DEFAULT NULL');
         $this->ensureColumn('tickets', 'priority', 'INTEGER NOT NULL DEFAULT 0');
         $this->ensureColumn('tickets', 'created_at', 'TEXT NOT NULL DEFAULT ""');
         $this->ensureColumn('tickets', 'updated_at', 'TEXT NOT NULL DEFAULT ""');

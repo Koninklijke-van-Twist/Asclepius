@@ -137,6 +137,17 @@ function translateTicketTextForViewer(
         ];
     }
 
+    if (ticketTextExceedsTranslationLimit($rawText)) {
+        return [
+            'text' => $rawText,
+            'is_translated' => false,
+            'source_language' => '',
+            'target_language' => $targetLanguage,
+            'translation_pending' => false,
+            'translation_error' => 'description_exceeds_translation_limit',
+        ];
+    }
+
     $provider = createTranslationProvider();
     if ($provider === null) {
         return [
@@ -695,9 +706,19 @@ function releaseQueuedUserUpdateMailsAfterTranslation(TicketStore $store, string
     }
 }
 
+function ticketTextExceedsTranslationLimit(string $rawText): bool
+{
+    $maxBytes = defined('TICKET_TRANSLATION_MAX_BYTES') ? (int) TICKET_TRANSLATION_MAX_BYTES : 131072;
+
+    return strlen($rawText) > $maxBytes;
+}
+
 function queueTicketTextTranslation(TicketStore $store, string $entityType, int $entityId, int $ticketId, string $rawText): void
 {
     if (trim($rawText) === '' || $entityId <= 0 || $ticketId <= 0 || trim($entityType) === '') {
+        return;
+    }
+    if (ticketTextExceedsTranslationLimit($rawText)) {
         return;
     }
     if (function_exists('ticketMessageIsStatusNoteOnly') && ticketMessageIsStatusNoteOnly($rawText)) {

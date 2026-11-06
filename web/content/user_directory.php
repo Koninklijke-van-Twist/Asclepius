@@ -499,6 +499,25 @@ function enrichApiValueWithUserNames(mixed $value): mixed
         }
     }
 
+    $explicitName = trim((string) ($result['requester_display_name'] ?? ''));
+    if ($explicitName !== '') {
+        $result['requester_display_name'] = $explicitName;
+        $result['requester_name'] = $explicitName;
+        $result['user_name'] = $explicitName;
+        $owner = normalizeDirectoryEmail((string) ($result['user_email'] ?? ''));
+        if ($owner !== '' && isset($result['participants']) && is_array($result['participants'])) {
+            foreach ($result['participants'] as $index => $participant) {
+                if (!is_array($participant)) {
+                    continue;
+                }
+                if (normalizeDirectoryEmail((string) ($participant['email'] ?? '')) !== $owner) {
+                    continue;
+                }
+                $result['participants'][$index]['name'] = $explicitName;
+            }
+        }
+    }
+
     return $result;
 }
 

@@ -2520,6 +2520,93 @@
                 return node;
             };
 
+            // ASCLEPIUS-TREND-SMOOTH-START
+            // Steffen monotone cubic: door elk meetpunt, zonder voorbij piek, dal of nul.
+            var trendSmoothPath = function (points, yMin, yMax)
+            {
+                var n = points.length;
+                if (n === 0)
+                {
+                    return '';
+                }
+                var num = function (value)
+                {
+                    return Number(value).toFixed(2);
+                };
+                var pair = function (x, y)
+                {
+                    return num(x) + ' ' + num(y);
+                };
+                if (n === 1)
+                {
+                    return 'M' + pair(points[0].x, points[0].y);
+                }
+                if (n === 2)
+                {
+                    return 'M' + pair(points[0].x, points[0].y) + ' L' + pair(points[1].x, points[1].y);
+                }
+
+                var sign = function (value)
+                {
+                    return value < 0 ? -1 : 1;
+                };
+                var slope3 = function (x0, y0, x1, y1, x2, y2)
+                {
+                    var h0 = x1 - x0;
+                    var h1 = x2 - x1;
+                    if (h0 === 0 || h1 === 0)
+                    {
+                        return 0;
+                    }
+                    var s0 = (y1 - y0) / h0;
+                    var s1 = (y2 - y1) / h1;
+                    var p = (s0 * h1 + s1 * h0) / (h0 + h1);
+                    return (sign(s0) + sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p)) || 0;
+                };
+                var slope2 = function (x0, y0, x1, y1, t)
+                {
+                    var h = x1 - x0;
+                    return h ? (3 * (y1 - y0) / h - t) / 2 : t;
+                };
+                var clampY = function (y)
+                {
+                    if (!(yMin <= yMax))
+                    {
+                        return y;
+                    }
+                    return Math.min(yMax, Math.max(yMin, y));
+                };
+
+                var tangent = new Array(n);
+                for (var i = 1; i < n - 1; i++)
+                {
+                    tangent[i] = slope3(
+                        points[i - 1].x, points[i - 1].y,
+                        points[i].x, points[i].y,
+                        points[i + 1].x, points[i + 1].y
+                    );
+                }
+                tangent[0] = slope2(points[0].x, points[0].y, points[1].x, points[1].y, tangent[1]);
+                tangent[n - 1] = slope2(points[n - 2].x, points[n - 2].y, points[n - 1].x, points[n - 1].y, tangent[n - 2]);
+
+                var parts = ['M' + pair(points[0].x, points[0].y)];
+                for (var i = 0; i < n - 1; i++)
+                {
+                    var x0 = points[i].x;
+                    var y0 = points[i].y;
+                    var x1 = points[i + 1].x;
+                    var y1 = points[i + 1].y;
+                    var dx = (x1 - x0) / 3;
+                    parts.push(
+                        'C' + pair(x0 + dx, clampY(y0 + dx * tangent[i]))
+                        + ' ' + pair(x1 - dx, clampY(y1 - dx * tangent[i + 1]))
+                        + ' ' + pair(x1, y1)
+                    );
+                }
+                return parts.join(' ');
+            };
+            // ASCLEPIUS-TREND-SMOOTH-END
+
             var drawTrendChart = function (data)
             {
                 if (!chartSvg || !data)
@@ -2700,10 +2787,7 @@
                         {
                             return;
                         }
-                        var d = chunk.map(function (point, index)
-                        {
-                            return (index === 0 ? 'M' : 'L') + point.x.toFixed(2) + ' ' + point.y.toFixed(2);
-                        }).join(' ');
+                        var d = trendSmoothPath(chunk, padding.top, padding.top + plotHeight);
                         chartSvg.appendChild(svgEl('path', {
                             d: d,
                             fill: 'none',

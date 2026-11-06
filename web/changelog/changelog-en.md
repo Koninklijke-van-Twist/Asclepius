@@ -10,6 +10,21 @@ The assignee gets the same notification as for a reply in Asclepius, and a ticke
 This is off by default and is first enabled for a few tickets by an administrator.
 
 ---
+id: 2026-11-06-bot-requester-full-description
+date: 2026-11-06
+title: Ticket on behalf of a bot, with the full text
+author: Cursor Agent
+
+A service integration can open a ticket under its own requester name and email without creating an account. A flag turns off only the confirmation email. A long description is stored in full; if it is too large, the ticket is refused.
+---
+id: 2026-11-06-stats-trend-smooth-lines
+date: 2026-11-06
+title: Smooth lines in the trend chart
+author: Cursor Agent
+
+On **ICT statistics**, under **Open tickets over time**, the lines run as a smooth curve through the same measurements. The line stays on the measured counts and does not go below zero or past a peak or valley.
+
+---
 id: 2026-10-27-grok-default-webhook-optional
 date: 2026-10-27
 title: Default Grok bot alongside your own webhook
