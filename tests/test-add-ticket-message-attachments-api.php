@@ -357,11 +357,56 @@ assertSame('Multipart-bijlage inline', "Upload:\n[[attachment:upload.png]]", (st
 assertSame('Multipart-bijlage in antwoord', 'upload.png', $multipart['attachments'][0]['filename'] ?? null);
 @unlink($uploadTmp);
 
+echo PHP_EOL . '--- as_user: service-key plaatst als aanvrager/deelnemer ---' . PHP_EOL;
+require_once __DIR__ . '/../web/content/GrokBot.php';
+$webhookHits = [];
+$GLOBALS['grokBot'] = ['enabled' => true, 'webhook_url' => 'https://example.com/hook', 'send_key' => 'k', 'sender_email' => 'grok-bot@kvt.nl'];
+GrokBot::setWebhookDnsOverride(static fn(string $host): array => ['93.184.216.34']);
+GrokBot::setDeliveryOverride(static function (string $url, array $payload) use (&$webhookHits): void {
+    $webhookHits[] = $payload;
+});
+$store->addTicketParticipants($ticketId, ['deelnemer@kvt.nl'], 'ict@kvt.nl');
+$asUser = ['ticket_id' => $ticketId, 'as_user' => true];
+$ticketStatus = static fn(): string => (string) ($store->getTicket($ticketId, true, 'ict@kvt.nl')['status'] ?? '');
+
+$store->updateTicket($ticketId, 'afwachtende op gebruiker', 'ict@kvt.nl', 0, null);
+$reply = handleAddTicketMessageApiAction($store, $asUser + ['message' => 'Antwoord per mail', 'sender_email' => 'USER@kvt.nl'], $serviceClient, true);
+assertTrue('Aanvrager via service-key slaagt', !empty($reply['success']));
+assertSame('Rol is user', 'user', $reply['sender_role'] ?? null);
+assertSame('Afzender is de aanvrager', 'user@kvt.nl', $reply['sender_email'] ?? null);
+assertSame('Status naar in behandeling', 'in behandeling', $ticketStatus());
+assertFalse('Geen systeemnotitie van de status', str_contains((string) ($reply['message']['message_text'] ?? ''), 'behandeling'));
+assertSame('User-reply webhook vuurt', 1, count($webhookHits));
+
+$webhookHits = [];
+$second = handleAddTicketMessageApiAction($store, $asUser + ['message' => 'Nog een', 'sender_email' => 'deelnemer@kvt.nl'], $serviceClient, true);
+assertSame('Deelnemer krijgt rol user', 'user', $second['sender_role'] ?? null);
+assertSame('Status blijft in behandeling', 'in behandeling', $ticketStatus());
+assertSame('Geen webhook als niet wordt gewacht', 0, count($webhookHits));
+
+$stranger = handleAddTicketMessageApiAction($store, $asUser + ['message' => 'Hallo', 'sender_email' => 'iemand@kvt.nl'], $serviceClient, true);
+assertSame('Vreemd e-mailadres: forbidden', 'forbidden', $stranger['error_code'] ?? null);
+$noEmail = handleAddTicketMessageApiAction($store, $asUser + ['message' => 'Hallo'], $serviceClient, true);
+assertSame('Zonder sender_email: forbidden', 'forbidden', $noEmail['error_code'] ?? null);
+$ictAsUser = handleAddTicketMessageApiAction($store, $asUser + ['message' => 'Hallo', 'sender_email' => 'ict@kvt.nl'], $serviceClient, true);
+assertSame('ICT is geen deelnemer: forbidden', 'forbidden', $ictAsUser['error_code'] ?? null);
+$ghostAsUser = handleAddTicketMessageApiAction($store, $asUser + ['message' => 'Hallo', 'sender_email' => 'user@kvt.nl', 'ghost' => true], $serviceClient, true);
+assertSame('as_user met ghost geweigerd', 'as_user_conflict', $ghostAsUser['error_code'] ?? null);
+$statusAsUser = handleAddTicketMessageApiAction($store, $asUser + ['message' => 'Hallo', 'sender_email' => 'user@kvt.nl', 'status' => 'afgehandeld'], $serviceClient, true);
+assertSame('as_user met status geweigerd', 'as_user_conflict', $statusAsUser['error_code'] ?? null);
+$withoutFlag = handleAddTicketMessageApiAction($store, ['ticket_id' => $ticketId, 'message' => 'Als ICT', 'sender_email' => 'user@kvt.nl'], $serviceClient, true);
+assertSame('Zonder as_user blijft het admin', 'admin', $withoutFlag['sender_role'] ?? null);
+$notService = handleAddTicketMessageApiAction($store, $asUser + ['message' => 'Hallo', 'sender_email' => 'ict@kvt.nl'], ['email' => 'ict@kvt.nl', 'is_admin' => true], false);
+assertSame('as_user telt alleen met service-key', 'admin', $notService['sender_role'] ?? null);
+GrokBot::setDeliveryOverride(null);
+GrokBot::setWebhookDnsOverride(null);
+
 echo PHP_EOL . '--- Router / documentatie ---' . PHP_EOL;
 $apiSource = (string) file_get_contents(__DIR__ . '/../web/api.php');
 assertTrue('Router geeft 413 bij te grote bijlage', str_contains($apiSource, "'attachment_too_large', 'attachments_too_large' => 413"));
 $docs = (string) file_get_contents(__DIR__ . '/../web/docs/api.md');
 assertTrue('docs/api.md beschrijft attachments', str_contains($docs, '{{attachment:0}}') && str_contains($docs, 'data_base64'));
+assertTrue('docs/api.md beschrijft as_user', str_contains($docs, '`as_user`'));
 
 echo PHP_EOL;
 echo "Geslaagd: {$passed}" . PHP_EOL;

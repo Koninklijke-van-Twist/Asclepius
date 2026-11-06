@@ -1,3 +1,15 @@
+id: 2026-11-06-mail-reply-ingest
+date: 2026-11-06
+title: Replies by e-mail land in the ticket
+author: Cursor Agent
+
+When someone replies to a ticket e-mail, the reply will appear as a message in the ticket under the sender's name. Quotes of earlier mails and the signature are left out. Only the requester and participants of the ticket can respond this way; automatic replies are ignored.
+
+The assignee gets the same notification as for a reply in Asclepius, and a ticket that was *waiting on user* moves to *in progress*.
+
+This is off by default and is first enabled for a few tickets by an administrator.
+
+---
 id: 2026-11-06-bot-requester-full-description
 date: 2026-11-06
 title: Ticket on behalf of a bot, with the full text

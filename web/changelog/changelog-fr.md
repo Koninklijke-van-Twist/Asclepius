@@ -1,3 +1,15 @@
+id: 2026-11-06-mail-reply-ingest
+date: 2026-11-06
+title: Les réponses par e-mail arrivent dans le ticket
+author: Cursor Agent
+
+Quand quelqu'un répond à un e-mail de ticket, la réponse apparaîtra comme message dans le ticket, sous le nom de l'expéditeur. Les citations des mails précédents et la signature sont omises. Seuls le demandeur et les participants du ticket peuvent répondre ainsi ; les réponses automatiques sont ignorées.
+
+Le responsable reçoit la même notification que pour une réponse dans Asclepius, et un ticket en *attente de l'utilisateur* passe à *en cours de traitement*.
+
+C'est désactivé par défaut et d'abord activé par un administrateur pour quelques tickets.
+
+---
 id: 2026-11-06-bot-requester-full-description
 date: 2026-11-06
 title: Ticket au nom d’un bot, avec le texte complet

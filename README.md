@@ -40,6 +40,18 @@ Tim moet `$mimirApi` (en optioneel `$mimirBase`) lokaal/op de server zetten, mé
 
 Geen `auth.php` in deze repository (staat in `.gitignore`). Lokaal/op de server de Mímir-sleutel zetten zoals hierboven, en `$baseUrl`, `$auth` / `$auth_list` en `$environment` daarnaast laten staan voor de directe BC-fallback. Graph-credentials (`$graphCredentials`), mail, web-push, API-keys en Grok blijven zoals voorheen.
 
+## Antwoord per e-mail op ticketmail (feature-flag, standaard uit)
+
+Een antwoord op een ticketmail wordt een gebruikersbericht op het ticket. Asclepius haalt zelf geen mail op: een watcher op de gedeelde mailbox `ict@kvt.nl` (Power Automate of Graph, buiten deze repo) stuurt elke nieuwe mail met een service-key naar `api.php`, `action` `ingest_ticket_reply_mail`. Payload, matching, foutgedrag en voorbeeld staan in `web/docs/api.md`.
+
+Aanzetten in `web/auth.php` (niet in git), eerst voor één of twee tickets:
+
+```php
+$mailReplyIngest = ['enabled' => true, 'mailbox' => 'ict@kvt.nl', 'ticket_ids' => [123, 124]];
+```
+
+Haal `ticket_ids` weg om het voor alle tickets te laten gelden; `enabled` op `false` zet het weer uit.
+
 ## Vertaling (Copilot-flow, optioneel)
 
 Zet in `web/auth.php` (niet in git), naast de bestaande `$laraTranslate`:
