@@ -1,3 +1,11 @@
+id: 2026-11-06-stats-trend-smooth-lines
+date: 2026-11-06
+title: Lignes fluides dans le graphique de tendance
+author: Cursor Agent
+
+Dans **Statistiques ICT**, sous **Tickets ouverts dans le temps**, les lignes forment une courbe fluide par les mêmes points de mesure. La ligne reste sur les nombres mesurés et ne passe pas sous zéro ni au-delà d’un pic ou d’un creux.
+
+---
 id: 2026-10-27-grok-default-webhook-optional
 date: 2026-10-27
 title: Bot Grok par défaut en plus de ton webhook

@@ -1,3 +1,11 @@
+id: 2026-11-06-stats-trend-smooth-lines
+date: 2026-11-06
+title: Smooth lines in the trend chart
+author: Cursor Agent
+
+On **ICT statistics**, under **Open tickets over time**, the lines run as a smooth curve through the same measurements. The line stays on the measured counts and does not go below zero or past a peak or valley.
+
+---
 id: 2026-10-27-grok-default-webhook-optional
 date: 2026-10-27
 title: Default Grok bot alongside your own webhook
