@@ -6,6 +6,19 @@ author: Cursor Agent
 Eine lange Ticketnachricht zeigt zuerst den Anfang, mit einem weichen Übergang. Darunter steht eine Schaltfläche, die nur diese Nachricht ganz öffnet. Kürzere Nachrichten bleiben wie bisher.
 
 ---
+
+id: 2026-11-06-mail-reply-ingest
+date: 2026-11-06
+title: Antworten per E-Mail landen im Ticket
+author: Cursor Agent
+
+Wer auf eine Ticket-Mail antwortet, sieht die Antwort künftig als Nachricht im Ticket unter dem Namen des Absenders. Zitate früherer Mails und die Signatur werden weggelassen. Nur der Antragsteller und die Teilnehmer des Tickets können so antworten; automatische Antworten werden ignoriert.
+
+Der Bearbeiter erhält dieselbe Benachrichtigung wie bei einer Antwort in Asclepius, und ein Ticket mit dem Status *wartet auf Benutzer* wechselt zu *in Bearbeitung*.
+
+Dies ist standardmäßig aus und wird zunächst von einem Administrator für einige Tickets aktiviert.
+
+---
 id: 2026-11-06-bot-requester-full-description
 date: 2026-11-06
 title: Ticket im Namen eines Bots, mit dem vollständigen Text

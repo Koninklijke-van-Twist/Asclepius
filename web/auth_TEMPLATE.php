@@ -31,6 +31,15 @@
 //     'default_title' => 'Bot',
 // ];
 
+// --- Antwoord per e-mail op ticketmail (feature-flag, standaard uit) ---
+// Een inbox-watcher op de gedeelde mailbox stuurt mails naar api.php (action ingest_ticket_reply_mail,
+// service-key). Zie docs/api.md. Test eerst met één of twee tickets; haal 'ticket_ids' weg voor alle tickets.
+// $mailReplyIngest = [
+//     'enabled' => true,
+//     'mailbox' => 'ict@kvt.nl',
+//     'ticket_ids' => [123, 124],
+// ];
+
 // --- Mímir (aanbevolen) ---
 // $mimirApi  = 'mimir_…';
 // $mimirBase = 'https://sleutels.kvt.nl/mimir/api';

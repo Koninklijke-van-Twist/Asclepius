@@ -252,6 +252,7 @@ Velden:
 - `sender_email` / `viewer_email` / `user_email` — actor; bij service-key verplicht voor een herkenbare afzender, anders `ict@kvt.nl`
 - `sender_name` / `display_name` / `sender_display_name` — optioneel; weergavenaam in de ticketthread. Alleen ICT-sessie, service-key of trusted localhost. Anders de naam bij het e-mailadres.
 - `sender_title` / `role_title` / `function_title` / `sender_role_title` — optioneel; blauwe functietitel naast de naam. Zelfde rechten als `sender_name`. Anders `ICT` of `Gebruiker`.
+- `as_user` — optioneel, alleen met service-key; `true` plaatst het bericht als gebruiker, zie **Plaatsen als gebruiker** hieronder
 - `status` / `ticket_status` — optioneel; alleen meenemen om de status te wijzigen. Zelfde regels als `change_ticket_status` (vaste waarde uit `ticket_lookups.statuses` of eigen label).
 - `assigned_email` / `assignee` / `assigned` — optioneel; alleen meenemen om de toewijzing te wijzigen. Lege string = niet toegewezen. Zelfde regels als `change_ticket_assignee`.
 
@@ -263,6 +264,8 @@ Rechten:
 - `ghost: true` alleen met ICT-sessie, service-key of trusted localhost → anders `403` `ghost_forbidden`
 - Eigen naam/titel alleen met dezelfde rechten als ghost; andere callers worden stil genegeerd
 - `status` / `assigned_email` alleen met dezelfde autorisatie als `change_ticket_status` / `change_ticket_assignee`: service-key, webhook-key (`apiClient.is_admin`), ICT-rechten van de sessie, of trusted localhost. Anders `403` `forbidden`. Een `user_is_admin` in de body geeft geen extra rechten.
+
+**Plaatsen als gebruiker (`as_user`):** een service-key plaatst normaal altijd als `admin`. Met `"as_user": true` plaatst hij als de gebruiker, bijvoorbeeld voor een antwoord per e-mail. Dat mag alleen als `sender_email` (of `viewer_email` / `user_email`) de aanvrager of een deelnemer van dit ticket is; anders `403` `forbidden`. Er is geen rol-override voor andere adressen. Het bericht volgt dan het pad van een gebruikersreactie in de webinterface: `sender_role` is `user`, staat het ticket op `afwachtende op gebruiker` dan gaat de status naar `in behandeling` (zonder systeemnotitie), en de gebruikersreactie-webhook vuurt. `sender_name` / `sender_title` worden genegeerd. Combineren met `ghost`, `status` of `assigned_email` geeft `422` `as_user_conflict`. Zonder `as_user` verandert er niets, ook niet als `sender_email` de aanvrager is. Deze aanroep stuurt zelf geen mail naar ICT.
 
 Succes → `200` met `ticket_id`, `message_id`, `is_ghost`, `sender_email`, `sender_name`, `sender_role`, `sender_title`, `message`. Met bijlagen ook `attachments` en `ticket_url`.
 
@@ -375,6 +378,76 @@ Status los van het bericht — een echte statuswijziging via de API (`change_tic
 - `explanation`: één POST met `action` `add_ticket_message`, `ticket_id` (of `id`), `message` (of `message_text`) en `status` (of `ticket_status`). Voorbeeld: `{"action":"add_ticket_message","ticket_id":123,"message":"Tekst","status":"in behandeling"}`.
 
 Meerdere hints kunnen samen in `hints` staan. Een ongewijzigde status (`unchanged: true`) telt niet als statuswijziging.
+
+## POST — `ingest_ticket_reply_mail`
+
+Een antwoord per e-mail op een ticketmail wordt een gewoon gebruikersbericht op het ticket. Asclepius haalt zelf geen mail op: een externe inbox-watcher (Power Automate of Microsoft Graph) op de gedeelde mailbox `ict@kvt.nl` stuurt elke nieuwe mail naar deze actie. De actie zoekt het ticket, haalt citaten en handtekening weg en plaatst de rest via `add_ticket_message` met `as_user`.
+
+Authenticatie: alleen een **service-key** (`X-API-Key`). Andere keys → `403` `forbidden`. De ingest staat standaard **uit**; zie **Feature-flag** hieronder.
+
+Velden (JSON):
+
+- `message_id` — verplicht; de `Message-ID` (Graph: `internetMessageId`) van de binnengekomen mail. Dient voor de ontdubbeling.
+- `from_email` — verplicht; het afzenderadres.
+- `subject` — onderwerp, voor de terugval op het ticketnummer.
+- `body_html` en/of `body_text` — de mailtekst. `body_html` heeft voorrang als het gevuld is.
+- `in_reply_to` — header `In-Reply-To`, tekst met `<id>`.
+- `references` — header `References`, tekst of lijst met `<id>`'s.
+- `headers` — optioneel; object `{"Auto-Submitted": "auto-replied"}` of een Graph-lijst `[{"name": "...", "value": "..."}]` (`internetMessageHeaders`). Zonder `headers` werken auto-reply-herkenning op header niet; onderwerp en afzender worden dan nog wel gecontroleerd.
+
+Bijlagen worden niet overgenomen; de originele mail met bijlagen blijft in de mailbox staan.
+
+Voorbeeld:
+
+```json
+{
+  "action": "ingest_ticket_reply_mail",
+  "message_id": "<AM9PR01MB1234@example.prod.outlook.com>",
+  "from_email": "piet@kvt.nl",
+  "from_name": "Piet Jansen",
+  "subject": "RE: ICT Tickets - Update op ticket #123",
+  "in_reply_to": "<asclepius-t123-1a2b3c4d5e6f7a8b@kvt.nl>",
+  "references": "<asclepius-t123-0f0e0d0c0b0a0908@kvt.nl> <asclepius-t123-1a2b3c4d5e6f7a8b@kvt.nl>",
+  "body_html": "<html>...</html>",
+  "headers": [{"name": "Auto-Submitted", "value": "no"}]
+}
+```
+
+**Matching.** Eerst op `In-Reply-To` en `References`: elke uitgaande ticketmail heeft een eigen `Message-ID` (`asclepius-t<ticketnummer>-<willekeurig>@kvt.nl`) dat Asclepius onthoudt, en volgende mails over hetzelfde ticket verwijzen met `In-Reply-To` / `References` naar de vorige. Lukt dat niet, dan geldt het ticketnummer in het onderwerp (`ticket #123` of `#123`, in alle talen). Headers hebben voorrang op het onderwerp.
+
+**Wie mag plaatsen.** Alleen de aanvrager of een deelnemer van het gevonden ticket (`from_email`). Anderen worden genegeerd (`sender_not_on_ticket`); er wordt niets geplaatst. Het bericht krijgt `sender_role` `user` en volgt het pad van een gebruikersreactie in de webinterface (zie **Plaatsen als gebruiker**): staat het ticket op `afwachtende op gebruiker`, dan wordt de status `in behandeling`, en de gebruikersreactie-webhook vuurt. De behandelaar krijgt de melding "Reactie van gebruiker" zoals bij een reactie in de UI. De gedeelde mailbox zelf krijgt die melding niet, want de mail staat daar al.
+
+**Genegeerd** (altijd `200`, `ingested: false`): `ingest_disabled`, `ticket_not_enabled`, `loop` (afzender is de gedeelde mailbox of de Asclepius-mailafzender, of het is een mail met een Asclepius-`Message-ID`), `automatic_sender` (`mailer-daemon`, `postmaster`, `noreply`), `auto_reply` (`Auto-Submitted` niet `no`, `Precedence: bulk/junk/auto_reply/list`, `X-Autoreply`, `multipart/report`, of een onderwerp als "Automatisch antwoord:", "Out of office", "Undeliverable"), `no_ticket_match`, `ticket_not_found`, `sender_not_on_ticket`, `empty_body` (na het wegknippen bleef niets over) en `duplicate` (zelfde `message_id` is al verwerkt; hoofdletters en `<>` tellen niet).
+
+**Antwoorden.**
+
+- Geplaatst: `200` `{"success": true, "ingested": true, "ticket_id": 123, "message_id": 456, "matched_via": "header"}`; `matched_via` is `header` of `subject`.
+- Genegeerd: `200` `{"success": true, "ingested": false, "reason": "duplicate", "ticket_id": 123}`. De watcher hoeft niets te herhalen en de mail niet te verwijderen.
+- `422` `invalid_payload` — `message_id` of een geldig `from_email` ontbreekt. Niet opnieuw proberen.
+- `403` `forbidden` — geen service-key.
+- `500` `ingest_failed` — het bericht is niet geplaatst en de `message_id` is niet onthouden. De watcher mag opnieuw proberen, ook met dezelfde `message_id`.
+- `401` — ongeldige API-key (zie **Authenticatie**).
+
+**Feature-flag.** In `auth.php` (niet in git):
+
+```php
+$mailReplyIngest = [
+    'enabled' => true,                 // alleen een echte true schakelt in; zonder deze variabele staat de ingest uit
+    'mailbox' => 'ict@kvt.nl',         // gedeelde mailbox: Reply-To van ticketmail, en wordt nooit zelf gemeld
+    'ticket_ids' => [123, 124],        // optioneel: alleen deze tickets; weglaten of [] = alle tickets
+];
+```
+
+Uitrollen: zet eerst `enabled` aan met een of twee `ticket_ids`, antwoord per mail op een mail over zo'n ticket en controleer het ticket. Haal daarna `ticket_ids` weg voor alle tickets. Uitzetten: `enabled` op `false` of de variabele verwijderen. Mails die al bij de watcher binnenkomen worden dan met `ingest_disabled` genegeerd en niet later alsnog geplaatst. Alleen voor tickets waarvoor de ingest aanstaat, krijgt de uitgaande mail `Reply-To: <mailbox>`.
+
+Voorbeeld:
+
+```bash
+curl -X POST "https://sleutels.kvt.nl/asclepius/api.php" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: SERVICE_KEY" \
+  -d "{\"action\":\"ingest_ticket_reply_mail\",\"message_id\":\"<abc@example>\",\"from_email\":\"naam@kvt.nl\",\"subject\":\"RE: Ticket #123\",\"body_text\":\"Het werkt weer, bedankt!\"}"
+```
 
 ## Uitgaande webhook — ticket
 
