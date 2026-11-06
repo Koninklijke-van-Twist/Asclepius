@@ -2583,6 +2583,15 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         ];
     }
 
+    $postAsUser = $hasValidServiceApiKey && isApiTruthy($payload['as_user'] ?? false);
+    if ($postAsUser && ($isGhost || $wantsFieldChange)) {
+        return [
+            'success' => false,
+            'error' => 'as_user_conflict',
+            'error_code' => 'as_user_conflict',
+        ];
+    }
+
     $mutationAccess = null;
     if ($wantsFieldChange) {
         $mutationAccess = resolveIctTicketMutationAccess($store, $payload, $apiClient, $hasValidServiceApiKey);
@@ -2607,6 +2616,20 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
         ];
     }
 
+    if ($postAsUser) {
+        $authorEmails = array_merge(
+            [strtolower(trim((string) ($ticket['user_email'] ?? '')))],
+            is_array($ticket['participant_emails'] ?? null) ? $ticket['participant_emails'] : []
+        );
+        if (!filter_var($viewerEmail, FILTER_VALIDATE_EMAIL) || !in_array($viewerEmail, $authorEmails, true)) {
+            return [
+                'success' => false,
+                'error' => 'forbidden',
+                'error_code' => 'forbidden',
+            ];
+        }
+    }
+
     $callerSuppliedEmail = apiCallerSuppliedIdentityField($payload, ['sender_email', 'viewer_email', 'user_email']);
     $callerSuppliedName = apiCallerSuppliedIdentityField($payload, ['sender_name', 'display_name', 'sender_display_name']);
     $callerSuppliedTitle = apiCallerSuppliedIdentityField($payload, ['sender_title', 'role_title', 'function_title', 'sender_role_title']);
@@ -2625,7 +2648,7 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
             : 'ict@kvt.nl';
     }
 
-    $canPostAsAdmin = $userIsAdmin || $mutationAccess !== null;
+    $canPostAsAdmin = !$postAsUser && ($userIsAdmin || $mutationAccess !== null);
     $senderRole = $canPostAsAdmin ? 'admin' : 'user';
     $senderDisplayName = null;
     $senderRoleTitle = null;
@@ -2683,6 +2706,11 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
     $newAssignee = strtolower(trim((string) ($ticket['assigned_email'] ?? '')));
     $statusChanged = false;
     $assigneeChanged = false;
+
+    if ($postAsUser && $message !== '' && (string) ($ticket['status'] ?? '') === 'afwachtende op gebruiker') {
+        $newStatus = 'in behandeling';
+        $statusChanged = true;
+    }
 
     if ($wantsStatus) {
         $resolvedStatus = resolveTicketStatusValue(readApiStatusValue($payload), $store, $actorEmail);
@@ -2747,7 +2775,7 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
     $composedReply = composeTicketReplyMessageForStorage(
         $message,
         $isGhost,
-        $statusChanged,
+        $statusChanged && !$postAsUser,
         $newStatus,
         $actorEmail
     );
@@ -2895,7 +2923,7 @@ function handleAddTicketMessageApiAction(TicketStore $store, array $payload, ?ar
     }
 
     $store->recordApiTicketEvent($ticketId, 'message');
-    if ($statusChanged) {
+    if ($statusChanged && !$postAsUser) {
         $store->recordApiTicketEvent($ticketId, 'status');
     }
 

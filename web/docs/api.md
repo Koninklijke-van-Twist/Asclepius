@@ -207,6 +207,7 @@ Velden:
 - `sender_email` / `viewer_email` / `user_email` — actor; bij service-key verplicht voor een herkenbare afzender, anders `ict@kvt.nl`
 - `sender_name` / `display_name` / `sender_display_name` — optioneel; weergavenaam in de ticketthread. Alleen ICT-sessie, service-key of trusted localhost. Anders de naam bij het e-mailadres.
 - `sender_title` / `role_title` / `function_title` / `sender_role_title` — optioneel; blauwe functietitel naast de naam. Zelfde rechten als `sender_name`. Anders `ICT` of `Gebruiker`.
+- `as_user` — optioneel, alleen met service-key; `true` plaatst het bericht als gebruiker, zie **Plaatsen als gebruiker** hieronder
 - `status` / `ticket_status` — optioneel; alleen meenemen om de status te wijzigen. Zelfde regels als `change_ticket_status` (vaste waarde uit `ticket_lookups.statuses` of eigen label).
 - `assigned_email` / `assignee` / `assigned` — optioneel; alleen meenemen om de toewijzing te wijzigen. Lege string = niet toegewezen. Zelfde regels als `change_ticket_assignee`.
 
@@ -218,6 +219,8 @@ Rechten:
 - `ghost: true` alleen met ICT-sessie, service-key of trusted localhost → anders `403` `ghost_forbidden`
 - Eigen naam/titel alleen met dezelfde rechten als ghost; andere callers worden stil genegeerd
 - `status` / `assigned_email` alleen met dezelfde autorisatie als `change_ticket_status` / `change_ticket_assignee`: service-key, webhook-key (`apiClient.is_admin`), ICT-rechten van de sessie, of trusted localhost. Anders `403` `forbidden`. Een `user_is_admin` in de body geeft geen extra rechten.
+
+**Plaatsen als gebruiker (`as_user`):** een service-key plaatst normaal altijd als `admin`. Met `"as_user": true` plaatst hij als de gebruiker, bijvoorbeeld voor een antwoord per e-mail. Dat mag alleen als `sender_email` (of `viewer_email` / `user_email`) de aanvrager of een deelnemer van dit ticket is; anders `403` `forbidden`. Er is geen rol-override voor andere adressen. Het bericht volgt dan het pad van een gebruikersreactie in de webinterface: `sender_role` is `user`, staat het ticket op `afwachtende op gebruiker` dan gaat de status naar `in behandeling` (zonder systeemnotitie), en de gebruikersreactie-webhook vuurt. `sender_name` / `sender_title` worden genegeerd. Combineren met `ghost`, `status` of `assigned_email` geeft `422` `as_user_conflict`. Zonder `as_user` verandert er niets, ook niet als `sender_email` de aanvrager is. Deze aanroep stuurt zelf geen mail naar ICT.
 
 Succes → `200` met `ticket_id`, `message_id`, `is_ghost`, `sender_email`, `sender_name`, `sender_role`, `sender_title`, `message`. Met bijlagen ook `attachments` en `ticket_url`.
 
