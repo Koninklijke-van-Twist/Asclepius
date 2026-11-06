@@ -1,3 +1,12 @@
+id: 2026-11-06-long-message-fold
+date: 2026-11-06
+title: Lange Nachrichten zuerst eingeklappt
+author: Cursor Agent
+
+Eine lange Ticketnachricht zeigt zuerst den Anfang, mit einem weichen Übergang. Darunter steht eine Schaltfläche, die nur diese Nachricht ganz öffnet. Kürzere Nachrichten bleiben wie bisher.
+
+---
+
 id: 2026-11-06-mail-reply-ingest
 date: 2026-11-06
 title: Antworten per E-Mail landen im Ticket

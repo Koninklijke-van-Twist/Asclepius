@@ -1,3 +1,12 @@
+id: 2026-11-06-long-message-fold
+date: 2026-11-06
+title: Lange berichten eerst ingeklapt
+author: Cursor Agent
+
+Een lang bericht in een ticket laat eerst het begin zien, met een zachte overgang. Daaronder staat **hele bericht tonen**. Die knop vouwt alleen dat bericht helemaal open. Kortere berichten blijven zoals ze waren.
+
+---
+
 id: 2026-11-06-mail-reply-ingest
 date: 2026-11-06
 title: Antwoorden per e-mail komen in het ticket

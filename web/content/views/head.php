@@ -2590,6 +2590,7 @@
             padding: 12px 12px 34px;
             border: 1px solid var(--line);
             background: #fbfdff;
+            --message-bg: #fbfdff;
         }
 
         .message-reactions {
@@ -2678,12 +2679,14 @@
 
         .message.admin {
             background: #eff6ff;
+            --message-bg: #eff6ff;
         }
 
         .message.is-ghost {
             position: relative;
             overflow: visible;
             background: #5b21b6;
+            --message-bg: #5b21b6;
             border: 2px solid #f9a8d4;
             border-radius: 14px;
             color: #fce7f3;
@@ -4515,6 +4518,86 @@
                 grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
             }
         }
+
+        /* ASCLEPIUS-MESSAGE-FOLD-START */
+        .message-fold-preview {
+            display: none;
+            position: relative;
+        }
+
+        .message-fold.is-collapsed .message-fold-preview {
+            display: block;
+        }
+
+        .message-fold.is-collapsed .message-fold-full {
+            display: none;
+        }
+
+        .message-fold-fade {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 2.8em;
+            background: linear-gradient(to bottom, rgba(251, 253, 255, 0), var(--message-bg, #fbfdff));
+            pointer-events: none;
+        }
+
+        .message-fold-toggle {
+            display: none;
+            margin: 8px 0 0;
+            padding: 10px 0;
+            min-height: 44px;
+            max-width: 100%;
+            border: 0;
+            background: transparent;
+            color: var(--accent);
+            font: inherit;
+            font-weight: 700;
+            line-height: 1.3;
+            text-align: left;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .message-fold.is-collapsed .message-fold-toggle {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .message.is-ghost .message-fold-toggle {
+            color: #fce7f3;
+        }
+
+        .message-fold-toggle:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 3px;
+        }
+
+        @media (max-width: 640px) {
+            .message-fold.is-collapsed .message-fold-toggle {
+                width: 100%;
+            }
+        }
+
+        @media print {
+            .message-fold.is-collapsed .message-fold-full {
+                display: block !important;
+            }
+
+            .message-fold.is-collapsed .message-fold-preview,
+            .message-fold.is-collapsed .message-fold-toggle {
+                display: none !important;
+            }
+        }
+        /* ASCLEPIUS-MESSAGE-FOLD-END */
     </style>
+    <noscript>
+        <style>
+            .message-fold.is-collapsed .message-fold-full { display: block !important; }
+            .message-fold.is-collapsed .message-fold-preview,
+            .message-fold.is-collapsed .message-fold-toggle { display: none !important; }
+        </style>
+    </noscript>
     <link rel="stylesheet" href="thirdparty/highlightjs/asclepius-light.css">
 </head>

@@ -49,6 +49,8 @@ const TICKET_CREATE_JSON_MAX_BYTES = 3145728;
 /** Langere tekst blijft opgeslagen maar gaat niet naar de vertaler. */
 const TICKET_TRANSLATION_MAX_BYTES = 131072;
 const REQUESTER_DISPLAY_NAME_MAX_CHARS = 80;
+/** Weergave: meer dan dit aantal bronregels vouwt één bericht in. Geen opslaglimiet. */
+const TICKET_MESSAGE_FOLD_LINE_LIMIT = 35;
 const STATUS_COLORS = [
     'ingediend' => '#2563eb',
     'in behandeling' => '#d97706',
